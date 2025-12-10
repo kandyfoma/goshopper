@@ -40,6 +40,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 const auth = admin.auth();
+const messaging = admin.messaging();
 
 // Middleware
 app.use(express.json());
@@ -54,7 +55,7 @@ function getHtmlTemplate(title, content) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title} - GoShopperAI Admin</title>
+    <title>${title} - GoShopperAI Admin (v1.1)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
         .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -101,10 +102,28 @@ function getHtmlTemplate(title, content) {
 // Routes
 app.get('/', async (req, res) => {
   try {
+    console.log('Loading dashboard...');
+    
     // Get basic stats
-    const users = await auth.listUsers();
+    console.log('Fetching users...');
+    let users = { users: [] };
+    let authError = null;
+    try {
+      users = await auth.listUsers();
+      console.log(`Found ${users.users.length} users`);
+    } catch (error) {
+      authError = error;
+      console.error('❌ Error fetching users (Auth not configured?):', error.message);
+      // Continue without users
+    }
+    
+    console.log('Fetching receipts...');
     const receipts = await db.collectionGroup('receipts').get();
+    console.log(`Found ${receipts.size} receipts`);
+    
+    console.log('Fetching alerts...');
     const alerts = await db.collectionGroup('priceAlerts').where('isActive', '==', true).get();
+    console.log(`Found ${alerts.size} alerts`);
 
     let totalSpending = 0;
     receipts.docs.forEach(doc => {
@@ -113,6 +132,7 @@ app.get('/', async (req, res) => {
 
     const content = `
         <h2>Dashboard</h2>
+        ${authError ? `<div class="alert alert-error">Warning: Authentication service not accessible. User stats may be incomplete.</div>` : ''}
         <div class="stats">
             <div class="stat-card">
                 <div class="stat-number">${users.users.length}</div>
@@ -285,6 +305,47 @@ app.get('/receipts', async (req, res) => {
     res.send(getHtmlTemplate('Receipts', content));
   } catch (error) {
     res.send(getHtmlTemplate('Error', `<div class="alert alert-error">Error loading receipts: ${error.message}</div>`));
+  }
+});
+
+app.get('/prices', async (req, res) => {
+  try {
+    const prices = await db.collectionGroup('prices').orderBy('recordedAt', 'desc').limit(50).get();
+
+    let tableRows = '';
+    prices.docs.forEach(doc => {
+      const data = doc.data();
+      tableRows += `
+        <tr>
+          <td>${data.productName || 'N/A'}</td>
+          <td>${data.storeName || 'N/A'}</td>
+          <td>${data.price || 0} ${data.currency || 'USD'}</td>
+          <td>${data.recordedAt?.toDate()?.toLocaleDateString() || 'N/A'}</td>
+        </tr>
+      `;
+    });
+
+    const content = `
+        <h2>Prices (${prices.size})</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Store</th>
+                    <th>Price</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRows}
+            </tbody>
+        </table>
+    `;
+
+    res.send(getHtmlTemplate('Prices', content));
+  } catch (error) {
+    console.error('❌ Error loading prices:', error);
+    res.send(getHtmlTemplate('Error', `<div class="alert alert-error">Error loading prices: ${error.message}</div>`));
   }
 });
 

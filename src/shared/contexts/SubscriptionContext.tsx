@@ -37,6 +37,8 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
     scansRemaining: 0,
     isTrialActive: false,
     trialDaysRemaining: 0,
+    isExpiringSoon: false,
+    daysUntilExpiration: 0,
     error: null,
   });
 
@@ -69,6 +71,12 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       }
     }
 
+    const now = new Date();
+    const daysUntilExpiration = subscription.subscriptionEndDate
+      ? Math.ceil((subscription.subscriptionEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    const isExpiringSoon = daysUntilExpiration > 0 && daysUntilExpiration <= 7;
+
     return {
       subscription,
       isLoading: false,
@@ -76,6 +84,8 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       scansRemaining,
       isTrialActive,
       trialDaysRemaining,
+      isExpiringSoon,
+      daysUntilExpiration,
       error: null,
     };
   }, []);
@@ -90,6 +100,8 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
         scansRemaining: 0,
         isTrialActive: false,
         trialDaysRemaining: 0,
+        isExpiringSoon: false,
+        daysUntilExpiration: 0,
         error: null,
       });
       return;
