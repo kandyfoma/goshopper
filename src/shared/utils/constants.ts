@@ -37,6 +37,33 @@ export const MONTHLY_PRICE_CDF = 8000;
 export const YEARLY_PRICE_USD = 24.99;
 export const YEARLY_PRICE_CDF = 67000;
 
+// Subscription Duration Options (in months)
+export const SUBSCRIPTION_DURATIONS = {
+  1: { label: '1 Month', labelFr: '1 Mois', discount: 0 },
+  3: { label: '3 Months', labelFr: '3 Mois', discount: 10 },
+  6: { label: '6 Months', labelFr: '6 Mois', discount: 20 },
+  12: { label: '1 Year', labelFr: '1 An', discount: 30 },
+} as const;
+
+// Calculate discounted price
+export const calculateDiscountedPrice = (
+  basePrice: number,
+  months: 1 | 3 | 6 | 12
+): { total: number; monthly: number; savings: number } => {
+  const duration = SUBSCRIPTION_DURATIONS[months];
+  const originalTotal = basePrice * months;
+  const discount = duration.discount / 100;
+  const discountedTotal = originalTotal * (1 - discount);
+  const savings = originalTotal - discountedTotal;
+  const monthly = discountedTotal / months;
+  
+  return {
+    total: Math.round(discountedTotal * 100) / 100,
+    monthly: Math.round(monthly * 100) / 100,
+    savings: Math.round(savings * 100) / 100,
+  };
+};
+
 // Subscription Plans Object (for UI)
 export const SUBSCRIPTION_PLANS = {
   free: {

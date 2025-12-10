@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from './config';
+import {pushNotificationService} from './pushNotifications';
 
 const SAVINGS_COLLECTION = (userId: string) =>
   `apps/${APP_ID}/users/${userId}/savings`;
@@ -634,9 +635,129 @@ class SavingsTrackerService {
       {title: 'Légende', titleLingala: 'Likambo', icon: '🏆', color: '#dc2626'},
     ];
     
-    const index = Math.min(Math.floor((level - 1) / 5), levels.length - 1);
-    return levels[index];
+  /**
+   * Check for newly unlocked achievements
+   */
+  private async checkAchievements(userId: string): Promise<void> {
+    try {
+      const stats = await this.getStats(userId);
+      const userAchievements = await this.getUserAchievements(userId);
+
+      const newlyUnlocked: Achievement[] = [];
+
+      for (const achievement of ACHIEVEMENTS) {
+        // Skip if already unlocked
+        if (userAchievements.some(ua => ua.id === achievement.id && ua.isUnlocked)) {
+          continue;
+        }
+
+        let progress = 0;
+        let isUnlocked = false;
+
+        // Check achievement conditions
+        switch (achievement.type) {
+          case 'first_scan':
+            progress = stats.totalScans;
+            isUnlocked = stats.totalScans >= achievement.target;
+            break;
+          case 'scans_5':
+            progress = stats.totalScans;
+            isUnlocked = stats.totalScans >= achievement.target;
+            break;
+          case 'scans_25':
+            progress = stats.totalScans;
+            isUnlocked = stats.totalScans >= achievement.target;
+            break;
+          case 'scans_100':
+            progress = stats.totalScans;
+            isUnlocked = stats.totalScans >= achievement.target;
+            break;
+          case 'savings_100':
+            progress = stats.totalSavings;
+            isUnlocked = stats.totalSavings >= achievement.target;
+            break;
+          case 'savings_500':
+            progress = stats.totalSavings;
+            isUnlocked = stats.totalSavings >= achievement.target;
+            break;
+          case 'savings_1000':
+            progress = stats.totalSavings;
+            isUnlocked = stats.totalSavings >= achievement.target;
+            break;
+          case 'streak_3':
+            progress = stats.currentStreak;
+            isUnlocked = stats.currentStreak >= achievement.target;
+            break;
+          case 'streak_7':
+            progress = stats.currentStreak;
+            isUnlocked = stats.currentStreak >= achievement.target;
+            break;
+          case 'streak_30':
+            progress = stats.currentStreak;
+            isUnlocked = stats.currentStreak >= achievement.target;
+            break;
+          case 'price_hunter':
+            progress = stats.bestPricesFound;
+            isUnlocked = stats.bestPricesFound >= achievement.target;
+            break;
+          // Add more achievement types as needed
+        }
+
+        if (isUnlocked) {
+          const unlockedAchievement: Achievement = {
+            ...achievement,
+            progress: achievement.target,
+            isUnlocked: true,
+            unlockedAt: new Date(),
+          };
+
+          newlyUnlocked.push(unlockedAchievement);
+
+          // Save to Firestore
+          await firestore()
+            .collection(ACHIEVEMENTS_COLLECTION(userId))
+            .doc(achievement.id)
+            .set({
+              ...unlockedAchievement,
+              unlockedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        }
+      }
+
+      // Send notifications for newly unlocked achievements
+      for (const achievement of newlyUnlocked) {
+        await pushNotificationService.triggerAchievementNotification(
+          achievement.title,
+          'fr' // Default to French, could be made configurable
+        );
+      }
+
+    } catch (error) {
+      console.error('[SavingsTracker] Check achievements error:', error);
+    }
   }
-}
+
+  /**
+   * Get user achievements
+   */
+  async getUserAchievements(userId: string): Promise<Achievement[]> {
+    try {
+      const snapshot = await firestore()
+        .collection(ACHIEVEMENTS_COLLECTION(userId))
+        .get();
+
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          unlockedAt: data.unlockedAt?.toDate(),
+        } as Achievement;
+      });
+    } catch (error) {
+      console.error('[SavingsTracker] Get achievements error:', error);
+      return [];
+    }
+  }
 
 export const savingsTrackerService = new SavingsTrackerService();

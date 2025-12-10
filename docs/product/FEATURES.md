@@ -911,12 +911,13 @@ Users receive push notifications for price alerts, savings tips, and app updates
 - Deep linking for notification actions
 
 ### Notification Types
-| Type | Trigger | Content |
-|------|---------|---------|
-| price_alert | Price drops below target | "🔔 {product} is now ${price} at {store}!" |
-| savings_tip | Weekly on Saturday | AI-generated savings suggestion |
-| sync_complete | Offline queue processed | "{count} receipts synced" |
-| achievement | Achievement unlocked | "🏆 You earned: {achievement}!" |
+| Type | Trigger | Content | Status |
+|------|---------|---------|--------|
+| price_alert | Price drops below target | "🔔 Alerte Prix! {product} est maintenant à ${price} chez {store}!" | ✅ Implemented |
+| savings_tip | Weekly on Saturday | AI-generated savings suggestion | ✅ Implemented |
+| sync_complete | Offline queue processed | "{count} receipt(s) synced successfully!" | ✅ Implemented |
+| achievement | Achievement unlocked | "🏆 Congratulations! You unlocked: {achievement}!" | ✅ Implemented |
+| admin_broadcast | Admin sends manually | Custom message from admin | ✅ Implemented |
 
 ---
 

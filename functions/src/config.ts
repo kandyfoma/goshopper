@@ -3,6 +3,13 @@
  */
 
 export const config = {
+  // Firebase
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || 'your-firebase-project-id',
+    serviceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '',
+    databaseURL: process.env.FIREBASE_DATABASE_URL || '',
+  },
+
   // Gemini AI
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',

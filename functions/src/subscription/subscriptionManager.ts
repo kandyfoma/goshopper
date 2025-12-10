@@ -19,6 +19,46 @@ const PLAN_SCAN_LIMITS: Record<string, number> = {
   premium: -1, // Unlimited
 };
 
+// Subscription duration options (in months)
+type SubscriptionDuration = 1 | 3 | 6 | 12;
+
+// Discount percentages for longer subscriptions
+const DURATION_DISCOUNTS: Record<SubscriptionDuration, number> = {
+  1: 0,    // No discount for monthly
+  3: 10,   // 10% discount for 3 months
+  6: 20,   // 20% discount for 6 months
+  12: 30,  // 30% discount for 1 year
+};
+
+// Base monthly prices per plan (USD)
+const BASE_PRICES: Record<string, number> = {
+  basic: 1.99,
+  standard: 2.99,
+  premium: 4.99,
+};
+
+/**
+ * Calculate price with duration discount
+ */
+function calculateSubscriptionPrice(
+  planId: string,
+  durationMonths: SubscriptionDuration
+): { total: number; monthly: number; savings: number; discountPercent: number } {
+  const basePrice = BASE_PRICES[planId] || BASE_PRICES.standard;
+  const discountPercent = DURATION_DISCOUNTS[durationMonths] || 0;
+  const originalTotal = basePrice * durationMonths;
+  const discountAmount = originalTotal * (discountPercent / 100);
+  const total = originalTotal - discountAmount;
+  const monthly = total / durationMonths;
+  
+  return {
+    total: Math.round(total * 100) / 100,
+    monthly: Math.round(monthly * 100) / 100,
+    savings: Math.round(discountAmount * 100) / 100,
+    discountPercent,
+  };
+}
+
 /**
  * Check if trial is active (time-based)
  */
@@ -343,7 +383,7 @@ export const upgradeSubscription = functions
     }
     
     const userId = context.auth.uid;
-    const { planId, transactionId, paymentDetails } = data;
+    const { planId, transactionId, paymentDetails, durationMonths = 1 } = data;
     
     if (!planId || !transactionId) {
       throw new functions.https.HttpsError(
@@ -356,31 +396,42 @@ export const upgradeSubscription = functions
     if (!validPlans.includes(planId)) {
       throw new functions.https.HttpsError('invalid-argument', 'Invalid plan');
     }
+
+    const validDurations = [1, 3, 6, 12];
+    const duration = validDurations.includes(durationMonths) ? durationMonths : 1;
     
     try {
       const subscriptionRef = db.doc(collections.subscription(userId));
       const now = new Date();
+      
+      // Calculate subscription end date based on duration
       const endDate = new Date(now);
-      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setMonth(endDate.getMonth() + duration);
       
       // Reset billing period start
       const billingPeriodStart = new Date(now);
       const billingPeriodEnd = new Date(now);
-      billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+      billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1); // Monthly billing cycle for scan reset
+      
+      // Calculate pricing
+      const pricing = calculateSubscriptionPrice(planId, duration as SubscriptionDuration);
       
       await subscriptionRef.set({
         userId,
         isSubscribed: true,
         planId,
         status: 'active',
+        durationMonths: duration,
         monthlyScansUsed: 0, // Reset monthly usage
         currentBillingPeriodStart: admin.firestore.Timestamp.fromDate(billingPeriodStart),
         currentBillingPeriodEnd: admin.firestore.Timestamp.fromDate(billingPeriodEnd),
         subscriptionStartDate: admin.firestore.Timestamp.fromDate(now),
         subscriptionEndDate: admin.firestore.Timestamp.fromDate(endDate),
         lastPaymentDate: admin.firestore.Timestamp.fromDate(now),
+        lastPaymentAmount: pricing.total,
         transactionId,
         autoRenew: true,
+        expirationNotificationSent: false,
         ...paymentDetails,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
@@ -388,14 +439,142 @@ export const upgradeSubscription = functions
       return {
         success: true,
         planId,
+        durationMonths: duration,
         scanLimit: PLAN_SCAN_LIMITS[planId] || 25,
         expiresAt: endDate.toISOString(),
+        pricing,
       };
       
     } catch (error) {
       console.error('Upgrade subscription error:', error);
       throw new functions.https.HttpsError('internal', 'Failed to upgrade subscription');
     }
+  });
+
+/**
+ * Renew/Resubscribe before expiration
+ * Allows users to renew early - extends from current end date
+ */
+export const renewSubscription = functions
+  .region(config.app.region)
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+    
+    const userId = context.auth.uid;
+    const { planId, transactionId, paymentDetails, durationMonths = 1 } = data;
+    
+    if (!planId || !transactionId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Plan ID and transaction ID are required'
+      );
+    }
+    
+    const validPlans = ['basic', 'standard', 'premium'];
+    if (!validPlans.includes(planId)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid plan');
+    }
+
+    const validDurations = [1, 3, 6, 12];
+    const duration = validDurations.includes(durationMonths) ? durationMonths : 1;
+    
+    try {
+      const subscriptionRef = db.doc(collections.subscription(userId));
+      const subscriptionDoc = await subscriptionRef.get();
+      
+      const now = new Date();
+      let startDate = now;
+      
+      // If subscription exists and is still active, extend from current end date
+      if (subscriptionDoc.exists) {
+        const currentSubscription = subscriptionDoc.data() as Subscription;
+        
+        if (currentSubscription.isSubscribed && currentSubscription.subscriptionEndDate) {
+          const currentEndDate = currentSubscription.subscriptionEndDate instanceof admin.firestore.Timestamp
+            ? currentSubscription.subscriptionEndDate.toDate()
+            : new Date(currentSubscription.subscriptionEndDate);
+          
+          // If current subscription hasn't expired yet, extend from that date
+          if (currentEndDate > now) {
+            startDate = currentEndDate;
+          }
+        }
+      }
+      
+      // Calculate new end date from the start date
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + duration);
+      
+      // Calculate pricing
+      const pricing = calculateSubscriptionPrice(planId, duration as SubscriptionDuration);
+      
+      await subscriptionRef.set({
+        userId,
+        isSubscribed: true,
+        planId,
+        status: 'active',
+        durationMonths: duration,
+        monthlyScansUsed: 0,
+        subscriptionStartDate: admin.firestore.Timestamp.fromDate(now),
+        subscriptionEndDate: admin.firestore.Timestamp.fromDate(endDate),
+        lastPaymentDate: admin.firestore.Timestamp.fromDate(now),
+        lastPaymentAmount: pricing.total,
+        transactionId,
+        autoRenew: true,
+        expirationNotificationSent: false,
+        daysUntilExpiration: null,
+        ...paymentDetails,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      
+      return {
+        success: true,
+        planId,
+        durationMonths: duration,
+        scanLimit: PLAN_SCAN_LIMITS[planId] || 25,
+        expiresAt: endDate.toISOString(),
+        renewedFrom: startDate.toISOString(),
+        pricing,
+        message: startDate > now 
+          ? `Subscription extended to ${endDate.toLocaleDateString()}`
+          : `Subscription renewed until ${endDate.toLocaleDateString()}`,
+      };
+      
+    } catch (error) {
+      console.error('Renew subscription error:', error);
+      throw new functions.https.HttpsError('internal', 'Failed to renew subscription');
+    }
+  });
+
+/**
+ * Get subscription pricing for all durations
+ */
+export const getSubscriptionPricing = functions
+  .region(config.app.region)
+  .https.onCall(async (data, context) => {
+    const { planId = 'standard' } = data;
+    
+    const validPlans = ['basic', 'standard', 'premium'];
+    if (!validPlans.includes(planId)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid plan');
+    }
+    
+    const durations: SubscriptionDuration[] = [1, 3, 6, 12];
+    const pricing = durations.map(duration => ({
+      duration,
+      label: duration === 1 ? '1 Month' : duration === 12 ? '1 Year' : `${duration} Months`,
+      labelFr: duration === 1 ? '1 Mois' : duration === 12 ? '1 An' : `${duration} Mois`,
+      ...calculateSubscriptionPrice(planId, duration),
+    }));
+    
+    return {
+      planId,
+      baseMonthlyPrice: BASE_PRICES[planId],
+      scanLimit: PLAN_SCAN_LIMITS[planId],
+      pricing,
+    };
   });
 
 /**

@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo, {NetInfoState} from '@react-native-community/netinfo';
 import {receiptStorageService} from './receiptStorage';
+import {pushNotificationService} from './pushNotifications';
 import {Receipt} from '@/shared/types';
 
 const OFFLINE_QUEUE_KEY = '@goshopperai/offline_queue';
@@ -269,6 +270,14 @@ class OfflineQueueService {
       // Notify listeners
       const updatedQueue = await this.getQueue();
       this.notifyListeners(updatedQueue);
+      
+      // Send sync complete notification if items were processed
+      if (processed > 0) {
+        await pushNotificationService.triggerSyncCompleteNotification(
+          processed,
+          'fr' // Default to French, could be made configurable
+        );
+      }
       
     } finally {
       this.isProcessing = false;

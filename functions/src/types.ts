@@ -60,7 +60,8 @@ export interface Subscription {
   // Subscription details
   isSubscribed: boolean;
   planId?: 'free' | 'basic' | 'standard' | 'premium';
-  status: 'trial' | 'active' | 'expired' | 'cancelled' | 'pending';
+  status: 'trial' | 'active' | 'expired' | 'cancelled' | 'pending' | 'expiring_soon';
+  durationMonths?: 1 | 3 | 6 | 12;
   
   // Billing
   subscriptionStartDate?: Date;
@@ -80,6 +81,11 @@ export interface Subscription {
   
   // Auto-renewal
   autoRenew: boolean;
+  
+  // Expiration notifications
+  expirationNotificationSent?: boolean;
+  expirationNotificationDate?: Date;
+  daysUntilExpiration?: number;
   
   // Timestamps
   createdAt?: Date;

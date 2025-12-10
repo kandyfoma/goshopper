@@ -2,6 +2,7 @@
 import messaging, {
   FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
+import functions from '@react-native-firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import {Platform, PermissionsAndroid} from 'react-native';
@@ -388,6 +389,35 @@ class PushNotificationService {
    */
   async getToken(): Promise<string | null> {
     return await AsyncStorage.getItem(FCM_TOKEN_KEY);
+  }
+
+  /**
+   * Trigger achievement notification
+   */
+  async triggerAchievementNotification(achievementTitle: string, language: string = 'fr'): Promise<void> {
+    try {
+      await functions().httpsCallable('sendAchievementNotification')({
+        achievementId: achievementTitle.toLowerCase().replace(/\s+/g, '_'),
+        achievementTitle,
+        language,
+      });
+    } catch (error) {
+      console.error('[PushNotifications] Achievement notification error:', error);
+    }
+  }
+
+  /**
+   * Trigger sync complete notification
+   */
+  async triggerSyncCompleteNotification(syncedCount: number, language: string = 'fr'): Promise<void> {
+    try {
+      await functions().httpsCallable('sendSyncCompleteNotification')({
+        syncedCount,
+        language,
+      });
+    } catch (error) {
+      console.error('[PushNotifications] Sync notification error:', error);
+    }
   }
 }
 
