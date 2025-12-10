@@ -153,11 +153,14 @@ categoryTotals = GROUP BY item.category, SUM(item.totalPrice)
 ## Feature 4: Subscription & Payments
 
 ### Description
-Users start with a free trial (5 scans) and can upgrade to unlimited access via Mobile Money payment.
+Users start with a free trial (2 months) and can upgrade to paid access. Payment methods vary by location:
+- **DRC Users**: Choice of Mobile Money (M-Pesa, Orange, Airtel, AfriMoney) or Visa/Card
+- **International Users**: Visa/Card payment only (via Stripe)
 
 ### User Stories
 - As a user, I want to try the app for free before paying.
-- As a user, I want to pay with my Mobile Money account.
+- As a DRC user, I want to pay with my Mobile Money account.
+- As an international user, I want to pay with my credit/debit card.
 - As a user, I want to know how many free scans I have left.
 - As a user, I want to manage my subscription.
 
@@ -165,45 +168,126 @@ Users start with a free trial (5 scans) and can upgrade to unlimited access via 
 
 | ID | Criteria | Priority |
 |----|----------|----------|
-| SB-1 | New users get 5 free scans | Must |
+| SB-1 | New users get 2-month free trial | Must |
 | SB-2 | Trial counter visible in UI | Must |
-| SB-3 | Paywall appears when trial exhausted | Must |
-| SB-4 | Monthly plan option ($2.99) | Must |
-| SB-5 | Yearly plan option ($24.99, 30% off) | Must |
-| SB-6 | Mobile Money providers selectable (M-Pesa, Orange, Airtel, AfriMoney) | Must |
-| SB-7 | Phone number input for payment | Must |
-| SB-8 | Payment initiated via Moko Afrika | Must |
-| SB-9 | Success screen after payment | Must |
-| SB-10 | Subscription status updated in real-time | Must |
-| SB-11 | Subscription end date visible | Must |
-| SB-12 | Expired subscription blocks scans | Must |
-| SB-13 | "Restore Purchase" option available | Should |
+| SB-3 | Paywall appears when trial expires | Must |
+| SB-4 | Basic plan option ($1.99) | Must |
+| SB-5 | Standard plan option ($2.99) | Must |
+| SB-6 | Premium plan option ($4.99) | Must |
+| SB-7 | **DRC users see Mobile Money and Visa options** | Must |
+| SB-8 | **International users see Visa option only** | Must |
+| SB-9 | Mobile Money providers selectable (M-Pesa, Orange, Airtel, AfriMoney) | Must |
+| SB-10 | Phone number input for Mobile Money | Must |
+| SB-11 | Email input for card payment | Must |
+| SB-12 | Payment initiated via Moko Afrika (Mobile Money) | Must |
+| SB-13 | **Payment initiated via Stripe (Card)** | Must |
+| SB-14 | Success screen after payment | Must |
+| SB-15 | Subscription status updated in real-time | Must |
+| SB-16 | Subscription end date visible | Must |
+| SB-17 | Expired subscription blocks scans | Must |
+
+### Payment Methods by Location
+
+| User Location | Mobile Money | Visa/Card | Notes |
+|--------------|--------------|-----------|-------|
+| **DRC (+243)** | ✓ | ✓ | User can choose either payment method |
+| **International** | ✗ | ✓ | Visa/Card is the only option |
 
 ### Business Rules
 
 | Rule | Description |
 |------|-------------|
-| Trial Limit | 5 scans, non-renewable |
-| Subscription Duration | Monthly: 30 days, Yearly: 365 days |
-| Grace Period | None; immediate expiry |
-| Refunds | Via Moko Afrika merchant dashboard |
-| Currency | USD primary, CDF displayed |
+| Trial Duration | 2 months (60 days), non-renewable |
+| Location Detection | Based on phone number prefix (+243 = DRC) |
+| Mobile Money Provider | Moko Afrika for DRC payments |
+| Card Payment Provider | Stripe for Visa/Card payments |
+| Subscription Duration | Monthly: 30 days |
+| Currency | USD primary, CDF displayed for DRC |
 
 ### Payment Flow States
 ```
 1. IDLE → User not in payment flow
 2. SELECTING → User choosing plan
-3. ENTERING_PHONE → User entering phone number
-4. PROCESSING → Payment request sent
-5. AWAITING_CONFIRMATION → User confirming on phone
-6. SUCCESS → Payment complete
-7. FAILED → Payment failed
-8. CANCELLED → User cancelled
+3. CHOOSING_METHOD → DRC user choosing Mobile Money or Card
+4. ENTERING_DETAILS → Phone number (Mobile Money) or Email (Card)
+5. PROCESSING → Payment request sent
+6. AWAITING_CONFIRMATION → User confirming on phone (Mobile Money)
+7. SUCCESS → Payment complete
+8. FAILED → Payment failed
+9. CANCELLED → User cancelled
 ```
 
 ---
 
-## Feature 5: Authentication
+## Feature 5: Two-Factor Authentication (2FA)
+
+### Description
+Users are verified during registration with location-based 2FA:
+- **DRC Users (+243 phone)**: SMS verification to phone number
+- **International Users**: Email verification
+
+### User Stories
+- As a DRC user, I want to verify my account with my phone number.
+- As an international user, I want to verify my account with my email.
+- As a user, I want my account to be secure with 2FA.
+
+### Acceptance Criteria
+
+| ID | Criteria | Priority |
+|----|----------|----------|
+| 2F-1 | Location detected from phone number prefix | Must |
+| 2F-2 | DRC users receive SMS verification code | Must |
+| 2F-3 | International users receive email verification code | Must |
+| 2F-4 | 6-digit verification code generated | Must |
+| 2F-5 | Code expires after 10 minutes | Must |
+| 2F-6 | Code valid for single use | Must |
+| 2F-7 | Maximum 3 verification attempts | Must |
+| 2F-8 | Clear error messages for failed verification | Must |
+| 2F-9 | Resend code option available | Should |
+| 2F-10 | Verification status stored in user profile | Must |
+
+### Verification Methods by Location
+
+| User Location | Verification Method | Provider |
+|--------------|---------------------|----------|
+| **DRC (+243)** | SMS | Africa's Talking |
+| **International** | Email | SendGrid |
+
+### Verification Flow
+
+```
+1. User enters phone number or email
+2. System detects location from phone prefix
+3. IF +243 (DRC):
+   - Send 6-digit code via SMS (Africa's Talking)
+4. ELSE (International):
+   - Send 6-digit code via Email (SendGrid)
+5. User enters code
+6. System verifies code
+7. IF valid: Mark user as verified
+8. IF invalid: Show error, allow retry (max 3)
+```
+
+### Technical Notes
+- SMS Provider: Africa's Talking (supports DRC)
+- Email Provider: SendGrid
+- Code Format: 6-digit numeric
+- Code Expiry: 10 minutes
+- Max Attempts: 3 per session
+- Rate Limiting: 1 code per minute
+
+### Edge Cases
+| Case | Handling |
+|------|----------|
+| Invalid phone format | Show format helper |
+| SMS delivery failure | Allow retry after 60s |
+| Email delivery failure | Check spam folder prompt |
+| Max attempts exceeded | Lock out for 15 minutes |
+| Code expired | Allow resend |
+
+---
+
+## Feature 6: Authentication
 
 ### Description
 Users are authenticated anonymously to enable data persistence without requiring account creation.
@@ -292,27 +376,110 @@ App supports French (primary) and English for the DRC market.
 
 ---
 
-## Feature Priority Matrix
+## Feature 8: Subscription Management
 
-| Feature | Priority | MVP | Phase 2 | Phase 3 |
-|---------|----------|-----|---------|---------|
-| Invoice Scanning | P0 | ✓ | | |
-| Validation/Editing | P0 | ✓ | | |
-| Private Invoice Storage | P0 | ✓ | | |
-| Anonymous Auth | P0 | ✓ | | |
-| Trial Tracking | P0 | ✓ | | |
-| Paywall | P0 | ✓ | | |
-| Mobile Money Payment | P0 | ✓ | | |
-| Price Comparison (Basic) | P1 | ✓ | | |
-| Dashboard/Reports | P1 | ✓ | | |
-| Offline Viewing | P1 | | ✓ | |
-| French Localization | P1 | ✓ | | |
-| Category Breakdown | P2 | | ✓ | |
-| Price History Charts | P2 | | ✓ | |
-| Export Data | P2 | | | ✓ |
-| Price Alerts | P3 | | | ✓ |
-| Shopping Lists | P3 | | | ✓ |
-| Account Upgrade | P3 | | | ✓ |
+### Description
+Users can choose from tiered subscription plans with different scan limits and features, with a generous free trial to try premium features before subscribing.
+
+### User Stories
+- As a new user, I want to try all features for free before subscribing.
+- As a user, I want to see different pricing options.
+- As a user, I want to know how many scans I have left.
+- As a user, I want to upgrade/downgrade my plan.
+
+### Acceptance Criteria
+
+| ID | Criteria | Priority |
+|----|----------|----------|
+| SM-1 | New users get 2-month free trial with full access | Must |
+| SM-2 | Trial users have unlimited scans during trial | Must |
+| SM-3 | Trial expiration warning shown 7 days before end | Must |
+| SM-4 | Usage counter shown in app | Must |
+| SM-5 | Paywall shown when trial expires | Must |
+| SM-6 | Three pricing tiers displayed | Must |
+| SM-7 | Mobile Money payment integration | Must |
+| SM-8 | Subscription status synced across devices | Must |
+| SM-9 | Usage resets monthly | Must |
+| SM-10 | Plan changes take effect immediately | Should |
+
+### Free Trial Details
+
+| Aspect | Details |
+|--------|---------|
+| **Duration** | 2 months from first scan |
+| **Access Level** | Full premium features (unlimited scans) |
+| **Expiration Warning** | 7 days before trial ends |
+| **Post-Trial** | Must choose paid plan to continue |
+| **Trial Extension** | One-time 1-month extension available |
+
+### Pricing Tiers
+
+| Plan | Price/Month | Scan Limit | Trial Access |
+|------|-------------|------------|--------------|
+| **Basic** | $1.99 (8,000 CDF) | 25 scans | 2 months free |
+| **Standard** | $2.99 (12,000 CDF) | 100 scans | 2 months free |
+| **Premium** | $4.99 (20,000 CDF) | Unlimited | 2 months free |
+
+### Trial User Flow
+
+```
+1. User downloads app
+2. Anonymous authentication (no account required)
+3. First scan triggers 2-month trial start
+4. Full access to all features during trial
+5. At 1.5 months: "You're loving the premium features!" (soft prompt)
+6. At 1.75 months: Trial expiration warning (7 days left)
+7. At 2 months: Trial expired → Choose plan or extend trial
+8. Payment → Continue with chosen plan
+```
+
+### Technical Notes
+- Trial start timestamp stored in Firestore
+- Trial duration: 60 days from first scan
+- Trial extension: Additional 30 days (one-time)
+- Monthly billing cycle
+- Auto-renewal via Moko Afrika webhooks
+- Usage tracking in Firestore
+- Grace period for failed payments
+
+### Edge Cases
+| Case | Handling |
+|------|----------|
+| Payment fails | Show warning, allow retry, suspend after 3 days |
+| User exceeds limit | Block scanning, show upgrade prompt |
+| Plan downgrade | Apply at next billing cycle |
+| Refund request | Manual review process |
+
+---
+
+## Feature Availability by Plan
+
+| Feature | Basic | Standard | Premium | Notes |
+|---------|-------|----------|---------|-------|
+| **Core Scanning** | ✓ | ✓ | ✓ | |
+| Invoice Scanning | ✓ | ✓ | ✓ | Camera/gallery capture |
+| Validation/Editing | ✓ | ✓ | ✓ | Manual corrections |
+| Private Invoice Storage | ✓ | ✓ | ✓ | Firestore persistence |
+| **Authentication** | ✓ | ✓ | ✓ | |
+| Anonymous Auth | ✓ | ✓ | ✓ | No account required |
+| Trial Tracking | ✓ | ✓ | ✓ | 2-month free trial with full access |
+| Paywall | ✓ | ✓ | ✓ | Upgrade prompts |
+| Mobile Money Payment | ✓ | ✓ | ✓ | Moko Afrika integration |
+| **Price Features** | ✓ | ✓ | ✓ | |
+| Basic Price Comparison | ✓ | ✓ | ✓ | Store price lookup |
+| **Analytics** |  | ✓ | ✓ | |
+| Dashboard/Reports |  | ✓ | ✓ | Spending summaries |
+| Category Breakdown |  | ✓ | ✓ | Spending by category |
+| Price History Charts |  | ✓ | ✓ | Historical trends |
+| **Advanced Features** |  |  | ✓ | |
+| Price Alerts |  |  | ✓ | Price drop notifications |
+| Shopping Lists |  |  | ✓ | Optimized shopping |
+| Data Export |  |  | ✓ | CSV/PDF export |
+| **Support** |  |  | ✓ | |
+| Priority Support |  |  | ✓ | Faster response |
+| **Offline & Localization** | ✓ | ✓ | ✓ | |
+| Offline Viewing | ✓ | ✓ | ✓ | Cached data access |
+| French Localization | ✓ | ✓ | ✓ | Primary language |
 
 ---
 

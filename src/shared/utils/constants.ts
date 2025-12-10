@@ -4,11 +4,22 @@
 export const APP_NAME = 'GoShopperAI';
 export const APP_VERSION = '1.0.0';
 
+// Trial Configuration
+export const TRIAL_DURATION_DAYS = 60; // 2 months free trial
+export const TRIAL_EXTENSION_DAYS = 30; // 1 month extension available
+export const TRIAL_SCAN_LIMIT = -1; // Unlimited during trial
+
 // API Limits
-export const TRIAL_SCAN_LIMIT = 5;
 export const RATE_LIMIT_PER_MINUTE = 10;
 export const RATE_LIMIT_PER_DAY_FREE = 50;
 export const RATE_LIMIT_PER_DAY_PREMIUM = 500;
+
+// Usage Limits by Plan
+export const PLAN_SCAN_LIMITS = {
+  basic: 25,
+  standard: 100,
+  premium: -1, // Unlimited
+} as const;
 
 // Image Limits
 export const MAX_IMAGE_WIDTH = 2000;
@@ -29,31 +40,56 @@ export const YEARLY_PRICE_CDF = 67000;
 // Subscription Plans Object (for UI)
 export const SUBSCRIPTION_PLANS = {
   free: {
-    name: 'Gratuit',
+    id: 'free',
+    name: 'Essai Gratuit',
     price: 0,
+    priceCDF: 0,
+    scanLimit: -1, // Unlimited during trial
+    trialDays: 60,
     features: [
-      '5 scans gratuits',
-      'Comparaison de prix basique',
-      'Historique limité (7 jours)',
+      '2 mois gratuits',
+      'Scans illimités pendant l\'essai',
+      'Toutes les fonctionnalités premium',
     ],
   },
   basic: {
+    id: 'basic',
     name: 'Basic',
     price: 1.99,
+    priceCDF: 8000,
+    scanLimit: 25,
     features: [
-      '30 scans par mois',
-      'Comparaison de prix complète',
+      '25 scans par mois',
+      'Comparaison de prix basique',
       'Historique 30 jours',
+      'Localisation française',
+    ],
+  },
+  standard: {
+    id: 'standard',
+    name: 'Standard',
+    price: 2.99,
+    priceCDF: 12000,
+    scanLimit: 100,
+    features: [
+      '100 scans par mois',
+      'Rapports de dépenses',
+      'Historique des prix',
+      'Analyse par catégorie',
+      'Mode hors ligne',
     ],
   },
   premium: {
+    id: 'premium',
     name: 'Premium',
-    price: 2.99,
+    price: 4.99,
+    priceCDF: 20000,
+    scanLimit: -1, // Unlimited
     features: [
       'Scans illimités',
-      'Comparaison de prix avancée',
-      'Historique illimité',
       'Alertes de prix',
+      'Listes de courses',
+      'Export des données',
       'Support prioritaire',
     ],
   },

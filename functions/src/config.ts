@@ -10,7 +10,7 @@ export const config = {
     maxTokens: 4096,
   },
   
-  // Moko Afrika
+  // Moko Afrika (Mobile Money for DRC)
   moko: {
     apiKey: process.env.MOKO_AFRIKA_API_KEY || '',
     secretKey: process.env.MOKO_AFRIKA_SECRET_KEY || '',
@@ -21,18 +21,43 @@ export const config = {
     callbackUrl: process.env.MOKO_CALLBACK_URL || '',
   },
   
+  // Stripe (Card payments for international users)
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  },
+  
+  // SMS Gateway (Africa's Talking for DRC)
+  sms: {
+    apiKey: process.env.AFRICASTALKING_API_KEY || '',
+    username: process.env.AFRICASTALKING_USERNAME || 'sandbox',
+    senderId: process.env.AFRICASTALKING_SENDER_ID || 'GoShopperAI',
+    baseUrl: process.env.AFRICASTALKING_ENVIRONMENT === 'production'
+      ? 'https://api.africastalking.com'
+      : 'https://api.sandbox.africastalking.com',
+  },
+  
+  // SendGrid (Email for international users)
+  sendgrid: {
+    apiKey: process.env.SENDGRID_API_KEY || '',
+    fromEmail: process.env.SENDGRID_FROM_EMAIL || 'noreply@goshopperai.com',
+  },
+  
   // App settings
   app: {
     id: 'goshopperai',
     region: 'europe-west1',
-    trialScanLimit: 5,
+    trialScanLimit: -1, // Unlimited during trial
+    trialDurationDays: 60, // 2 months
   },
   
   // Pricing (USD)
   pricing: {
-    free: { price: 0, scansPerMonth: 5 },
-    basic: { price: 1.99, scansPerMonth: 30 },
-    premium: { price: 2.99, scansPerMonth: -1 }, // -1 = unlimited
+    free: { price: 0, scansPerMonth: -1 }, // Unlimited during trial
+    basic: { price: 1.99, scansPerMonth: 25 },
+    standard: { price: 2.99, scansPerMonth: 100 },
+    premium: { price: 4.99, scansPerMonth: -1 }, // Unlimited
   },
 };
 

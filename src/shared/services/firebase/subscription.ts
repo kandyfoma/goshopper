@@ -4,10 +4,15 @@ import functions from '@react-native-firebase/functions';
 import {
   Subscription,
   SubscriptionState,
-  TRIAL_SCAN_LIMIT,
 } from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
 import {authService} from './auth';
+import {
+  TRIAL_DURATION_DAYS,
+  TRIAL_EXTENSION_DAYS,
+  TRIAL_SCAN_LIMIT,
+  PLAN_SCAN_LIMITS,
+} from '@/shared/utils/constants';
 
 class SubscriptionService {
   /**
@@ -40,34 +45,91 @@ class SubscriptionService {
   }
 
   /**
-   * Check if user can scan (has scans remaining or is subscribed)
+   * Check if user's trial is active (time-based, 2 months)
+   */
+  isTrialActive(subscription: Subscription): boolean {
+    if (!subscription.trialStartDate || !subscription.trialEndDate) {
+      return false;
+    }
+    
+    const now = new Date();
+    const trialEnd = new Date(subscription.trialEndDate);
+    return now < trialEnd && subscription.status === 'trial';
+  }
+
+  /**
+   * Get remaining trial days
+   */
+  getTrialDaysRemaining(subscription: Subscription): number {
+    if (!subscription.trialEndDate) return 0;
+    
+    const now = new Date();
+    const trialEnd = new Date(subscription.trialEndDate);
+    const diffTime = trialEnd.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  }
+
+  /**
+   * Check if user can scan (trial active, has plan scans, or is premium)
    */
   async canScan(): Promise<boolean> {
     const subscription = await this.getStatus();
 
+    // Check if trial is active (time-based)
+    if (this.isTrialActive(subscription)) {
+      return true; // Unlimited scans during trial
+    }
+
+    // Check active subscription
     if (subscription.isSubscribed && subscription.status === 'active') {
       // Check if subscription hasn't expired
       if (subscription.subscriptionEndDate) {
-        return new Date(subscription.subscriptionEndDate) > new Date();
+        const isValid = new Date(subscription.subscriptionEndDate) > new Date();
+        if (!isValid) return false;
       }
-      return true;
+      
+      // Premium users have unlimited scans
+      if (subscription.planId === 'premium') {
+        return true;
+      }
+      
+      // Basic/Standard users have limited monthly scans
+      const planLimit = PLAN_SCAN_LIMITS[subscription.planId as keyof typeof PLAN_SCAN_LIMITS] || 0;
+      if (planLimit === -1) return true; // Unlimited
+      
+      return (subscription.monthlyScansUsed || 0) < planLimit;
     }
 
-    // Check trial scans
-    return subscription.trialScansUsed < subscription.trialScansLimit;
+    return false;
   }
 
   /**
-   * Get remaining scans (for trial users)
+   * Get remaining scans based on plan
    */
   async getScansRemaining(): Promise<number> {
     const subscription = await this.getStatus();
 
-    if (subscription.isSubscribed && subscription.status === 'active') {
-      return Infinity; // Unlimited for subscribers
+    // Trial users have unlimited scans
+    if (this.isTrialActive(subscription)) {
+      return Infinity;
     }
 
-    return Math.max(0, subscription.trialScansLimit - subscription.trialScansUsed);
+    // Check active subscription
+    if (subscription.isSubscribed && subscription.status === 'active') {
+      // Premium users have unlimited scans
+      if (subscription.planId === 'premium') {
+        return Infinity;
+      }
+      
+      const planLimit = PLAN_SCAN_LIMITS[subscription.planId as keyof typeof PLAN_SCAN_LIMITS] || 0;
+      if (planLimit === -1) return Infinity;
+      
+      return Math.max(0, planLimit - (subscription.monthlyScansUsed || 0));
+    }
+
+    return 0;
   }
 
   /**
@@ -79,23 +141,82 @@ class SubscriptionService {
 
     const subscription = await this.getStatus();
 
-    // Subscribed users don't consume trial scans
-    if (subscription.isSubscribed && subscription.status === 'active') {
+    // Trial users don't consume monthly scans
+    if (this.isTrialActive(subscription)) {
+      // Just increment trial usage counter for analytics
+      await firestore()
+        .doc(COLLECTIONS.subscription(user.uid))
+        .update({
+          trialScansUsed: firestore.FieldValue.increment(1),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
       return;
     }
 
-    // Check if trial scans available
-    if (subscription.trialScansUsed >= subscription.trialScansLimit) {
-      throw new Error('No scans remaining. Please subscribe to continue.');
+    // Premium users have unlimited scans
+    if (subscription.planId === 'premium' && subscription.status === 'active') {
+      return;
     }
 
-    // Increment trial usage
+    // Basic/Standard users have limited scans
+    if (subscription.isSubscribed && subscription.status === 'active') {
+      const planLimit = PLAN_SCAN_LIMITS[subscription.planId as keyof typeof PLAN_SCAN_LIMITS] || 0;
+      
+      if (planLimit !== -1 && (subscription.monthlyScansUsed || 0) >= planLimit) {
+        throw new Error('Limite de scans atteinte. Passez à Premium pour des scans illimités.');
+      }
+
+      await firestore()
+        .doc(COLLECTIONS.subscription(user.uid))
+        .update({
+          monthlyScansUsed: firestore.FieldValue.increment(1),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      return;
+    }
+
+    throw new Error('Abonnement requis. Veuillez souscrire pour continuer.');
+  }
+
+  /**
+   * Extend trial by 1 month (one-time offer)
+   */
+  async extendTrial(): Promise<boolean> {
+    const user = authService.getCurrentUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const subscription = await this.getStatus();
+
+    // Can only extend if not already extended
+    if (subscription.trialExtended) {
+      throw new Error('L\'essai a déjà été prolongé une fois.');
+    }
+
+    // Can only extend if trial ended within 7 days
+    if (subscription.trialEndDate) {
+      const trialEnd = new Date(subscription.trialEndDate);
+      const now = new Date();
+      const daysSinceExpiry = Math.ceil((now.getTime() - trialEnd.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysSinceExpiry > 7) {
+        throw new Error('La période de prolongation est expirée.');
+      }
+    }
+
+    // Extend trial by TRIAL_EXTENSION_DAYS
+    const newTrialEnd = new Date();
+    newTrialEnd.setDate(newTrialEnd.getDate() + TRIAL_EXTENSION_DAYS);
+
     await firestore()
       .doc(COLLECTIONS.subscription(user.uid))
       .update({
-        trialScansUsed: firestore.FieldValue.increment(1),
+        trialEndDate: newTrialEnd,
+        trialExtended: true,
+        status: 'trial',
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
+
+    return true;
   }
 
   /**
@@ -131,7 +252,7 @@ class SubscriptionService {
    */
   async verifyPayment(transactionRef: string): Promise<boolean> {
     try {
-      const verifyPayment = functions().httpsCallable('verifyPayment');
+      const verifyPayment = functions().httpsCallable('verifyMokoPayment');
       const result = await verifyPayment({transactionRef});
       return (result.data as {verified: boolean}).verified;
     } catch (error) {
@@ -147,11 +268,19 @@ class SubscriptionService {
     userId: string,
     subscription: Subscription,
   ): Promise<void> {
+    // Calculate trial end date (2 months from now)
+    const trialStartDate = new Date();
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DURATION_DAYS);
+
     await firestore()
       .doc(COLLECTIONS.subscription(userId))
       .set({
         ...subscription,
-        trialStartDate: firestore.FieldValue.serverTimestamp(),
+        trialStartDate: trialStartDate,
+        trialEndDate: trialEndDate,
+        trialExtended: false,
+        monthlyScansUsed: 0,
         createdAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
@@ -161,10 +290,18 @@ class SubscriptionService {
    * Get default subscription for new users
    */
   private getDefaultSubscription(userId: string): Subscription {
+    const trialStartDate = new Date();
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DURATION_DAYS);
+
     return {
       userId,
       trialScansUsed: 0,
-      trialScansLimit: TRIAL_SCAN_LIMIT,
+      trialScansLimit: TRIAL_SCAN_LIMIT, // -1 for unlimited during trial
+      trialStartDate: trialStartDate,
+      trialEndDate: trialEndDate,
+      trialExtended: false,
+      monthlyScansUsed: 0,
       isSubscribed: false,
       status: 'trial',
       autoRenew: false,
@@ -179,13 +316,20 @@ class SubscriptionService {
       userId: data.userId,
       trialScansUsed: data.trialScansUsed || 0,
       trialScansLimit: data.trialScansLimit || TRIAL_SCAN_LIMIT,
-      trialStartDate: data.trialStartDate?.toDate(),
+      trialStartDate: data.trialStartDate?.toDate?.() || data.trialStartDate,
+      trialEndDate: data.trialEndDate?.toDate?.() || data.trialEndDate,
+      trialExtended: data.trialExtended || false,
+      monthlyScansUsed: data.monthlyScansUsed || 0,
+      currentBillingPeriodStart: data.currentBillingPeriodStart?.toDate?.() || data.currentBillingPeriodStart,
+      currentBillingPeriodEnd: data.currentBillingPeriodEnd?.toDate?.() || data.currentBillingPeriodEnd,
       isSubscribed: data.isSubscribed || false,
-      plan: data.plan,
+      planId: data.planId || data.plan,
+      plan: data.plan || data.planId,
       status: data.status || 'trial',
-      subscriptionStartDate: data.subscriptionStartDate?.toDate(),
-      subscriptionEndDate: data.subscriptionEndDate?.toDate(),
-      lastPaymentDate: data.lastPaymentDate?.toDate(),
+      subscriptionStartDate: data.subscriptionStartDate?.toDate?.() || data.subscriptionStartDate,
+      subscriptionEndDate: data.subscriptionEndDate?.toDate?.() || data.subscriptionEndDate,
+      expiryDate: data.expiryDate?.toDate?.() || data.subscriptionEndDate?.toDate?.() || data.expiryDate,
+      lastPaymentDate: data.lastPaymentDate?.toDate?.() || data.lastPaymentDate,
       lastPaymentAmount: data.lastPaymentAmount,
       currency: data.currency,
       paymentMethod: data.paymentMethod,
@@ -195,8 +339,8 @@ class SubscriptionService {
       transactionRef: data.transactionRef,
       customerPhone: data.customerPhone,
       autoRenew: data.autoRenew || false,
-      createdAt: data.createdAt?.toDate(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: data.createdAt?.toDate?.() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
     };
   }
 }

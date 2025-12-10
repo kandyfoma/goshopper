@@ -1,10 +1,19 @@
-# Payment Integration (Mobile Money)
+# Payment Integration (Mobile Money & Stripe)
 
 ## Overview
 
-Invoice Intelligence uses **Moko Afrika** as the primary payment gateway, specifically chosen for the DRC market. Moko Afrika is a DRC-based fintech company with direct integration to local Mobile Money operators, local support, and established presence with 47M+ connected wallets and 50M+ processed transactions.
+Invoice Intelligence uses **dual payment providers** to serve both local and international users:
+- **Moko Afrika**: Primary payment gateway for DRC users (Mobile Money)
+- **Stripe**: Payment gateway for international users (Visa/Card payments)
 
-## Why Moko Afrika?
+## Payment Provider Selection by Location
+
+| User Location | Payment Options | Provider |
+|--------------|-----------------|----------|
+| **DRC (+243)** | Mobile Money, Visa/Card | Moko Afrika + Stripe |
+| **International** | Visa/Card only | Stripe |
+
+## Why Moko Afrika for DRC?
 
 | Feature | Moko Afrika | International Providers |
 |---------|-------------|------------------------|
@@ -18,6 +27,18 @@ Invoice Intelligence uses **Moko Afrika** as the primary payment gateway, specif
 
 **Contact**: info@mokoafrika.com | +243 898 900 066 | https://www.mokoafrika.com
 
+## Why Stripe for International?
+
+| Feature | Stripe |
+|---------|--------|
+| **Global Coverage** | 195+ countries |
+| **Card Support** | Visa, Mastercard, Amex |
+| **Developer Experience** | Excellent SDK & docs |
+| **Security** | PCI DSS Level 1 |
+| **Fraud Detection** | Built-in Radar |
+
+**Dashboard**: https://dashboard.stripe.com
+
 ## Payment Providers
 
 ### Supported Mobile Money Operators (DRC)
@@ -29,17 +50,117 @@ Invoice Intelligence uses **Moko Afrika** as the primary payment gateway, specif
 | Airtel Money | `AIRTEL` | ~25% |
 | AfriMoney | `AFRIMONEY` | ~15% |
 
+### Supported Card Types (International)
+
+| Card Type | Support |
+|-----------|---------|
+| Visa | ✅ |
+| Mastercard | ✅ |
+| American Express | ✅ |
+| Discover | ✅ |
+
 ## Subscription Plans
 
 ### Pricing Structure
 
-| Plan | Price (USD) | Price (CDF) | Features |
-|------|-------------|-------------|----------|
-| **Free Trial** | $0 | 0 FC | 5 scans, basic comparison |
-| **Monthly** | $2.99 | 8,000 FC | Unlimited scans, full reports |
-| **Yearly** | $24.99 | 67,000 FC | Monthly + 30% discount |
+| Plan | Price (USD) | Price (CDF) | Scan Limit |
+|------|-------------|-------------|------------|
+| **Free Trial** | $0 | 0 FC | 2 months unlimited |
+| **Basic** | $1.99 | 8,000 FC | 25 scans/month |
+| **Standard** | $2.99 | 12,000 FC | 100 scans/month |
+| **Premium** | $4.99 | 20,000 FC | Unlimited |
 
 *CDF prices based on ~2,700 CDF/USD rate, rounded for simplicity*
+
+---
+
+## Stripe Integration (International Payments)
+
+### Setup Requirements
+
+1. Stripe account (https://dashboard.stripe.com)
+2. API keys (publishable + secret)
+3. Webhook endpoint configured
+4. `@stripe/stripe-react-native` SDK installed
+
+### Environment Variables
+
+```bash
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### Payment Flow (Card)
+
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│   Paywall   │──▶│   Create    │──▶│   Stripe    │──▶│   Webhook   │
+│   Screen    │   │   Intent    │   │   Payment   │   │   Confirm   │
+└─────────────┘   └─────────────┘   │   Sheet     │   └─────────────┘
+                                    └─────────────┘
+```
+
+### Cloud Function Implementation
+
+```typescript
+// functions/src/payments/stripe.ts
+
+import * as functions from 'firebase-functions';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+});
+
+export const createPaymentIntent = functions.https.onCall(async (data, context) => {
+  const { planId, currency, email } = data;
+  const userId = context.auth?.uid;
+
+  const planPrices: Record<string, number> = {
+    basic: 199,    // $1.99 in cents
+    standard: 299, // $2.99 in cents
+    premium: 499,  // $4.99 in cents
+  };
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: planPrices[planId],
+    currency: currency.toLowerCase(),
+    metadata: { userId, planId },
+    receipt_email: email,
+  });
+
+  return {
+    clientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
+  };
+});
+```
+
+### Webhook Handler
+
+```typescript
+export const stripeWebhook = functions.https.onRequest(async (req, res) => {
+  const sig = req.headers['stripe-signature'] as string;
+  const event = stripe.webhooks.constructEvent(
+    req.rawBody,
+    sig,
+    process.env.STRIPE_WEBHOOK_SECRET!
+  );
+
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object;
+    const { userId, planId } = paymentIntent.metadata;
+    
+    // Activate subscription
+    await activateSubscription(userId, planId, 'stripe');
+  }
+
+  res.status(200).send('OK');
+});
+```
+
+---
 
 ## Moko Afrika Integration
 

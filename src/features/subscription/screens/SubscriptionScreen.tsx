@@ -1,5 +1,5 @@
-// Subscription Screen - Paywall with Moko Afrika integration
-import React, {useState} from 'react';
+// Subscription Screen - Paywall with Moko Afrika and Stripe integration
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,257 +9,278 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {useSubscription} from '@/shared/contexts';
-import {COLORS, SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
+import functions from '@react-native-firebase/functions';
+import firestore from '@react-native-firebase/firestore';
+import {useSubscription, useAuth} from '@/shared/contexts';
+import {COLORS, SUBSCRIPTION_PLANS, TRIAL_DURATION_DAYS} from '@/shared/utils/constants';
 import {formatCurrency} from '@/shared/utils/helpers';
 
-type PaymentMethod = 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
-type PlanId = 'free' | 'basic' | 'premium';
+type MobileMoneyProvider = 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
+type PaymentMethodType = 'mobile_money' | 'card';
+type PlanId = 'free' | 'basic' | 'standard' | 'premium';
 
-interface PaymentOption {
-  id: PaymentMethod;
+interface MobileMoneyOption {
+  id: MobileMoneyProvider;
   name: string;
   icon: string;
   color: string;
 }
 
-const PAYMENT_OPTIONS: PaymentOption[] = [
-  {id: 'mpesa', name: 'M-Pesa', icon: '📱', color: '#4CAF50'},
-  {id: 'orange', name: 'Orange Money', icon: '🟠', color: '#FF6600'},
-  {id: 'airtel', name: 'Airtel Money', icon: '🔴', color: '#ED1C24'},
-  {id: 'afrimoney', name: 'AfriMoney', icon: '💰', color: '#FFB300'},
+const MOBILE_MONEY_OPTIONS: MobileMoneyOption[] = [
+  {id: 'mpesa', name: 'M-Pesa', icon: '', color: '#4CAF50'},
+  {id: 'orange', name: 'Orange Money', icon: '', color: '#FF6600'},
+  {id: 'airtel', name: 'Airtel Money', icon: '', color: '#ED1C24'},
+  {id: 'afrimoney', name: 'AfriMoney', icon: '', color: '#FFB300'},
 ];
 
 export function SubscriptionScreen() {
   const navigation = useNavigation();
-  const {subscription, trialScansUsed} = useSubscription();
+  const {user} = useAuth();
+  const {subscription, isTrialActive, trialDaysRemaining} = useSubscription();
 
-  const [selectedPlan, setSelectedPlan] = useState<PlanId>('basic');
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>('standard');
+  const [paymentMethodType, setPaymentMethodType] = useState<PaymentMethodType>('mobile_money');
+  const [selectedMobileMoney, setSelectedMobileMoney] = useState<MobileMoneyProvider | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [isInDRC, setIsInDRC] = useState<boolean | null>(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+
+  useEffect(() => {
+    const checkUserLocation = async () => {
+      if (!user?.uid) {
+        setIsInDRC(true);
+        setIsLoadingLocation(false);
+        return;
+      }
+      try {
+        const profileDoc = await firestore()
+          .collection('artifacts').doc('goshopperai')
+          .collection('users').doc(user.uid)
+          .collection('profile').doc('main').get();
+        if (profileDoc.exists) {
+          const profile = profileDoc.data();
+          const isInDRCValue = profile?.isInDRC !== undefined 
+            ? profile.isInDRC 
+            : (profile?.countryCode === 'CD' || true);
+          setIsInDRC(isInDRCValue);
+          if (profile?.phoneNumber) setPhoneNumber(profile.phoneNumber);
+          if (profile?.email) setEmail(profile.email);
+        } else {
+          setIsInDRC(true);
+        }
+      } catch (error) {
+        console.error('Error checking user location:', error);
+        setIsInDRC(true);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    };
+    checkUserLocation();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (isInDRC !== null) {
+      setPaymentMethodType(isInDRC ? 'mobile_money' : 'card');
+    }
+  }, [isInDRC]);
 
   const isCurrentPlan = (planId: PlanId) => subscription?.planId === planId;
-  const trialRemaining = Math.max(0, TRIAL_SCAN_LIMIT - trialScansUsed);
 
-  const handleSubscribe = async () => {
-    if (!selectedPayment) {
-      Alert.alert('Méthode de paiement', 'Veuillez sélectionner une méthode de paiement');
+  const handleMobileMoneyPayment = async () => {
+    if (!selectedMobileMoney) {
+      Alert.alert('Mobile Money', 'Veuillez s�lectionner un op�rateur');
       return;
     }
-
+    if (!phoneNumber || phoneNumber.length < 9) {
+      Alert.alert('Num�ro de t�l�phone', 'Veuillez entrer un num�ro valide');
+      return;
+    }
     const plan = SUBSCRIPTION_PLANS[selectedPlan];
-    
     Alert.alert(
-      'Confirmer l\'abonnement',
-      `Vous allez souscrire à ${plan.name} pour ${formatCurrency(plan.price)}/mois via ${PAYMENT_OPTIONS.find(p => p.id === selectedPayment)?.name}`,
+      'Confirmer',
+      `Souscrire � ${plan.name} pour ${formatCurrency(plan.price)}/mois?`,
       [
         {text: 'Annuler', style: 'cancel'},
         {
           text: 'Confirmer',
           onPress: async () => {
             setIsProcessing(true);
-            
-            // TODO: Call Moko Afrika API via Cloud Functions
-            // const result = await functions().httpsCallable('initiateMokoPayment')({
-            //   planId: selectedPlan,
-            //   paymentMethod: selectedPayment,
-            //   amount: plan.price,
-            //   currency: 'USD',
-            // });
-
-            // Simulate payment processing
-            setTimeout(() => {
+            try {
+              const result = await functions().httpsCallable('initiateMokoPayment')({
+                planId: selectedPlan, paymentMethod: selectedMobileMoney,
+                amount: plan.price, currency: 'USD', phoneNumber,
+              });
+              const {status, message} = result.data as any;
+              Alert.alert(status === 'success' ? 'Activ�!' : 'Initi�', message || 'V�rifiez votre t�l�phone',
+                [{text: 'OK', onPress: () => navigation.goBack()}]);
+            } catch (error: any) {
+              Alert.alert('Erreur', error.message || 'R�essayez');
+            } finally {
               setIsProcessing(false);
-              Alert.alert(
-                'Paiement initié',
-                'Veuillez confirmer le paiement sur votre téléphone',
-                [{text: 'OK', onPress: () => navigation.goBack()}]
-              );
-            }, 2000);
+            }
           },
         },
       ]
     );
   };
 
+  const handleCardPayment = async () => {
+    if (!email || !email.includes('@')) {
+      Alert.alert('Email', isInDRC ? 'Entrez un email valide' : 'Enter a valid email');
+      return;
+    }
+    const plan = SUBSCRIPTION_PLANS[selectedPlan];
+    Alert.alert(
+      isInDRC ? 'Confirmer' : 'Confirm',
+      `Subscribe to ${plan.name} for ${formatCurrency(plan.price)}/month?`,
+      [
+        {text: isInDRC ? 'Annuler' : 'Cancel', style: 'cancel'},
+        {
+          text: isInDRC ? 'Continuer' : 'Continue',
+          onPress: async () => {
+            setIsProcessing(true);
+            try {
+              await functions().httpsCallable('createPaymentIntent')({
+                planId: selectedPlan, currency: 'USD', email,
+              });
+              Alert.alert(isInDRC ? 'Paiement carte' : 'Card Payment',
+                'Stripe SDK integration required', [{text: 'OK'}]);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Try again');
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSubscribe = () => {
+    paymentMethodType === 'mobile_money' ? handleMobileMoneyPayment() : handleCardPayment();
+  };
+
+  if (isLoadingLocation) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary[500]} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Prix Tracker Pro</Text>
+          <Text style={styles.headerTitle}>GoShopper Pro</Text>
           <Text style={styles.headerSubtitle}>
-            Économisez plus avec les fonctionnalités premium
+            {isInDRC ? 'Fonctionnalit�s premium' : 'Premium features'}
           </Text>
         </View>
 
-        {/* Trial Status */}
-        {(!subscription || subscription.planId === 'free') && (
+        {isTrialActive && (
           <View style={styles.trialCard}>
-            <Text style={styles.trialIcon}>🎁</Text>
+            <Text style={styles.trialIcon}></Text>
             <View style={styles.trialInfo}>
-              <Text style={styles.trialTitle}>Période d'essai</Text>
-              <Text style={styles.trialDesc}>
-                {trialRemaining > 0 
-                  ? `${trialRemaining} scans gratuits restants`
-                  : 'Période d\'essai terminée'}
-              </Text>
-            </View>
-            <View style={styles.trialBadge}>
-              <Text style={styles.trialBadgeText}>{trialRemaining}/{TRIAL_SCAN_LIMIT}</Text>
+              <Text style={styles.trialTitle}>{isInDRC ? 'Essai gratuit' : 'Free Trial'}</Text>
+              <Text style={styles.trialDesc}>{trialDaysRemaining} {isInDRC ? 'jours restants' : 'days left'}</Text>
             </View>
           </View>
         )}
 
-        {/* Plans */}
-        <Text style={styles.sectionTitle}>Choisir un plan</Text>
+        <Text style={styles.sectionTitle}>{isInDRC ? 'Choisir un plan' : 'Choose a Plan'}</Text>
         
-        {Object.entries(SUBSCRIPTION_PLANS).map(([id, plan]) => {
+        {Object.entries(SUBSCRIPTION_PLANS).filter(([id]) => id !== 'free').map(([id, plan]) => {
           const planId = id as PlanId;
           const isSelected = selectedPlan === planId;
           const isCurrent = isCurrentPlan(planId);
-          const isPremium = planId === 'premium';
-          
           return (
-            <TouchableOpacity
-              key={planId}
-              style={[
-                styles.planCard,
-                isSelected && styles.planCardSelected,
-                isCurrent && styles.planCardCurrent,
-              ]}
-              onPress={() => !isCurrent && setSelectedPlan(planId)}
-              disabled={isCurrent}
-              activeOpacity={0.8}>
-              
-              {isPremium && (
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularText}>POPULAIRE</Text>
-                </View>
-              )}
-
+            <TouchableOpacity key={planId} style={[styles.planCard, isSelected && styles.planCardSelected]}
+              onPress={() => setSelectedPlan(planId)} disabled={isCurrent}>
               <View style={styles.planHeader}>
-                <View>
-                  <Text style={[
-                    styles.planName,
-                    isSelected && styles.planNameSelected
-                  ]}>
-                    {plan.name}
-                  </Text>
-                  <View style={styles.planPrice}>
-                    <Text style={[
-                      styles.priceAmount,
-                      isSelected && styles.priceAmountSelected
-                    ]}>
-                      {plan.price > 0 ? formatCurrency(plan.price) : 'Gratuit'}
-                    </Text>
-                    {plan.price > 0 && (
-                      <Text style={styles.pricePeriod}>/mois</Text>
-                    )}
-                  </View>
-                </View>
-                
-                <View style={[
-                  styles.radioOuter,
-                  isSelected && styles.radioOuterSelected
-                ]}>
-                  {isSelected && <View style={styles.radioInner} />}
-                </View>
+                <Text style={styles.planName}>{plan.name}</Text>
+                <Text style={styles.planPrice}>{formatCurrency(plan.price)}/{isInDRC ? 'mois' : 'mo'}</Text>
               </View>
-
-              <View style={styles.planFeatures}>
-                {plan.features.map((feature, index) => (
-                  <View key={index} style={styles.featureRow}>
-                    <Text style={styles.featureCheck}>✓</Text>
-                    <Text style={[
-                      styles.featureText,
-                      isSelected && styles.featureTextSelected
-                    ]}>
-                      {feature}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {isCurrent && (
-                <View style={styles.currentPlanBadge}>
-                  <Text style={styles.currentPlanText}>Plan actuel</Text>
-                </View>
-              )}
+              <Text style={styles.featureText}>📸 {plan.scanLimit === -1 ? 'Unlimited' : plan.scanLimit} scans</Text>
+              {isCurrent && <Text style={styles.currentText}> Current</Text>}
             </TouchableOpacity>
           );
         })}
 
-        {/* Payment Methods */}
-        {selectedPlan !== 'free' && (
+        {selectedPlan !== 'free' && isInDRC && (
           <>
-            <Text style={styles.sectionTitle}>Méthode de paiement</Text>
-            <Text style={styles.paymentSubtitle}>
-              Paiement sécurisé via Moko Afrika
-            </Text>
-
-            <View style={styles.paymentGrid}>
-              {PAYMENT_OPTIONS.map(option => {
-                const isSelected = selectedPayment === option.id;
-                
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.paymentOption,
-                      isSelected && styles.paymentOptionSelected,
-                    ]}
-                    onPress={() => setSelectedPayment(option.id)}
-                    activeOpacity={0.8}>
-                    <Text style={styles.paymentIcon}>{option.icon}</Text>
-                    <Text style={[
-                      styles.paymentName,
-                      isSelected && styles.paymentNameSelected
-                    ]}>
-                      {option.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={styles.paymentCheck}>
-                        <Text style={styles.paymentCheckText}>✓</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+            <Text style={styles.sectionTitle}>Mode de paiement</Text>
+            <View style={styles.paymentTypeSelector}>
+              <TouchableOpacity style={[styles.paymentTypeButton, paymentMethodType === 'mobile_money' && styles.paymentTypeButtonSelected]}
+                onPress={() => setPaymentMethodType('mobile_money')}>
+                <Text> Mobile Money</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.paymentTypeButton, paymentMethodType === 'card' && styles.paymentTypeButtonSelected]}
+                onPress={() => setPaymentMethodType('card')}>
+                <Text> Visa/Card</Text>
+              </TouchableOpacity>
             </View>
           </>
         )}
 
-        {/* Subscribe Button */}
+        {selectedPlan !== 'free' && isInDRC && paymentMethodType === 'mobile_money' && (
+          <>
+            <Text style={styles.sectionTitle}>Op�rateur</Text>
+            <View style={styles.mobileMoneyGrid}>
+              {MOBILE_MONEY_OPTIONS.map((opt) => (
+                <TouchableOpacity key={opt.id} style={[styles.mobileMoneyCard, selectedMobileMoney === opt.id && {borderColor: opt.color}]}
+                  onPress={() => setSelectedMobileMoney(opt.id)}>
+                  <Text style={styles.mobileMoneyIcon}>{opt.icon}</Text>
+                  <Text>{opt.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>T�l�phone</Text>
+              <View style={styles.phoneInputWrapper}>
+                <Text style={styles.phonePrefix}>+243</Text>
+                <TextInput style={styles.phoneInput} placeholder="812345678" keyboardType="phone-pad"
+                  value={phoneNumber} onChangeText={setPhoneNumber} maxLength={12} />
+              </View>
+            </View>
+          </>
+        )}
+
+        {selectedPlan !== 'free' && (!isInDRC || paymentMethodType === 'card') && (
+          <>
+            <Text style={styles.sectionTitle}>{isInDRC ? 'Paiement carte' : 'Card Payment'}</Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput style={styles.textInput} placeholder="your@email.com" keyboardType="email-address"
+                autoCapitalize="none" value={email} onChangeText={setEmail} />
+            </View>
+            <View style={styles.cardNotice}>
+              <Text> {isInDRC ? 'Paiement s�curis� Stripe' : 'Secure Stripe payment'}</Text>
+            </View>
+          </>
+        )}
+
         {selectedPlan !== 'free' && !isCurrentPlan(selectedPlan) && (
-          <TouchableOpacity
-            style={[
-              styles.subscribeButton,
-              (!selectedPayment || isProcessing) && styles.subscribeButtonDisabled
-            ]}
-            onPress={handleSubscribe}
-            disabled={!selectedPayment || isProcessing}>
-            {isProcessing ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
+          <TouchableOpacity style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
+            onPress={handleSubscribe} disabled={isProcessing}>
+            {isProcessing ? <ActivityIndicator color="#FFF" /> : (
               <Text style={styles.subscribeButtonText}>
-                S'abonner à {SUBSCRIPTION_PLANS[selectedPlan].name}
+                {isInDRC ? `S'abonner � ${SUBSCRIPTION_PLANS[selectedPlan].name}` : `Subscribe to ${SUBSCRIPTION_PLANS[selectedPlan].name}`}
               </Text>
             )}
           </TouchableOpacity>
         )}
 
-        {/* Terms */}
-        <Text style={styles.terms}>
-          En vous abonnant, vous acceptez nos Conditions d'utilisation et notre 
-          Politique de confidentialité. L'abonnement se renouvelle automatiquement 
-          chaque mois jusqu'à annulation.
+        <Text style={styles.termsText}>
+          {isInDRC ? 'Renouvellement automatique mensuel' : 'Auto-renews monthly'}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -267,269 +288,44 @@ export function SubscriptionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 8,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: COLORS.gray[500],
-    textAlign: 'center',
-  },
-  trialCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary[50],
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: COLORS.primary[100],
-  },
-  trialIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  trialInfo: {
-    flex: 1,
-  },
-  trialTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.primary[700],
-  },
-  trialDesc: {
-    fontSize: 13,
-    color: COLORS.primary[600],
-  },
-  trialBadge: {
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  trialBadgeText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.gray[900],
-    marginBottom: 12,
-  },
-  planCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  planCardSelected: {
-    borderColor: COLORS.primary[500],
-    backgroundColor: COLORS.primary[50],
-  },
-  planCardCurrent: {
-    borderColor: COLORS.gray[300],
-    opacity: 0.8,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderBottomLeftRadius: 12,
-  },
-  popularText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  planName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.gray[900],
-    marginBottom: 2,
-  },
-  planNameSelected: {
-    color: COLORS.primary[700],
-  },
-  planPrice: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  priceAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-  },
-  priceAmountSelected: {
-    color: COLORS.primary[600],
-  },
-  pricePeriod: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    marginLeft: 2,
-  },
-  radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.gray[300],
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: COLORS.primary[500],
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.primary[500],
-  },
-  planFeatures: {
-    gap: 8,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featureCheck: {
-    fontSize: 14,
-    color: COLORS.primary[500],
-    marginRight: 8,
-    fontWeight: 'bold',
-  },
-  featureText: {
-    fontSize: 14,
-    color: COLORS.gray[600],
-  },
-  featureTextSelected: {
-    color: COLORS.primary[700],
-  },
-  currentPlanBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: COLORS.gray[200],
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
-  currentPlanText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.gray[600],
-  },
-  paymentSubtitle: {
-    fontSize: 13,
-    color: COLORS.gray[500],
-    marginTop: -8,
-    marginBottom: 12,
-  },
-  paymentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -6,
-    marginBottom: 24,
-  },
-  paymentOption: {
-    width: '48%',
-    marginHorizontal: '1%',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    position: 'relative',
-  },
-  paymentOptionSelected: {
-    borderColor: COLORS.primary[500],
-    backgroundColor: COLORS.primary[50],
-  },
-  paymentIcon: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
-  paymentName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray[700],
-  },
-  paymentNameSelected: {
-    color: COLORS.primary[700],
-  },
-  paymentCheck: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary[500],
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paymentCheckText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  subscribeButton: {
-    backgroundColor: COLORS.primary[500],
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  subscribeButtonDisabled: {
-    backgroundColor: COLORS.gray[300],
-  },
-  subscribeButtonText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  terms: {
-    fontSize: 11,
-    color: COLORS.gray[400],
-    textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: 16,
-  },
+  container: {flex: 1, backgroundColor: '#F5F5F5'},
+  scrollView: {flex: 1},
+  scrollContent: {padding: 16, paddingBottom: 40},
+  loadingContainer: {flex: 1, justifyContent: 'center', alignItems: 'center'},
+  loadingText: {marginTop: 12, fontSize: 16, color: COLORS.gray[600]},
+  header: {alignItems: 'center', marginBottom: 24},
+  headerTitle: {fontSize: 28, fontWeight: 'bold', color: COLORS.primary[600], marginBottom: 8},
+  headerSubtitle: {fontSize: 16, color: COLORS.gray[600], textAlign: 'center'},
+  trialCard: {flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F5E9', padding: 16, borderRadius: 12, marginBottom: 24},
+  trialIcon: {fontSize: 32, marginRight: 12},
+  trialInfo: {flex: 1},
+  trialTitle: {fontSize: 16, fontWeight: '600', color: COLORS.gray[800]},
+  trialDesc: {fontSize: 14, color: COLORS.gray[600]},
+  sectionTitle: {fontSize: 18, fontWeight: '600', color: COLORS.gray[800], marginBottom: 16, marginTop: 8},
+  planCard: {backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 12, borderWidth: 2, borderColor: '#E0E0E0'},
+  planCardSelected: {borderColor: COLORS.primary[500], backgroundColor: COLORS.primary[50]},
+  planHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8},
+  planName: {fontSize: 20, fontWeight: 'bold', color: COLORS.gray[800]},
+  planPrice: {fontSize: 18, fontWeight: 'bold', color: COLORS.primary[600]},
+  featureText: {fontSize: 14, color: COLORS.gray[600]},
+  currentText: {color: COLORS.success, fontWeight: '600', marginTop: 8},
+  paymentTypeSelector: {flexDirection: 'row', gap: 12, marginBottom: 16},
+  paymentTypeButton: {flex: 1, alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 12, borderWidth: 2, borderColor: '#E0E0E0'},
+  paymentTypeButtonSelected: {borderColor: COLORS.primary[500], backgroundColor: COLORS.primary[50]},
+  mobileMoneyGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20},
+  mobileMoneyCard: {width: '47%', backgroundColor: '#FFF', padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#E0E0E0'},
+  mobileMoneyIcon: {fontSize: 32, marginBottom: 8},
+  inputContainer: {marginBottom: 16},
+  inputLabel: {fontSize: 14, fontWeight: '600', color: COLORS.gray[700], marginBottom: 8},
+  phoneInputWrapper: {flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0'},
+  phonePrefix: {paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#F5F5F5', fontSize: 16, color: COLORS.gray[600]},
+  phoneInput: {flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.gray[800]},
+  textInput: {backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', paddingHorizontal: 16, paddingVertical: 14, fontSize: 16},
+  cardNotice: {flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', padding: 16, borderRadius: 12, marginBottom: 16},
+  subscribeButton: {backgroundColor: COLORS.primary[500], padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 8, marginBottom: 16},
+  subscribeButtonDisabled: {backgroundColor: COLORS.gray[400]},
+  subscribeButtonText: {color: '#FFF', fontSize: 18, fontWeight: '600'},
+  termsText: {fontSize: 12, color: COLORS.gray[500], textAlign: 'center'},
 });
+
+export default SubscriptionScreen;

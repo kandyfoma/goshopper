@@ -1042,6 +1042,197 @@ export async function scanReceipt(
 
 ---
 
+## Optimization 6: Cost Management and AI Usage Optimization
+
+### Problem
+
+- Gemini 2.5 Flash costs: $0.30/million input tokens, $2.50/million output tokens
+- Average scan: ~$0.0013 in AI costs
+- Unlimited scans at $2.99/month can become unprofitable with heavy usage
+- Transaction fees: 3.5% per subscription via Moko Afrika
+- DRC VAT: 16% on digital services
+
+### Solution
+
+Implement usage limits, tiered pricing, and cost optimizations to maintain profitability.
+
+### Implementation
+
+#### Usage Limits
+
+```typescript
+// src/shared/services/subscription/usageService.ts
+
+interface UsageLimits {
+  basic: 25;      // $1.99/month
+  standard: 100;  // $2.99/month  
+  premium: -1;    // $4.99/month (unlimited)
+}
+
+export const checkUsageLimit = async (userId: string): Promise<boolean> => {
+  const subscription = await getUserSubscription(userId);
+  const currentUsage = await getCurrentMonthUsage(userId);
+  
+  if (subscription.plan === 'premium') return true;
+  
+  const limits = { basic: 25, standard: 100 };
+  return currentUsage < limits[subscription.plan];
+};
+```
+
+#### Tiered Pricing Structure
+
+| Plan | Price | Scan Limit | Features |
+|------|-------|------------|----------|
+| **Basic** | $1.99/month | 25 scans | Core scanning + basic comparison |
+| **Standard** | $2.99/month | 100 scans | All features + priority support |
+| **Premium** | $4.99/month | Unlimited | Everything + advanced analytics |
+
+#### Cost Optimizations
+
+##### 1. Model Selection
+```typescript
+// Use cheaper model for simple receipts
+const selectModel = (imageComplexity: 'simple' | 'complex'): string => {
+  return imageComplexity === 'simple' 
+    ? 'gemini-2.5-flash-lite'  // $0.10 input, $0.40 output
+    : 'gemini-2.5-flash';     // $0.30 input, $2.50 output
+};
+```
+
+##### 2. Response Caching
+```typescript
+// Cache price lookups for 24 hours
+const PRICE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+export const getCachedPrices = async (itemName: string) => {
+  const cacheKey = `prices_${normalizeItemName(itemName)}`;
+  const cached = await AsyncStorage.getItem(cacheKey);
+  
+  if (cached) {
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < PRICE_CACHE_TTL) {
+      return data;
+    }
+  }
+  
+  // Fetch fresh data
+  const freshData = await fetchPricesFromFirestore(itemName);
+  await AsyncStorage.setItem(cacheKey, JSON.stringify({
+    data: freshData,
+    timestamp: Date.now()
+  }));
+  
+  return freshData;
+};
+```
+
+##### 3. Aggressive Image Compression
+```typescript
+// Compress to 50% quality for AI processing
+const compressForAI = async (imageUri: string): Promise<string> => {
+  return await ImageResizer.createResizedImage(
+    imageUri,
+    1024,  // max width
+    1536,  // max height
+    'JPEG',
+    50,    // quality (reduced from 80%)
+    0,     // rotation
+    undefined, // output path
+    false, // keep metadata
+    { mode: 'contain' }
+  );
+};
+```
+
+##### 4. Automatic Storage Cleanup
+```typescript
+// Delete original image after successful AI processing
+export const cleanupProcessedImage = async (imagePath: string, invoiceId: string) => {
+  try {
+    // Verify invoice was saved successfully
+    const invoiceRef = db.collection('invoices').doc(invoiceId);
+    const invoice = await invoiceRef.get();
+    
+    if (invoice.exists) {
+      // Delete the original image from storage
+      const imageRef = storage.refFromURL(imagePath);
+      await imageRef.delete();
+      
+      console.log(`Cleaned up processed image: ${imagePath}`);
+    }
+  } catch (error) {
+    console.error('Failed to cleanup image:', error);
+    // Don't throw - cleanup failure shouldn't break the flow
+  }
+};
+
+// Usage in parseReceipt Cloud Function
+export const parseReceipt = functions.https.onCall(async (data, context) => {
+  const { imagePath, userId } = data;
+  
+  try {
+    // Process the image with Gemini AI
+    const extractedData = await processWithGemini(imagePath);
+    
+    // Save the invoice data
+    const invoiceRef = db.collection('invoices').doc();
+    await invoiceRef.set({
+      ...extractedData,
+      userId,
+      processedAt: FieldValue.serverTimestamp(),
+      // No imagePath stored - we delete it
+    });
+    
+    // Cleanup the original image
+    await cleanupProcessedImage(imagePath, invoiceRef.id);
+    
+    return { success: true, invoiceId: invoiceRef.id };
+  } catch (error) {
+    // On failure, keep the image for retry/debugging
+    throw error;
+  }
+});
+```
+
+#### Usage Monitoring
+
+```typescript
+// Cloud Function to track usage
+export const trackScanUsage = functions.https.onCall(async (data, context) => {
+  const { userId } = data;
+  const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+  
+  await db.collection('usage').doc(`${userId}_${monthKey}`).set({
+    userId,
+    month: monthKey,
+    scans: FieldValue.increment(1),
+    lastScan: FieldValue.serverTimestamp()
+  }, { merge: true });
+});
+```
+
+### Cost Projections
+
+| Scenario | Scans/Month | AI Cost | Hosting | Storage* | Transaction | Total Cost | Revenue | Profit |
+|----------|-------------|---------|---------|----------|-------------|------------|---------|--------|
+| Light (20) | 20 | $0.026 | $0.003 | $0.000 | $0.105 | $0.134 | $2.99 | $2.856 |
+| Standard (100) | 100 | $0.130 | $0.016 | $0.000 | $0.105 | $0.251 | $2.99 | $2.739 |
+| Heavy (500) | 500 | $0.650 | $0.080 | $0.000 | $0.105 | $0.835 | $2.99 | $2.155 |
+| Extreme (1000) | 1000 | $1.300 | $0.160 | $0.000 | $0.105 | $1.565 | $2.99 | $1.425 |
+
+*Storage costs eliminated through automatic cleanup after processing
+
+### Benefits
+
+- **Profitability**: Maintains margins even with heavy users
+- **Scalability**: Lower costs per scan with optimizations
+- **User Satisfaction**: Clear limits prevent unexpected charges
+- **Business Sustainability**: Tiered model captures different user segments
+- **Storage Efficiency**: Zero storage costs for processed images
+
+---
+
 ## Summary
 
 | Optimization | Effort | Impact | Priority |
@@ -1049,13 +1240,15 @@ export async function scanReceipt(
 | **Hermes Engine** | Low (config only) | High (2x startup) | P0 |
 | **Image Compression** | Low | High (save user $) | P0 |
 | **Gemini Proxy** | Medium | High (security) | P0 |
+| **Storage Cleanup** | Low | High (zero storage costs) | P0 |
+| **Cost Management** | Medium | High (usage limits) | P0 |
 | **WatermelonDB** | High | Medium (better offline) | P1 |
 | **On-Device OCR** | Medium | Medium (offline scan) | P1 |
 
 ### Implementation Order
 
-1. **Week 1:** Enable Hermes, add image compression
-2. **Week 2:** Deploy Gemini proxy Cloud Function
+1. **Week 1:** Enable Hermes, add image compression, implement storage cleanup
+2. **Week 2:** Deploy Gemini proxy Cloud Function, add usage limits
 3. **Week 3-4:** Integrate WatermelonDB
 4. **Week 5:** Add on-device OCR fallback
 

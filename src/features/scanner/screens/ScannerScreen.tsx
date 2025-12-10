@@ -1,5 +1,5 @@
 // Scanner Screen - Capture and process receipts
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -22,24 +22,40 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type ScanState = 'idle' | 'capturing' | 'processing' | 'success' | 'error';
 
+const MAX_RETRY_ATTEMPTS = 3;
+
 export function ScannerScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {canScan, recordScan} = useSubscription();
+  const {canScan, recordScan, scansRemaining, isTrialActive, trialDaysRemaining} = useSubscription();
   
   const [state, setState] = useState<ScanState>('idle');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [processingProgress, setProcessingProgress] = useState<string>('');
+  
+  const retryCountRef = useRef(0);
+  const currentImageRef = useRef<string | null>(null);
 
   const handleCapture = useCallback(async () => {
     // Check if user can scan
     if (!canScan) {
-      navigation.navigate('Subscription');
+      Alert.alert(
+        'Limite atteinte',
+        isTrialActive 
+          ? 'Une erreur est survenue. Veuillez réessayer.'
+          : 'Vous avez atteint votre limite de scans. Passez à un plan supérieur pour continuer.',
+        [
+          {text: 'Annuler', style: 'cancel'},
+          {text: 'Voir les plans', onPress: () => navigation.navigate('Subscription')},
+        ]
+      );
       return;
     }
 
     setState('capturing');
     setError(null);
+    retryCountRef.current = 0;
 
     const result = await cameraService.captureFromCamera();
 
@@ -52,17 +68,28 @@ export function ScannerScreen() {
     }
 
     setImageUri(result.uri);
+    currentImageRef.current = result.uri;
     await processImage(result.uri);
-  }, [canScan, navigation]);
+  }, [canScan, navigation, isTrialActive]);
 
   const handleGallery = useCallback(async () => {
     if (!canScan) {
-      navigation.navigate('Subscription');
+      Alert.alert(
+        'Limite atteinte',
+        isTrialActive 
+          ? 'Une erreur est survenue. Veuillez réessayer.'
+          : 'Vous avez atteint votre limite de scans. Passez à un plan supérieur pour continuer.',
+        [
+          {text: 'Annuler', style: 'cancel'},
+          {text: 'Voir les plans', onPress: () => navigation.navigate('Subscription')},
+        ]
+      );
       return;
     }
 
     setState('capturing');
     setError(null);
+    retryCountRef.current = 0;
 
     const result = await cameraService.selectFromGallery();
 
@@ -75,35 +102,72 @@ export function ScannerScreen() {
     }
 
     setImageUri(result.uri);
+    currentImageRef.current = result.uri;
     await processImage(result.uri);
-  }, [canScan, navigation]);
+  }, [canScan, navigation, isTrialActive]);
 
-  const processImage = async (uri: string) => {
+  const processImage = async (uri: string, isRetry: boolean = false) => {
     setState('processing');
+    setProcessingProgress('Compression de l\'image...');
 
     try {
       // Compress image before sending to AI
       const base64 = await imageCompressionService.compressToBase64(uri);
+      
+      setProcessingProgress('Analyse en cours...');
 
-      // Parse receipt with Gemini AI
+      // Parse receipt with Gemini AI (includes built-in retry logic)
       const result = await geminiService.parseReceipt(base64, 'current-user');
 
       if (result.success && result.receipt) {
-        // Record scan usage
-        const recorded = await recordScan();
-        if (!recorded) {
-          throw new Error('Failed to record scan');
+        // Record scan usage only on success and not retry
+        if (!isRetry) {
+          const recorded = await recordScan();
+          if (!recorded) {
+            console.warn('Failed to record scan, continuing anyway');
+          }
         }
 
         setReceipt(result.receipt);
         setState('success');
+        setProcessingProgress('');
       } else {
         throw new Error(result.error || 'Échec de l\'analyse');
       }
     } catch (err: any) {
       console.error('Processing error:', err);
-      setError(err.message || 'Une erreur est survenue');
+      
+      // Auto-retry logic for transient errors
+      const isRetryableError = 
+        err.message?.includes('timeout') ||
+        err.message?.includes('network') ||
+        err.message?.includes('503') ||
+        err.message?.includes('rate limit');
+
+      if (isRetryableError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
+        retryCountRef.current += 1;
+        setProcessingProgress(`Nouvelle tentative (${retryCountRef.current}/${MAX_RETRY_ATTEMPTS})...`);
+        
+        // Exponential backoff
+        await new Promise<void>(resolve => setTimeout(resolve, 1000 * retryCountRef.current));
+        return processImage(uri, true);
+      }
+
+      // Format user-friendly error message
+      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
+      if (err.message?.includes('Unable to detect receipt')) {
+        userMessage = 'Impossible de détecter une facture dans cette image. Veuillez réessayer avec une photo plus claire.';
+      } else if (err.message?.includes('network') || err.message?.includes('offline')) {
+        userMessage = 'Pas de connexion internet. Veuillez vérifier votre connexion et réessayer.';
+      } else if (err.message?.includes('rate limit')) {
+        userMessage = 'Trop de requêtes. Veuillez patienter quelques secondes et réessayer.';
+      } else if (err.message) {
+        userMessage = err.message;
+      }
+
+      setError(userMessage);
       setState('error');
+      setProcessingProgress('');
     }
   };
 
@@ -112,6 +176,16 @@ export function ScannerScreen() {
     setImageUri(null);
     setError(null);
     setReceipt(null);
+    retryCountRef.current = 0;
+  };
+
+  const handleRetryWithSameImage = async () => {
+    if (currentImageRef.current) {
+      retryCountRef.current = 0;
+      await processImage(currentImageRef.current);
+    } else {
+      handleRetry();
+    }
   };
 
   const handleViewResults = () => {
@@ -124,6 +198,17 @@ export function ScannerScreen() {
     navigation.goBack();
   };
 
+  // Scans remaining text
+  const getScansText = () => {
+    if (isTrialActive) {
+      return `Essai gratuit: ${trialDaysRemaining} jours restants`;
+    }
+    if (scansRemaining === -1) {
+      return 'Scans illimités';
+    }
+    return `${scansRemaining} scans restants`;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -134,6 +219,13 @@ export function ScannerScreen() {
         <Text style={styles.headerTitle}>Scanner</Text>
         <View style={styles.placeholder} />
       </View>
+
+      {/* Scans remaining badge */}
+      {state === 'idle' && (
+        <View style={styles.scansBadge}>
+          <Text style={styles.scansBadgeText}>{getScansText()}</Text>
+        </View>
+      )}
 
       {/* Content */}
       <View style={styles.content}>
@@ -180,7 +272,7 @@ export function ScannerScreen() {
             <View style={styles.processingOverlay}>
               <ActivityIndicator size="large" color="#ffffff" />
               <Text style={styles.processingText}>
-                Analyse en cours...
+                {processingProgress || 'Analyse en cours...'}
               </Text>
               <Text style={styles.processingSubtext}>
                 L'IA extrait les informations de votre facture
@@ -230,12 +322,23 @@ export function ScannerScreen() {
             <Text style={styles.errorTitle}>Échec de l'analyse</Text>
             <Text style={styles.errorDesc}>{error}</Text>
 
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={handleRetry}
-              activeOpacity={0.8}>
-              <Text style={styles.retryText}>Réessayer</Text>
-            </TouchableOpacity>
+            <View style={styles.errorButtons}>
+              {currentImageRef.current && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={handleRetryWithSameImage}
+                  activeOpacity={0.8}>
+                  <Text style={styles.retryText}>Réessayer l'analyse</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.retryButton, styles.retryButtonSecondary]}
+                onPress={handleRetry}
+                activeOpacity={0.8}>
+                <Text style={styles.retryTextSecondary}>Nouvelle photo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -462,10 +565,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 48,
+    marginBottom: 12,
+  },
+  retryButtonSecondary: {
+    backgroundColor: COLORS.gray[100],
   },
   retryText: {
     color: '#ffffff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  retryTextSecondary: {
+    color: COLORS.gray[700],
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorButtons: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  scansBadge: {
+    alignSelf: 'center',
+    backgroundColor: COLORS.primary[50],
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  scansBadgeText: {
+    color: COLORS.primary[700],
+    fontSize: 13,
     fontWeight: '600',
   },
 });

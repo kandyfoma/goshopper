@@ -15,6 +15,14 @@ export interface User {
 export interface UserProfile {
   userId: string;
   displayName?: string;
+  email?: string;
+  emailVerified?: boolean;
+  phoneNumber?: string;
+  phoneVerified?: boolean;
+  countryCode?: string;
+  isInDRC?: boolean;
+  verified?: boolean;
+  verifiedAt?: Date;
   preferredLanguage: 'fr' | 'en';
   preferredCurrency: 'USD' | 'CDF';
   defaultCity?: string;
@@ -40,3 +48,17 @@ export interface AuthState {
   isAuthenticated: boolean;
   error: string | null;
 }
+
+// Verification types
+export interface VerificationState {
+  sessionId: string | null;
+  type: 'phone' | 'email' | null;
+  identifier: string | null;
+  isVerifying: boolean;
+  isVerified: boolean;
+  verificationToken: string | null;
+  error: string | null;
+}
+
+export type PaymentMethod = 'mobile_money' | 'card';
+export type MobileMoneyProvider = 'mpesa' | 'orange' | 'airtel' | 'afrimoney';

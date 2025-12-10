@@ -44,23 +44,44 @@ export interface Receipt extends ParsedReceipt {
 
 export interface Subscription {
   userId: string;
+  
+  // Trial tracking (2-month free trial)
   trialScansUsed: number;
   trialScansLimit: number;
   trialStartDate?: Date;
+  trialEndDate?: Date;
+  trialExtended?: boolean;
+  
+  // Monthly usage tracking
+  monthlyScansUsed?: number;
+  currentBillingPeriodStart?: Date;
+  currentBillingPeriodEnd?: Date;
+  
+  // Subscription details
   isSubscribed: boolean;
-  planId?: 'free' | 'basic' | 'premium';
-  status: 'trial' | 'active' | 'expired' | 'cancelled';
+  planId?: 'free' | 'basic' | 'standard' | 'premium';
+  status: 'trial' | 'active' | 'expired' | 'cancelled' | 'pending';
+  
+  // Billing
   subscriptionStartDate?: Date;
   subscriptionEndDate?: Date;
   lastPaymentDate?: Date;
   lastPaymentAmount?: number;
   currency?: 'USD' | 'CDF';
-  paymentMethod?: 'mobile_money';
-  paymentProvider?: 'moko_afrika';
+  
+  // Payment info
+  paymentMethod?: 'mobile_money' | 'card';
+  paymentProvider?: 'moko_afrika' | 'stripe';
   mobileMoneyProvider?: 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
   transactionId?: string;
+  stripePaymentIntentId?: string;
   customerPhone?: string;
+  customerEmail?: string;
+  
+  // Auto-renewal
   autoRenew: boolean;
+  
+  // Timestamps
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -97,7 +118,7 @@ export interface MokoPaymentRequest {
   currency: 'USD' | 'CDF';
   phoneNumber: string;
   provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
-  planId: 'basic' | 'premium';
+  planId: 'basic' | 'standard' | 'premium';
   description?: string;
 }
 
@@ -119,7 +140,44 @@ export interface PaymentRecord {
   planId: string;
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   mokoReference?: string;
+  stripePaymentIntentId?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+}
+
+// User verification types
+export interface VerificationRecord {
+  sessionId: string;
+  identifier: string;
+  type: 'phone' | 'email';
+  countryCode: string;
+  codeHash: string;
+  attempts: number;
+  verified: boolean;
+  verifiedAt?: Date;
+  verificationToken?: string;
+  tokenExpiresAt?: Date;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+// User profile with location
+export interface UserProfileData {
+  userId: string;
+  displayName?: string;
+  email?: string;
+  emailVerified?: boolean;
+  phoneNumber?: string;
+  phoneVerified?: boolean;
+  countryCode?: string;
+  isInDRC?: boolean;
+  verified?: boolean;
+  verifiedAt?: Date;
+  preferredLanguage: 'fr' | 'en';
+  preferredCurrency: 'USD' | 'CDF';
+  notificationsEnabled: boolean;
+  priceAlertsEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }

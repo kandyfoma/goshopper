@@ -530,6 +530,178 @@ const ACHIEVEMENTS: Achievement[] = [
 
 ---
 
+### 3. Usage Monitoring and Cost Management
+
+**Description:** Implement usage tracking, limits, and cost optimizations to ensure business profitability.
+
+**User Stories:**
+- As a business owner, I want to track user scan volumes to understand usage patterns
+- As a business owner, I want to prevent excessive AI costs from heavy users
+- As a user, I want clear visibility of my remaining scans
+
+**Technical Implementation:**
+
+```typescript
+// Usage Tracking Service
+interface UsageMetrics {
+  userId: string;
+  month: string; // YYYY-MM
+  scans: number;
+  aiCost: number;
+  lastScan: Timestamp;
+}
+
+export const trackScan = async (userId: string, aiCost: number) => {
+  const month = new Date().toISOString().slice(0, 7);
+  const docRef = db.collection('usage_metrics').doc(`${userId}_${month}`);
+  
+  await docRef.set({
+    userId,
+    month,
+    scans: FieldValue.increment(1),
+    aiCost: FieldValue.increment(aiCost),
+    lastScan: FieldValue.serverTimestamp()
+  }, { merge: true });
+};
+```
+
+**Dashboard for Monitoring:**
+
+```typescript
+// Admin dashboard to monitor costs
+export const getMonthlyUsageReport = async () => {
+  const month = new Date().toISOString().slice(0, 7);
+  
+  const snapshot = await db.collection('usage_metrics')
+    .where('month', '==', month)
+    .get();
+  
+  let totalScans = 0;
+  let totalCost = 0;
+  let activeUsers = 0;
+  
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    totalScans += data.scans;
+    totalCost += data.aiCost;
+    activeUsers++;
+  });
+  
+  return { totalScans, totalCost, activeUsers };
+};
+```
+
+**Usage Limit Enforcement:**
+
+```typescript
+// Check limits before allowing scan
+export const canUserScan = async (userId: string): Promise<boolean> => {
+  const subscription = await getUserSubscription(userId);
+  if (subscription.plan === 'premium') return true;
+  
+  const currentUsage = await getCurrentMonthUsage(userId);
+  const limits = { basic: 25, standard: 100 };
+  
+  return currentUsage < limits[subscription.plan];
+};
+```
+
+**Cost Optimization Features:**
+
+1. **Model Selection Based on Complexity**
+```typescript
+const selectAIModel = (receiptComplexity: 'simple' | 'complex') => {
+  return receiptComplexity === 'simple' 
+    ? 'gemini-2.5-flash-lite' // Cheaper for basic receipts
+    : 'gemini-2.5-flash';    // Full model for complex receipts
+};
+```
+
+2. **Price Caching**
+```typescript
+// Cache price comparisons for 24 hours
+const PRICE_CACHE_DURATION = 24 * 60 * 60 * 1000;
+
+export const getCachedPriceComparison = async (itemName: string) => {
+  const cacheKey = `price_${normalizeItemName(itemName)}`;
+  const cached = await AsyncStorage.getItem(cacheKey);
+  
+  if (cached) {
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < PRICE_CACHE_DURATION) {
+      return data;
+    }
+  }
+  
+  const freshData = await fetchPriceData(itemName);
+  await AsyncStorage.setItem(cacheKey, JSON.stringify({
+    data: freshData,
+    timestamp: Date.now()
+  }));
+  
+  return freshData;
+};
+```
+
+**UI Updates:**
+
+**Trial User:**
+```
+┌────────────────────────┐
+│ [←]   Account          │
+├────────────────────────┤
+│                        │
+│ 🎉 Free Trial          │
+│ 45 days remaining      │
+│                        │
+│ Unlimited scans        │
+│ All premium features   │
+│                        │
+│ Trial ends: Jan 15     │
+│                        │
+│   [Choose Plan]        │
+│   [Extend Trial +1M]   │
+│                        │
+└────────────────────────┘
+```
+
+**Paid User:**
+```
+┌────────────────────────┐
+│ [←]   Account          │
+├────────────────────────┤
+│                        │
+│ Plan: Standard         │
+│ $2.99/month            │
+│                        │
+│ Usage This Month       │
+│ ████████░░░░░░ 75/100  │
+│ 75 scans used          │
+│                        │
+│ Next reset: Jan 15     │
+│                        │
+│   [Upgrade Plan]       │
+│   [View Details]       │
+│                        │
+└────────────────────────┘
+```
+
+**Acceptance Criteria:**
+
+| ID | Criteria | Priority |
+|----|----------|----------|
+| UM-1 | Usage counter displayed in account screen | Must |
+| UM-2 | Scan blocked when limit reached | Must |
+| UM-3 | Clear upgrade prompts shown | Must |
+| UM-4 | Monthly usage resets on schedule | Must |
+| UM-5 | 2-month free trial with unlimited access | Must |
+| UM-6 | Trial expiration warnings (7 days before) | Must |
+| UM-7 | One-time trial extension (1 month) available | Should |
+| UM-8 | Admin dashboard for cost monitoring | Should |
+| UM-9 | Cost optimizations reduce expenses by 20% | Should |
+
+---
+
 ## Phase 1.2 - Enhanced Features (Month 3-4)
 
 ### 5. Shopping List Optimizer
