@@ -5,6 +5,9 @@ import functions from '@react-native-firebase/functions';
 import {Receipt, ReceiptItem, ReceiptScanResult} from '@/shared/types';
 import {generateUUID} from '@/shared/utils/helpers';
 
+// Cloud Functions region - must match deployed functions
+const FUNCTIONS_REGION = 'europe-west1';
+
 interface ParseReceiptResponse {
   success: boolean;
   data?: {
@@ -32,7 +35,7 @@ interface ParseReceiptResponse {
 }
 
 class GeminiService {
-  private parseReceiptFunction = functions().httpsCallable('parseReceipt');
+  private parseReceiptFunction = functions('europe-west1').httpsCallable('parseReceipt');
 
   /**
    * Parse a receipt image using Gemini AI via Cloud Function
@@ -44,8 +47,8 @@ class GeminiService {
     try {
       // Call Cloud Function (handles rate limiting, caching, API key security)
       const response = await this.parseReceiptFunction({
-        image: imageBase64,
-        userId,
+        imageBase64: imageBase64,
+        mimeType: 'image/jpeg',
       });
 
       const result = response.data as ParseReceiptResponse;

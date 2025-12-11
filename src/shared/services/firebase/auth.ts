@@ -224,7 +224,7 @@ class AuthService {
    * Create user profile document if it doesn't exist
    */
   private async createUserProfileIfNotExists(userId: string): Promise<void> {
-    const profileRef = firestore().doc(`${COLLECTIONS.users(userId)}/profile`);
+    const profileRef = firestore().doc(COLLECTIONS.userProfile(userId));
     const doc = await profileRef.get();
 
     if (!doc.exists) {

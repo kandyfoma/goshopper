@@ -4,71 +4,16 @@
  */
 
 import * as admin from 'firebase-admin';
-import * as fs from 'fs';
-import * as path from 'path';
-import { config } from './config';
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  // Check if we're in production (GCP) or local development
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.FIREBASE_CONFIG;
-
-  if (isProduction) {
-    // Use default credentials for GCP/production
+  // In Cloud Functions, use default credentials (auto-injected by GCP)
+  // Locally, will use GOOGLE_APPLICATION_CREDENTIALS or service account
+  try {
     admin.initializeApp();
-  } else {
-    // Local development - use service account or emulator
-    const serviceAccountPath = path.resolve(__dirname, '../serviceAccountKey.json');
-
-    if (config.firebase.serviceAccountKey) {
-      // Use service account key from environment variable
-      const serviceAccount = JSON.parse(config.firebase.serviceAccountKey);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: config.firebase.projectId,
-        databaseURL: config.firebase.databaseURL,
-      });
-    } else if (fs.existsSync(serviceAccountPath)) {
-      // Use service account key from file
-      try {
-        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-          projectId: config.firebase.projectId,
-          databaseURL: config.firebase.databaseURL,
-        });
-        console.log('✅ Firebase initialized with service account file');
-      } catch (error) {
-        console.error('Error loading service account file:', error);
-      }
-    } else if (process.env.FIREBASE_EMULATOR_HOST) {
-      // Use Firebase emulator
-      admin.initializeApp({
-        projectId: config.firebase.projectId,
-      });
-    } else {
-      // Fallback - try to use default credentials (may fail locally)
-      try {
-        admin.initializeApp({
-          projectId: config.firebase.projectId,
-        });
-      } catch (error) {
-        console.error('\n🚨 Firebase Admin SDK credentials not found!');
-        console.error('\nTo run the admin interface locally, you need to set up Firebase credentials:');
-        console.error('\n📋 Option 1: Service Account Key (Recommended)');
-        console.error('   1. Go to Firebase Console > Project Settings > Service Accounts');
-        console.error('   2. Click "Generate new private key"');
-        console.error('   3. Download the JSON file');
-        console.error('   4. Run: $env:FIREBASE_SERVICE_ACCOUNT_KEY = Get-Content "path/to/serviceAccountKey.json" -Raw');
-        console.error('\n📋 Option 2: Use Firebase Emulator');
-        console.error('   1. Install Firebase CLI: npm install -g firebase-tools');
-        console.error('   2. Login: firebase login');
-        console.error('   3. Start emulator: firebase emulators:start');
-        console.error('   4. Set: $env:FIREBASE_EMULATOR_HOST = "localhost:8080"');
-        console.error('\n🔗 Firebase Console: https://console.firebase.google.com/project/goshopperai/settings/serviceaccounts/adminsdk\n');
-        throw new Error('Firebase credentials not configured. See instructions above.');
-      }
-    }
+    console.log('✅ Firebase Admin initialized');
+  } catch (error) {
+    console.error('Firebase Admin initialization error:', error);
   }
 }
 

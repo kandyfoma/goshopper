@@ -7,14 +7,14 @@ exports.collections = exports.config = void 0;
 exports.config = {
     // Firebase
     firebase: {
-        projectId: process.env.FIREBASE_PROJECT_ID || 'your-firebase-project-id',
-        serviceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '',
-        databaseURL: process.env.FIREBASE_DATABASE_URL || '',
+        projectId: process.env.PROJECT_ID || process.env.GCLOUD_PROJECT || 'goshopperai',
+        serviceAccountKey: process.env.SERVICE_ACCOUNT_KEY || '',
+        databaseURL: process.env.DATABASE_URL || '',
     },
     // Gemini AI
     gemini: {
         apiKey: process.env.GEMINI_API_KEY || '',
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-1.5-flash',
         maxTokens: 4096,
     },
     // Moko Afrika (Mobile Money for DRC)

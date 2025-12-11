@@ -22,11 +22,13 @@ service cloud.firestore {
     // GoShopperAI artifact data
     match /artifacts/goshopperai {
       
-      // User data - only owner can read/write
+      // User data - owner can read, owner can create on signup
       match /users/{userId} {
-        allow read, write: if isOwner(userId);
+        // Allow user to create their own profile document on first signup
+        allow create: if isOwner(userId);
+        allow read, update, delete: if isOwner(userId);
         
-        // User profile
+        // User profile (deprecated - now using users/{userId} directly)
         match /profile/{document=**} {
           allow read, write: if isOwner(userId);
         }
@@ -38,11 +40,12 @@ service cloud.firestore {
           allow write: if false;
         }
         
-        // Subscription status
+        // Subscription status - allow user to create initial subscription
         match /subscription/{document=**} {
           allow read: if isOwner(userId);
-          // Only Cloud Functions can write subscription data
-          allow write: if false;
+          // Allow creating initial subscription, updates only via Cloud Functions
+          allow create: if isOwner(userId) && request.resource.data.status == 'trial';
+          allow update, delete: if false;
         }
         
         // Payment records

@@ -43,8 +43,18 @@ const admin = __importStar(require("firebase-admin"));
 const generative_ai_1 = require("@google/generative-ai");
 const config_1 = require("../config");
 const db = admin.firestore();
-// Initialize Gemini AI
-const genAI = new generative_ai_1.GoogleGenerativeAI(config_1.config.gemini.apiKey);
+// Gemini AI will be initialized lazily with the secret
+let genAI = null;
+function getGeminiAI() {
+    if (!genAI) {
+        const apiKey = process.env.GEMINI_API_KEY || config_1.config.gemini.apiKey;
+        if (!apiKey) {
+            throw new Error('GEMINI_API_KEY not configured');
+        }
+        genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
+    }
+    return genAI;
+}
 // Prompt for receipt parsing - optimized for DRC market
 const PARSING_PROMPT = `You are a receipt/invoice parser specialized in the Democratic Republic of Congo (DRC) market.
 
@@ -130,7 +140,7 @@ function normalizeStoreName(name) {
  * Parse receipt image using Gemini AI
  */
 async function parseWithGemini(imageBase64, mimeType) {
-    const model = genAI.getGenerativeModel({ model: config_1.config.gemini.model });
+    const model = getGeminiAI().getGenerativeModel({ model: config_1.config.gemini.model });
     const result = await model.generateContent([
         PARSING_PROMPT,
         {
@@ -187,6 +197,7 @@ exports.parseReceipt = functions
     .runWith({
     timeoutSeconds: 60,
     memory: '512MB',
+    secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
     // Check authentication
@@ -264,6 +275,7 @@ exports.parseReceiptV2 = functions
     .runWith({
     timeoutSeconds: 120,
     memory: '1GB',
+    secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
     if (!context.auth) {

@@ -44,8 +44,10 @@ export const APP_ID = 'goshopperai';
 // Collection paths
 export const COLLECTIONS = {
   users: (userId: string) => `artifacts/${APP_ID}/users/${userId}`,
+  userProfile: (userId: string) => `artifacts/${APP_ID}/users/${userId}`,
   receipts: (userId: string) => `artifacts/${APP_ID}/users/${userId}/receipts`,
   subscription: (userId: string) => `artifacts/${APP_ID}/users/${userId}/subscription/status`,
+  subscriptionStatus: (userId: string) => `artifacts/${APP_ID}/users/${userId}/subscription/status`,
   prices: `artifacts/${APP_ID}/public/prices`,
   stores: `artifacts/${APP_ID}/public/stores`,
 } as const;
