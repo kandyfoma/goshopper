@@ -252,6 +252,11 @@ export const parseReceipt = functions
       // Parse receipt with Gemini
       const parsedReceipt = await parseWithGemini(imageBase64, mimeType);
       
+      // Get user profile to include city
+      const userProfileRef = db.doc(collections.userDoc(userId));
+      const userProfileDoc = await userProfileRef.get();
+      const userProfile = userProfileDoc.data();
+      
       // Create receipt document
       const receiptRef = db.collection(collections.receipts(userId)).doc();
       const now = admin.firestore.FieldValue.serverTimestamp();
@@ -260,6 +265,7 @@ export const parseReceipt = functions
         ...parsedReceipt,
         id: receiptRef.id,
         userId,
+        city: userProfile?.defaultCity || null,
         processingStatus: 'completed',
         createdAt: now,
         updatedAt: now,
@@ -371,6 +377,11 @@ export const parseReceiptV2 = functions
         total: lastPage.total || allItems.reduce((sum, item) => sum + item.totalPrice, 0),
       };
       
+      // Get user profile to include city
+      const userProfileRef = db.doc(collections.userDoc(userId));
+      const userProfileDoc = await userProfileRef.get();
+      const userProfile = userProfileDoc.data();
+      
       // Save receipt
       const receiptRef = db.collection(collections.receipts(userId)).doc();
       const now = admin.firestore.FieldValue.serverTimestamp();
@@ -379,6 +390,7 @@ export const parseReceiptV2 = functions
         ...mergedReceipt,
         id: receiptRef.id,
         userId,
+        city: userProfile?.defaultCity || null,
         processingStatus: 'completed',
         pageCount: images.length,
         createdAt: now,

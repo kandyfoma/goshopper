@@ -16,6 +16,8 @@ export type RootStackParamList = {
   PriceComparison: {receiptId: string};
   Subscription: undefined;
   Settings: undefined;
+  CitySelection: undefined;
+  UpdateProfile: undefined;
   // Phase 1.1 Screens
   PriceAlerts: undefined;
   Achievements: undefined;

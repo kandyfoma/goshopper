@@ -15,6 +15,7 @@ import {UserProvider} from '@/shared/contexts/UserContext';
 import {SubscriptionProvider} from '@/shared/contexts/SubscriptionContext';
 import {ThemeProvider} from '@/shared/contexts/ThemeContext';
 import {initializeFirebase} from '@/shared/services/firebase/config';
+import {analyticsService} from '@/shared/services';
 
 // Ignore specific warnings in development
 LogBox.ignoreLogs([
@@ -33,6 +34,12 @@ function App(): React.JSX.Element {
         console.log('Initializing Firebase...');
         await initializeFirebase();
         console.log('Firebase initialized successfully');
+        
+        // Initialize Analytics
+        console.log('Initializing Analytics...');
+        await analyticsService.initialize();
+        console.log('Analytics initialized successfully');
+        
         setLoading(false);
       } catch (err) {
         console.error('App initialization error:', err);

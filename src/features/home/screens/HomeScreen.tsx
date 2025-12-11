@@ -1,6 +1,6 @@
 // Home Screen - Main landing page optimized for ease of use
 // Designed for Congolese housewives - simple, visual, large buttons
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,9 @@ import {
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useSubscription} from '@/shared/contexts';
+import {useSubscription, useAuth, useUser} from '@/shared/contexts';
 import {COLORS} from '@/shared/utils/constants';
+import {analyticsService} from '@/shared/services';
 
 const {width} = Dimensions.get('window');
 
@@ -23,13 +24,30 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {canScan, subscription, isTrialActive, trialDaysRemaining} = useSubscription();
+  const {userProfile} = useUser();
+
+  useEffect(() => {
+    // Track screen view
+    analyticsService.logScreenView('Home', 'HomeScreen');
+  }, []);
 
   const handleScanPress = () => {
-    if (canScan) {
-      navigation.navigate('Scanner');
-    } else {
+    if (!canScan) {
+      analyticsService.logCustomEvent('scan_blocked_subscription');
       navigation.navigate('Subscription');
+      return;
     }
+
+    // Check if user has set their city
+    if (!userProfile?.defaultCity) {
+      analyticsService.logCustomEvent('scan_redirect_city_selection');
+      navigation.navigate('CitySelection');
+      return;
+    }
+
+    // User has city set, proceed to scanner
+    analyticsService.logCustomEvent('scan_started');
+    navigation.navigate('Scanner');
   };
 
   const isSubscribed = subscription?.isSubscribed;

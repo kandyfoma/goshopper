@@ -16,6 +16,7 @@ import {RootStackParamList} from '@/shared/types';
 import {COLORS, SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import functions from '@react-native-firebase/functions';
+import {analyticsService} from '@/shared/services/analytics';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -37,6 +38,11 @@ export function ProfileScreen() {
 
   const trialRemaining = Math.max(0, TRIAL_SCAN_LIMIT - trialScansUsed);
   const isFreeTier = !subscription || subscription.planId === 'free';
+
+  useEffect(() => {
+    // Track screen view
+    analyticsService.logScreenView('Profile', 'ProfileScreen');
+  }, []);
 
   // Fetch user stats from Cloud Function
   useEffect(() => {
@@ -212,6 +218,18 @@ export function ProfileScreen() {
               <Text style={styles.actionEmoji}>❓</Text>
               <Text style={styles.actionLabel}>Aide</Text>
               <Text style={styles.actionLabelLingala}>Lisungi</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => {
+                analyticsService.logCustomEvent('profile_update_started');
+                navigation.navigate('UpdateProfile');
+              }}
+              activeOpacity={0.8}>
+              <Text style={styles.actionEmoji}>👤</Text>
+              <Text style={styles.actionLabel}>Modifier Profil</Text>
+              <Text style={styles.actionLabelLingala}>Bongisa profil</Text>
             </TouchableOpacity>
           </View>
         </View>

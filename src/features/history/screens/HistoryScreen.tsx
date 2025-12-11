@@ -18,6 +18,7 @@ import {Receipt, RootStackParamList} from '@/shared/types';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
+import {analyticsService} from '@/shared/services/analytics';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -30,6 +31,11 @@ export function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Track screen view
+    analyticsService.logScreenView('History', 'HistoryScreen');
+  }, []);
 
   useEffect(() => {
     loadReceipts();
@@ -121,6 +127,7 @@ export function HistoryScreen() {
   }, [searchQuery, receipts]);
 
   const handleReceiptPress = (receiptId: string) => {
+    analyticsService.logCustomEvent('receipt_viewed', {receipt_id: receiptId});
     navigation.navigate('ReceiptDetail', {receiptId});
   };
 

@@ -26,6 +26,12 @@ export interface UserProfile {
   preferredLanguage: 'fr' | 'ln' | 'sw' | 'en';
   preferredCurrency: 'USD' | 'CDF';
   defaultCity?: string;
+  // Additional profile fields
+  name?: string;
+  surname?: string;
+  age?: number;
+  sex?: 'male' | 'female' | 'other';
+  monthlyBudget?: number;
   notificationsEnabled: boolean;
   priceAlertsEnabled: boolean;
   createdAt: Date;

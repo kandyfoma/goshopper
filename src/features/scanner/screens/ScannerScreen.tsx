@@ -1,5 +1,5 @@
 // Scanner Screen - Capture and process receipts
-import React, {useState, useCallback, useRef} from 'react';
+import React, {useState, useCallback, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {RootStackParamList, Receipt} from '@/shared/types';
 import {useSubscription} from '@/shared/contexts';
 import {cameraService} from '@/shared/services/camera';
 import {geminiService} from '@/shared/services/ai/gemini';
+import {analyticsService} from '@/shared/services/analytics';
 import {COLORS} from '@/shared/utils/constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -35,9 +36,15 @@ export function ScannerScreen() {
   const retryCountRef = useRef(0);
   const currentImageRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    // Track screen view
+    analyticsService.logScreenView('Scanner', 'ScannerScreen');
+  }, []);
+
   const handleCapture = useCallback(async () => {
     // Check if user can scan
     if (!canScan) {
+      analyticsService.logCustomEvent('scan_blocked_subscription');
       Alert.alert(
         'Limite atteinte',
         isTrialActive 
@@ -51,6 +58,7 @@ export function ScannerScreen() {
       return;
     }
 
+    analyticsService.logCustomEvent('scan_started', {method: 'camera'});
     setState('capturing');
     setError(null);
     retryCountRef.current = 0;
@@ -58,6 +66,10 @@ export function ScannerScreen() {
     const result = await cameraService.captureFromCamera();
 
     if (!result.success || !result.base64) {
+      analyticsService.logCustomEvent('scan_failed', {
+        method: 'camera',
+        reason: result.error || 'unknown'
+      });
       setState('idle');
       if (result.error && result.error !== 'Capture annulée') {
         setError(result.error);
@@ -72,6 +84,7 @@ export function ScannerScreen() {
 
   const handleGallery = useCallback(async () => {
     if (!canScan) {
+      analyticsService.logCustomEvent('scan_blocked_subscription');
       Alert.alert(
         'Limite atteinte',
         isTrialActive 
@@ -85,6 +98,7 @@ export function ScannerScreen() {
       return;
     }
 
+    analyticsService.logCustomEvent('scan_started', {method: 'gallery'});
     setState('capturing');
     setError(null);
     retryCountRef.current = 0;
@@ -92,6 +106,10 @@ export function ScannerScreen() {
     const result = await cameraService.selectFromGallery();
 
     if (!result.success || !result.base64) {
+      analyticsService.logCustomEvent('scan_failed', {
+        method: 'gallery',
+        reason: result.error || 'unknown'
+      });
       setState('idle');
       if (result.error && result.error !== 'Capture annulée') {
         setError(result.error);
@@ -120,6 +138,16 @@ export function ScannerScreen() {
             console.warn('Failed to record scan, continuing anyway');
           }
         }
+
+        // Track successful scan
+        analyticsService.logCustomEvent('scan_completed', {
+          success: true,
+          retry: isRetry,
+          retry_count: retryCountRef.current,
+          items_count: result.receipt.items?.length || 0,
+          total_amount: result.receipt.total || 0,
+          currency: result.receipt.currency || 'unknown'
+        });
 
         setReceipt(result.receipt);
         setState('success');
@@ -160,6 +188,17 @@ export function ScannerScreen() {
 
       setError(userMessage);
       setState('error');
+
+      // Track failed scan
+      analyticsService.logCustomEvent('scan_completed', {
+        success: false,
+        retry: isRetry,
+        retry_count: retryCountRef.current,
+        error_type: err.message?.includes('Unable to detect receipt') ? 'detection_failed' :
+                   err.message?.includes('network') ? 'network_error' :
+                   err.message?.includes('rate limit') ? 'rate_limit' : 'processing_error',
+        error_message: err.message || 'unknown'
+      });
       setProcessingProgress('');
     }
   };

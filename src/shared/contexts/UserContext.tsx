@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAuth} from './AuthContext';
 import {UserProfile} from '@/shared/types';
 import {COLLECTIONS} from '@/shared/services/firebase/config';
+import {analyticsService} from '@/shared/services';
 
 const USER_PROFILE_CACHE_KEY = '@goshopperai_user_profile';
 
@@ -84,12 +85,22 @@ export function UserProvider({children}: UserProviderProps) {
               priceAlertsEnabled: data?.priceAlertsEnabled ?? true,
               displayName: data?.displayName,
               phoneNumber: data?.phoneNumber,
+              // New profile fields
+              name: data?.name,
+              surname: data?.surname,
+              age: data?.age,
+              sex: data?.sex,
+              monthlyBudget: data?.monthlyBudget,
+              defaultCity: data?.defaultCity,
               createdAt: data?.createdAt?.toDate() || new Date(),
               updatedAt: data?.updatedAt?.toDate() || new Date(),
             };
 
             setProfile(userProfile);
             setError(null);
+
+            // Track user properties for analytics
+            analyticsService.setUserProperties(userProfile);
 
             // Cache profile locally
             await AsyncStorage.setItem(

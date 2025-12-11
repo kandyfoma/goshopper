@@ -12,12 +12,14 @@ import {WelcomeScreen, LoginScreen, RegisterScreen} from '@/features/onboarding/
 import {ScannerScreen, MultiPhotoScannerScreen, ReceiptDetailScreen, PriceComparisonScreen} from '@/features/scanner/screens';
 import {SubscriptionScreen} from '@/features/subscription/screens';
 import {SettingsScreen} from '@/features/settings/screens';
+import {UpdateProfileScreen} from '@/features/profile/screens';
 
 // Phase 1.1 & 1.2 Screens
 import {PriceAlertsScreen} from '@/features/alerts';
 import {ShoppingListScreen} from '@/features/shopping';
 import {AIAssistantScreen} from '@/features/assistant';
 import {AchievementsScreen} from '@/features/achievements';
+import {CitySelectionScreen} from '@/features/onboarding/screens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -103,6 +105,21 @@ export function RootNavigator() {
         options={{
           animation: 'slide_from_bottom',
           presentation: 'fullScreenModal',
+        }}
+      />
+      <Stack.Screen
+        name="CitySelection"
+        component={CitySelectionScreen}
+        options={{
+          animation: 'slide_from_right',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="UpdateProfile"
+        component={UpdateProfileScreen}
+        options={{
+          animation: 'slide_from_right',
         }}
       />
       <Stack.Screen

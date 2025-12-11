@@ -13,6 +13,7 @@ import firestore from '@react-native-firebase/firestore';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
+import {analyticsService} from '@/shared/services/analytics';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
@@ -29,6 +30,13 @@ interface MonthlySpending {
   amount: number;
 }
 
+interface CurrencyStats {
+  totalSpending: number;
+  totalSavings: number;
+  categories: SpendingCategory[];
+  monthlyData: MonthlySpending[];
+}
+
 export function StatsScreen() {
   const {user} = useAuth();
   
@@ -37,10 +45,12 @@ export function StatsScreen() {
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('USD');
 
   useEffect(() => {
-    loadStatsData();
-  }, [user]);
+    // Track screen view
+    analyticsService.logScreenView('Stats', 'StatsScreen');
+  }, []);
 
   const loadStatsData = async () => {
     if (!user?.uid) {
@@ -65,6 +75,19 @@ export function StatsScreen() {
         .orderBy('scannedAt', 'desc')
         .get();
 
+      // Determine primary currency from receipts
+      const currencyCount: Record<string, number> = {};
+      receiptsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const currency = data.currency || 'USD';
+        currencyCount[currency] = (currencyCount[currency] || 0) + 1;
+      });
+      
+      // Set primary currency (most common)
+      const primaryCurrency = Object.entries(currencyCount)
+        .sort(([,a], [,b]) => b - a)[0]?.[0] as 'USD' | 'CDF' || 'USD';
+      setPrimaryCurrency(primaryCurrency);
+
       // Calculate spending by category
       const categoryTotals: Record<string, number> = {};
       let totalSpent = 0;
@@ -72,17 +95,20 @@ export function StatsScreen() {
       
       receiptsSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        totalSpent += data.total || 0;
-        
-        // Calculate real savings from receipt data
-        if (data.savings && typeof data.savings === 'number') {
-          totalSavings += data.savings;
+        // Only include receipts with the primary currency
+        if ((data.currency || 'USD') === primaryCurrency) {
+          totalSpent += data.total || 0;
+          
+          // Calculate real savings from receipt data
+          if (data.savings && typeof data.savings === 'number') {
+            totalSavings += data.savings;
+          }
+          
+          (data.items || []).forEach((item: any) => {
+            const category = item.category || 'Autre';
+            categoryTotals[category] = (categoryTotals[category] || 0) + (item.totalPrice || 0);
+          });
         }
-        
-        (data.items || []).forEach((item: any) => {
-          const category = item.category || 'Autre';
-          categoryTotals[category] = (categoryTotals[category] || 0) + (item.totalPrice || 0);
-        });
       });
 
       // Convert to category array with percentages
@@ -203,7 +229,7 @@ export function StatsScreen() {
             <Text style={styles.summaryIcon}>💰</Text>
             <Text style={styles.summaryLabel}>Dépenses</Text>
             <Text style={styles.summaryAmount}>
-              {formatCurrency(totalSpending)}
+              {formatCurrency(totalSpending, primaryCurrency)}
             </Text>
           </View>
           
@@ -211,7 +237,7 @@ export function StatsScreen() {
             <Text style={styles.summaryIcon}>🎉</Text>
             <Text style={styles.summaryLabelWhite}>Économies</Text>
             <Text style={styles.summaryAmountWhite}>
-              {formatCurrency(totalSavings)}
+              {formatCurrency(totalSavings, primaryCurrency)}
             </Text>
           </View>
         </View>
@@ -239,7 +265,7 @@ export function StatsScreen() {
                   </View>
                   <Text style={styles.barLabel}>{data.month}</Text>
                   <Text style={styles.barAmount}>
-                    {formatCurrency(data.amount)}
+                    {formatCurrency(data.amount, primaryCurrency)}
                   </Text>
                 </View>
               ))}
@@ -260,7 +286,7 @@ export function StatsScreen() {
                   <View>
                     <Text style={styles.categoryName}>{category.name}</Text>
                     <Text style={styles.categoryAmount}>
-                      {formatCurrency(category.amount)}
+                      {formatCurrency(category.amount, primaryCurrency)}
                     </Text>
                   </View>
                 </View>
@@ -296,7 +322,7 @@ export function StatsScreen() {
                 Économisez sur l'alimentation
               </Text>
               <Text style={styles.insightDesc}>
-                Vous pourriez économiser {formatCurrency(15.50)} en achetant 
+                Vous pourriez économiser {formatCurrency(15.50, primaryCurrency)} en achetant 
                 certains produits à Carrefour plutôt qu'à Shoprite.
               </Text>
             </View>

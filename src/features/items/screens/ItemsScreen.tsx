@@ -14,6 +14,7 @@ import firestore from '@react-native-firebase/firestore';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
+import {analyticsService} from '@/shared/services/analytics';
 
 interface ItemData {
   id: string;
@@ -21,6 +22,7 @@ interface ItemData {
   prices: {
     storeName: string;
     price: number;
+    currency: 'USD' | 'CDF';
     date: Date;
     receiptId: string;
   }[];
@@ -28,33 +30,40 @@ interface ItemData {
   maxPrice: number;
   avgPrice: number;
   storeCount: number;
+  currency: 'USD' | 'CDF'; // Primary currency for display
 }
 
 export function ItemsScreen() {
-  const {user} = useAuth();
+  const {user, userProfile} = useAuth();
   const [items, setItems] = useState<ItemData[]>([]);
   const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Track screen view
+    analyticsService.logScreenView('Items', 'ItemsScreen');
+  }, []);
+
+  useEffect(() => {
     loadItemsData();
-  }, [user]);
+  }, [user, userProfile]);
 
   useEffect(() => {
     filterItems();
   }, [items, searchQuery]);
 
   const loadItemsData = async () => {
-    if (!user?.uid) {
+    if (!user?.uid || !userProfile?.defaultCity) {
       setIsLoading(false);
       return;
     }
 
     try {
-      // Get all receipts for the user
+      // Get receipts for the user filtered by their city
       const receiptsSnapshot = await firestore()
         .collection(`artifacts/goshopperai/users/${user.uid}/receipts`)
+        .where('city', '==', userProfile.defaultCity)
         .get();
 
       const itemsMap = new Map<string, ItemData>();
@@ -79,6 +88,7 @@ export function ItemsScreen() {
               maxPrice: price,
               avgPrice: price,
               storeCount: 1,
+              currency: receiptData.currency || 'USD',
             });
           }
 
@@ -86,6 +96,7 @@ export function ItemsScreen() {
           itemData.prices.push({
             storeName: receiptData.storeName || 'Inconnu',
             price: price,
+            currency: receiptData.currency || 'USD',
             date: receiptData.scannedAt?.toDate() || new Date(),
             receiptId: doc.id,
           });
@@ -95,6 +106,14 @@ export function ItemsScreen() {
           itemData.maxPrice = Math.max(itemData.maxPrice, price);
           itemData.avgPrice = itemData.prices.reduce((sum, p) => sum + p.price, 0) / itemData.prices.length;
           itemData.storeCount = new Set(itemData.prices.map(p => p.storeName)).size;
+          
+          // Determine primary currency (most common)
+          const currencyCounts = itemData.prices.reduce((acc, p) => {
+            acc[p.currency] = (acc[p.currency] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          itemData.currency = Object.entries(currencyCounts)
+            .sort(([,a], [,b]) => b - a)[0][0] as 'USD' | 'CDF';
         });
       });
 
@@ -120,6 +139,12 @@ export function ItemsScreen() {
       item.name.toLowerCase().includes(query)
     );
     setFilteredItems(filtered);
+
+    // Track item search
+    analyticsService.logCustomEvent('item_search', {
+      query: query,
+      results_count: filtered.length
+    });
   };
 
   const renderItem = ({item}: {item: ItemData}) => (
@@ -134,16 +159,16 @@ export function ItemsScreen() {
       <View style={styles.priceInfo}>
         <View style={styles.priceRow}>
           <Text style={styles.priceLabel}>Prix min:</Text>
-          <Text style={styles.priceValue}>{formatCurrency(item.minPrice)}</Text>
+          <Text style={styles.priceValue}>{formatCurrency(item.minPrice, item.currency)}</Text>
         </View>
         <View style={styles.priceRow}>
           <Text style={styles.priceLabel}>Prix max:</Text>
-          <Text style={styles.priceValue}>{formatCurrency(item.maxPrice)}</Text>
+          <Text style={styles.priceValue}>{formatCurrency(item.maxPrice, item.currency)}</Text>
         </View>
         <View style={styles.priceRow}>
           <Text style={styles.priceLabel}>Prix moyen:</Text>
           <Text style={[styles.priceValue, styles.avgPrice]}>
-            {formatCurrency(item.avgPrice)}
+            {formatCurrency(item.avgPrice, item.currency)}
           </Text>
         </View>
       </View>
@@ -156,7 +181,7 @@ export function ItemsScreen() {
           .map((price, index) => (
             <View key={index} style={styles.storePrice}>
               <Text style={styles.storeName}>{price.storeName}</Text>
-              <Text style={styles.storePriceValue}>{formatCurrency(price.price)}</Text>
+              <Text style={styles.storePriceValue}>{formatCurrency(price.price, price.currency)}</Text>
             </View>
           ))}
         {item.prices.length > 3 && (

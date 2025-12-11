@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {User, AuthState} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
+import {analyticsService} from '@/shared/services';
 
 interface AuthContextType extends AuthState {
   signIn: () => Promise<void>;
@@ -36,6 +37,12 @@ export function AuthProvider({children}: AuthProviderProps) {
       const unsubscribe = authService.onAuthStateChanged(user => {
         console.log('📱 AuthContext received user:', user?.uid || 'null');
         console.log('📱 Setting isAuthenticated to:', !!user);
+        
+        // Track user authentication state
+        if (user) {
+          analyticsService.setUserId(user.uid);
+        }
+        
         setState({
           user,
           isLoading: false,
@@ -70,6 +77,9 @@ export function AuthProvider({children}: AuthProviderProps) {
         isAuthenticated: true,
         error: null,
       });
+      
+      // Track sign in event
+      analyticsService.logLogin('anonymous');
     } catch (error: any) {
       setState(prev => ({
         ...prev,

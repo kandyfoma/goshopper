@@ -24,6 +24,7 @@ export interface Receipt {
   storeNameNormalized: string;
   storeAddress?: string;
   storePhone?: string;
+  city?: string; // City where the purchase was made
   
   // Receipt details
   receiptNumber?: string;
