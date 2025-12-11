@@ -17,7 +17,7 @@ import auth from '@react-native-firebase/auth';
 import {RootStackParamList, Receipt, ReceiptItem} from '@/shared/types';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
-import {receiptStorageService} from '@/shared/services/firebase';
+import {receiptStorageService, authService} from '@/shared/services/firebase';
 import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {Spinner} from '@/shared/components';

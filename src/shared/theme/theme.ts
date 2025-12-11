@@ -1,32 +1,34 @@
 /**
  * GoShopperAI Design System
  * 
- * A comprehensive design system following modern mobile UI patterns
- * Inspired by clean fintech/delivery app designs
+ * Inspired by modern dashboard UI with soft pastel colors
+ * Font: Urbanist-style (System fonts as fallback)
  * 
- * Color Distribution:
- * - Primary (60%): Deep Navy Blue #1E3A5F
- * - Secondary (30%): Off-White/Light #F5F7FA  
- * - Accent (10%): Gold #D4AF37
+ * Color Palette:
+ * - Alice Blue: #D8DFE9 (light accents)
+ * - Honeydew: #CFDECA (success/positive)
+ * - Vanilla: #EFF0A3 (highlights)
+ * - Eerie Black: #212121 (text)
+ * - Ghost White: #F6F5FA (background)
  */
 
 // ============================================
 // COLOR PALETTE
 // ============================================
 export const Colors = {
-  // Primary colors
-  primary: '#1E3A5F',
-  primaryDark: '#152A45',
-  primaryLight: '#2D4A6F',
+  // Primary - Dark text color
+  primary: '#212121',
+  primaryDark: '#121212',
+  primaryLight: '#424242',
   
-  // Secondary/Background colors
-  secondary: '#F5F7FA',
-  secondaryDark: '#E8ECF0',
+  // Secondary/Background - Ghost White
+  secondary: '#F6F5FA',
+  secondaryDark: '#ECEAF2',
   
-  // Accent colors
-  accent: '#D4AF37',
-  accentLight: '#E5C65C',
-  accentDark: '#B8972E',
+  // Accent - Vanilla Yellow (for highlights)
+  accent: '#EFF0A3',
+  accentLight: '#F5F6C4',
+  accentDark: '#E2E386',
   
   // Neutral colors
   white: '#FFFFFF',
@@ -34,68 +36,76 @@ export const Colors = {
   
   // Text colors
   text: {
-    primary: '#1E293B',
-    secondary: '#64748B',
-    tertiary: '#94A3B8',
+    primary: '#212121',
+    secondary: '#6B7280',
+    tertiary: '#9CA3AF',
     inverse: '#FFFFFF',
-    accent: '#D4AF37',
+    accent: '#212121',
   },
   
   // Background colors
   background: {
     primary: '#FFFFFF',
-    secondary: '#F5F7FA',
-    tertiary: '#E8ECF0',
-    dark: '#1E3A5F',
+    secondary: '#F6F5FA',
+    tertiary: '#ECEAF2',
+    dark: '#212121',
+  },
+  
+  // Card colors - Soft pastels
+  cards: {
+    blue: '#D8DFE9',
+    green: '#CFDECA',
+    yellow: '#EFF0A3',
+    white: '#FFFFFF',
   },
   
   // Border colors
   border: {
-    light: '#E2E8F0',
-    medium: '#CBD5E1',
-    dark: '#94A3B8',
+    light: '#F0EEF5',
+    medium: '#E5E7EB',
+    dark: '#D1D5DB',
   },
   
   // Status colors
   status: {
-    success: '#10B981',
-    successLight: '#D1FAE5',
-    warning: '#F59E0B',
-    warningLight: '#FEF3C7',
+    success: '#22C55E',
+    successLight: '#CFDECA',
+    warning: '#EFF0A3',
+    warningLight: '#F5F6C4',
     error: '#EF4444',
     errorLight: '#FEE2E2',
     info: '#3B82F6',
-    infoLight: '#DBEAFE',
+    infoLight: '#D8DFE9',
   },
   
   // Gradient presets
   gradients: {
-    primary: ['#1E3A5F', '#152A45'],
-    accent: ['#D4AF37', '#B8972E'],
-    card: ['#FFFFFF', '#F5F7FA'],
+    primary: ['#212121', '#424242'],
+    accent: ['#EFF0A3', '#E2E386'],
+    card: ['#FFFFFF', '#F6F5FA'],
   },
   
   // Shadow colors
   shadow: {
-    light: 'rgba(30, 58, 95, 0.08)',
-    medium: 'rgba(30, 58, 95, 0.12)',
-    dark: 'rgba(30, 58, 95, 0.20)',
-    accent: 'rgba(212, 175, 55, 0.25)',
+    light: 'rgba(33, 33, 33, 0.04)',
+    medium: 'rgba(33, 33, 33, 0.08)',
+    dark: 'rgba(33, 33, 33, 0.12)',
+    accent: 'rgba(239, 240, 163, 0.30)',
   },
   
   // Overlay
   overlay: {
-    light: 'rgba(0, 0, 0, 0.3)',
-    medium: 'rgba(0, 0, 0, 0.5)',
-    dark: 'rgba(0, 0, 0, 0.7)',
+    light: 'rgba(0, 0, 0, 0.2)',
+    medium: 'rgba(0, 0, 0, 0.4)',
+    dark: 'rgba(0, 0, 0, 0.6)',
   },
 };
 
 // ============================================
-// TYPOGRAPHY
+// TYPOGRAPHY - Urbanist-inspired
 // ============================================
 export const Typography = {
-  // Font families (system fonts for performance)
+  // Font families (System fonts - Urbanist-like)
   fontFamily: {
     regular: 'System',
     medium: 'System',
@@ -103,18 +113,18 @@ export const Typography = {
     bold: 'System',
   },
   
-  // Font sizes
+  // Font sizes - Based on mockup (36/24/20)
   fontSize: {
-    xs: 10,
-    sm: 12,
-    md: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36,
-    '5xl': 48,
+    xs: 12,
+    sm: 14,
+    md: 16,
+    base: 18,
+    lg: 20,      // Body text
+    xl: 24,      // Sub-heading
+    '2xl': 28,
+    '3xl': 32,
+    '4xl': 36,   // Heading 2
+    '5xl': 42,
   },
   
   // Line heights
@@ -137,8 +147,8 @@ export const Typography = {
   letterSpacing: {
     tight: -0.5,
     normal: 0,
-    wide: 0.5,
-    wider: 1,
+    wide: 0.25,
+    wider: 0.5,
   },
 };
 
@@ -150,12 +160,12 @@ export const Spacing = {
   sm: 8,
   md: 12,
   base: 16,
-  lg: 20,
-  xl: 24,
-  '2xl': 32,
-  '3xl': 40,
-  '4xl': 48,
-  '5xl': 64,
+  lg: 24,
+  xl: 32,
+  '2xl': 40,
+  '3xl': 48,
+  '4xl': 64,
+  '5xl': 80,
 };
 
 // ============================================

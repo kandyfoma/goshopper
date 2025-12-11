@@ -130,23 +130,22 @@ export function MainTabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: Colors.white,
-    borderTopWidth: 0,
-    height: Platform.OS === 'ios' ? 88 : 70,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'ios' ? 28 : Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.light,
+    height: Platform.OS === 'ios' ? 84 : 64,
+    paddingTop: Spacing.xs,
+    paddingBottom: Platform.OS === 'ios' ? 24 : Spacing.xs,
     paddingHorizontal: Spacing.md,
-    ...Shadows.lg,
-    elevation: 20,
   },
   tabIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
+    minWidth: 56,
   },
   iconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
@@ -157,11 +156,11 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: Typography.fontSize.xs,
     color: Colors.text.tertiary,
-    fontWeight: '500',
+    fontWeight: Typography.fontWeight.medium,
     marginTop: 2,
   },
   tabLabelFocused: {
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: Typography.fontWeight.semiBold,
   },
 });

@@ -4,16 +4,16 @@ import firestore, {
 } from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import {Receipt} from '@/shared/types';
-import {APP_ID} from './config';
+import {APP_ID, COLLECTIONS} from './config';
 import {authService} from './auth';
 
 const RECEIPTS_COLLECTION = (userId: string) =>
-  `apps/${APP_ID}/users/${userId}/receipts`;
+  `artifacts/${APP_ID}/users/${userId}/receipts`;
 
 const SHOPS_COLLECTION = (userId: string) =>
-  `apps/${APP_ID}/users/${userId}/shops`;
+  `artifacts/${APP_ID}/users/${userId}/shops`;
 
-const PUBLIC_STORES_COLLECTION = `apps/${APP_ID}/public/stores`;
+const PUBLIC_STORES_COLLECTION = COLLECTIONS.stores;
 
 export interface Shop {
   id: string;
@@ -35,7 +35,21 @@ class ReceiptStorageService {
    */
   async detectCityFromStore(storeName: string): Promise<string | null> {
     try {
+      if (!storeName || typeof storeName !== 'string') {
+        console.warn('detectCityFromStore: Invalid storeName provided');
+        return null;
+      }
+
       const normalizedStoreName = this.normalizeStoreName(storeName);
+      if (!normalizedStoreName) {
+        return null;
+      }
+
+      // Validate collection path
+      if (!PUBLIC_STORES_COLLECTION) {
+        console.warn('detectCityFromStore: PUBLIC_STORES_COLLECTION is not defined');
+        return null;
+      }
 
       const storesSnapshot = await firestore()
         .collection(PUBLIC_STORES_COLLECTION)

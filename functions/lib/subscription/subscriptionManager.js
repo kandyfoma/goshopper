@@ -651,16 +651,25 @@ exports.getUserStats = functions
         }
         const userId = context.auth.uid;
         const db = admin.firestore();
-        // Get user's receipts
-        const receiptsRef = db
-            .collection('artifacts/goshopperai/users')
-            .doc(userId)
-            .collection('receipts');
-        const receiptsSnapshot = await receiptsRef.get();
+        console.log(`Getting stats for user: ${userId}`);
+        // Get user's receipts - try both possible paths
+        let receiptsSnapshot;
+        try {
+            const receiptsRef = db
+                .collection('artifacts/goshopperai/users')
+                .doc(userId)
+                .collection('receipts');
+            receiptsSnapshot = await receiptsRef.get();
+            console.log(`Found ${receiptsSnapshot.size} receipts`);
+        }
+        catch (receiptError) {
+            console.log('No receipts collection found, returning zeros');
+            receiptsSnapshot = { docs: [], size: 0, forEach: () => { } };
+        }
         let totalReceipts = 0;
         let totalSavings = 0;
         let totalSpent = 0;
-        receiptsSnapshot.forEach(doc => {
+        receiptsSnapshot.forEach((doc) => {
             const receipt = doc.data();
             totalReceipts++;
             // Calculate total spent from items using totalPrice
@@ -684,18 +693,24 @@ exports.getUserStats = functions
             }
         });
         // Get subscription status using the correct collection path
-        const subscriptionRef = db.doc(config_1.collections.subscription(userId));
-        const subscriptionDoc = await subscriptionRef.get();
         let subscriptionStatus = 'free';
         let monthlyScansUsed = 0;
         let monthlyScansLimit = 5; // Default free tier
-        if (subscriptionDoc.exists) {
-            const subscription = subscriptionDoc.data();
-            subscriptionStatus = subscription.status || 'free';
-            monthlyScansUsed = subscription.monthlyScansUsed || 0;
-            monthlyScansLimit =
-                PLAN_SCAN_LIMITS[subscription.planId || 'free'] || 5;
+        try {
+            const subscriptionRef = db.doc(config_1.collections.subscription(userId));
+            const subscriptionDoc = await subscriptionRef.get();
+            if (subscriptionDoc.exists) {
+                const subscription = subscriptionDoc.data();
+                subscriptionStatus = subscription.status || 'free';
+                monthlyScansUsed = subscription.monthlyScansUsed || 0;
+                monthlyScansLimit =
+                    PLAN_SCAN_LIMITS[subscription.planId || 'free'] || 5;
+            }
         }
+        catch (subError) {
+            console.log('No subscription found, using defaults');
+        }
+        console.log(`Stats: receipts=${totalReceipts}, spent=${totalSpent}`);
         return {
             totalReceipts,
             totalSavings, // This will be 0 for now since we don't have savings calculation

@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   overlayMessage: {
     marginTop: 16,
     fontSize: 16,
-    color: Colors.gray[700],
+    color: Colors.text.secondary,
     textAlign: 'center',
   },
 });

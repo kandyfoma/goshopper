@@ -17,7 +17,41 @@
  * - Primary (60%): #0F766E (Deep Teal)
  * - Secondary (30%): #F0FDFA (Mint Tint)
  * - Accent (10%): #EF4444 (Coral Red)
+ * 
+ * OPTION 4 - Urbanist (Soft Pastel) [NEW]
+ * - Primary (60%): #212121 (Eerie Black)
+ * - Secondary (30%): #F6F5FA (Ghost White)
+ * - Accent Blue: #D8DFE9 (Alice Blue)
+ * - Accent Green: #CFDECA (Honeydew)
+ * - Accent Yellow: #EFF0A3 (Vanilla)
  */
+
+// ============================================
+// OPTION 4: URBANIST SOFT PASTEL (NEW DEFAULT)
+// ============================================
+export const logoUrbanistSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgUrbanist" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D8DFE9"/>
+      <stop offset="50%" style="stop-color:#CFDECA"/>
+      <stop offset="100%" style="stop-color:#EFF0A3"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with soft gradient -->
+  <rect width="100" height="100" rx="24" fill="url(#bgUrbanist)"/>
+  
+  <!-- Letter G with integrated search -->
+  <g transform="translate(15, 18)">
+    <!-- Main G letter -->
+    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
+          fill="#212121"/>
+    
+    <!-- Search magnifier integrated -->
+    <circle cx="54" cy="44" r="11" fill="none" stroke="#212121" stroke-width="4"/>
+    <line x1="62" y1="52" x2="70" y2="60" stroke="#212121" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>`;
 
 // ============================================
 // OPTION 1: BLUE + GOLD (Trust & Prosperity)
@@ -97,8 +131,37 @@ export const logoTealCoralSvg = `<svg width="100" height="100" viewBox="0 0 100 
   </g>
 </svg>`;
 
-// Default export (Blue + Gold recommended)
-export const logoIconSvg = logoBlueGoldSvg;
+// Default export (Urbanist soft pastel - new default)
+export const logoIconSvg = logoUrbanistSvg;
+
+// Urbanist full logo with text
+export const logoUrbanistFullSvg = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgUrbanistFull" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D8DFE9"/>
+      <stop offset="50%" style="stop-color:#CFDECA"/>
+      <stop offset="100%" style="stop-color:#EFF0A3"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Logo icon -->
+  <g transform="translate(5, 5) scale(0.7)">
+    <rect width="100" height="100" rx="24" fill="url(#bgUrbanistFull)"/>
+    <g transform="translate(15, 18)">
+      <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
+            fill="#212121"/>
+      <circle cx="54" cy="44" r="11" fill="none" stroke="#212121" stroke-width="4"/>
+      <line x1="62" y1="52" x2="70" y2="60" stroke="#212121" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </g>
+  
+  <!-- App name - Urbanist style -->
+  <text x="85" y="38" font-family="Urbanist, Arial, sans-serif" font-size="26" font-weight="700" fill="#212121">GoShopper</text>
+  <text x="230" y="38" font-family="Urbanist, Arial, sans-serif" font-size="26" font-weight="700" fill="#CFDECA">AI</text>
+  
+  <!-- Tagline -->
+  <text x="85" y="58" font-family="Urbanist, Arial, sans-serif" font-size="12" fill="#666666">Économisez intelligemment</text>
+</svg>`;
 
 // White variant for dark mode
 export const logoIconWhiteSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -161,7 +224,18 @@ export const logoFullSvg = `<svg width="280" height="80" viewBox="0 0 280 80" xm
 
 // Color palette exports for use throughout the app
 export const ColorPalette = {
-  // Option 1: Blue + Gold (Default)
+  // Option 4: Urbanist Soft Pastel (New Default)
+  urbanist: {
+    primary: '#212121',     // Eerie Black
+    secondary: '#F6F5FA',   // Ghost White
+    accentBlue: '#D8DFE9',  // Alice Blue
+    accentGreen: '#CFDECA', // Honeydew
+    accentYellow: '#EFF0A3', // Vanilla
+    text: '#212121',
+    textLight: '#666666',
+    white: '#FFFFFF',
+  },
+  // Option 1: Blue + Gold
   blueGold: {
     primary: '#1E3A5F',
     primaryDark: '#152A45',
@@ -193,5 +267,5 @@ export const ColorPalette = {
   },
 };
 
-// Default color palette (can be changed by user preference)
-export const Colors = ColorPalette.blueGold;
+// Default color palette (Urbanist - new default)
+export const Colors = ColorPalette.urbanist;

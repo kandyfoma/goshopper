@@ -12,7 +12,6 @@ import {authService} from '@/shared/services/firebase';
 import {analyticsService} from '@/shared/services';
 
 interface AuthContextType extends AuthState {
-  signIn: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -136,7 +135,6 @@ export function AuthProvider({children}: AuthProviderProps) {
     <AuthContext.Provider
       value={{
         ...state,
-        signIn,
         signInWithGoogle,
         signInWithApple,
         signOut,
