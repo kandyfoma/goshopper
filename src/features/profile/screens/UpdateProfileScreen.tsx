@@ -136,8 +136,20 @@ const DRC_CITIES = [
 
 export function UpdateProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const {profile, updateProfile} = useUser();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const [formData, setFormData] = useState({
     name: '',

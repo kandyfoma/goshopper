@@ -276,17 +276,27 @@ class PriceAlertsService {
       .collection(ALERTS_COLLECTION(userId))
       .where('isActive', '==', true)
       .orderBy('createdAt', 'desc')
-      .onSnapshot(snapshot => {
-        const alerts = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id,
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-          triggeredAt: doc.data().triggeredAt?.toDate(),
-        })) as PriceAlert[];
+      .onSnapshot(
+        snapshot => {
+          if (!snapshot) {
+            callback([]);
+            return;
+          }
+          const alerts = snapshot.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id,
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+            triggeredAt: doc.data().triggeredAt?.toDate(),
+          })) as PriceAlert[];
 
-        callback(alerts);
-      });
+          callback(alerts);
+        },
+        error => {
+          console.error('Error subscribing to alerts:', error);
+          callback([]);
+        },
+      );
   }
 
   /**

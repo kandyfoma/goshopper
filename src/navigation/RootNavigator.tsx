@@ -126,51 +126,11 @@ export function RootNavigator() {
     );
   }
 
-  // If not authenticated, show auth screens
-  if (!isAuthenticated) {
-    console.log('🔒 Showing auth screens (not authenticated)');
-    return (
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}>
-        {isFirstLaunch ? (
-          <Stack.Screen
-            name="Welcome"
-            component={WelcomeScreen}
-            options={{animation: 'fade'}}
-          />
-        ) : null}
-        <Stack.Screen
-          name="SignIn"
-          component={SignInScreen}
-          options={{animation: 'slide_from_right'}}
-        />
-        <Stack.Screen
-          name="Register"
-          component={RegisterScreen}
-          options={{animation: 'slide_from_right'}}
-        />
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPasswordScreen}
-          options={{animation: 'slide_from_right'}}
-        />
-        <Stack.Screen
-          name="ResetPassword"
-          component={ResetPasswordScreen}
-          options={{animation: 'slide_from_right'}}
-        />
-      </Stack.Navigator>
-    );
-  }
-
-  // Authenticated - show main app or profile setup
-  console.log('✅ Showing main app (authenticated), profileComplete:', isProfileComplete);
+  // Always show main app - allow anonymous access
+  console.log('✅ Showing main app (allowing anonymous access), authenticated:', isAuthenticated, 'profileComplete:', isProfileComplete);
   
-  // If profile is not complete, show profile setup first
-  const initialRoute = isProfileComplete === false ? 'ProfileSetup' : 'Main';
+  // If authenticated and profile is not complete, show profile setup first
+  const initialRoute = isAuthenticated && isProfileComplete === false ? 'ProfileSetup' : 'Main';
   
   return (
     <Stack.Navigator
@@ -179,16 +139,44 @@ export function RootNavigator() {
         headerShown: false,
         animation: 'slide_from_right',
       }}>
-      {/* Profile Setup - shown first if profile incomplete */}
-      <Stack.Screen
-        name="ProfileSetup"
-        component={ProfileSetupScreen}
-        options={{
-          animation: 'fade',
-          gestureEnabled: false, // Prevent back gesture
-        }}
-      />
+      {/* Profile Setup - shown first if authenticated but profile incomplete */}
+      {isAuthenticated && isProfileComplete === false && (
+        <Stack.Screen
+          name="ProfileSetup"
+          component={ProfileSetupScreen}
+          options={{
+            animation: 'fade',
+            gestureEnabled: false, // Prevent back gesture
+          }}
+        />
+      )}
       <Stack.Screen name="Main" component={MainTabNavigator} />
+      {/* Auth screens available for navigation */}
+      <Stack.Screen
+        name="SignIn"
+        component={SignInScreen}
+        options={{animation: 'slide_from_right'}}
+      />
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{animation: 'slide_from_right'}}
+      />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{animation: 'slide_from_right'}}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{animation: 'slide_from_right'}}
+      />
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{animation: 'slide_from_right'}}
+      />
       <Stack.Screen
         name="Scanner"
         component={ScannerScreen}
@@ -264,17 +252,6 @@ export function RootNavigator() {
         name="AIAssistant"
         component={AIAssistantScreen}
         options={{headerShown: false}}
-      />
-      {/* Keep auth screens accessible for re-login scenarios */}
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{animation: 'slide_from_right'}}
-      />
-      <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
-        options={{animation: 'slide_from_right'}}
       />
     </Stack.Navigator>
   );

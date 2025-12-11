@@ -172,7 +172,7 @@ export function ResetPasswordScreen() {
           </Text>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => navigation.navigate('SignIn')}
+            onPress={() => navigation.navigate('Login')}
             activeOpacity={0.8}>
             <View style={styles.buttonInner}>
               <Text style={styles.buttonText}>Se connecter</Text>

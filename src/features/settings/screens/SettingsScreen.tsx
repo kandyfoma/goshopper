@@ -1,6 +1,6 @@
 // Settings Screen - Urbanist Design System
 // Sleek, professional settings with soft pastels
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -90,10 +90,22 @@ function SettingSection({
 export function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const {user, signOut} = useAuth();
+  const {user, signOut, isAuthenticated} = useAuth();
   const {profile, toggleNotifications, togglePriceAlerts} = useUser();
   const {subscription, trialScansUsed} = useSubscription();
   const {isDarkMode, toggleTheme} = useTheme();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Use profile settings or defaults
   const notificationsEnabled = profile?.notificationsEnabled ?? true;

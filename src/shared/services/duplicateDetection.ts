@@ -50,7 +50,9 @@ class DuplicateDetectionService {
 
       return result.data as QuickExtractResponse;
     } catch (error: any) {
-      console.error('Quick extract error:', error);
+      // Quick extract failures are expected when Vision API is not configured
+      // Just return gracefully without logging as error
+      console.log('Quick extract skipped:', error.message || 'Service unavailable');
       return {
         success: false,
         error: error.message || 'Failed to extract receipt data',

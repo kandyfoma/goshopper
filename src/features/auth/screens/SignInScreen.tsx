@@ -7,16 +7,32 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {SocialSignInButtons} from '@/shared/components';
 import {Colors, Typography, Spacing, BorderRadius} from '@/shared/theme/theme';
-import Icon from '@/shared/components/Icon';
+
+// Urbanist Design Colors
+const URBANIST_COLORS = {
+  background: '#F6F5FA',
+  cardBg: '#FFFFFF',
+  primaryAccent: '#D8DFE9',
+  secondaryAccent: '#CFDECA',
+  highlightAccent: '#EFF0A3',
+  textPrimary: '#212121',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
+  primary: '#8B5CF6',
+  border: '#E5E7EB',
+};
 
 export function SignInScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const {signInWithGoogle, signInWithApple, isLoading, error} = useAuth();
   const {showToast} = useToast();
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -28,10 +44,10 @@ export function SignInScreen() {
     try {
       await signInWithGoogle();
       showToast('Connexion réussie avec Google', 'success');
-    } catch (error: any) {
-      console.error('Google sign-in error:', error);
+    } catch (err: any) {
+      console.error('Google sign-in error:', err);
       showToast(
-        error.message || 'Échec de la connexion Google',
+        err?.message || 'Échec de la connexion Google',
         'error'
       );
     } finally {
@@ -46,10 +62,10 @@ export function SignInScreen() {
     try {
       await signInWithApple();
       showToast('Connexion réussie avec Apple', 'success');
-    } catch (error: any) {
-      console.error('Apple sign-in error:', error);
+    } catch (err: any) {
+      console.error('Apple sign-in error:', err);
       showToast(
-        error.message || 'Échec de la connexion Apple',
+        err?.message || 'Échec de la connexion Apple',
         'error'
       );
     } finally {
@@ -63,39 +79,40 @@ export function SignInScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
+    <View style={[styles.container, {paddingTop: insets.top}]}>
+      <StatusBar barStyle="dark-content" backgroundColor={URBANIST_COLORS.background} />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={handleSkipSignIn}
-          style={styles.skipButton}>
+          style={styles.skipButton}
+          activeOpacity={0.7}>
           <Text style={styles.skipText}>Ignorer</Text>
         </TouchableOpacity>
       </View>
 
       {/* Main Content */}
-      <View style={styles.content}>
-        {/* Logo/Icon */}
-        <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            <Icon name="shopping-bag" size="3xl" color={Colors.primary} />
-          </View>
-        </View>
-
-        {/* Title */}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 24}]}
+        showsVerticalScrollIndicator={false}>
+        
+        {/* Title Section */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Bienvenue sur</Text>
-          <Text style={styles.subtitle}>GoShopperAI</Text>
+          <Text style={styles.welcomeText}>Bienvenue sur</Text>
+          <Text style={styles.appName}>GoShopperAI</Text>
           <Text style={styles.description}>
-            Votre assistant intelligent pour faire des courses
+            Votre assistant intelligent pour économiser sur vos courses au quotidien
           </Text>
         </View>
 
-        {/* Sign In Options */}
-        <View style={styles.signInContainer}>
-          <Text style={styles.signInTitle}>Se connecter avec</Text>
+        {/* Sign In Card */}
+        <View style={styles.signInCard}>
+          <Text style={styles.signInTitle}>Se connecter</Text>
+          <Text style={styles.signInSubtitle}>
+            Choisissez votre méthode de connexion préférée
+          </Text>
 
           <SocialSignInButtons
             onGoogleSignIn={handleGoogleSignIn}
@@ -111,113 +128,129 @@ export function SignInScreen() {
           )}
         </View>
 
-        {/* Footer */}
+        {/* Footer - Terms */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             En vous connectant, vous acceptez nos{' '}
-            <Text style={styles.linkText}>Conditions d'utilisation</Text> et{' '}
+            <Text style={styles.linkText}>Conditions d'utilisation</Text>
+            {' '}et notre{' '}
             <Text style={styles.linkText}>Politique de confidentialité</Text>
           </Text>
         </View>
-      </View>
-    </SafeAreaView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: URBANIST_COLORS.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   skipButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: URBANIST_COLORS.cardBg,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   skipText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
-    fontWeight: Typography.fontWeight.medium,
+    fontSize: 14,
+    color: URBANIST_COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
-    flex: 1,
-    paddingHorizontal: Spacing.xl,
-    justifyContent: 'space-between',
-    paddingBottom: Spacing.xl,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginTop: Spacing.xl,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
+    flexGrow: 1,
+    paddingHorizontal: 24,
     justifyContent: 'center',
   },
   titleContainer: {
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginBottom: 40,
   },
-  title: {
-    fontSize: Typography.fontSize.xl,
-    color: Colors.text.secondary,
-    fontWeight: Typography.fontWeight.regular,
-    marginBottom: Spacing.xs,
+  welcomeText: {
+    fontSize: 18,
+    color: URBANIST_COLORS.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: Typography.fontSize['3xl'],
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.bold,
-    marginBottom: Spacing.md,
+  appName: {
+    fontSize: 36,
+    color: URBANIST_COLORS.textPrimary,
+    fontWeight: '700',
+    marginBottom: 16,
+    letterSpacing: -0.5,
   },
   description: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
+    fontSize: 16,
+    color: URBANIST_COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: Typography.lineHeight.relaxed,
+    lineHeight: 24,
+    paddingHorizontal: 20,
   },
-  signInContainer: {
-    marginTop: Spacing.xl,
+  signInCard: {
+    backgroundColor: URBANIST_COLORS.cardBg,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    marginBottom: 32,
   },
   signInTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.text.primary,
-    fontWeight: Typography.fontWeight.medium,
+    fontSize: 22,
+    color: URBANIST_COLORS.textPrimary,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  signInSubtitle: {
+    fontSize: 14,
+    color: URBANIST_COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
   },
   errorContainer: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.status.errorLight,
-    borderRadius: BorderRadius.md,
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.status.error,
+    borderColor: '#FEE2E2',
   },
   errorText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.status.error,
+    fontSize: 14,
+    color: '#EF4444',
     textAlign: 'center',
+    fontWeight: '500',
   },
   footer: {
-    marginTop: Spacing.xl,
+    paddingHorizontal: 16,
   },
   footerText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.text.tertiary,
+    fontSize: 13,
+    color: URBANIST_COLORS.textMuted,
     textAlign: 'center',
-    lineHeight: Typography.lineHeight.normal,
+    lineHeight: 20,
   },
   linkText: {
-    color: Colors.primary,
-    textDecorationLine: 'underline',
+    color: URBANIST_COLORS.primary,
+    fontWeight: '600',
   },
 });

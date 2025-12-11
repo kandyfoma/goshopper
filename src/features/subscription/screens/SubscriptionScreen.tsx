@@ -15,9 +15,11 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import functions from '@react-native-firebase/functions';
 import firestore from '@react-native-firebase/firestore';
 import {useSubscription, useAuth} from '@/shared/contexts';
+import {RootStackParamList} from '@/shared/types';
 import {
   SUBSCRIPTION_PLANS,
   TRIAL_DURATION_DAYS,
@@ -32,7 +34,7 @@ import {
   Spacing,
   BorderRadius,
   Shadows,
-} from '@/shared/theme';
+} from '@/shared/theme/theme';
 import {Icon, Spinner} from '@/shared/components';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -56,10 +58,22 @@ const MOBILE_MONEY_OPTIONS: MobileMoneyOption[] = [
 ];
 
 export function SubscriptionScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const {subscription, isTrialActive, trialDaysRemaining} = useSubscription();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const [selectedPlan, setSelectedPlan] = useState<PlanId>('standard');
   const [selectedDuration, setSelectedDuration] =

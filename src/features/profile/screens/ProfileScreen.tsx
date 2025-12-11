@@ -96,8 +96,20 @@ const MenuItem = ({
 
 export function ProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {user, signOut} = useAuth();
+  const {user, signOut, isAuthenticated} = useAuth();
   const {subscription, trialScansUsed} = useSubscription();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
   const {profile} = useUser();
 
   const [userStats, setUserStats] = useState({

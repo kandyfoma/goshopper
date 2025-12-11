@@ -164,7 +164,7 @@ export function MultiPhotoScannerScreen() {
 
         // Navigate to receipt detail
         setTimeout(() => {
-          navigation.replace('ReceiptDetail', {receiptId: result.receiptId!});
+          navigation.replace('ReceiptDetail', {receiptId: result.receiptId!, receipt: result.receipt});
         }, 1500);
       } else {
         throw new Error(result.error || 'Échec du traitement');

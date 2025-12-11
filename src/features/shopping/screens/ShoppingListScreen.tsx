@@ -17,6 +17,8 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
 import {
   shoppingListService,
@@ -30,15 +32,27 @@ import {
   Spacing,
   BorderRadius,
   Shadows,
-} from '@/shared/theme';
+} from '@/shared/theme/theme';
 import {Icon, Spinner} from '@/shared/components';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 export function ShoppingListScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -535,9 +549,6 @@ export function ShoppingListScreen() {
           </TouchableOpacity>
         </Animated.View>
       )}
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* New List Modal */}
       <Modal
@@ -683,7 +694,7 @@ export function ShoppingListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.background.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -729,7 +740,7 @@ const styles = StyleSheet.create({
     maxHeight: 80,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.border.light,
   },
   listSelectorContent: {
     paddingHorizontal: Spacing.md,
@@ -810,7 +821,7 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   savingsAmount: {
-    fontSize: Typography.fontSize.xxl,
+    fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.status.success,
   },
@@ -854,7 +865,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.border.light,
   },
   storeRank: {
     width: 28,
@@ -892,7 +903,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xxl,
+    padding: Spacing['2xl'],
   },
   emptyIconContainer: {
     width: 100,
@@ -937,7 +948,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.card.blue,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.border.light,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -1002,7 +1013,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.border.light,
   },
   suggestionsTitle: {
     fontSize: Typography.fontSize.sm,
@@ -1049,7 +1060,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xxl,
+    padding: Spacing['2xl'],
   },
   noListIconContainer: {
     width: 100,
@@ -1061,7 +1072,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   noListTitle: {
-    fontSize: Typography.fontSize.xxl,
+    fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
@@ -1080,7 +1091,7 @@ const styles = StyleSheet.create({
   },
   createFirstButtonGradient: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.xxl,
+    paddingHorizontal: Spacing['2xl'],
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     gap: Spacing.sm,
@@ -1097,8 +1108,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius.xxl,
-    borderTopRightRadius: BorderRadius.xxl,
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
   },
@@ -1106,12 +1117,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.border.light,
     alignSelf: 'center',
     marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: Typography.fontSize.xxl,
+    fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     textAlign: 'center',
@@ -1167,7 +1178,7 @@ const styles = StyleSheet.create({
   quantityInput: {
     width: 50,
     textAlign: 'center',
-    fontSize: Typography.fontSize.xxl,
+    fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
@@ -1199,7 +1210,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   modalCreateButtonDisabled: {
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.border.light,
   },
   modalCreateText: {
     fontSize: Typography.fontSize.md,

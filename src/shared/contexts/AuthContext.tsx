@@ -81,12 +81,14 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('google');
-    } catch (error: any) {
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Échec de la connexion Google';
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message || 'Échec de la connexion Google',
+        error: errorMessage,
       }));
+      throw err; // Re-throw so the caller can handle it
     }
   }, []);
 
@@ -103,12 +105,14 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('apple');
-    } catch (error: any) {
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Échec de la connexion Apple';
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message || 'Échec de la connexion Apple',
+        error: errorMessage,
       }));
+      throw err; // Re-throw so the caller can handle it
     }
   }, []);
 
@@ -122,11 +126,11 @@ export function AuthProvider({children}: AuthProviderProps) {
         isAuthenticated: false,
         error: null,
       });
-    } catch (error: any) {
+    } catch (error) {
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message || 'Échec de la déconnexion',
+        error: 'Échec de la déconnexion',
       }));
     }
   }, []);

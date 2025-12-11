@@ -8,6 +8,7 @@ export * from './subscription.types';
 export type RootStackParamList = {
   Welcome: undefined;
   SignIn: undefined;
+  Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: {oobCode: string};
@@ -16,7 +17,7 @@ export type RootStackParamList = {
   Main: undefined;
   Scanner: undefined;
   MultiPhotoScanner: undefined;
-  ReceiptDetail: {receiptId: string};
+  ReceiptDetail: {receiptId: string; receipt?: Receipt};
   PriceComparison: {receiptId: string};
   Subscription: undefined;
   Settings: undefined;

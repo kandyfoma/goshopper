@@ -224,13 +224,11 @@ export function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <TouchableOpacity 
-              style={styles.menuButton}
-              onPress={() => navigation.navigate('Settings')}>
-              <Icon name="menu" size="md" color={Colors.text.primary} />
-            </TouchableOpacity>
+            {/* Empty space for balance */}
           </View>
-          <TimePeriodSelector selected={selectedPeriod} onSelect={setSelectedPeriod} />
+          <View style={styles.headerCenter}>
+            {/* Logo or app name could go here */}
+          </View>
           <TouchableOpacity 
             style={styles.notificationButton}
             onPress={() => navigation.navigate('PriceAlerts')}>
@@ -370,13 +368,8 @@ const styles = StyleSheet.create({
   headerLeft: {
     width: 44,
   },
-  menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerCenter: {
+    flex: 1,
   },
   notificationButton: {
     width: 44,

@@ -30,13 +30,19 @@ export function ReceiptDetailScreen() {
   const route = useRoute<ReceiptDetailRouteProp>();
   const {user} = useAuth();
   const {showToast} = useToast();
-  const {receiptId} = route.params;
+  const {receiptId, receipt: passedReceipt} = route.params;
 
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (passedReceipt) {
+      setReceipt(passedReceipt);
+      setLoading(false);
+      return;
+    }
+
     const fetchReceipt = async () => {
       try {
         setLoading(true);

@@ -30,7 +30,7 @@ const MAX_RETRY_ATTEMPTS = 3;
 
 export function ScannerScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const {
     canScan,
     recordScan,
@@ -38,6 +38,18 @@ export function ScannerScreen() {
     isTrialActive,
     trialDaysRemaining,
   } = useSubscription();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const [state, setState] = useState<ScanState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -359,7 +371,7 @@ export function ScannerScreen() {
 
   const handleViewResults = () => {
     if (receipt) {
-      navigation.navigate('ReceiptDetail', {receiptId: receipt.id});
+      navigation.navigate('ReceiptDetail', {receiptId: receipt.id, receipt});
     }
   };
 

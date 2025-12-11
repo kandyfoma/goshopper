@@ -165,22 +165,22 @@ async function parseWithGemini(
     }),
   );
 
-  // Build parsed receipt
+  // Build parsed receipt - use null instead of undefined for optional fields
   const receipt: ParsedReceipt = {
     storeName: parsed.storeName || 'Unknown Store',
     storeNameNormalized: normalizeStoreName(parsed.storeName || ''),
-    storeAddress: parsed.storeAddress,
-    storePhone: parsed.storePhone,
-    receiptNumber: parsed.receiptNumber,
+    storeAddress: parsed.storeAddress || null,
+    storePhone: parsed.storePhone || null,
+    receiptNumber: parsed.receiptNumber || null,
     date: parsed.date || new Date().toISOString().split('T')[0],
     currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
     items,
-    subtotal: parsed.subtotal,
-    tax: parsed.tax,
+    subtotal: parsed.subtotal ?? null,
+    tax: parsed.tax ?? null,
     total:
       parsed.total || items.reduce((sum, item) => sum + item.totalPrice, 0),
-    totalUSD: parsed.totalUSD,
-    totalCDF: parsed.totalCDF,
+    totalUSD: parsed.totalUSD ?? null,
+    totalCDF: parsed.totalCDF ?? null,
   };
 
   return receipt;

@@ -16,6 +16,8 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
 import {
   naturalLanguageService,
@@ -28,15 +30,27 @@ import {
   Spacing,
   BorderRadius,
   Shadows,
-} from '@/shared/theme';
+} from '@/shared/theme/theme';
 import {Icon, Spinner} from '@/shared/components';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 export function AIAssistantScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);

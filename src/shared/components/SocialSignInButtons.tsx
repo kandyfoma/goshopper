@@ -1,6 +1,7 @@
 // Social Sign-In Buttons Component
+// Shows Google on Android, Apple on iOS
 import React from 'react';
-import {View, TouchableOpacity, Text, StyleSheet} from 'react-native';
+import {View, TouchableOpacity, Text, StyleSheet, Platform} from 'react-native';
 import Icon from './Icon';
 import {Colors, Spacing, BorderRadius, Typography} from '../theme/theme';
 
@@ -19,25 +20,31 @@ export function SocialSignInButtons({
 }: SocialSignInButtonProps) {
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={[styles.googleButton, disabled && styles.disabledButton]}
-        onPress={onGoogleSignIn}
-        disabled={disabled || isLoading}>
-        <Icon name="google" size="sm" color={Colors.text.primary} />
-        <Text style={[styles.googleButtonText, disabled && styles.disabledText]}>
-          Continuer avec Google
-        </Text>
-      </TouchableOpacity>
+      {/* Google Sign-In - Android only */}
+      {Platform.OS === 'android' && (
+        <TouchableOpacity
+          style={[styles.googleButton, disabled && styles.disabledButton]}
+          onPress={onGoogleSignIn}
+          disabled={disabled || isLoading}>
+          <Text style={styles.googleIcon}>G</Text>
+          <Text style={[styles.googleButtonText, disabled && styles.disabledText]}>
+            Continuer avec Google
+          </Text>
+        </TouchableOpacity>
+      )}
 
-      <TouchableOpacity
-        style={[styles.appleButton, disabled && styles.disabledButton]}
-        onPress={onAppleSignIn}
-        disabled={disabled || isLoading}>
-        <Icon name="apple" size="sm" color={Colors.white} />
-        <Text style={[styles.appleButtonText, disabled && styles.disabledText]}>
-          Continuer avec Apple
-        </Text>
-      </TouchableOpacity>
+      {/* Apple Sign-In - iOS only */}
+      {Platform.OS === 'ios' && (
+        <TouchableOpacity
+          style={[styles.appleButton, disabled && styles.disabledButton]}
+          onPress={onAppleSignIn}
+          disabled={disabled || isLoading}>
+          <Icon name="apple-fill" size="sm" color={Colors.white} />
+          <Text style={[styles.appleButtonText, disabled && styles.disabledText]}>
+            Continuer avec Apple
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -51,7 +58,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border.light,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
@@ -61,6 +68,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  googleIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4285F4',
   },
   appleButton: {
     flexDirection: 'row',

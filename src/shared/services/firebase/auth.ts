@@ -14,7 +14,7 @@ class AuthService {
   constructor() {
     // Configure Google Sign-In
     GoogleSignin.configure({
-      webClientId: 'YOUR_FIREBASE_WEB_CLIENT_ID', // Replace with your Firebase web client ID from Firebase Console > Project Settings > General > Web API Key
+      webClientId: '889807854788-snap5tikvb7f50jp67h62f3g7iukbgr0.apps.googleusercontent.com',
       offlineAccess: true,
     });
 
@@ -133,8 +133,15 @@ class AuthService {
       // Check if Google Play Services are available
       await GoogleSignin.hasPlayServices({showPlayServicesUpdateDialog: true});
 
-      // Sign in with Google
-      const {idToken} = await GoogleSignin.signIn();
+      // Sign in with Google - v16+ returns { data: { idToken, user } }
+      const response = await GoogleSignin.signIn();
+      
+      // Extract idToken from the response (v16+ structure)
+      const idToken = response.data?.idToken;
+      
+      if (!idToken) {
+        throw new Error('Google Sign-In failed - no ID token returned');
+      }
 
       // Create a Google credential with the token
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
