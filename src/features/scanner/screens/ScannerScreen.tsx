@@ -49,6 +49,167 @@ export function ScannerScreen() {
     analyticsService.logScreenView('Scanner', 'ScannerScreen');
   }, []);
 
+  const processImage = useCallback(
+    async (base64Data: string, isRetry: boolean = false): Promise<void> => {
+      setState('processing');
+      setProcessingProgress('Vérification des doublons...');
+
+      try {
+        // Step 1: Check for duplicates before full processing
+        if (!isRetry) {
+          const duplicateCheck =
+            await duplicateDetectionService.checkForDuplicate(
+              base64Data,
+              user?.uid || 'unknown-user',
+            );
+
+          // Track duplicate detection result
+          analyticsService.logCustomEvent('duplicate_check_completed', {
+            is_duplicate: duplicateCheck.isDuplicate,
+            confidence: duplicateCheck.confidence,
+            has_existing_receipt: !!duplicateCheck.existingReceiptId,
+          });
+
+          if (duplicateCheck.isDuplicate && duplicateCheck.confidence > 0.8) {
+            // High confidence duplicate - ask user to confirm
+            const shouldProceed = await new Promise<boolean>(resolve => {
+              Alert.alert(
+                'Reçu potentiellement dupliqué',
+                `Un reçu similaire a été trouvé (${Math.round(
+                  duplicateCheck.confidence * 100,
+                )}% de similarité). Voulez-vous quand même continuer ?`,
+                [
+                  {
+                    text: 'Annuler',
+                    style: 'cancel',
+                    onPress: () => resolve(false),
+                  },
+                  {
+                    text: 'Continuer',
+                    onPress: () => resolve(true),
+                  },
+                ],
+              );
+            });
+
+            if (!shouldProceed) {
+              setState('idle');
+              analyticsService.logCustomEvent('duplicate_scan_cancelled', {
+                confidence: duplicateCheck.confidence,
+              });
+              return;
+            }
+          } else if (
+            duplicateCheck.isDuplicate &&
+            duplicateCheck.confidence > 0.6
+          ) {
+            // Medium confidence - show warning but continue
+            setProcessingProgress(
+              "Reçu similaire détecté, poursuite de l'analyse...",
+            );
+            analyticsService.logCustomEvent('duplicate_warning_shown', {
+              confidence: duplicateCheck.confidence,
+            });
+          }
+        }
+
+        setProcessingProgress('Analyse en cours...');
+
+        // Step 2: Parse receipt with Gemini AI using base64 directly (no compression needed)
+        const result = await geminiService.parseReceipt(
+          base64Data,
+          user?.uid || 'unknown-user',
+        );
+
+        if (result.success && result.receipt) {
+          // Record scan usage only on success and not retry
+          if (!isRetry) {
+            const recorded = await recordScan();
+            if (!recorded) {
+              console.warn('Failed to record scan, continuing anyway');
+            }
+          }
+
+          // Track successful scan
+          analyticsService.logCustomEvent('scan_completed', {
+            success: true,
+            retry: isRetry,
+            retry_count: retryCountRef.current,
+            items_count: result.receipt.items?.length || 0,
+            total_amount: result.receipt.total || 0,
+            currency: result.receipt.currency || 'unknown',
+          });
+
+          setReceipt(result.receipt);
+          setState('success');
+          setProcessingProgress('');
+        } else {
+          throw new Error(result.error || "Échec de l'analyse");
+        }
+      } catch (err: any) {
+        console.error('Processing error:', err);
+
+        // Auto-retry logic for transient errors
+        const isRetryableError =
+          err.message?.includes('timeout') ||
+          err.message?.includes('network') ||
+          err.message?.includes('503') ||
+          err.message?.includes('rate limit');
+
+        if (isRetryableError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
+          retryCountRef.current += 1;
+          setProcessingProgress(
+            `Nouvelle tentative (${retryCountRef.current}/${MAX_RETRY_ATTEMPTS})...`,
+          );
+
+          // Exponential backoff
+          await new Promise<void>(resolve =>
+            setTimeout(resolve, 1000 * retryCountRef.current),
+          );
+          return processImage(base64Data, true);
+        }
+
+        // Format user-friendly error message
+        let userMessage = "Une erreur est survenue lors de l'analyse.";
+        if (err.message?.includes('Unable to detect receipt')) {
+          userMessage =
+            'Impossible de détecter une facture dans cette image. Veuillez réessayer avec une photo plus claire.';
+        } else if (
+          err.message?.includes('network') ||
+          err.message?.includes('offline')
+        ) {
+          userMessage =
+            'Pas de connexion internet. Veuillez vérifier votre connexion et réessayer.';
+        } else if (err.message?.includes('rate limit')) {
+          userMessage =
+            'Trop de requêtes. Veuillez patienter quelques secondes et réessayer.';
+        } else if (err.message) {
+          userMessage = err.message;
+        }
+
+        setError(userMessage);
+        setState('error');
+
+        // Track failed scan
+        analyticsService.logCustomEvent('scan_completed', {
+          success: false,
+          retry: isRetry,
+          retry_count: retryCountRef.current,
+          error_type: err.message?.includes('Unable to detect receipt')
+            ? 'detection_failed'
+            : err.message?.includes('network')
+            ? 'network_error'
+            : err.message?.includes('rate limit')
+            ? 'rate_limit'
+            : 'processing_error',
+          error_message: err.message || 'unknown',
+        });
+        setProcessingProgress('');
+      }
+    },
+    [user, recordScan],
+  );
+
   const handleCapture = useCallback(async () => {
     // Check if user can scan
     if (!canScan) {
@@ -91,7 +252,7 @@ export function ScannerScreen() {
     // Don't store image URI to avoid keeping file on device
     currentImageRef.current = null;
     await processImage(result.base64);
-  }, [canScan, navigation, isTrialActive]);
+  }, [canScan, navigation, isTrialActive, processImage]);
 
   const handleGallery = useCallback(async () => {
     if (!canScan) {
@@ -134,162 +295,7 @@ export function ScannerScreen() {
     // Don't store image URI to avoid keeping file on device
     currentImageRef.current = null;
     await processImage(result.base64);
-  }, [canScan, navigation, isTrialActive]);
-
-  const processImage = async (
-    base64Data: string,
-    isRetry: boolean = false,
-  ): Promise<void> => {
-    setState('processing');
-    setProcessingProgress('Vérification des doublons...');
-
-    try {
-      // Step 1: Check for duplicates before full processing
-      if (!isRetry) {
-        const duplicateCheck = await duplicateDetectionService.checkForDuplicate(
-          base64Data,
-          user?.uid || 'unknown-user',
-        );
-
-        // Track duplicate detection result
-        analyticsService.logCustomEvent('duplicate_check_completed', {
-          is_duplicate: duplicateCheck.isDuplicate,
-          confidence: duplicateCheck.confidence,
-          has_existing_receipt: !!duplicateCheck.existingReceiptId,
-        });
-
-        if (duplicateCheck.isDuplicate && duplicateCheck.confidence > 0.8) {
-          // High confidence duplicate - ask user to confirm
-          const shouldProceed = await new Promise<boolean>((resolve) => {
-            Alert.alert(
-              'Reçu potentiellement dupliqué',
-              `Un reçu similaire a été trouvé (${Math.round(
-                duplicateCheck.confidence * 100,
-              )}% de similarité). Voulez-vous quand même continuer ?`,
-              [
-                {
-                  text: 'Annuler',
-                  style: 'cancel',
-                  onPress: () => resolve(false),
-                },
-                {
-                  text: 'Continuer',
-                  onPress: () => resolve(true),
-                },
-              ],
-            );
-          });
-
-          if (!shouldProceed) {
-            setState('idle');
-            analyticsService.logCustomEvent('duplicate_scan_cancelled', {
-              confidence: duplicateCheck.confidence,
-            });
-            return;
-          }
-        } else if (duplicateCheck.isDuplicate && duplicateCheck.confidence > 0.6) {
-          // Medium confidence - show warning but continue
-          setProcessingProgress('Reçu similaire détecté, poursuite de l\'analyse...');
-          analyticsService.logCustomEvent('duplicate_warning_shown', {
-            confidence: duplicateCheck.confidence,
-          });
-        }
-      }
-
-      setProcessingProgress('Analyse en cours...');
-
-      // Step 2: Parse receipt with Gemini AI using base64 directly (no compression needed)
-      const result = await geminiService.parseReceipt(
-        base64Data,
-        user?.uid || 'unknown-user',
-      );
-
-      if (result.success && result.receipt) {
-        // Record scan usage only on success and not retry
-        if (!isRetry) {
-          const recorded = await recordScan();
-          if (!recorded) {
-            console.warn('Failed to record scan, continuing anyway');
-          }
-        }
-
-        // Track successful scan
-        analyticsService.logCustomEvent('scan_completed', {
-          success: true,
-          retry: isRetry,
-          retry_count: retryCountRef.current,
-          items_count: result.receipt.items?.length || 0,
-          total_amount: result.receipt.total || 0,
-          currency: result.receipt.currency || 'unknown',
-        });
-
-        setReceipt(result.receipt);
-        setState('success');
-        setProcessingProgress('');
-      } else {
-        throw new Error(result.error || "Échec de l'analyse");
-      }
-    } catch (err: any) {
-      console.error('Processing error:', err);
-
-      // Auto-retry logic for transient errors
-      const isRetryableError =
-        err.message?.includes('timeout') ||
-        err.message?.includes('network') ||
-        err.message?.includes('503') ||
-        err.message?.includes('rate limit');
-
-      if (isRetryableError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
-        retryCountRef.current += 1;
-        setProcessingProgress(
-          `Nouvelle tentative (${retryCountRef.current}/${MAX_RETRY_ATTEMPTS})...`,
-        );
-
-        // Exponential backoff
-        await new Promise<void>(resolve =>
-          setTimeout(resolve, 1000 * retryCountRef.current),
-        );
-        return processImage(base64Data, true);
-      }
-
-      // Format user-friendly error message
-      let userMessage = "Une erreur est survenue lors de l'analyse.";
-      if (err.message?.includes('Unable to detect receipt')) {
-        userMessage =
-          'Impossible de détecter une facture dans cette image. Veuillez réessayer avec une photo plus claire.';
-      } else if (
-        err.message?.includes('network') ||
-        err.message?.includes('offline')
-      ) {
-        userMessage =
-          'Pas de connexion internet. Veuillez vérifier votre connexion et réessayer.';
-      } else if (err.message?.includes('rate limit')) {
-        userMessage =
-          'Trop de requêtes. Veuillez patienter quelques secondes et réessayer.';
-      } else if (err.message) {
-        userMessage = err.message;
-      }
-
-      setError(userMessage);
-      setState('error');
-
-      // Track failed scan
-      analyticsService.logCustomEvent('scan_completed', {
-        success: false,
-        retry: isRetry,
-        retry_count: retryCountRef.current,
-        error_type: err.message?.includes('Unable to detect receipt')
-          ? 'detection_failed'
-          : err.message?.includes('network')
-          ? 'network_error'
-          : err.message?.includes('rate limit')
-          ? 'rate_limit'
-          : 'processing_error',
-        error_message: err.message || 'unknown',
-      });
-      setProcessingProgress('');
-    }
-  };
+  }, [canScan, navigation, isTrialActive, processImage]);
 
   const handleRetry = () => {
     setState('idle');

@@ -5,9 +5,6 @@ import functions from '@react-native-firebase/functions';
 import firestore from '@react-native-firebase/firestore';
 import {Receipt} from '@/shared/types';
 
-// Cloud Functions region - must match deployed functions
-const FUNCTIONS_REGION = 'europe-west1';
-
 interface DuplicateCheckResult {
   isDuplicate: boolean;
   confidence: number; // 0-1, higher means more likely duplicate
@@ -68,7 +65,9 @@ class DuplicateDetectionService {
     extracted: QuickExtractResponse['data'],
     existing: Receipt,
   ): number {
-    if (!extracted) return 0;
+    if (!extracted) {
+      return 0;
+    }
 
     let score = 0;
     let totalFactors = 0;
@@ -93,7 +92,10 @@ class DuplicateDetectionService {
           extractedDate.getTime() - existingDate.getTime(),
         );
         // Same day = high similarity, within 7 days = medium, beyond = low
-        const dateSimilarity = Math.max(0, 1 - dateDiff / (7 * 24 * 60 * 60 * 1000));
+        const dateSimilarity = Math.max(
+          0,
+          1 - dateDiff / (7 * 24 * 60 * 60 * 1000),
+        );
         score += dateSimilarity * 0.35; // 35% weight
         totalFactors++;
       }
@@ -102,7 +104,10 @@ class DuplicateDetectionService {
     // Total amount similarity (important)
     if (extracted.total && existing.total) {
       const amountDiff = Math.abs(extracted.total - existing.total);
-      const amountSimilarity = Math.max(0, 1 - amountDiff / Math.max(extracted.total, existing.total));
+      const amountSimilarity = Math.max(
+        0,
+        1 - amountDiff / Math.max(extracted.total, existing.total),
+      );
       score += amountSimilarity * 0.25; // 25% weight
       totalFactors++;
     }
@@ -114,12 +119,16 @@ class DuplicateDetectionService {
    * Simple string similarity using Levenshtein distance approximation
    */
   private stringSimilarity(str1: string, str2: string): number {
-    if (str1 === str2) return 1;
+    if (str1 === str2) {
+      return 1;
+    }
 
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
 
-    if (longer.length === 0) return 1;
+    if (longer.length === 0) {
+      return 1;
+    }
 
     // Simple containment check
     if (longer.toLowerCase().includes(shorter.toLowerCase())) {
@@ -181,7 +190,10 @@ class DuplicateDetectionService {
 
       receiptsSnapshot.docs.forEach(doc => {
         const receipt: Receipt = {id: doc.id, ...doc.data()} as Receipt;
-        const similarity = this.calculateSimilarity(extractResult.data!, receipt);
+        const similarity = this.calculateSimilarity(
+          extractResult.data!,
+          receipt,
+        );
 
         if (similarity > highestSimilarity) {
           highestSimilarity = similarity;
@@ -190,7 +202,8 @@ class DuplicateDetectionService {
       });
 
       // Step 4: Determine if it's a duplicate
-      const isDuplicate = highestSimilarity >= similarityThreshold && mostSimilarReceipt !== null;
+      const isDuplicate =
+        highestSimilarity >= similarityThreshold && mostSimilarReceipt !== null;
 
       let existingReceiptId: string | undefined;
       if (isDuplicate) {
@@ -202,8 +215,12 @@ class DuplicateDetectionService {
         confidence: highestSimilarity,
         existingReceiptId,
         reason: isDuplicate
-          ? `Similar receipt found (${Math.round(highestSimilarity * 100)}% match)`
-          : `No similar receipts found (${Math.round(highestSimilarity * 100)}% max similarity)`,
+          ? `Similar receipt found (${Math.round(
+              highestSimilarity * 100,
+            )}% match)`
+          : `No similar receipts found (${Math.round(
+              highestSimilarity * 100,
+            )}% max similarity)`,
         extractedData: extractResult.data,
       } as DuplicateCheckResult;
     } catch (error: any) {
@@ -239,7 +256,8 @@ class DuplicateDetectionService {
       return {
         totalReceipts,
         potentialDuplicates,
-        duplicateRate: totalReceipts > 0 ? potentialDuplicates / totalReceipts : 0,
+        duplicateRate:
+          totalReceipts > 0 ? potentialDuplicates / totalReceipts : 0,
       };
     } catch (error) {
       console.error('Error getting duplicate stats:', error);
