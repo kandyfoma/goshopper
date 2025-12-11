@@ -59,6 +59,14 @@ export const Colors = {
     white: '#FFFFFF',
   },
   
+  // Card alias (same as cards for convenience)
+  card: {
+    blue: '#D8DFE9',
+    green: '#CFDECA',
+    yellow: '#EFF0A3',
+    white: '#FFFFFF',
+  },
+  
   // Border colors
   border: {
     light: '#F0EEF5',

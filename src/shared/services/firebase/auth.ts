@@ -237,6 +237,19 @@ class AuthService {
   }
 
   /**
+   * Confirm password reset with code from email
+   */
+  async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
+    try {
+      await this.ensureInitialized();
+      await auth().confirmPasswordReset(oobCode, newPassword);
+    } catch (error) {
+      console.error('Confirm password reset failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get user profile
    */
   async getUserProfile(userId: string): Promise<UserProfile | null> {

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useAuth, useSubscription} from '@/shared/contexts';
+import {useAuth, useSubscription, useUser} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
 import {Colors, Typography, Spacing, BorderRadius, Shadows} from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
@@ -98,6 +98,7 @@ export function ProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user, signOut} = useAuth();
   const {subscription, trialScansUsed} = useSubscription();
+  const {profile} = useUser();
 
   const [userStats, setUserStats] = useState({
     totalReceipts: 0,
@@ -245,7 +246,7 @@ export function ProfileScreen() {
             <MenuItem
               icon="map-pin"
               title="Ville par défaut"
-              subtitle="Kinshasa"
+              subtitle={profile?.defaultCity || 'Non définie'}
               iconColor="green"
               onPress={() => navigation.navigate('CitySelection')}
             />

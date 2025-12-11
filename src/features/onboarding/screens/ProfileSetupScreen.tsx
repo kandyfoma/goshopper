@@ -237,7 +237,7 @@ export function ProfileSetupScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Icon name="user" size="2xl" color={Colors.white} variant="filled" />
+              <Icon name="user" size="2xl" color={Colors.text.primary} variant="filled" />
             </View>
             <Text style={styles.title}>Complétez votre profil</Text>
             <Text style={styles.subtitle}>
@@ -379,24 +379,25 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primary,
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius['2xl'],
+    backgroundColor: Colors.card.yellow,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
-    ...Shadows.lg,
+    ...Shadows.md,
   },
   title: {
     fontSize: Typography.fontSize['2xl'],
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
@@ -418,9 +419,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border.medium,
-    borderRadius: BorderRadius.base,
-    backgroundColor: Colors.background.primary,
+    borderColor: Colors.border.light,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.base,
     gap: Spacing.md,
   },
@@ -429,17 +430,19 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: Colors.status.error,
-    backgroundColor: Colors.status.errorLight,
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
   },
   input: {
     flex: 1,
     paddingVertical: Spacing.base,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   selectText: {
     flex: 1,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   placeholderText: {
@@ -448,14 +451,15 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.status.error,
     fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
     marginTop: Spacing.xs,
     marginLeft: Spacing.xs,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.background.secondary,
-    borderRadius: BorderRadius.base,
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.base,
     marginBottom: Spacing.xl,
     gap: Spacing.md,
@@ -463,12 +467,13 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.primary,
     lineHeight: 20,
   },
   button: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.base,
+    backgroundColor: Colors.text.primary,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -485,7 +490,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.white,
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
   },
   // Modal styles
   modalContainer: {
@@ -502,7 +507,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
   closeButton: {
@@ -511,17 +516,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background.secondary,
-    borderRadius: BorderRadius.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
     marginHorizontal: Spacing.lg,
     marginVertical: Spacing.md,
     paddingHorizontal: Spacing.base,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
     gap: Spacing.sm,
   },
   searchInput: {
     flex: 1,
     paddingVertical: Spacing.md,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   cityList: {
@@ -532,21 +540,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.base,
-    borderRadius: BorderRadius.base,
+    borderRadius: BorderRadius.xl,
     marginBottom: Spacing.sm,
     gap: Spacing.md,
   },
   cityItemSelected: {
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.card.green,
   },
   cityText: {
     flex: 1,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   cityTextSelected: {
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   emptyState: {
     alignItems: 'center',
@@ -555,6 +564,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
     marginTop: Spacing.md,
   },

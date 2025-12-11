@@ -170,7 +170,7 @@ export function ForgotPasswordScreen() {
                 <Text style={styles.successText}>{successMessage}</Text>
                 <TouchableOpacity
                   style={styles.primaryButton}
-                  onPress={() => navigation.navigate('Login')}
+                  onPress={() => navigation.navigate('SignIn')}
                   activeOpacity={0.8}>
                   <Text style={styles.buttonText}>Retour à la connexion</Text>
                 </TouchableOpacity>
@@ -252,7 +252,7 @@ export function ForgotPasswordScreen() {
                 <View style={styles.footer}>
                   <Text style={styles.footerText}>Vous vous souvenez ?</Text>
                   <TouchableOpacity
-                    onPress={() => navigation.navigate('Login')}
+                    onPress={() => navigation.navigate('SignIn')}
                     disabled={loading}>
                     <Text style={styles.linkText}> Se connecter</Text>
                   </TouchableOpacity>

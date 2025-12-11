@@ -1,5 +1,5 @@
-// Settings Screen - App settings and profile
-// Styled with GoShopperAI Design System (Blue + Gold)
+// Settings Screen - Urbanist Design System
+// Sleek, professional settings with soft pastels
 import React from 'react';
 import {
   View,
@@ -7,13 +7,15 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Switch,
   Alert,
   Linking,
+  StatusBar,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import LinearGradient from 'react-native-linear-gradient';
 import {useAuth, useUser, useSubscription, useTheme} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
 import {Colors, Typography, Spacing, BorderRadius, Shadows} from '@/shared/theme/theme';
@@ -31,6 +33,7 @@ interface SettingItemProps {
   rightElement?: React.ReactNode;
   showArrow?: boolean;
   danger?: boolean;
+  iconBgColor?: string;
 }
 
 function SettingItem({
@@ -41,6 +44,7 @@ function SettingItem({
   rightElement,
   showArrow = true,
   danger = false,
+  iconBgColor,
 }: SettingItemProps) {
   return (
     <TouchableOpacity
@@ -48,8 +52,12 @@ function SettingItem({
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.7 : 1}>
-      <View style={[styles.settingIconWrapper, danger && styles.settingIconWrapperDanger]}>
-        <Icon name={icon} size="sm" color={danger ? Colors.status.error : Colors.primary} />
+      <View style={[
+        styles.settingIconWrapper, 
+        danger && styles.settingIconWrapperDanger,
+        iconBgColor && {backgroundColor: iconBgColor}
+      ]}>
+        <Icon name={icon} size="sm" color={danger ? Colors.status.error : Colors.text.primary} />
       </View>
       <View style={styles.settingContent}>
         <Text
@@ -81,6 +89,7 @@ function SettingSection({
 
 export function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const {user, signOut} = useAuth();
   const {profile, toggleNotifications, togglePriceAlerts} = useUser();
   const {subscription, trialScansUsed} = useSubscription();
@@ -166,36 +175,53 @@ export function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FadeIn>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Paramètres</Text>
-          <Text style={styles.headerSubtitle}>Gérez votre compte</Text>
-        </View>
-      </FadeIn>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
+      {/* Header */}
+      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Paramètres</Text>
+        <View style={styles.headerRight} />
+      </View>
       
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
+        
         {/* Profile Card */}
         <SlideIn delay={100}>
-          <View style={styles.profileCard}>
-            <View style={styles.profileAvatar}>
-              <Icon name="user" size="lg" color={Colors.primary} />
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>
-                {user?.displayName || 'Utilisateur'}
-              </Text>
-              <Text style={styles.profileId}>ID: {user?.id?.slice(0, 8)}...</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.editButton}
-              onPress={() => navigation.navigate('Profile' as any)}>
-              <Icon name="edit" size="sm" color={Colors.primary} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.profileCard}
+            onPress={() => navigation.navigate('Profile' as any)}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={[Colors.card.blue, '#C8D5E8']}
+              style={styles.profileGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <View style={styles.profileAvatar}>
+                <Icon name="user" size="lg" color={Colors.text.primary} />
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>
+                  {user?.displayName || profile?.firstName || 'Utilisateur'}
+                </Text>
+                <Text style={styles.profileEmail}>
+                  {user?.email || `ID: ${user?.id?.slice(0, 8)}...`}
+                </Text>
+              </View>
+              <View style={styles.editButton}>
+                <Icon name="edit" size="sm" color={Colors.text.primary} />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
         </SlideIn>
 
         {/* Subscription Card */}
@@ -204,48 +230,54 @@ export function SettingsScreen() {
             style={styles.subscriptionCard}
             onPress={() => navigation.navigate('Subscription')}
             activeOpacity={0.9}>
-            <View style={styles.subscriptionGlow} />
-            <View style={styles.subscriptionHeader}>
-              <View style={styles.subscriptionBadge}>
-                <Icon name="crown" size="xs" color={Colors.accent} />
-                <Text style={styles.subscriptionBadgeText}>
-                  {currentPlan.name}
-                </Text>
-              </View>
-              <Icon name="chevron-right" size="sm" color="rgba(255,255,255,0.8)" />
-            </View>
-
-            {subscription?.planId === 'free' ? (
-              <View style={styles.trialProgress}>
-                <Text style={styles.trialText}>
-                  Essai: {trialRemaining}/{TRIAL_SCAN_LIMIT} scans restants
-                </Text>
-                <View style={styles.trialBar}>
-                  <View
-                    style={[
-                      styles.trialBarFill,
-                      {width: `${(trialRemaining / TRIAL_SCAN_LIMIT) * 100}%`},
-                    ]}
-                  />
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.subscriptionGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <View style={styles.subscriptionGlow} />
+              <View style={styles.subscriptionHeader}>
+                <View style={styles.subscriptionBadge}>
+                  <Icon name="crown" size="xs" color={Colors.accent} />
+                  <Text style={styles.subscriptionBadgeText}>
+                    {currentPlan.name}
+                  </Text>
                 </View>
+                <Icon name="chevron-right" size="sm" color="rgba(255,255,255,0.8)" />
               </View>
-            ) : (
-              <Text style={styles.subscriptionExpiry}>
-                Expire le:{' '}
-                {subscription?.expiryDate
-                  ? formatDate(subscription.expiryDate)
-                  : 'Illimité'}
-              </Text>
-            )}
 
-            <View style={styles.upgradeButton}>
-              <Text style={styles.upgradeText}>
-                {subscription?.planId === 'premium'
-                  ? 'Gérer mon abonnement'
-                  : 'Passer à Premium'}
-              </Text>
-              <Icon name="arrow-right" size="xs" color={Colors.accent} />
-            </View>
+              {subscription?.planId === 'free' ? (
+                <View style={styles.trialProgress}>
+                  <Text style={styles.trialText}>
+                    Essai: {trialRemaining}/{TRIAL_SCAN_LIMIT} scans restants
+                  </Text>
+                  <View style={styles.trialBar}>
+                    <View
+                      style={[
+                        styles.trialBarFill,
+                        {width: `${(trialRemaining / TRIAL_SCAN_LIMIT) * 100}%`},
+                      ]}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.subscriptionExpiry}>
+                  Expire le:{' '}
+                  {subscription?.expiryDate
+                    ? formatDate(subscription.expiryDate)
+                    : 'Illimité'}
+                </Text>
+              )}
+
+              <View style={styles.upgradeButton}>
+                <Text style={styles.upgradeText}>
+                  {subscription?.planId === 'premium'
+                    ? 'Gérer mon abonnement'
+                    : 'Passer à Premium'}
+                </Text>
+                <Icon name="arrow-right" size="xs" color={Colors.accent} />
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         </SlideIn>
 
@@ -257,15 +289,16 @@ export function SettingsScreen() {
               title="Mode sombre"
               subtitle={isDarkMode ? 'Activé' : 'Désactivé'}
               showArrow={false}
+              iconBgColor={Colors.card.blue}
               rightElement={
                 <Switch
                   value={isDarkMode}
                   onValueChange={toggleTheme}
                   trackColor={{
                     false: Colors.border.light,
-                    true: Colors.primaryLight,
+                    true: Colors.primary,
                   }}
-                  thumbColor={isDarkMode ? Colors.primary : '#ffffff'}
+                  thumbColor={'#ffffff'}
                 />
               }
             />
@@ -274,17 +307,16 @@ export function SettingsScreen() {
               title="Notifications"
               subtitle={notificationsEnabled ? 'Activées' : 'Désactivées'}
               showArrow={false}
+              iconBgColor={Colors.card.green}
               rightElement={
                 <Switch
                   value={notificationsEnabled}
                   onValueChange={handleToggleNotifications}
                   trackColor={{
                     false: Colors.border.light,
-                    true: Colors.primaryLight,
+                    true: Colors.primary,
                   }}
-                  thumbColor={
-                    notificationsEnabled ? Colors.primary : '#ffffff'
-                  }
+                  thumbColor={'#ffffff'}
                 />
               }
             />
@@ -293,6 +325,7 @@ export function SettingsScreen() {
               title="Alertes de prix"
               subtitle="Gérer vos alertes de prix"
               showArrow={true}
+              iconBgColor={Colors.card.yellow}
               onPress={() => navigation.navigate('PriceAlerts')}
             />
           </SettingSection>
@@ -304,18 +337,21 @@ export function SettingsScreen() {
               icon="message"
               title="Contacter le support"
               subtitle="support@goshopperai.com"
+              iconBgColor={Colors.card.blue}
               onPress={handleContactSupport}
             />
             <SettingItem
               icon="star"
               title="Noter l'application"
               subtitle="Donnez-nous 5 étoiles !"
+              iconBgColor={Colors.card.yellow}
               onPress={handleRateApp}
             />
             <SettingItem
               icon="help"
               title="FAQ"
               subtitle="Questions fréquentes"
+              iconBgColor={Colors.card.green}
               onPress={() => Linking.openURL('https://goshopperai.com/faq')}
             />
           </SettingSection>
@@ -326,11 +362,13 @@ export function SettingsScreen() {
             <SettingItem
               icon="lock"
               title="Politique de confidentialité"
+              iconBgColor={Colors.card.blue}
               onPress={handlePrivacyPolicy}
             />
             <SettingItem
               icon="document"
               title="Conditions d'utilisation"
+              iconBgColor={Colors.card.blue}
               onPress={handleTermsOfService}
             />
           </SettingSection>
@@ -358,7 +396,7 @@ export function SettingsScreen() {
         <FadeIn delay={700}>
           <View style={styles.appInfo}>
             <View style={styles.appLogoContainer}>
-              <Icon name="receipt" size="md" color={Colors.primary} />
+              <Icon name="cart" size="md" color={Colors.primary} />
             </View>
             <Text style={styles.appName}>GoShopperAI</Text>
             <Text style={styles.appVersion}>Version 1.0.0</Text>
@@ -368,29 +406,40 @@ export function SettingsScreen() {
           </View>
         </FadeIn>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background.secondary,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
+    backgroundColor: Colors.background.secondary,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
   headerTitle: {
-    fontSize: Typography.fontSize['3xl'],
+    fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.xs,
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
+  headerRight: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
@@ -399,20 +448,24 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing['3xl'],
   },
+  
+  // Profile Card
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
     marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
     ...Shadows.md,
   },
+  profileGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
   profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primaryLight,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -424,27 +477,30 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.xs,
+    marginBottom: 2,
   },
-  profileId: {
+  profileEmail: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.text.tertiary,
+    color: Colors.text.secondary,
   },
   editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primaryLight,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
+  // Subscription Card
   subscriptionCard: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
     marginBottom: Spacing.xl,
+    borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadows.lg,
+  },
+  subscriptionGradient: {
+    padding: Spacing.lg,
   },
   subscriptionGlow: {
     position: 'absolute',
@@ -512,6 +568,8 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semiBold,
   },
+  
+  // Setting Section
   section: {
     marginBottom: Spacing.lg,
   },
@@ -530,6 +588,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Shadows.sm,
   },
+  
+  // Setting Item
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -541,7 +601,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -565,6 +625,8 @@ const styles = StyleSheet.create({
     color: Colors.text.tertiary,
     marginTop: 2,
   },
+  
+  // App Info
   appInfo: {
     alignItems: 'center',
     paddingTop: Spacing.xl,
@@ -574,7 +636,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,

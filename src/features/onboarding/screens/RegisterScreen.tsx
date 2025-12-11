@@ -82,7 +82,7 @@ export function RegisterScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Icon name="user-plus" size="2xl" color={Colors.white} variant="filled" />
+              <Icon name="user-plus" size="2xl" color={Colors.text.primary} variant="filled" />
             </View>
             <Text style={styles.title}>Créer un compte</Text>
             <Text style={styles.subtitle}>
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     justifyContent: 'center',
   },
   header: {
@@ -222,23 +222,24 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primary,
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius['2xl'],
+    backgroundColor: Colors.card.green,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.base,
-    ...Shadows.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
   },
   title: {
     fontSize: Typography.fontSize['2xl'],
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
   },
   form: {
@@ -249,34 +250,35 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border.medium,
-    borderRadius: BorderRadius.base,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.white,
     gap: Spacing.md,
   },
   input: {
     flex: 1,
     paddingVertical: Spacing.base,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   button: {
-    borderRadius: BorderRadius.base,
-    padding: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
   primaryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.text.primary,
     ...Shadows.md,
   },
   buttonInner: {
@@ -286,13 +288,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: Colors.white,
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.bold,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.xl,
   },
   dividerLine: {
     flex: 1,
@@ -300,30 +302,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border.light,
   },
   dividerText: {
-    marginHorizontal: Spacing.sm,
+    marginHorizontal: Spacing.base,
     color: Colors.text.tertiary,
     fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
   },
   socialButton: {
-    backgroundColor: Colors.background.primary,
-    borderWidth: 1,
-    borderColor: Colors.border.medium,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    borderRadius: BorderRadius.xl,
     flexDirection: 'row',
     gap: Spacing.sm,
   },
   googleIcon: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
     color: '#4285F4',
   },
   socialButtonText: {
     color: Colors.text.primary,
     fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   appleButton: {
-    backgroundColor: Colors.black,
-    borderColor: Colors.black,
+    backgroundColor: Colors.text.primary,
+    borderColor: Colors.text.primary,
   },
   appleButtonText: {
     color: Colors.white,
@@ -337,11 +341,12 @@ const styles = StyleSheet.create({
   footerText: {
     color: Colors.text.secondary,
     fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
   },
   linkText: {
     color: Colors.accent,
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
   },
 });
 

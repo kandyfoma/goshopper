@@ -1,18 +1,21 @@
 // Shopping List Screen - Smart shopping with price optimization
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   TextInput,
   Modal,
   Alert,
-  ActivityIndicator,
   FlatList,
+  StatusBar,
+  Animated,
+  Dimensions,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
 import {useAuth} from '@/shared/contexts';
 import {
@@ -21,10 +24,20 @@ import {
   ShoppingListItem,
   OptimizationResult,
 } from '@/shared/services/firebase';
-import {COLORS} from '@/shared/utils/constants';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from '@/shared/theme';
+import {Icon, Spinner} from '@/shared/components';
+
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 export function ShoppingListScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
@@ -39,6 +52,27 @@ export function ShoppingListScreen() {
     null,
   );
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Entrance animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 12,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Load shopping lists
   useEffect(() => {
@@ -222,122 +256,193 @@ export function ShoppingListScreen() {
     setShowAddItemModal(true);
   }, []);
 
-  const renderItem = ({item}: {item: ShoppingListItem}) => (
-    <View style={[styles.itemCard, item.isChecked && styles.itemCardChecked]}>
-      <TouchableOpacity
-        style={styles.checkBox}
-        onPress={() => handleToggleItem(item.id)}>
-        <Text style={styles.checkBoxText}>{item.isChecked ? '✓' : '○'}</Text>
-      </TouchableOpacity>
-
-      <View style={styles.itemInfo}>
-        <Text
-          style={[styles.itemName, item.isChecked && styles.itemNameChecked]}>
-          {item.name}
-        </Text>
-        <View style={styles.itemDetails}>
-          <Text style={styles.itemQuantity}>x{item.quantity}</Text>
-          {item.bestPrice && (
-            <Text style={styles.itemPrice}>
-              Meilleur: ${item.bestPrice.toFixed(2)} @ {item.bestStore}
-            </Text>
+  const renderItem = ({item, index}: {item: ShoppingListItem; index: number}) => {
+    const itemAnim = new Animated.Value(1);
+    
+    return (
+      <Animated.View
+        style={[
+          styles.itemCard,
+          item.isChecked && styles.itemCardChecked,
+          {
+            opacity: fadeAnim,
+            transform: [{translateY: slideAnim}],
+          },
+        ]}>
+        <TouchableOpacity
+          style={[styles.checkBox, item.isChecked && styles.checkBoxChecked]}
+          onPress={() => handleToggleItem(item.id)}
+          activeOpacity={0.7}>
+          {item.isChecked && (
+            <Icon name="check" size="sm" color={Colors.white} />
           )}
-        </View>
-      </View>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.removeButton}
-        onPress={() => handleRemoveItem(item.id)}>
-        <Text style={styles.removeButtonText}>×</Text>
-      </TouchableOpacity>
-    </View>
-  );
+        <View style={styles.itemInfo}>
+          <Text
+            style={[styles.itemName, item.isChecked && styles.itemNameChecked]}>
+            {item.name}
+          </Text>
+          <View style={styles.itemDetails}>
+            <View style={styles.quantityBadge}>
+              <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+            </View>
+            {item.bestPrice && (
+              <View style={styles.priceBadge}>
+                <Icon name="tag" size="xs" color={Colors.status.success} />
+                <Text style={styles.itemPrice}>
+                  ${item.bestPrice.toFixed(2)} @ {item.bestStore}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => handleRemoveItem(item.id)}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="x" size="sm" color={Colors.text.tertiary} />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   if (isLoading && lists.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary[500]} />
+          <Spinner size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Retour</Text>
+      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Liste de Courses</Text>
-        <TouchableOpacity onPress={() => setShowNewListModal(true)}>
-          <Text style={styles.newListButton}>+ Nouvelle</Text>
+        <TouchableOpacity
+          style={styles.newListHeaderButton}
+          onPress={() => setShowNewListModal(true)}>
+          <Icon name="plus" size="sm" color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
       {/* List Selector */}
       {lists.length > 0 && (
-        <ScrollView
+        <Animated.ScrollView
           horizontal
-          style={styles.listSelector}
+          style={[styles.listSelector, {opacity: fadeAnim}]}
+          contentContainerStyle={styles.listSelectorContent}
           showsHorizontalScrollIndicator={false}>
-          {lists.map(list => (
+          {lists.map((list, index) => (
             <TouchableOpacity
               key={list.id}
               style={[
                 styles.listTab,
                 selectedList?.id === list.id && styles.listTabActive,
               ]}
-              onPress={() => setSelectedList(list)}>
-              <Text
-                style={[
-                  styles.listTabText,
-                  selectedList?.id === list.id && styles.listTabTextActive,
-                ]}>
-                {list.name}
-              </Text>
-              <Text style={styles.listTabCount}>
-                {list.items.length} articles
-              </Text>
+              onPress={() => setSelectedList(list)}
+              activeOpacity={0.8}>
+              {selectedList?.id === list.id ? (
+                <LinearGradient
+                  colors={[Colors.primary, Colors.primaryDark]}
+                  style={styles.listTabGradient}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 1}}>
+                  <Text style={styles.listTabTextActive}>{list.name}</Text>
+                  <Text style={styles.listTabCountActive}>
+                    {list.items.length} articles
+                  </Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.listTabContent}>
+                  <Text style={styles.listTabText}>{list.name}</Text>
+                  <Text style={styles.listTabCount}>
+                    {list.items.length} articles
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </Animated.ScrollView>
       )}
 
       {/* Selected List Content */}
       {selectedList ? (
-        <View style={styles.listContent}>
+        <Animated.View
+          style={[
+            styles.listContent,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideAnim}],
+            },
+          ]}>
           {/* Savings Info */}
           {selectedList.potentialSavings > 0 && (
             <View style={styles.savingsCard}>
-              <Text style={styles.savingsIcon}>💰</Text>
-              <View style={styles.savingsInfo}>
-                <Text style={styles.savingsTitle}>Économies potentielles</Text>
-                <Text style={styles.savingsAmount}>
-                  ${selectedList.potentialSavings.toFixed(2)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.optimizeButton}
-                onPress={handleOptimize}>
-                <Text style={styles.optimizeButtonText}>Optimiser</Text>
-              </TouchableOpacity>
+              <LinearGradient
+                colors={[Colors.card.green, '#B8D9B0']}
+                style={styles.savingsGradient}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 1}}>
+                <View style={styles.savingsIconContainer}>
+                  <Icon name="trending-down" size="lg" color={Colors.status.success} />
+                </View>
+                <View style={styles.savingsInfo}>
+                  <Text style={styles.savingsTitle}>Économies potentielles</Text>
+                  <Text style={styles.savingsAmount}>
+                    ${selectedList.potentialSavings.toFixed(2)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.optimizeButton}
+                  onPress={handleOptimize}
+                  activeOpacity={0.9}>
+                  <LinearGradient
+                    colors={[Colors.primary, Colors.primaryDark]}
+                    style={styles.optimizeButtonGradient}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 1}}>
+                    <Icon name="zap" size="sm" color={Colors.white} />
+                    <Text style={styles.optimizeButtonText}>Optimiser</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
             </View>
           )}
 
           {/* Store Recommendations */}
           {selectedList.optimizedStores.length > 0 && (
             <View style={styles.storesCard}>
-              <Text style={styles.storesTitle}>🏪 Magasins recommandés:</Text>
+              <View style={styles.storesHeader}>
+                <Icon name="store" size="md" color={Colors.text.primary} />
+                <Text style={styles.storesTitle}>Magasins recommandés</Text>
+              </View>
               {selectedList.optimizedStores.slice(0, 3).map((store, index) => (
                 <View key={store.storeNameNormalized} style={styles.storeRow}>
-                  <Text style={styles.storeName}>
-                    {index + 1}. {store.storeName}
-                  </Text>
-                  <Text style={styles.storeItems}>
-                    {store.itemCount} articles • ${store.totalPrice.toFixed(2)}
+                  <View style={styles.storeRank}>
+                    <Text style={styles.storeRankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.storeInfo}>
+                    <Text style={styles.storeName}>{store.storeName}</Text>
+                    <Text style={styles.storeItems}>
+                      {store.itemCount} articles
+                    </Text>
+                  </View>
+                  <Text style={styles.storePrice}>
+                    ${store.totalPrice.toFixed(2)}
                   </Text>
                 </View>
               ))}
@@ -347,7 +452,9 @@ export function ShoppingListScreen() {
           {/* Items List */}
           {selectedList.items.length === 0 ? (
             <View style={styles.emptyList}>
-              <Text style={styles.emptyIcon}>🛒</Text>
+              <View style={styles.emptyIconContainer}>
+                <Icon name="shopping-cart" size="3xl" color={Colors.text.tertiary} />
+              </View>
               <Text style={styles.emptyText}>Liste vide</Text>
               <Text style={styles.emptySubtext}>
                 Ajoutez des articles à votre liste
@@ -366,14 +473,16 @@ export function ShoppingListScreen() {
           {/* Quick Suggestions */}
           {suggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              <Text style={styles.suggestionsTitle}>Suggestions rapides:</Text>
+              <Text style={styles.suggestionsTitle}>Suggestions rapides</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {suggestions.slice(0, 8).map((item, index) => (
                   <TouchableOpacity
                     key={index}
                     style={styles.suggestionChip}
-                    onPress={() => handleAddSuggestion(item)}>
-                    <Text style={styles.suggestionText}>+ {item}</Text>
+                    onPress={() => handleAddSuggestion(item)}
+                    activeOpacity={0.7}>
+                    <Icon name="plus" size="xs" color={Colors.primary} />
+                    <Text style={styles.suggestionText}>{item}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -382,22 +491,50 @@ export function ShoppingListScreen() {
 
           {/* Add Item Button */}
           <TouchableOpacity
-            style={styles.addItemButton}
-            onPress={() => setShowAddItemModal(true)}>
-            <Text style={styles.addItemButtonText}>+ Ajouter un article</Text>
+            style={[styles.addItemButton, {bottom: insets.bottom + Spacing.lg}]}
+            onPress={() => setShowAddItemModal(true)}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.addItemButtonGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <Icon name="plus" size="md" color={Colors.white} />
+              <Text style={styles.addItemButtonText}>Ajouter un article</Text>
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       ) : (
-        <View style={styles.noListContainer}>
-          <Text style={styles.noListIcon}>📝</Text>
+        <Animated.View
+          style={[
+            styles.noListContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideAnim}],
+            },
+          ]}>
+          <View style={styles.noListIconContainer}>
+            <Icon name="clipboard" size="3xl" color={Colors.text.tertiary} />
+          </View>
           <Text style={styles.noListTitle}>Aucune liste</Text>
           <Text style={styles.noListText}>
             Créez votre première liste de courses
           </Text>
           <TouchableOpacity
             style={styles.createFirstButton}
-            onPress={() => setShowNewListModal(true)}>
-            <Text style={styles.createFirstButtonText}>Créer une liste</Text>
+            onPress={() => setShowNewListModal(true)}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.createFirstButtonGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <Icon name="plus" size="md" color={Colors.white} />
+              <Text style={styles.createFirstButtonText}>Créer une liste</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
           </TouchableOpacity>
         </View>
       )}
@@ -409,18 +546,24 @@ export function ShoppingListScreen() {
         animationType="slide"
         onRequestClose={() => setShowNewListModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, {paddingBottom: insets.bottom + Spacing.lg}]}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Nouvelle Liste</Text>
-            <Text style={styles.modalSubtitle}>Oyo ya sika</Text>
 
-            <TextInput
-              style={styles.modalInput}
-              value={newListName}
-              onChangeText={setNewListName}
-              placeholder="Nom de la liste..."
-              placeholderTextColor={COLORS.gray[400]}
-              autoFocus
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Nom de la liste</Text>
+              <View style={styles.inputWrapper}>
+                <Icon name="list" size="sm" color={Colors.text.tertiary} />
+                <TextInput
+                  style={styles.modalInput}
+                  value={newListName}
+                  onChangeText={setNewListName}
+                  placeholder="Ex: Courses de la semaine..."
+                  placeholderTextColor={Colors.text.tertiary}
+                  autoFocus
+                />
+              </View>
+            </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -437,9 +580,12 @@ export function ShoppingListScreen() {
                 onPress={handleCreateList}
                 disabled={!newListName.trim() || isCreating}>
                 {isCreating ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <Spinner size="small" color={Colors.white} />
                 ) : (
-                  <Text style={styles.modalCreateText}>Créer</Text>
+                  <>
+                    <Icon name="plus" size="sm" color={Colors.white} />
+                    <Text style={styles.modalCreateText}>Créer</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -454,43 +600,53 @@ export function ShoppingListScreen() {
         animationType="slide"
         onRequestClose={() => setShowAddItemModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, {paddingBottom: insets.bottom + Spacing.lg}]}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Ajouter Article</Text>
-            <Text style={styles.modalSubtitle}>Bakisa eloko</Text>
 
-            <TextInput
-              style={styles.modalInput}
-              value={newItemName}
-              onChangeText={setNewItemName}
-              placeholder="Nom de l'article..."
-              placeholderTextColor={COLORS.gray[400]}
-              autoFocus
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Nom de l'article</Text>
+              <View style={styles.inputWrapper}>
+                <Icon name="tag" size="sm" color={Colors.text.tertiary} />
+                <TextInput
+                  style={styles.modalInput}
+                  value={newItemName}
+                  onChangeText={setNewItemName}
+                  placeholder="Ex: Sucre, Riz, Huile..."
+                  placeholderTextColor={Colors.text.tertiary}
+                  autoFocus
+                />
+              </View>
+            </View>
 
-            <View style={styles.quantityContainer}>
-              <Text style={styles.quantityLabel}>Quantité:</Text>
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() =>
-                  setNewItemQuantity(
-                    String(Math.max(1, parseInt(newItemQuantity) - 1)),
-                  )
-                }>
-                <Text style={styles.quantityButtonText}>-</Text>
-              </TouchableOpacity>
-              <TextInput
-                style={styles.quantityInput}
-                value={newItemQuantity}
-                onChangeText={setNewItemQuantity}
-                keyboardType="number-pad"
-              />
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() =>
-                  setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
-                }>
-                <Text style={styles.quantityButtonText}>+</Text>
-              </TouchableOpacity>
+            <View style={styles.quantitySection}>
+              <Text style={styles.inputLabel}>Quantité</Text>
+              <View style={styles.quantityContainer}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() =>
+                    setNewItemQuantity(
+                      String(Math.max(1, parseInt(newItemQuantity) - 1)),
+                    )
+                  }>
+                  <Icon name="minus" size="sm" color={Colors.primary} />
+                </TouchableOpacity>
+                <View style={styles.quantityInputContainer}>
+                  <TextInput
+                    style={styles.quantityInput}
+                    value={newItemQuantity}
+                    onChangeText={setNewItemQuantity}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() =>
+                    setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
+                  }>
+                  <Icon name="plus" size="sm" color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.modalActions}>
@@ -508,23 +664,26 @@ export function ShoppingListScreen() {
                 onPress={handleAddItem}
                 disabled={!newItemName.trim() || isCreating}>
                 {isCreating ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <Spinner size="small" color={Colors.white} />
                 ) : (
-                  <Text style={styles.modalCreateText}>Ajouter</Text>
+                  <>
+                    <Icon name="plus" size="sm" color={Colors.white} />
+                    <Text style={styles.modalCreateText}>Ajouter</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -532,394 +691,519 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.gray[600],
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   backButton: {
-    fontSize: 16,
-    color: COLORS.primary[600],
-    fontWeight: '600',
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
   },
-  newListButton: {
-    fontSize: 14,
-    color: COLORS.primary[600],
-    fontWeight: '600',
+  newListHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listSelector: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
     maxHeight: 80,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  listSelectorContent: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
   },
   listTab: {
-    backgroundColor: COLORS.gray[100],
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 4,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginRight: Spacing.sm,
+  },
+  listTabContent: {
+    backgroundColor: Colors.card.blue,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
   },
   listTabActive: {
-    backgroundColor: COLORS.primary[500],
+    ...Shadows.sm,
+  },
+  listTabGradient: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
   },
   listTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray[700],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
   },
   listTabTextActive: {
-    color: '#fff',
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
   listTabCount: {
-    fontSize: 11,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  listTabCountActive: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
   },
   listContent: {
     flex: 1,
   },
   savingsCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  savingsGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#dcfce7',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
+    padding: Spacing.lg,
   },
-  savingsIcon: {
-    fontSize: 32,
-    marginRight: 12,
+  savingsIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
   },
   savingsInfo: {
     flex: 1,
   },
   savingsTitle: {
-    fontSize: 14,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   savingsAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.primary[700],
+    fontSize: Typography.fontSize.xxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.status.success,
   },
   optimizeButton: {
-    backgroundColor: COLORS.primary[500],
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  optimizeButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
   optimizeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
   storesCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.sm,
+  },
+  storesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   storesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray[900],
-    marginBottom: 12,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
   },
   storeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[100],
+    borderBottomColor: Colors.border,
+  },
+  storeRank: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.yellow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  storeRankText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  storeInfo: {
+    flex: 1,
   },
   storeName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.gray[800],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
   },
   storeItems: {
-    fontSize: 12,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+  },
+  storePrice: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
   },
   emptyList: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xxl,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    marginTop: 8,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: Spacing.sm,
   },
   itemsList: {
-    padding: 16,
+    padding: Spacing.lg,
     paddingBottom: 200,
   },
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
   },
   itemCardChecked: {
-    backgroundColor: COLORS.gray[100],
-    opacity: 0.7,
+    backgroundColor: Colors.card.green,
+    opacity: 0.8,
   },
   checkBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary[100],
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    borderWidth: 2,
+    borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
-  checkBoxText: {
-    fontSize: 18,
-    color: COLORS.primary[600],
-    fontWeight: 'bold',
+  checkBoxChecked: {
+    backgroundColor: Colors.status.success,
+    borderColor: Colors.status.success,
   },
   itemInfo: {
     flex: 1,
   },
   itemName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
   },
   itemNameChecked: {
     textDecorationLine: 'line-through',
-    color: COLORS.gray[500],
+    color: Colors.text.tertiary,
   },
   itemDetails: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  quantityBadge: {
+    backgroundColor: Colors.card.blue,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
   },
   itemQuantity: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    marginRight: 8,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  priceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.green,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
   },
   itemPrice: {
-    fontSize: 12,
-    color: COLORS.primary[600],
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.status.success,
   },
   removeButton: {
     width: 32,
     height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  removeButtonText: {
-    fontSize: 24,
-    color: COLORS.gray[400],
-  },
   suggestionsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
+    borderTopColor: Colors.border,
   },
   suggestionsTitle: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
   },
   suggestionChip: {
-    backgroundColor: COLORS.primary[100],
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.blue,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.sm,
+    gap: 4,
   },
   suggestionText: {
-    fontSize: 12,
-    color: COLORS.primary[700],
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.primary,
   },
   addItemButton: {
     position: 'absolute',
-    bottom: 24,
-    left: 24,
-    right: 24,
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 16,
-    borderRadius: 12,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  addItemButtonGradient: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.lg,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    gap: Spacing.sm,
   },
   addItemButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
   },
   noListContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xxl,
   },
-  noListIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  noListIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   noListTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.xxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   noListText: {
-    fontSize: 14,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   createFirstButton: {
-    backgroundColor: COLORS.primary[500],
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  createFirstButtonGradient: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   createFirstButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xxl,
+    borderTopRightRadius: BorderRadius.xxl,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.xxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
     textAlign: 'center',
+    marginBottom: Spacing.xl,
   },
-  modalSubtitle: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginBottom: 24,
+  inputContainer: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
   },
   modalInput: {
-    backgroundColor: COLORS.gray[100],
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: COLORS.gray[900],
-    marginBottom: 16,
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
+  },
+  quantitySection: {
+    marginBottom: Spacing.lg,
   },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-  },
-  quantityLabel: {
-    fontSize: 16,
-    color: COLORS.gray[700],
-    marginRight: 16,
+    gap: Spacing.md,
   },
   quantityButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: COLORS.primary[100],
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quantityButtonText: {
-    fontSize: 24,
-    color: COLORS.primary[600],
-    fontWeight: 'bold',
+  quantityInputContainer: {
+    backgroundColor: Colors.card.yellow,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   quantityInput: {
-    width: 60,
+    width: 50,
     textAlign: 'center',
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginHorizontal: 8,
+    fontSize: Typography.fontSize.xxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
   },
   modalActions: {
     flexDirection: 'row',
-    marginTop: 8,
-    gap: 12,
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: COLORS.gray[200],
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.card.blue,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
   },
   modalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray[700],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
   },
   modalCreateButton: {
     flex: 1,
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   modalCreateButtonDisabled: {
-    backgroundColor: COLORS.gray[300],
+    backgroundColor: Colors.border,
   },
   modalCreateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
 });

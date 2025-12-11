@@ -234,7 +234,7 @@ export function LoginScreen() {
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.logoContainer}>
-                <Icon name="cart" size="2xl" color={Colors.white} variant="filled" />
+                <Icon name="cart" size="2xl" color={Colors.text.primary} variant="filled" />
               </View>
               <Text style={styles.title}>GoShopperAI</Text>
               <Text style={styles.subtitle}>
@@ -475,59 +475,56 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primary,
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius['2xl'],
+    backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.base,
-    ...Shadows.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
   },
   title: {
     fontSize: Typography.fontSize['3xl'],
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
     textAlign: 'center',
   },
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.status.successLight,
-    borderRadius: BorderRadius.base,
+    backgroundColor: Colors.card.green,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.base,
     marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.status.success,
     gap: Spacing.md,
   },
   successText: {
     flex: 1,
-    color: Colors.status.success,
+    color: Colors.text.primary,
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.fontFamily.medium,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.status.errorLight,
-    borderRadius: BorderRadius.base,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: BorderRadius.xl,
     padding: Spacing.base,
     marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.status.error,
     gap: Spacing.md,
   },
   errorText: {
     flex: 1,
     color: Colors.status.error,
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.fontFamily.medium,
   },
   form: {
     marginBottom: Spacing.xl,
@@ -537,7 +534,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
@@ -545,15 +542,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border.medium,
-    borderRadius: BorderRadius.base,
-    backgroundColor: Colors.background.primary,
+    borderColor: Colors.border.light,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.base,
     gap: Spacing.md,
   },
   inputError: {
     borderColor: Colors.status.error,
-    backgroundColor: Colors.status.errorLight,
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
   },
   inputDisabled: {
     backgroundColor: Colors.background.secondary,
@@ -563,6 +560,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.base,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.primary,
   },
   eyeButton: {
@@ -571,6 +569,7 @@ const styles = StyleSheet.create({
   fieldError: {
     color: Colors.status.error,
     fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
     marginTop: Spacing.xs,
     marginLeft: Spacing.xs,
   },
@@ -585,37 +584,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderWidth: 2,
-    borderColor: Colors.border.dark,
-    borderRadius: BorderRadius.sm,
+    borderColor: Colors.border.medium,
+    borderRadius: BorderRadius.md,
     marginRight: Spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
   },
   rememberMeText: {
     color: Colors.text.secondary,
     fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
   },
   forgotPassword: {
     color: Colors.accent,
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   button: {
-    borderRadius: BorderRadius.base,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
   },
   primaryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.text.primary,
     ...Shadows.md,
   },
   buttonDisabled: {
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.white,
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
   },
   loadingContent: {
     flexDirection: 'row',
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: Colors.white,
     fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
     marginLeft: Spacing.sm,
   },
   divider: {
@@ -655,6 +655,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.base,
     color: Colors.text.tertiary,
     fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
   },
   socialButtons: {
     flexDirection: 'row',
@@ -666,26 +667,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.white,
     borderWidth: 1.5,
-    borderColor: Colors.border.medium,
-    borderRadius: BorderRadius.base,
+    borderColor: Colors.border.light,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
   socialIcon: {
     fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     color: '#4285F4',
   },
   socialButtonText: {
     color: Colors.text.primary,
     fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   appleButton: {
-    backgroundColor: Colors.black,
-    borderColor: Colors.black,
+    backgroundColor: Colors.text.primary,
+    borderColor: Colors.text.primary,
   },
   appleText: {
     color: Colors.white,
@@ -699,21 +700,23 @@ const styles = StyleSheet.create({
   footerText: {
     color: Colors.text.secondary,
     fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
   },
   linkText: {
     color: Colors.accent,
     fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
   },
   terms: {
     textAlign: 'center',
     color: Colors.text.tertiary,
     fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
     marginTop: Spacing.xl,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   termsLink: {
     color: Colors.accent,
-    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.fontFamily.medium,
   },
 });

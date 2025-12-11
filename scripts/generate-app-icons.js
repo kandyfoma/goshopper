@@ -4,7 +4,7 @@
  * This script generates PNG app icons from SVG for both
  * Google Play Console and Apple App Store submission.
  * 
- * Navy Blue + Gold color scheme
+ * Urbanist Soft Pastel color scheme
  * 
  * Requirements:
  * - Node.js
@@ -51,38 +51,45 @@ async function generateIcons() {
     'android-foreground-108': 108,
   };
 
-  // Color palette - Navy Blue + Gold
+  // Color palette - Urbanist Soft Pastel
   const colors = {
-    primary: '#1E3A5F',
-    primaryDark: '#152A45',
-    accent: '#D4AF37',
+    aliceBlue: '#D8DFE9',
+    honeydew: '#CFDECA',
+    vanilla: '#EFF0A3',
+    eerieBlack: '#212121',
+    ghostWhite: '#F6F5FA',
   };
 
-  // Generate SVG with just the letter G (no search icon)
+  // Generate SVG with Urbanist pastel gradient background
   const generateSvg = () => `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:${colors.primary}"/>
-      <stop offset="100%" style="stop-color:${colors.primaryDark}"/>
+      <stop offset="0%" style="stop-color:${colors.aliceBlue}"/>
+      <stop offset="50%" style="stop-color:${colors.honeydew}"/>
+      <stop offset="100%" style="stop-color:${colors.vanilla}"/>
     </linearGradient>
   </defs>
   
-  <!-- Background -->
+  <!-- Background with soft pastel gradient -->
   <rect width="100" height="100" rx="22" fill="url(#bg)"/>
   
-  <!-- Letter G -->
-  <g transform="translate(18, 20)">
+  <!-- Letter G with integrated search -->
+  <g transform="translate(15, 18)">
     <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="white"/>
+          fill="${colors.eerieBlack}"/>
+    
+    <!-- Search magnifier integrated -->
+    <circle cx="54" cy="44" r="11" fill="none" stroke="${colors.eerieBlack}" stroke-width="4"/>
+    <line x1="62" y1="52" x2="70" y2="60" stroke="${colors.eerieBlack}" stroke-width="4" stroke-linecap="round"/>
   </g>
 </svg>`;
 
   try {
     const sharp = require('sharp');
     
-    console.log('🎨 Generating PNG icons (Navy Blue + Gold)...\n');
+    console.log('🎨 Generating PNG icons (Urbanist Soft Pastel)...\n');
     
-    const colorDir = path.join(outputDir, 'blue-gold');
+    const colorDir = path.join(outputDir, 'urbanist');
     if (!fs.existsSync(colorDir)) {
       fs.mkdirSync(colorDir, { recursive: true });
     }
@@ -92,7 +99,7 @@ async function generateIcons() {
     // Save SVG
     fs.writeFileSync(path.join(colorDir, 'logo-source.svg'), svg);
     
-    console.log('📁 BLUE-GOLD');
+    console.log('📁 URBANIST SOFT PASTEL');
     console.log('─'.repeat(40));
     
     for (const [name, size] of Object.entries(iconSizes)) {
@@ -109,11 +116,11 @@ async function generateIcons() {
     console.log(`\n${'═'.repeat(50)}`);
     console.log('✅ ALL ICONS GENERATED SUCCESSFULLY!');
     console.log('═'.repeat(50));
-    console.log(`\n📂 Output folder: ${outputDir}/blue-gold\n`);
+    console.log(`\n📂 Output folder: ${outputDir}/urbanist\n`);
     console.log('📱 For Google Play Console:');
-    console.log('   Use blue-gold/play-store-512.png\n');
+    console.log('   Use urbanist/play-store-512.png\n');
     console.log('🍎 For Apple App Store:');
-    console.log('   Use blue-gold/app-store-1024.png\n');
+    console.log('   Use urbanist/app-store-1024.png\n');
     
   } catch (err) {
     if (err.code === 'MODULE_NOT_FOUND') {

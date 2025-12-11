@@ -1,22 +1,24 @@
 // Subscription Screen - Paywall with multiple duration options and discounts
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
-  ActivityIndicator,
   TextInput,
+  StatusBar,
+  Animated,
+  Dimensions,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
 import functions from '@react-native-firebase/functions';
 import firestore from '@react-native-firebase/firestore';
 import {useSubscription, useAuth} from '@/shared/contexts';
 import {
-  COLORS,
   SUBSCRIPTION_PLANS,
   TRIAL_DURATION_DAYS,
   calculateDiscountedPrice,
@@ -24,6 +26,16 @@ import {
 import {formatCurrency} from '@/shared/utils/helpers';
 import {SubscriptionDuration, SUBSCRIPTION_DURATIONS} from '@/shared/types';
 import {analyticsService} from '@/shared/services/analytics';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from '@/shared/theme';
+import {Icon, Spinner} from '@/shared/components';
+
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 type MobileMoneyProvider = 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
 type PaymentMethodType = 'mobile_money' | 'card';
@@ -45,6 +57,7 @@ const MOBILE_MONEY_OPTIONS: MobileMoneyOption[] = [
 
 export function SubscriptionScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const {subscription, isTrialActive, trialDaysRemaining} = useSubscription();
 
@@ -57,6 +70,27 @@ export function SubscriptionScreen() {
     useState<MobileMoneyProvider | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Entrance animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 12,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   useEffect(() => {
     // Track screen view
@@ -313,75 +347,114 @@ export function SubscriptionScreen() {
 
   if (isLoadingLocation) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary[500]} />
+          <Spinner size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
+        contentContainerStyle={[styles.scrollContent, {paddingTop: insets.top + Spacing.md, paddingBottom: insets.bottom + 40}]}
+        showsVerticalScrollIndicator={false}>
+        
+        {/* Header */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
+        </TouchableOpacity>
+
+        <Animated.View style={[styles.header, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
+          <View style={styles.proIconContainer}>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.proIconGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <Icon name="crown" size="xl" color={Colors.white} />
+            </LinearGradient>
+          </View>
           <Text style={styles.headerTitle}>GoShopper Pro</Text>
           <Text style={styles.headerSubtitle}>
-            {isInDRC ? 'Fonctionnalités premium' : 'Premium features'}
+            {isInDRC ? 'Débloquez toutes les fonctionnalités' : 'Unlock all premium features'}
           </Text>
-        </View>
+        </Animated.View>
 
         {/* Trial Banner */}
         {isTrialActive && (
-          <View style={styles.trialCard}>
-            <Text style={styles.trialIcon}>🎁</Text>
-            <View style={styles.trialInfo}>
-              <Text style={styles.trialTitle}>
-                {isInDRC ? 'Essai gratuit' : 'Free Trial'}
-              </Text>
-              <Text style={styles.trialDesc}>
-                {trialDaysRemaining} {isInDRC ? 'jours restants' : 'days left'}
-              </Text>
-            </View>
-          </View>
+          <Animated.View style={[styles.trialCard, {opacity: fadeAnim}]}>
+            <LinearGradient
+              colors={[Colors.card.green, '#B8D9B0']}
+              style={styles.trialGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <View style={styles.trialIconContainer}>
+                <Icon name="gift" size="lg" color={Colors.status.success} />
+              </View>
+              <View style={styles.trialInfo}>
+                <Text style={styles.trialTitle}>
+                  {isInDRC ? 'Essai gratuit actif' : 'Free Trial Active'}
+                </Text>
+                <Text style={styles.trialDesc}>
+                  {trialDaysRemaining} {isInDRC ? 'jours restants' : 'days left'}
+                </Text>
+              </View>
+            </LinearGradient>
+          </Animated.View>
         )}
 
         {/* Expiring Soon Banner */}
         {isExpiringSoon && !isTrialActive && (
-          <View style={[styles.trialCard, styles.expiringCard]}>
-            <Text style={styles.trialIcon}>⚠️</Text>
+          <Animated.View style={[styles.warningCard, {opacity: fadeAnim}]}>
+            <View style={styles.warningIconContainer}>
+              <Icon name="alert-triangle" size="lg" color={Colors.status.error} />
+            </View>
             <View style={styles.trialInfo}>
-              <Text style={[styles.trialTitle, {color: '#ef4444'}]}>
+              <Text style={styles.warningTitle}>
                 {isInDRC
                   ? 'Abonnement expire bientôt!'
                   : 'Subscription expiring soon!'}
               </Text>
-              <Text style={styles.trialDesc}>
+              <Text style={styles.warningDesc}>
                 {daysUntilExpiration} {isInDRC ? 'jours restants' : 'days left'}{' '}
                 - {isInDRC ? 'Renouvelez maintenant!' : 'Renew now!'}
               </Text>
             </View>
-          </View>
+          </Animated.View>
         )}
 
         {/* Renew Early Banner */}
         {canRenewEarly && !isExpiringSoon && (
-          <View style={[styles.trialCard, styles.renewCard]}>
-            <Text style={styles.trialIcon}>✨</Text>
-            <View style={styles.trialInfo}>
-              <Text style={[styles.trialTitle, {color: COLORS.primary[600]}]}>
-                {isInDRC ? 'Renouveler tôt?' : 'Renew Early?'}
-              </Text>
-              <Text style={styles.trialDesc}>
-                {isInDRC
-                  ? 'Prolongez votre abonnement maintenant et économisez!'
-                  : 'Extend your subscription now and save!'}
-              </Text>
-            </View>
-          </View>
+          <Animated.View style={[styles.renewCard, {opacity: fadeAnim}]}>
+            <LinearGradient
+              colors={[Colors.card.blue, '#C8D4E8']}
+              style={styles.renewGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <View style={styles.renewIconContainer}>
+                <Icon name="sparkles" size="lg" color={Colors.primary} />
+              </View>
+              <View style={styles.trialInfo}>
+                <Text style={styles.renewTitle}>
+                  {isInDRC ? 'Renouveler tôt?' : 'Renew Early?'}
+                </Text>
+                <Text style={styles.renewDesc}>
+                  {isInDRC
+                    ? 'Prolongez votre abonnement maintenant et économisez!'
+                    : 'Extend your subscription now and save!'}
+                </Text>
+              </View>
+            </LinearGradient>
+          </Animated.View>
         )}
 
         {/* Plan Selection */}
@@ -400,33 +473,52 @@ export function SubscriptionScreen() {
                 key={planId}
                 style={[styles.planCard, isSelected && styles.planCardSelected]}
                 onPress={() => setSelectedPlan(planId)}
-                disabled={isCurrent && !canRenewEarly}>
+                disabled={isCurrent && !canRenewEarly}
+                activeOpacity={0.8}>
+                {isSelected && (
+                  <LinearGradient
+                    colors={[Colors.primary, Colors.primaryDark]}
+                    style={styles.planSelectedIndicator}
+                    start={{x: 0, y: 0}}
+                    end={{x: 0, y: 1}}
+                  />
+                )}
                 <View style={styles.planHeader}>
-                  <View>
-                    <Text style={styles.planName}>{plan.name}</Text>
+                  <View style={styles.planNameContainer}>
+                    <Text style={[styles.planName, isSelected && styles.planNameSelected]}>{plan.name}</Text>
                     {planId === 'standard' && (
-                      <Text style={styles.popularBadge}>
-                        {isInDRC ? '⭐ Populaire' : '⭐ Popular'}
-                      </Text>
+                      <View style={styles.popularBadge}>
+                        <Icon name="star" size="xs" color={Colors.card.yellow} />
+                        <Text style={styles.popularBadgeText}>
+                          {isInDRC ? 'Populaire' : 'Popular'}
+                        </Text>
+                      </View>
                     )}
                   </View>
-                  <Text style={styles.planPrice}>
-                    {formatCurrency(plan.price)}/{isInDRC ? 'mois' : 'mo'}
+                  <View style={styles.planPriceContainer}>
+                    <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
+                      {formatCurrency(plan.price)}
+                    </Text>
+                    <Text style={styles.planPeriod}>/{isInDRC ? 'mois' : 'mo'}</Text>
+                  </View>
+                </View>
+                <View style={styles.planFeature}>
+                  <Icon name="camera" size="sm" color={isSelected ? Colors.primary : Colors.text.tertiary} />
+                  <Text style={[styles.featureText, isSelected && styles.featureTextSelected]}>
+                    {plan.scanLimit === -1
+                      ? isInDRC
+                        ? 'Scans illimités'
+                        : 'Unlimited scans'
+                      : `${plan.scanLimit} scans`}
                   </Text>
                 </View>
-                <Text style={styles.featureText}>
-                  📸{' '}
-                  {plan.scanLimit === -1
-                    ? isInDRC
-                      ? 'Illimité'
-                      : 'Unlimited'
-                    : plan.scanLimit}{' '}
-                  scans
-                </Text>
                 {isCurrent && (
-                  <Text style={styles.currentText}>
-                    ✓ {isInDRC ? 'Plan actuel' : 'Current'}
-                  </Text>
+                  <View style={styles.currentBadge}>
+                    <Icon name="check" size="xs" color={Colors.status.success} />
+                    <Text style={styles.currentText}>
+                      {isInDRC ? 'Plan actuel' : 'Current'}
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
             );
@@ -446,6 +538,7 @@ export function SubscriptionScreen() {
                   planPrice,
                   duration.months,
                 );
+                const isBestValue = duration.months === 12;
 
                 return (
                   <TouchableOpacity
@@ -453,24 +546,25 @@ export function SubscriptionScreen() {
                     style={[
                       styles.durationCard,
                       isSelected && styles.durationCardSelected,
-                      duration.months === 12 && styles.bestValueCard,
+                      isBestValue && styles.bestValueCard,
                     ]}
-                    onPress={() => setSelectedDuration(duration.months)}>
+                    onPress={() => setSelectedDuration(duration.months)}
+                    activeOpacity={0.8}>
                     {duration.discountPercent > 0 && (
                       <View
                         style={[
                           styles.discountBadge,
-                          duration.months === 12 && styles.bestValueBadge,
+                          isBestValue && styles.bestValueBadge,
                         ]}>
                         <Text style={styles.discountBadgeText}>
                           {isInDRC ? duration.badgeFr : duration.badge}
                         </Text>
                       </View>
                     )}
-                    <Text style={styles.durationLabel}>
+                    <Text style={[styles.durationLabel, isSelected && styles.durationLabelSelected]}>
                       {isInDRC ? duration.labelFr : duration.label}
                     </Text>
-                    <Text style={styles.durationPrice}>
+                    <Text style={[styles.durationPrice, isSelected && styles.durationPriceSelected]}>
                       {formatCurrency(durationPricing.total)}
                     </Text>
                     {duration.months > 1 && (
@@ -480,10 +574,12 @@ export function SubscriptionScreen() {
                       </Text>
                     )}
                     {durationPricing.savings > 0 && (
-                      <Text style={styles.savingsText}>
-                        {isInDRC ? 'Économie:' : 'Save:'}{' '}
-                        {formatCurrency(durationPricing.savings)}
-                      </Text>
+                      <View style={styles.savingsBadge}>
+                        <Icon name="trending-down" size="xs" color={Colors.status.success} />
+                        <Text style={styles.savingsText}>
+                          {formatCurrency(durationPricing.savings)}
+                        </Text>
+                      </View>
                     )}
                   </TouchableOpacity>
                 );
@@ -503,8 +599,12 @@ export function SubscriptionScreen() {
                   paymentMethodType === 'mobile_money' &&
                     styles.paymentTypeButtonSelected,
                 ]}
-                onPress={() => setPaymentMethodType('mobile_money')}>
-                <Text>📱 Mobile Money</Text>
+                onPress={() => setPaymentMethodType('mobile_money')}
+                activeOpacity={0.8}>
+                <View style={styles.paymentTypeIcon}>
+                  <Icon name="smartphone" size="md" color={paymentMethodType === 'mobile_money' ? Colors.primary : Colors.text.tertiary} />
+                </View>
+                <Text style={[styles.paymentTypeText, paymentMethodType === 'mobile_money' && styles.paymentTypeTextSelected]}>Mobile Money</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -512,8 +612,12 @@ export function SubscriptionScreen() {
                   paymentMethodType === 'card' &&
                     styles.paymentTypeButtonSelected,
                 ]}
-                onPress={() => setPaymentMethodType('card')}>
-                <Text>💳 Visa/Card</Text>
+                onPress={() => setPaymentMethodType('card')}
+                activeOpacity={0.8}>
+                <View style={styles.paymentTypeIcon}>
+                  <Icon name="credit-card" size="md" color={paymentMethodType === 'card' ? Colors.primary : Colors.text.tertiary} />
+                </View>
+                <Text style={[styles.paymentTypeText, paymentMethodType === 'card' && styles.paymentTypeTextSelected]}>Visa/Card</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -530,23 +634,27 @@ export function SubscriptionScreen() {
                     key={opt.id}
                     style={[
                       styles.mobileMoneyCard,
-                      selectedMobileMoney === opt.id && {
-                        borderColor: opt.color,
-                      },
+                      selectedMobileMoney === opt.id && styles.mobileMoneyCardSelected,
                     ]}
-                    onPress={() => setSelectedMobileMoney(opt.id)}>
-                    <Text style={styles.mobileMoneyIcon}>{opt.icon}</Text>
-                    <Text>{opt.name}</Text>
+                    onPress={() => setSelectedMobileMoney(opt.id)}
+                    activeOpacity={0.8}>
+                    <View style={[styles.mobileMoneyIconContainer, {backgroundColor: `${opt.color}20`}]}>
+                      <Text style={styles.mobileMoneyIcon}>{opt.icon}</Text>
+                    </View>
+                    <Text style={[styles.mobileMoneyName, selectedMobileMoney === opt.id && styles.mobileMoneyNameSelected]}>{opt.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Téléphone</Text>
                 <View style={styles.phoneInputWrapper}>
-                  <Text style={styles.phonePrefix}>+243</Text>
+                  <View style={styles.phonePrefixContainer}>
+                    <Text style={styles.phonePrefix}>+243</Text>
+                  </View>
                   <TextInput
                     style={styles.phoneInput}
                     placeholder="812345678"
+                    placeholderTextColor={Colors.text.tertiary}
                     keyboardType="phone-pad"
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
@@ -565,18 +673,22 @@ export function SubscriptionScreen() {
               </Text>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="your@email.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                />
+                <View style={styles.emailInputWrapper}>
+                  <Icon name="mail" size="sm" color={Colors.text.tertiary} />
+                  <TextInput
+                    style={styles.emailInput}
+                    placeholder="your@email.com"
+                    placeholderTextColor={Colors.text.tertiary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
               </View>
               <View style={styles.cardNotice}>
-                <Text>
-                  🔒{' '}
+                <Icon name="shield" size="md" color={Colors.primary} />
+                <Text style={styles.cardNoticeText}>
                   {isInDRC
                     ? 'Paiement sécurisé Stripe'
                     : 'Secure Stripe payment'}
@@ -593,30 +705,37 @@ export function SubscriptionScreen() {
               isProcessing && styles.subscribeButtonDisabled,
             ]}
             onPress={handleSubscribe}
-            disabled={isProcessing}>
-            {isProcessing ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <View style={styles.subscribeButtonContent}>
-                <Text style={styles.subscribeButtonText}>
-                  {canRenewEarly
-                    ? isInDRC
-                      ? 'Renouveler'
-                      : 'Renew'
-                    : isInDRC
-                    ? "S'abonner"
-                    : 'Subscribe'}{' '}
-                  - {formatCurrency(pricing.total)}
-                </Text>
-                {pricing.savings > 0 && (
-                  <Text style={styles.subscribeButtonSavings}>
-                    {isInDRC
-                      ? `Économie de ${formatCurrency(pricing.savings)}`
-                      : `Save ${formatCurrency(pricing.savings)}`}
+            disabled={isProcessing}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={isProcessing ? [Colors.border, Colors.border] : [Colors.primary, Colors.primaryDark]}
+              style={styles.subscribeButtonGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              {isProcessing ? (
+                <Spinner size="small" color={Colors.white} />
+              ) : (
+                <View style={styles.subscribeButtonContent}>
+                  <Text style={styles.subscribeButtonText}>
+                    {canRenewEarly
+                      ? isInDRC
+                        ? 'Renouveler'
+                        : 'Renew'
+                      : isInDRC
+                      ? "S'abonner"
+                      : 'Subscribe'}{' '}
+                    - {formatCurrency(pricing.total)}
                   </Text>
-                )}
-              </View>
-            )}
+                  {pricing.savings > 0 && (
+                    <Text style={styles.subscribeButtonSavings}>
+                      {isInDRC
+                        ? `Économie de ${formatCurrency(pricing.savings)}`
+                        : `Save ${formatCurrency(pricing.savings)}`}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
@@ -633,252 +752,584 @@ export function SubscriptionScreen() {
         {/* Feature List */}
         {selectedPlan !== 'free' && (
           <View style={styles.featuresList}>
-            <Text style={styles.featuresTitle}>
-              {isInDRC
-                ? '✨ Inclus dans votre abonnement:'
-                : '✨ Included in your subscription:'}
-            </Text>
+            <View style={styles.featuresHeader}>
+              <Icon name="sparkles" size="md" color={Colors.primary} />
+              <Text style={styles.featuresTitle}>
+                {isInDRC
+                  ? 'Inclus dans votre abonnement'
+                  : 'Included in your subscription'}
+              </Text>
+            </View>
             {SUBSCRIPTION_PLANS[selectedPlan]?.features.map(
               (feature, index) => (
-                <Text key={index} style={styles.featureItem}>
-                  ✓ {feature}
-                </Text>
+                <View key={index} style={styles.featureItemRow}>
+                  <Icon name="check" size="sm" color={Colors.status.success} />
+                  <Text style={styles.featureItem}>{feature}</Text>
+                </View>
               ),
             )}
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F5F5F5'},
-  scrollView: {flex: 1},
-  scrollContent: {padding: 16, paddingBottom: 40},
-  loadingContainer: {flex: 1, justifyContent: 'center', alignItems: 'center'},
-  loadingText: {marginTop: 12, fontSize: 16, color: COLORS.gray[600]},
-  header: {alignItems: 'center', marginBottom: 24},
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.primary[600],
-    marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-  headerSubtitle: {fontSize: 16, color: COLORS.gray[600], textAlign: 'center'},
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  proIconContainer: {
+    marginBottom: Spacing.md,
+  },
+  proIconGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xxxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+  },
 
-  // Trial/Expiration cards
+  // Trial/Banner cards
   trialCard: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  trialGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    padding: Spacing.lg,
   },
-  expiringCard: {
+  trialIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  trialInfo: {
+    flex: 1,
+  },
+  trialTitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  trialDesc: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    borderColor: '#ef4444',
     borderWidth: 1,
+    borderColor: Colors.status.error,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  warningIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  warningTitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.status.error,
+  },
+  warningDesc: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: 2,
   },
   renewCard: {
-    backgroundColor: '#EFF6FF',
-    borderColor: COLORS.primary[400],
-    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
-  trialIcon: {fontSize: 32, marginRight: 12},
-  trialInfo: {flex: 1},
-  trialTitle: {fontSize: 16, fontWeight: '600', color: COLORS.gray[800]},
-  trialDesc: {fontSize: 14, color: COLORS.gray[600]},
+  renewGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  renewIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  renewTitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  renewDesc: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
 
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.gray[800],
-    marginBottom: 16,
-    marginTop: 8,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.md,
+    marginTop: Spacing.sm,
   },
+
+  // Plan cards
   planCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   planCardSelected: {
-    borderColor: COLORS.primary[500],
-    backgroundColor: COLORS.primary[50],
+    borderColor: Colors.primary,
+    backgroundColor: Colors.card.blue,
+  },
+  planSelectedIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
   planHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
-  planName: {fontSize: 20, fontWeight: 'bold', color: COLORS.gray[800]},
-  popularBadge: {fontSize: 12, color: COLORS.primary[600], marginTop: 4},
-  planPrice: {fontSize: 18, fontWeight: 'bold', color: COLORS.primary[600]},
-  featureText: {fontSize: 14, color: COLORS.gray[600]},
-  currentText: {color: COLORS.success, fontWeight: '600', marginTop: 8},
+  planNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  planName: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  planNameSelected: {
+    color: Colors.primary,
+  },
+  popularBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.yellow,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  popularBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+  },
+  planPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  planPrice: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  planPriceSelected: {
+    color: Colors.primary,
+  },
+  planPeriod: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+  },
+  planFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  featureText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  featureTextSelected: {
+    color: Colors.primary,
+  },
+  currentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+    gap: 4,
+  },
+  currentText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.status.success,
+  },
 
   // Duration selection
   durationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   durationCard: {
-    width: '48%',
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: 12,
+    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     alignItems: 'center',
     position: 'relative',
+    ...Shadows.sm,
   },
   durationCardSelected: {
-    borderColor: COLORS.primary[500],
-    backgroundColor: COLORS.primary[50],
+    borderColor: Colors.primary,
+    backgroundColor: Colors.card.blue,
   },
-  bestValueCard: {borderColor: '#f59e0b', backgroundColor: '#fffbeb'},
+  bestValueCard: {
+    borderColor: Colors.card.yellow,
+    backgroundColor: '#FFFDF5',
+  },
   discountBadge: {
     position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: COLORS.primary[500],
-    paddingHorizontal: 8,
+    top: -10,
+    right: -10,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: BorderRadius.md,
   },
-  bestValueBadge: {backgroundColor: '#f59e0b'},
-  discountBadgeText: {color: '#FFF', fontSize: 10, fontWeight: 'bold'},
+  bestValueBadge: {
+    backgroundColor: '#F59E0B',
+  },
+  discountBadgeText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.bold,
+  },
   durationLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray[800],
-    marginBottom: 4,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
   },
-  durationPrice: {fontSize: 20, fontWeight: 'bold', color: COLORS.primary[600]},
-  monthlyEquivalent: {fontSize: 12, color: COLORS.gray[500], marginTop: 2},
+  durationLabelSelected: {
+    color: Colors.primary,
+  },
+  durationPrice: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  durationPriceSelected: {
+    color: Colors.primary,
+  },
+  monthlyEquivalent: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  savingsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.green,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.xs,
+    gap: 4,
+  },
   savingsText: {
-    fontSize: 12,
-    color: '#22c55e',
-    fontWeight: '600',
-    marginTop: 4,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.status.success,
   },
 
-  paymentTypeSelector: {flexDirection: 'row', gap: 12, marginBottom: 16},
+  // Payment methods
+  paymentTypeSelector: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
   paymentTypeButton: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
+    ...Shadows.sm,
   },
   paymentTypeButtonSelected: {
-    borderColor: COLORS.primary[500],
-    backgroundColor: COLORS.primary[50],
+    borderColor: Colors.primary,
+    backgroundColor: Colors.card.blue,
   },
+  paymentTypeIcon: {
+    marginBottom: Spacing.sm,
+  },
+  paymentTypeText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+  },
+  paymentTypeTextSelected: {
+    color: Colors.primary,
+  },
+
+  // Mobile Money
   mobileMoneyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   mobileMoneyCard: {
-    width: '47%',
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: 12,
+    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
+    ...Shadows.sm,
   },
-  mobileMoneyIcon: {fontSize: 32, marginBottom: 8},
-  inputContainer: {marginBottom: 16},
+  mobileMoneyCardSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.card.blue,
+  },
+  mobileMoneyIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  mobileMoneyIcon: {
+    fontSize: 24,
+  },
+  mobileMoneyName: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+  },
+  mobileMoneyNameSelected: {
+    color: Colors.primary,
+  },
+
+  // Input fields
+  inputContainer: {
+    marginBottom: Spacing.lg,
+  },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray[700],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
   },
   phoneInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  phonePrefixContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.card.blue,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
   },
   phonePrefix: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#F5F5F5',
-    fontSize: 16,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
   },
   phoneInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: COLORS.gray[800],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
   },
-  textInput: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
+  emailInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+  },
+  emailInput: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
   },
   cardNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: Colors.card.blue,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
   },
+  cardNoticeText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+
+  // Subscribe button
   subscribeButton: {
-    backgroundColor: COLORS.primary[500],
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
-  subscribeButtonDisabled: {backgroundColor: COLORS.gray[400]},
-  subscribeButtonContent: {alignItems: 'center'},
-  subscribeButtonText: {color: '#FFF', fontSize: 18, fontWeight: '600'},
+  subscribeButtonDisabled: {
+    opacity: 0.7,
+  },
+  subscribeButtonGradient: {
+    padding: Spacing.lg,
+    alignItems: 'center',
+  },
+  subscribeButtonContent: {
+    alignItems: 'center',
+  },
+  subscribeButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+  },
   subscribeButtonSavings: {
-    color: '#FFF',
-    fontSize: 12,
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
     opacity: 0.9,
     marginTop: 4,
   },
   termsText: {
-    fontSize: 12,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
 
   // Features list
-  featuresList: {backgroundColor: '#FFF', padding: 16, borderRadius: 12},
-  featuresTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray[800],
-    marginBottom: 12,
+  featuresList: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.sm,
   },
-  featureItem: {fontSize: 14, color: COLORS.gray[600], marginBottom: 8},
+  featuresHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  featuresTitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  featureItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  featureItem: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+  },
 });
 
 export default SubscriptionScreen;

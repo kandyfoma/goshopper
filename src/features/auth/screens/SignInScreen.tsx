@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   skipText: {
-    ...Typography.fontSize.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.text.secondary,
     fontWeight: Typography.fontWeight.medium,
   },
@@ -167,19 +167,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   title: {
-    ...Typography.fontSize.xl,
+    fontSize: Typography.fontSize.xl,
     color: Colors.text.secondary,
     fontWeight: Typography.fontWeight.regular,
     marginBottom: Spacing.xs,
   },
   subtitle: {
-    ...Typography.fontSize['3xl'],
+    fontSize: Typography.fontSize['3xl'],
     color: Colors.primary,
     fontWeight: Typography.fontWeight.bold,
     marginBottom: Spacing.md,
   },
   description: {
-    ...Typography.fontSize.md,
+    fontSize: Typography.fontSize.md,
     color: Colors.text.secondary,
     textAlign: 'center',
     lineHeight: Typography.lineHeight.relaxed,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   signInTitle: {
-    ...Typography.fontSize.lg,
+    fontSize: Typography.fontSize.lg,
     color: Colors.text.primary,
     fontWeight: Typography.fontWeight.medium,
     textAlign: 'center',
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.status.error,
   },
   errorText: {
-    ...Typography.fontSize.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.status.error,
     textAlign: 'center',
   },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   footerText: {
-    ...Typography.fontSize.xs,
+    fontSize: Typography.fontSize.xs,
     color: Colors.text.tertiary,
     textAlign: 'center',
     lineHeight: Typography.lineHeight.normal,

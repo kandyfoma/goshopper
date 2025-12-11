@@ -1,4 +1,5 @@
-// Price Alerts Screen - Set and manage price drop notifications
+// Price Alerts Screen - Urbanist Design System
+// Set and manage price drop notifications with sleek pastels
 import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
@@ -6,22 +7,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   TextInput,
   Modal,
   Alert,
-  ActivityIndicator,
   FlatList,
+  StatusBar,
+  Animated,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {priceAlertsService, PriceAlert} from '@/shared/services/firebase';
-import {COLORS} from '@/shared/utils/constants';
-import {Spinner} from '@/shared/components';
+import {Colors, Typography, Spacing, BorderRadius, Shadows} from '@/shared/theme/theme';
+import {Icon, Spinner} from '@/shared/components';
 
 export function PriceAlertsScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const {showToast} = useToast();
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
@@ -154,31 +158,42 @@ export function PriceAlertsScreen() {
     const hasPrice = item.currentLowestPrice !== undefined;
 
     return (
-      <View
-        style={[styles.alertCard, isTriggered && styles.alertCardTriggered]}>
+      <Animated.View style={[styles.alertCard, isTriggered && styles.alertCardTriggered]}>
         <View style={styles.alertHeader}>
+          <View style={[
+            styles.alertIconContainer, 
+            {backgroundColor: isTriggered ? Colors.card.green : Colors.card.blue}
+          ]}>
+            <Icon name="bell" size="md" color={Colors.text.primary} />
+          </View>
           <View style={styles.alertInfo}>
             <Text style={styles.alertProductName}>{item.productName}</Text>
             <Text style={styles.alertTarget}>
               Prix cible: ${item.targetPrice.toFixed(2)}
             </Text>
             {item.city && (
-              <Text style={styles.alertCity}>📍 {item.city}</Text>
+              <View style={styles.alertCityContainer}>
+                <Icon name="map-pin" size="xs" color={Colors.text.tertiary} />
+                <Text style={styles.alertCity}>{item.city}</Text>
+              </View>
             )}
           </View>
-
           {isTriggered && (
             <View style={styles.triggeredBadge}>
-              <Text style={styles.triggeredBadgeText}>🎉 Prix atteint!</Text>
+              <Icon name="check-circle" size="xs" color={Colors.status.success} />
+              <Text style={styles.triggeredBadgeText}>Atteint!</Text>
             </View>
           )}
         </View>
 
         {hasPrice && (
           <View style={styles.priceInfo}>
-            <Text style={styles.currentPrice}>
-              Prix actuel: ${item.currentLowestPrice?.toFixed(2)}
-            </Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Prix actuel</Text>
+              <Text style={styles.currentPrice}>
+                ${item.currentLowestPrice?.toFixed(2)}
+              </Text>
+            </View>
             {item.currentLowestStore && (
               <Text style={styles.storeText}>
                 chez {item.currentLowestStore}
@@ -194,62 +209,81 @@ export function PriceAlertsScreen() {
               !item.isActive && styles.toggleButtonInactive,
             ]}
             onPress={() => handleToggleAlert(item.id, item.isActive)}>
-            <Text style={styles.toggleButtonText}>
-              {item.isActive ? '✓ Active' : '○ Inactive'}
+            <Icon 
+              name={item.isActive ? 'check' : 'pause'} 
+              size="xs" 
+              color={item.isActive ? Colors.status.success : Colors.text.tertiary} 
+            />
+            <Text style={[
+              styles.toggleButtonText,
+              !item.isActive && styles.toggleButtonTextInactive
+            ]}>
+              {item.isActive ? 'Active' : 'Inactive'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => handleDeleteAlert(item.id)}>
-            <Text style={styles.deleteButtonText}>🗑️</Text>
+            <Icon name="trash" size="sm" color={Colors.status.error} />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Spinner size="large" color={COLORS.primary[500]} />
+          <Spinner size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Chargement des alertes...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Retour</Text>
+      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Alertes de Prix</Text>
-        <View style={{width: 60}} />
+        <View style={styles.headerRight} />
       </View>
 
       {/* Info Card */}
       <View style={styles.infoCard}>
-        <Text style={styles.infoIcon}>🔔</Text>
-        <View style={styles.infoTextContainer}>
-          <Text style={styles.infoTitle}>Comment ça marche ?</Text>
-          <Text style={styles.infoText}>
-            Définissez un prix cible pour un article. Nous vous alertons quand
-            le prix baisse !
-          </Text>
-          <Text style={styles.infoTextLingala}>
-            Pesa ntalo oyo olingi. Tokoyebisa yo ntango ntalo ekokita!
-          </Text>
-        </View>
+        <LinearGradient
+          colors={[Colors.card.yellow, '#E8E9A0']}
+          style={styles.infoGradient}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}>
+          <View style={styles.infoIconContainer}>
+            <Icon name="bell" size="md" color={Colors.text.primary} />
+          </View>
+          <View style={styles.infoTextContainer}>
+            <Text style={styles.infoTitle}>Comment ça marche ?</Text>
+            <Text style={styles.infoText}>
+              Définissez un prix cible pour un article. Nous vous alertons quand le prix baisse !
+            </Text>
+          </View>
+        </LinearGradient>
       </View>
 
       {/* Alerts List */}
       {alerts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📋</Text>
+          <View style={styles.emptyIconContainer}>
+            <Icon name="bell-off" size="3xl" color={Colors.text.tertiary} />
+          </View>
           <Text style={styles.emptyTitle}>Aucune alerte</Text>
           <Text style={styles.emptyText}>
             Créez votre première alerte pour suivre les prix
@@ -267,9 +301,17 @@ export function PriceAlertsScreen() {
 
       {/* Add Button */}
       <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => setShowAddModal(true)}>
-        <Text style={styles.addButtonText}>+ Nouvelle Alerte</Text>
+        style={[styles.addButton, {bottom: insets.bottom + Spacing.lg}]}
+        onPress={() => setShowAddModal(true)}
+        activeOpacity={0.9}>
+        <LinearGradient
+          colors={[Colors.primary, Colors.primaryDark]}
+          style={styles.addButtonGradient}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}>
+          <Icon name="plus" size="md" color={Colors.white} />
+          <Text style={styles.addButtonText}>Nouvelle Alerte</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
       {/* Add Alert Modal */}
@@ -279,42 +321,52 @@ export function PriceAlertsScreen() {
         animationType="slide"
         onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, {paddingBottom: insets.bottom + Spacing.lg}]}>
+            <View style={styles.modalHandle} />
+            
             <Text style={styles.modalTitle}>Nouvelle Alerte</Text>
-            <Text style={styles.modalTitleLingala}>Alerte ya sika</Text>
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Nom du produit</Text>
-              <TextInput
-                style={styles.input}
-                value={newProductName}
-                onChangeText={setNewProductName}
-                placeholder="Ex: Sucre 1kg, Riz 5kg..."
-                placeholderTextColor={COLORS.gray[400]}
-              />
+              <View style={styles.inputWrapper}>
+                <Icon name="tag" size="sm" color={Colors.text.tertiary} />
+                <TextInput
+                  style={styles.input}
+                  value={newProductName}
+                  onChangeText={setNewProductName}
+                  placeholder="Ex: Sucre 1kg, Riz 5kg..."
+                  placeholderTextColor={Colors.text.tertiary}
+                />
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Prix cible ($)</Text>
-              <TextInput
-                style={styles.input}
-                value={newTargetPrice}
-                onChangeText={setNewTargetPrice}
-                placeholder="Ex: 1.50"
-                placeholderTextColor={COLORS.gray[400]}
-                keyboardType="decimal-pad"
-              />
+              <View style={styles.inputWrapper}>
+                <Icon name="dollar" size="sm" color={Colors.text.tertiary} />
+                <TextInput
+                  style={styles.input}
+                  value={newTargetPrice}
+                  onChangeText={setNewTargetPrice}
+                  placeholder="Ex: 1.50"
+                  placeholderTextColor={Colors.text.tertiary}
+                  keyboardType="decimal-pad"
+                />
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Ville (optionnel)</Text>
-              <TextInput
-                style={styles.input}
-                value={newCity}
-                onChangeText={setNewCity}
-                placeholder="Ex: Kinshasa (laissez vide pour votre ville par défaut)"
-                placeholderTextColor={COLORS.gray[400]}
-              />
+              <View style={styles.inputWrapper}>
+                <Icon name="map-pin" size="sm" color={Colors.text.tertiary} />
+                <TextInput
+                  style={styles.input}
+                  value={newCity}
+                  onChangeText={setNewCity}
+                  placeholder="Laissez vide pour votre ville par défaut"
+                  placeholderTextColor={Colors.text.tertiary}
+                />
+              </View>
             </View>
 
             <View style={styles.modalActions}>
@@ -340,23 +392,26 @@ export function PriceAlertsScreen() {
                   !newProductName.trim() || !newTargetPrice || isCreating
                 }>
                 {isCreating ? (
-                  <Spinner size="small" color="#fff" />
+                  <Spinner size="small" color={Colors.white} />
                 ) : (
-                  <Text style={styles.createButtonText}>Créer</Text>
+                  <>
+                    <Icon name="plus" size="sm" color={Colors.white} />
+                    <Text style={styles.createButtonText}>Créer</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -364,275 +419,320 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.gray[600],
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   backButton: {
-    fontSize: 16,
-    color: COLORS.primary[600],
-    fontWeight: '600',
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  headerRight: {
+    width: 40,
   },
   infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
   },
-  infoIcon: {
-    fontSize: 32,
-    marginRight: 12,
+  infoGradient: {
+    flexDirection: 'row',
+    padding: Spacing.lg,
+    alignItems: 'center',
+  },
+  infoIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
   },
   infoTextContainer: {
     flex: 1,
   },
   infoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginBottom: 4,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
   },
   infoText: {
-    fontSize: 14,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
     lineHeight: 20,
-  },
-  infoTextLingala: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    fontStyle: 'italic',
-    marginTop: 4,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xxl,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   emptyText: {
-    fontSize: 14,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
     textAlign: 'center',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: 120,
   },
   alertCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.md,
   },
   alertCardTriggered: {
     borderWidth: 2,
-    borderColor: COLORS.primary[500],
-    backgroundColor: '#f0fdf4',
+    borderColor: Colors.status.success,
+    backgroundColor: Colors.card.green,
   },
   alertHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  alertIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
   alertInfo: {
     flex: 1,
   },
   alertProductName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-    marginBottom: 4,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
   },
   alertTarget: {
-    fontSize: 14,
-    color: COLORS.primary[600],
-    fontWeight: '600',
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
   },
   alertCity: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    marginTop: 2,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
   },
   triggeredBadge: {
-    backgroundColor: COLORS.primary[100],
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    backgroundColor: Colors.card.green,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   triggeredBadgeText: {
-    fontSize: 12,
-    color: COLORS.primary[700],
-    fontWeight: '600',
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.status.success,
   },
   priceInfo: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
+    borderTopColor: Colors.border,
   },
   currentPrice: {
-    fontSize: 14,
-    color: COLORS.gray[700],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   storeText: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    marginTop: 2,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
   },
   alertActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
+    borderTopColor: Colors.border,
   },
   toggleButton: {
-    backgroundColor: COLORS.primary[100],
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: Colors.card.green,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   toggleButtonInactive: {
-    backgroundColor: COLORS.gray[200],
+    backgroundColor: Colors.card.blue,
   },
   toggleButtonText: {
-    fontSize: 14,
-    color: COLORS.primary[700],
-    fontWeight: '600',
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.status.success,
+  },
+  toggleButtonTextInactive: {
+    color: Colors.text.tertiary,
   },
   deleteButton: {
-    padding: 8,
-  },
-  deleteButtonText: {
-    fontSize: 20,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,82,82,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButton: {
     position: 'absolute',
-    bottom: 24,
-    left: 24,
-    right: 24,
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 16,
-    borderRadius: 12,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.lg,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    gap: Spacing.sm,
   },
   addButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xxl,
+    borderTopRightRadius: BorderRadius.xxl,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.xxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
     textAlign: 'center',
-  },
-  modalTitleLingala: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray[700],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
   },
   input: {
-    backgroundColor: COLORS.gray[100],
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: COLORS.gray[900],
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
   },
   modalActions: {
     flexDirection: 'row',
-    marginTop: 24,
-    gap: 12,
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: COLORS.gray[200],
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.card.blue,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray[700],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
   },
   createButton: {
     flex: 1,
-    backgroundColor: COLORS.primary[500],
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   createButtonDisabled: {
-    backgroundColor: COLORS.gray[300],
+    backgroundColor: Colors.border,
   },
   createButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
 });

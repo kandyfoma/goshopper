@@ -5,13 +5,16 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  StatusBar,
+  Animated,
+  Dimensions,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
 import {useAuth} from '@/shared/contexts';
 import {
@@ -19,10 +22,20 @@ import {
   QueryResult,
   ConversationMessage,
 } from '@/shared/services/firebase';
-import {COLORS} from '@/shared/utils/constants';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from '@/shared/theme';
+import {Icon, Spinner} from '@/shared/components';
+
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 export function AIAssistantScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -31,6 +44,27 @@ export function AIAssistantScreen() {
     naturalLanguageService.getSuggestedQueries(),
   );
   const flatListRef = useRef<FlatList>(null);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Entrance animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 12,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Load conversation history
   useEffect(() => {
@@ -110,14 +144,21 @@ export function AIAssistantScreen() {
     const queryResult = item.data as QueryResult | undefined;
 
     return (
-      <View
+      <Animated.View
         style={[
           styles.messageBubble,
           isUser ? styles.userBubble : styles.assistantBubble,
+          {opacity: fadeAnim},
         ]}>
         {!isUser && (
           <View style={styles.assistantAvatar}>
-            <Text style={styles.avatarText}>🤖</Text>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.avatarGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <Icon name="bot" size="sm" color={Colors.white} />
+            </LinearGradient>
           </View>
         )}
 
@@ -137,9 +178,12 @@ export function AIAssistantScreen() {
           {/* Chart data preview */}
           {queryResult?.chartData && (
             <View style={styles.chartPreview}>
-              <Text style={styles.chartTitle}>
-                📊 {queryResult.chartData.datasets[0]?.label || 'Données'}
-              </Text>
+              <View style={styles.chartTitleRow}>
+                <Icon name="bar-chart-2" size="sm" color={Colors.primary} />
+                <Text style={styles.chartTitle}>
+                  {queryResult.chartData.datasets[0]?.label || 'Données'}
+                </Text>
+              </View>
               {queryResult.chartData.labels.slice(0, 3).map((label, index) => (
                 <View key={index} style={styles.chartRow}>
                   <Text style={styles.chartLabel}>{label}</Text>
@@ -159,7 +203,8 @@ export function AIAssistantScreen() {
                 <TouchableOpacity
                   key={index}
                   style={styles.inlineSuggestionChip}
-                  onPress={() => handleSuggestionPress(suggestion)}>
+                  onPress={() => handleSuggestionPress(suggestion)}
+                  activeOpacity={0.7}>
                   <Text style={styles.inlineSuggestionText}>{suggestion}</Text>
                 </TouchableOpacity>
               ))}
@@ -169,26 +214,34 @@ export function AIAssistantScreen() {
 
         {isUser && (
           <View style={styles.userAvatar}>
-            <Text style={styles.avatarText}>👤</Text>
+            <Icon name="user" size="sm" color={Colors.text.secondary} />
           </View>
         )}
-      </View>
+      </Animated.View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Retour</Text>
+      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Assistant IA</Text>
           <Text style={styles.headerSubtitle}>Posez vos questions</Text>
         </View>
-        <TouchableOpacity onPress={handleClearHistory}>
-          <Text style={styles.clearButton}>🗑️</Text>
+        <TouchableOpacity
+          style={styles.clearButton}
+          onPress={handleClearHistory}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Icon name="trash-2" size="sm" color={Colors.text.tertiary} />
         </TouchableOpacity>
       </View>
 
@@ -198,16 +251,27 @@ export function AIAssistantScreen() {
         keyboardVerticalOffset={90}>
         {/* Messages */}
         {messages.length === 0 ? (
-          <View style={styles.welcomeContainer}>
-            <Text style={styles.welcomeIcon}>🤖</Text>
+          <Animated.View
+            style={[
+              styles.welcomeContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{translateY: slideAnim}],
+              },
+            ]}>
+            <View style={styles.welcomeIconContainer}>
+              <LinearGradient
+                colors={[Colors.primary, Colors.primaryDark]}
+                style={styles.welcomeIconGradient}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 1}}>
+                <Icon name="bot" size="xl" color={Colors.white} />
+              </LinearGradient>
+            </View>
             <Text style={styles.welcomeTitle}>Bonjour!</Text>
-            <Text style={styles.welcomeSubtitle}>Mbote!</Text>
             <Text style={styles.welcomeText}>
               Posez-moi des questions sur vos dépenses, vos factures, ou les
               prix.
-            </Text>
-            <Text style={styles.welcomeTextLingala}>
-              Tuna ngai mituna na mbongo na yo, factures, to ntalo.
             </Text>
 
             {/* Initial Suggestions */}
@@ -217,19 +281,26 @@ export function AIAssistantScreen() {
                 <TouchableOpacity
                   key={index}
                   style={styles.welcomeSuggestionButton}
-                  onPress={() => handleSuggestionPress(suggestion.fr)}>
-                  <Text style={styles.welcomeSuggestionText}>
-                    {suggestion.fr}
-                  </Text>
-                  {suggestion.lingala && (
-                    <Text style={styles.welcomeSuggestionLingala}>
-                      {suggestion.lingala}
+                  onPress={() => handleSuggestionPress(suggestion.fr)}
+                  activeOpacity={0.8}>
+                  <View style={styles.suggestionIconContainer}>
+                    <Icon name="message-circle" size="sm" color={Colors.primary} />
+                  </View>
+                  <View style={styles.suggestionTextContainer}>
+                    <Text style={styles.welcomeSuggestionText}>
+                      {suggestion.fr}
                     </Text>
-                  )}
+                    {suggestion.lingala && (
+                      <Text style={styles.welcomeSuggestionLingala}>
+                        {suggestion.lingala}
+                      </Text>
+                    )}
+                  </View>
+                  <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </Animated.View>
         ) : (
           <FlatList
             ref={flatListRef}
@@ -255,7 +326,8 @@ export function AIAssistantScreen() {
                     handleSuggestionPress(
                       typeof item === 'string' ? item : item.fr,
                     )
-                  }>
+                  }
+                  activeOpacity={0.7}>
                   <Text style={styles.suggestionChipText}>
                     {typeof item === 'string' ? item : item.fr}
                   </Text>
@@ -269,17 +341,19 @@ export function AIAssistantScreen() {
         )}
 
         {/* Input Area */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Tapez votre question..."
-            placeholderTextColor={COLORS.gray[400]}
-            multiline
-            maxLength={500}
-            editable={!isLoading}
-          />
+        <View style={[styles.inputContainer, {paddingBottom: insets.bottom + Spacing.sm}]}>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Tapez votre question..."
+              placeholderTextColor={Colors.text.tertiary}
+              multiline
+              maxLength={500}
+              editable={!isLoading}
+            />
+          </View>
 
           <TouchableOpacity
             style={[
@@ -287,53 +361,68 @@ export function AIAssistantScreen() {
               !inputText.trim() && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
-            disabled={!inputText.trim() || isLoading}>
+            disabled={!inputText.trim() || isLoading}
+            activeOpacity={0.9}>
             {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <Spinner size="small" color={Colors.white} />
             ) : (
-              <Text style={styles.sendButtonText}>→</Text>
+              <LinearGradient
+                colors={inputText.trim() ? [Colors.primary, Colors.primaryDark] : [Colors.border, Colors.border]}
+                style={styles.sendButtonGradient}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 1}}>
+                <Icon name="send" size="sm" color={Colors.white} />
+              </LinearGradient>
             )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background,
   },
   backButton: {
-    fontSize: 16,
-    color: COLORS.primary[600],
-    fontWeight: '600',
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
   },
   headerCenter: {
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: 12,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
   },
   clearButton: {
-    fontSize: 20,
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -342,77 +431,82 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: Spacing.xl,
   },
-  welcomeIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  welcomeIconContainer: {
+    marginBottom: Spacing.lg,
+  },
+  welcomeIconGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   welcomeTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.gray[900],
-  },
-  welcomeSubtitle: {
-    fontSize: 20,
-    color: COLORS.gray[600],
-    fontStyle: 'italic',
-    marginBottom: 16,
+    fontSize: Typography.fontSize.xxxl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   welcomeText: {
-    fontSize: 16,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
     textAlign: 'center',
     lineHeight: 24,
-  },
-  welcomeTextLingala: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
   },
   welcomeSuggestions: {
     width: '100%',
-    alignItems: 'center',
   },
   suggestionsTitle: {
-    fontSize: 14,
-    color: COLORS.gray[500],
-    marginBottom: 12,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
   },
   welcomeSuggestionButton: {
-    backgroundColor: '#fff',
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  suggestionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  suggestionTextContainer: {
+    flex: 1,
   },
   welcomeSuggestionText: {
-    fontSize: 16,
-    color: COLORS.gray[800],
-    fontWeight: '500',
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
   },
   welcomeSuggestionLingala: {
-    fontSize: 12,
-    color: COLORS.gray[500],
-    fontStyle: 'italic',
-    marginTop: 4,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
   },
   messagesList: {
-    padding: 16,
-    paddingBottom: 8,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   messageBubble: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   userBubble: {
     justifyContent: 'flex-end',
@@ -421,72 +515,73 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   assistantAvatar: {
+    marginRight: Spacing.sm,
+  },
+  avatarGradient: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary[100],
+    borderRadius: BorderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
   },
   userAvatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.gray[200],
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-  },
-  avatarText: {
-    fontSize: 18,
+    marginLeft: Spacing.sm,
   },
   messageContent: {
     maxWidth: '75%',
-    padding: 14,
-    borderRadius: 16,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
   },
   userContent: {
-    backgroundColor: COLORS.primary[500],
-    borderBottomRightRadius: 4,
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: BorderRadius.sm,
   },
   assistantContent: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: Colors.white,
+    borderBottomLeftRadius: BorderRadius.sm,
+    ...Shadows.sm,
   },
   messageText: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
     lineHeight: 22,
-    color: COLORS.gray[800],
+    color: Colors.text.primary,
   },
   userText: {
-    color: '#fff',
+    color: Colors.white,
   },
   lingalaText: {
-    fontSize: 13,
-    color: COLORS.gray[500],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
     fontStyle: 'italic',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
+    borderTopColor: Colors.border,
   },
   chartPreview: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 8,
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.lg,
+  },
+  chartTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    gap: Spacing.xs,
   },
   chartTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray[700],
-    marginBottom: 8,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
   },
   chartRow: {
     flexDirection: 'row',
@@ -494,85 +589,88 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   chartLabel: {
-    fontSize: 13,
-    color: COLORS.gray[600],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
   },
   chartValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary[600],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
   },
   inlineSuggestions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 8,
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
   },
   inlineSuggestionChip: {
-    backgroundColor: COLORS.primary[100],
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: Colors.card.green,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
   },
   inlineSuggestionText: {
-    fontSize: 12,
-    color: COLORS.primary[700],
-    fontWeight: '500',
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.status.success,
   },
   suggestionsBar: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
+    borderTopColor: Colors.border,
   },
   suggestionsScroll: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   suggestionChip: {
-    backgroundColor: COLORS.gray[100],
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginRight: 8,
+    backgroundColor: Colors.card.blue,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.sm,
   },
   suggestionChipText: {
-    fontSize: 13,
-    color: COLORS.gray[700],
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 12,
-    backgroundColor: '#fff',
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[200],
-    gap: 8,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.lg,
   },
   textInput: {
-    flex: 1,
-    backgroundColor: COLORS.gray[100],
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
-    fontSize: 16,
-    color: COLORS.gray[900],
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.primary,
     maxHeight: 100,
   },
   sendButton: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary[500],
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
   },
   sendButtonDisabled: {
-    backgroundColor: COLORS.gray[300],
+    opacity: 0.5,
   },
-  sendButtonText: {
-    fontSize: 24,
-    color: '#fff',
-    fontWeight: 'bold',
+  sendButtonGradient: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

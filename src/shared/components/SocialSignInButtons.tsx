@@ -72,13 +72,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   googleButtonText: {
-    ...Typography.fontSize.md,
+    fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.medium,
     color: Colors.text.primary,
     marginLeft: Spacing.sm,
   },
   appleButtonText: {
-    ...Typography.fontSize.md,
+    fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.medium,
     color: Colors.white,
     marginLeft: Spacing.sm,
