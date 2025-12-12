@@ -297,6 +297,16 @@ export function ProfileScreen() {
           <Text style={styles.sectionLabel}>Application</Text>
           <View style={styles.menuGroup}>
             <MenuItem
+              icon="wallet"
+              title="Paramètres du Budget"
+              subtitle={profile?.monthlyBudget ? `${formatCurrency(profile.monthlyBudget, profile.preferredCurrency)} / mois` : 'Non défini'}
+              iconColor="green"
+              onPress={() => {
+                analyticsService.logCustomEvent('budget_settings_opened');
+                navigation.navigate('BudgetSettings');
+              }}
+            />
+            <MenuItem
               icon="bell"
               title="Notifications"
               iconColor="yellow"

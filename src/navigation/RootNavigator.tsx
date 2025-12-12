@@ -21,14 +21,13 @@ import {
 } from '@/features/onboarding/screens';
 import {SignInScreen} from '@/features/auth/screens/SignInScreen';
 import {
-  ScannerScreen,
-  MultiPhotoScannerScreen,
+  UnifiedScannerScreen,
   ReceiptDetailScreen,
   PriceComparisonScreen,
 } from '@/features/scanner/screens';
 import {SubscriptionScreen} from '@/features/subscription/screens';
 import {SettingsScreen} from '@/features/settings/screens';
-import {UpdateProfileScreen} from '@/features/profile/screens';
+import {UpdateProfileScreen, BudgetSettingsScreen} from '@/features/profile/screens';
 
 // Phase 1.1 & 1.2 Screens
 import {PriceAlertsScreen} from '@/features/alerts';
@@ -36,6 +35,7 @@ import {ShoppingListScreen} from '@/features/shopping';
 import {AIAssistantScreen} from '@/features/assistant';
 import {AchievementsScreen} from '@/features/achievements';
 import {CitySelectionScreen} from '@/features/onboarding/screens';
+import {FAQScreen, PrivacyPolicyScreen, TermsOfServiceScreen} from '@/features/legal';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -197,10 +197,11 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="Scanner"
-        component={ScannerScreen}
+        component={UnifiedScannerScreen}
         options={{
           animation: 'slide_from_bottom',
           presentation: 'fullScreenModal',
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -220,13 +221,14 @@ export function RootNavigator() {
         }}
       />
       <Stack.Screen
-        name="MultiPhotoScanner"
-        component={MultiPhotoScannerScreen}
+        name="BudgetSettings"
+        component={BudgetSettingsScreen}
         options={{
-          animation: 'slide_from_bottom',
-          presentation: 'fullScreenModal',
+          animation: 'slide_from_right',
+          headerShown: false,
         }}
       />
+
       <Stack.Screen
         name="ReceiptDetail"
         component={ReceiptDetailScreen}
@@ -248,7 +250,7 @@ export function RootNavigator() {
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{headerShown: true, title: 'Paramètres'}}
+        options={{headerShown: false}}
       />
       {/* Phase 1.1 Screens */}
       <Stack.Screen
@@ -270,6 +272,21 @@ export function RootNavigator() {
       <Stack.Screen
         name="AIAssistant"
         component={AIAssistantScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="FAQ"
+        component={FAQScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
         options={{headerShown: false}}
       />
     </Stack.Navigator>

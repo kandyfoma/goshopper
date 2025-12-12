@@ -140,6 +140,30 @@ const iconPaths: Record<
       </>
     ),
   },
+  'shopping-bag': {
+    outline: (
+      <>
+        <Path
+          d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line
+          x1="3"
+          y1="6"
+          x2="21"
+          y2="6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M16 10a4 4 0 0 1-8 0"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   user: {
     outline: (
       <>
@@ -164,6 +188,40 @@ const iconPaths: Record<
           fill="currentColor"
         />
         <Circle cx="12" cy="7" r="4" fill="currentColor" />
+      </>
+    ),
+  },
+  'user-x': {
+    outline: (
+      <>
+        <Path
+          d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle
+          cx="12"
+          cy="7"
+          r="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line
+          x1="17"
+          y1="9"
+          x2="14"
+          y2="12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line
+          x1="14"
+          y1="9"
+          x2="17"
+          y2="12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </>
     ),
   },
@@ -674,30 +732,6 @@ const iconPaths: Record<
           fill="currentColor"
         />
         <Circle cx="12" cy="10" r="3" fill="white" />
-      </>
-    ),
-  },
-  'shopping-bag': {
-    outline: (
-      <>
-        <Path
-          d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Line
-          x1="3"
-          y1="6"
-          x2="21"
-          y2="6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d="M16 10a4 4 0 0 1-8 0"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
       </>
     ),
   },
@@ -1523,30 +1557,6 @@ const iconPaths: Record<
       </>
     ),
   },
-  'shopping-bag': {
-    outline: (
-      <>
-        <Path
-          d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Line
-          x1="3"
-          y1="6"
-          x2="21"
-          y2="6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d="M16 10a4 4 0 0 1-8 0"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </>
-    ),
-  },
   // Chat & AI icons
   bot: {
     outline: (
@@ -1979,6 +1989,46 @@ const iconPaths: Record<
           y1="20"
           x2="6"
           y2="14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+
+  // Settings icons
+  moon: {
+    outline: (
+      <>
+        <Path
+          d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  message: {
+    outline: (
+      <>
+        <Path
+          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  document: {
+    outline: (
+      <>
+        <Path
+          d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="14 2 14 8 20 8"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

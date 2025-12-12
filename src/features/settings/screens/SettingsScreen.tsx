@@ -62,8 +62,8 @@ function SettingItem({
         style={[
           styles.settingIconWrapper,
           danger && styles.settingIconWrapperDanger,
-          iconBgColor && {backgroundColor: iconBgColor},
-        ]}>
+          iconBgColor ? {backgroundColor: iconBgColor} : undefined,
+        ].filter(Boolean)}>
         <Icon
           name={icon}
           size="sm"
@@ -162,18 +162,44 @@ export function SettingsScreen() {
   const handleDeleteData = () => {
     Alert.alert(
       'Supprimer mes données',
-      'Cette action supprimera définitivement toutes vos factures et données. Cette action est irréversible.',
+      'Cette action supprimera toutes vos factures scannées. Vos articles et listes de courses seront conservés.',
       [
         {text: 'Annuler', style: 'cancel'},
         {
           text: 'Supprimer',
           style: 'destructive',
           onPress: () => {
-            // TODO: Implement data deletion
+            // TODO: Implement data deletion (receipts only)
             Alert.alert(
               'Données supprimées',
-              'Toutes vos données ont été supprimées.',
+              'Toutes vos factures ont été supprimées.',
             );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action supprimera définitivement votre compte et toutes les données associées. Cette action est irréversible.',
+      [
+        {text: 'Annuler', style: 'cancel'},
+        {
+          text: 'Supprimer mon compte',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // TODO: Implement account deletion
+              await signOut();
+              Alert.alert(
+                'Compte supprimé',
+                'Votre compte a été supprimé définitivement.',
+              );
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer le compte');
+            }
           },
         },
       ],
@@ -192,11 +218,11 @@ export function SettingsScreen() {
   };
 
   const handlePrivacyPolicy = () => {
-    Linking.openURL('https://goshopperai.com/privacy');
+    navigation.navigate('PrivacyPolicy');
   };
 
   const handleTermsOfService = () => {
-    Linking.openURL('https://goshopperai.com/terms');
+    navigation.navigate('TermsOfService');
   };
 
   return (
@@ -389,12 +415,38 @@ export function SettingsScreen() {
               title="FAQ"
               subtitle="Questions fréquentes"
               iconBgColor={Colors.card.green}
-              onPress={() => Linking.openURL('https://goshopperai.com/faq')}
+              onPress={() => navigation.navigate('FAQ')}
             />
           </SettingSection>
         </SlideIn>
 
         <SlideIn delay={500}>
+          <SettingSection title="Fonctionnalités">
+            <SettingItem
+              icon="trophy"
+              title="Succès"
+              subtitle="Découvrez vos achievements"
+              iconBgColor={Colors.card.yellow}
+              onPress={() => navigation.navigate('Achievements')}
+            />
+            <SettingItem
+              icon="shopping-bag"
+              title="Liste de courses"
+              subtitle="Gérer vos listes d'achats"
+              iconBgColor={Colors.card.green}
+              onPress={() => navigation.navigate('ShoppingList')}
+            />
+            <SettingItem
+              icon="bot"
+              title="Assistant IA"
+              subtitle="Discutez avec l'assistant intelligent"
+              iconBgColor={Colors.card.blue}
+              onPress={() => navigation.navigate('AIAssistant')}
+            />
+          </SettingSection>
+        </SlideIn>
+
+        <SlideIn delay={600}>
           <SettingSection title="Légal">
             <SettingItem
               icon="lock"
@@ -416,8 +468,15 @@ export function SettingsScreen() {
             <SettingItem
               icon="trash"
               title="Supprimer mes données"
-              subtitle="Supprimer toutes les factures et données"
+              subtitle="Supprimer factures (conserve articles et listes)"
               onPress={handleDeleteData}
+              danger
+            />
+            <SettingItem
+              icon="user-x"
+              title="Supprimer mon compte"
+              subtitle="Supprimer définitivement le compte"
+              onPress={handleDeleteAccount}
               danger
             />
             <SettingItem

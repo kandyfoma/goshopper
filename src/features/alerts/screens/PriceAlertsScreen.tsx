@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
   Alert,
   FlatList,
   StatusBar,
@@ -27,7 +26,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner} from '@/shared/components';
+import {Icon, Spinner, Modal} from '@/shared/components';
 
 export function PriceAlertsScreen() {
   const navigation = useNavigation();
@@ -341,95 +340,88 @@ export function PriceAlertsScreen() {
       {/* Add Alert Modal */}
       <Modal
         visible={showAddModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              {paddingBottom: insets.bottom + Spacing.lg},
-            ]}>
-            <View style={styles.modalHandle} />
-
-            <Text style={styles.modalTitle}>Nouvelle Alerte</Text>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Nom du produit</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="tag" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.input}
-                  value={newProductName}
-                  onChangeText={setNewProductName}
-                  placeholder="Ex: Sucre 1kg, Riz 5kg..."
-                  placeholderTextColor={Colors.text.tertiary}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Prix cible ($)</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="dollar" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.input}
-                  value={newTargetPrice}
-                  onChangeText={setNewTargetPrice}
-                  placeholder="Ex: 1.50"
-                  placeholderTextColor={Colors.text.tertiary}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Ville (optionnel)</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="map-pin" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.input}
-                  value={newCity}
-                  onChangeText={setNewCity}
-                  placeholder="Laissez vide pour votre ville par défaut"
-                  placeholderTextColor={Colors.text.tertiary}
-                />
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowAddModal(false);
-                  setNewProductName('');
-                  setNewTargetPrice('');
-                  setNewCity('');
-                }}>
-                <Text style={styles.cancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.createButton,
-                  (!newProductName.trim() || !newTargetPrice) &&
-                    styles.createButtonDisabled,
-                ]}
-                onPress={handleCreateAlert}
-                disabled={
-                  !newProductName.trim() || !newTargetPrice || isCreating
-                }>
-                {isCreating ? (
-                  <Spinner size="small" color={Colors.white} />
-                ) : (
-                  <>
-                    <Icon name="plus" size="sm" color={Colors.white} />
-                    <Text style={styles.createButtonText}>Créer</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+        variant="bottom-sheet"
+        title="Nouvelle Alerte"
+        onClose={() => {
+          setShowAddModal(false);
+          setNewProductName('');
+          setNewTargetPrice('');
+          setNewCity('');
+        }}>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Nom du produit</Text>
+          <View style={styles.inputWrapper}>
+            <Icon name="tag" size="sm" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.input}
+              value={newProductName}
+              onChangeText={setNewProductName}
+              placeholder="Ex: Sucre 1kg, Riz 5kg..."
+              placeholderTextColor={Colors.text.tertiary}
+            />
           </View>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Prix cible ($)</Text>
+          <View style={styles.inputWrapper}>
+            <Icon name="dollar" size="sm" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.input}
+              value={newTargetPrice}
+              onChangeText={setNewTargetPrice}
+              placeholder="Ex: 1.50"
+              placeholderTextColor={Colors.text.tertiary}
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Ville (optionnel)</Text>
+          <View style={styles.inputWrapper}>
+            <Icon name="map-pin" size="sm" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.input}
+              value={newCity}
+              onChangeText={setNewCity}
+              placeholder="Laissez vide pour votre ville par défaut"
+              placeholderTextColor={Colors.text.tertiary}
+            />
+          </View>
+        </View>
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => {
+              setShowAddModal(false);
+              setNewProductName('');
+              setNewTargetPrice('');
+              setNewCity('');
+            }}>
+            <Text style={styles.cancelButtonText}>Annuler</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.createButton,
+              (!newProductName.trim() || !newTargetPrice) &&
+                styles.createButtonDisabled,
+            ]}
+            onPress={handleCreateAlert}
+            disabled={
+              !newProductName.trim() || !newTargetPrice || isCreating
+            }>
+            {isCreating ? (
+              <Spinner size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Icon name="plus" size="sm" color={Colors.white} />
+                <Text style={styles.createButtonText}>Créer</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -676,33 +668,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.white,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius.xxl,
-    borderTopRightRadius: BorderRadius.xxl,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    fontSize: Typography.fontSize.xxl,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
   },
   inputContainer: {
     marginBottom: Spacing.lg,

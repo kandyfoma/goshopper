@@ -11,7 +11,7 @@ export {default as ListItem, ListSection} from './ListItem';
 export {default as EmptyState} from './EmptyState';
 
 // New Components
-export {Toast, ToastManager} from './Toast';
+export {Toast} from './Toast';
 export {Spinner, LoadingOverlay} from './Spinner';
 export {useNetwork, NetworkBanner} from './NetworkBanner';
 export {SocialSignInButtons} from './SocialSignInButtons';
@@ -36,3 +36,7 @@ export {
   ModalLayout,
   FooterWithAction,
 } from './MainLayout';
+
+// Modal Components
+export {Modal} from './Modal';
+export {ConfirmationModal} from './ConfirmationModal';

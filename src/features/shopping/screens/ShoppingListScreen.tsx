@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
   Alert,
   FlatList,
   StatusBar,
@@ -33,7 +32,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner} from '@/shared/components';
+import {Icon, Spinner, Modal} from '@/shared/components';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
@@ -574,146 +573,124 @@ export function ShoppingListScreen() {
       {/* New List Modal */}
       <Modal
         visible={showNewListModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowNewListModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              {paddingBottom: insets.bottom + Spacing.lg},
-            ]}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Nouvelle Liste</Text>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Nom de la liste</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="list" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.modalInput}
-                  value={newListName}
-                  onChangeText={setNewListName}
-                  placeholder="Ex: Courses de la semaine..."
-                  placeholderTextColor={Colors.text.tertiary}
-                  autoFocus
-                />
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowNewListModal(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalCreateButton,
-                  !newListName.trim() && styles.modalCreateButtonDisabled,
-                ]}
-                onPress={handleCreateList}
-                disabled={!newListName.trim() || isCreating}>
-                {isCreating ? (
-                  <Spinner size="small" color={Colors.white} />
-                ) : (
-                  <>
-                    <Icon name="plus" size="sm" color={Colors.white} />
-                    <Text style={styles.modalCreateText}>Créer</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+        variant="bottom-sheet"
+        title="Nouvelle Liste"
+        onClose={() => setShowNewListModal(false)}>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Nom de la liste</Text>
+          <View style={styles.inputWrapper}>
+            <Icon name="list" size="sm" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.modalInput}
+              value={newListName}
+              onChangeText={setNewListName}
+              placeholder="Ex: Courses de la semaine..."
+              placeholderTextColor={Colors.text.tertiary}
+              autoFocus
+            />
           </View>
+        </View>
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={styles.modalCancelButton}
+            onPress={() => setShowNewListModal(false)}>
+            <Text style={styles.modalCancelText}>Annuler</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modalCreateButton,
+              !newListName.trim() && styles.modalCreateButtonDisabled,
+            ]}
+            onPress={handleCreateList}
+            disabled={!newListName.trim() || isCreating}>
+            {isCreating ? (
+              <Spinner size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Icon name="plus" size="sm" color={Colors.white} />
+                <Text style={styles.modalCreateText}>Créer</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </Modal>
 
       {/* Add Item Modal */}
       <Modal
         visible={showAddItemModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAddItemModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              {paddingBottom: insets.bottom + Spacing.lg},
-            ]}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Ajouter Article</Text>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Nom de l'article</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="tag" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.modalInput}
-                  value={newItemName}
-                  onChangeText={setNewItemName}
-                  placeholder="Ex: Sucre, Riz, Huile..."
-                  placeholderTextColor={Colors.text.tertiary}
-                  autoFocus
-                />
-              </View>
-            </View>
-
-            <View style={styles.quantitySection}>
-              <Text style={styles.inputLabel}>Quantité</Text>
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() =>
-                    setNewItemQuantity(
-                      String(Math.max(1, parseInt(newItemQuantity) - 1)),
-                    )
-                  }>
-                  <Icon name="minus" size="sm" color={Colors.primary} />
-                </TouchableOpacity>
-                <View style={styles.quantityInputContainer}>
-                  <TextInput
-                    style={styles.quantityInput}
-                    value={newItemQuantity}
-                    onChangeText={setNewItemQuantity}
-                    keyboardType="number-pad"
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() =>
-                    setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
-                  }>
-                  <Icon name="plus" size="sm" color={Colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowAddItemModal(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalCreateButton,
-                  !newItemName.trim() && styles.modalCreateButtonDisabled,
-                ]}
-                onPress={handleAddItem}
-                disabled={!newItemName.trim() || isCreating}>
-                {isCreating ? (
-                  <Spinner size="small" color={Colors.white} />
-                ) : (
-                  <>
-                    <Icon name="plus" size="sm" color={Colors.white} />
-                    <Text style={styles.modalCreateText}>Ajouter</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+        variant="bottom-sheet"
+        title="Ajouter Article"
+        onClose={() => setShowAddItemModal(false)}>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Nom de l'article</Text>
+          <View style={styles.inputWrapper}>
+            <Icon name="tag" size="sm" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.modalInput}
+              value={newItemName}
+              onChangeText={setNewItemName}
+              placeholder="Ex: Sucre, Riz, Huile..."
+              placeholderTextColor={Colors.text.tertiary}
+              autoFocus
+            />
           </View>
+        </View>
+
+        <View style={styles.quantitySection}>
+          <Text style={styles.inputLabel}>Quantité</Text>
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() =>
+                setNewItemQuantity(
+                  String(Math.max(1, parseInt(newItemQuantity) - 1)),
+                )
+              }>
+              <Icon name="minus" size="sm" color={Colors.primary} />
+            </TouchableOpacity>
+            <View style={styles.quantityInputContainer}>
+              <TextInput
+                style={styles.quantityInput}
+                value={newItemQuantity}
+                onChangeText={setNewItemQuantity}
+                keyboardType="number-pad"
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() =>
+                setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
+              }>
+              <Icon name="plus" size="sm" color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={styles.modalCancelButton}
+            onPress={() => setShowAddItemModal(false)}>
+            <Text style={styles.modalCancelText}>Annuler</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modalCreateButton,
+              !newItemName.trim() && styles.modalCreateButtonDisabled,
+            ]}
+            onPress={handleAddItem}
+            disabled={!newItemName.trim() || isCreating}>
+            {isCreating ? (
+              <Spinner size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Icon name="plus" size="sm" color={Colors.white} />
+                <Text style={styles.modalCreateText}>Ajouter</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -1129,33 +1106,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.white,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius['2xl'],
-    borderTopRightRadius: BorderRadius['2xl'],
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.border.light,
-    alignSelf: 'center',
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    fontSize: Typography.fontSize['2xl'],
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
   },
   inputContainer: {
     marginBottom: Spacing.lg,

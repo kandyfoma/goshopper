@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Dimensions,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import {
@@ -20,7 +21,7 @@ import {
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -47,9 +48,11 @@ interface CurrencyStats {
 
 export function StatsScreen() {
   const {user} = useAuth();
+  const {profile} = useUser();
 
   const [totalSpending, setTotalSpending] = useState(0);
   const [totalSavings, setTotalSavings] = useState(0);
+  const [monthlyBudget, setMonthlyBudget] = useState(500); // Default budget
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +65,7 @@ export function StatsScreen() {
 
   useEffect(() => {
     loadStatsData();
-  }, [user?.uid]);
+  }, [user?.uid, profile?.preferredCurrency, profile?.monthlyBudget]);
 
   const loadStatsData = async () => {
     if (!user?.uid) {
@@ -101,12 +104,13 @@ export function StatsScreen() {
         currencyCount[currency] = (currencyCount[currency] || 0) + 1;
       });
 
-      // Set primary currency (most common)
-      const primaryCurrency =
-        (Object.entries(currencyCount).sort(([, a], [, b]) => b - a)[0]?.[0] as
-          | 'USD'
-          | 'CDF') || 'USD';
-      setPrimaryCurrency(primaryCurrency);
+      // Set primary currency from user profile or determine from receipts
+      const userPreferredCurrency = profile?.preferredCurrency || 'USD';
+      setPrimaryCurrency(userPreferredCurrency);
+
+      // Set monthly budget from user profile
+      const userBudget = profile?.monthlyBudget || 500;
+      setMonthlyBudget(userBudget);
 
       // Calculate spending by category
       const categoryTotals: Record<string, number> = {};
@@ -115,21 +119,24 @@ export function StatsScreen() {
 
       currentMonthReceipts.forEach(doc => {
         const data = doc.data();
-        // Only include receipts with the primary currency
-        if ((data.currency || 'USD') === primaryCurrency) {
-          totalSpent += data.total || 0;
-
-          // Calculate real savings from receipt data
-          if (data.savings && typeof data.savings === 'number') {
-            totalSavings += data.savings;
-          }
-
-          (data.items || []).forEach((item: any) => {
-            const category = item.category || 'Autre';
-            categoryTotals[category] =
-              (categoryTotals[category] || 0) + (item.totalPrice || 0);
-          });
+        // Use the user's preferred currency for totals
+        if (userPreferredCurrency === 'CDF') {
+          totalSpent += data.totalCDF || 0;
+        } else {
+          totalSpent += data.totalUSD || 0;
         }
+
+        // Calculate real savings from receipt data
+        if (data.savings && typeof data.savings === 'number') {
+          totalSavings += data.savings;
+        }
+
+        (data.items || []).forEach((item: any) => {
+          const category = item.category || 'Autre';
+          // Use the appropriate currency for category totals too
+          const itemTotal = userPreferredCurrency === 'CDF' ? (item.totalPriceCDF || 0) : (item.totalPriceUSD || 0);
+          categoryTotals[category] = (categoryTotals[category] || 0) + itemTotal;
+        });
       });
 
       // Convert to category array with percentages
@@ -214,7 +221,12 @@ export function StatsScreen() {
         const date = data.scannedAt?.toDate() || new Date();
         const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
         if (monthlyTotals[monthKey] !== undefined) {
-          monthlyTotals[monthKey] += data.total || 0;
+          // Use the user's preferred currency for monthly totals
+          if (userPreferredCurrency === 'CDF') {
+            monthlyTotals[monthKey] += data.totalCDF || 0;
+          } else {
+            monthlyTotals[monthKey] += data.totalUSD || 0;
+          }
         }
       });
 
@@ -270,24 +282,26 @@ export function StatsScreen() {
         {/* Summary Cards */}
         <SlideIn delay={100}>
           <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, styles.spendingCard]}>
+            <View style={[styles.summaryCard, styles.budgetCard]}>
               <View style={styles.summaryIconWrapper}>
                 <Icon name="wallet" size="md" color={Colors.primary} />
+              </View>
+              <Text style={styles.summaryLabel}>Budget Mensuel</Text>
+              <Text style={styles.summaryAmount}>
+                {formatCurrency(monthlyBudget, primaryCurrency)}
+              </Text>
+            </View>
+
+            <View style={[styles.summaryCard, styles.spendingCard]}>
+              <View style={styles.summaryIconWrapper}>
+                <Icon name="credit-card" size="md" color={Colors.status.warning} />
               </View>
               <Text style={styles.summaryLabel}>Dépenses</Text>
               <Text style={styles.summaryAmount}>
                 {formatCurrency(totalSpending, primaryCurrency)}
               </Text>
-            </View>
-
-            <View style={[styles.summaryCard, styles.savingsCard]}>
-              <View style={styles.summaryGlow} />
-              <View style={styles.summaryIconWrapperAccent}>
-                <Icon name="trending-up" size="md" color={Colors.accent} />
-              </View>
-              <Text style={styles.summaryLabelWhite}>Économies</Text>
-              <Text style={styles.summaryAmountWhite}>
-                {formatCurrency(totalSavings, primaryCurrency)}
+              <Text style={styles.summarySubtitle}>
+                {totalSpending > monthlyBudget ? 'Dépassement' : 'Dans le budget'}
               </Text>
             </View>
           </View>
@@ -296,37 +310,66 @@ export function StatsScreen() {
         {/* Monthly Trend */}
         <SlideIn delay={200}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tendance mensuelle</Text>
-            <View style={styles.chartCard}>
-              <View style={styles.barChart}>
+            <Text style={styles.sectionTitle}>Budget vs Dépenses</Text>
+            <TouchableOpacity style={styles.chartCard} activeOpacity={0.9}>
+              <View style={styles.budgetChartContainer}>
                 {monthlyData.map((data, index) => (
-                  <View key={index} style={styles.barColumn}>
-                    <View style={styles.barWrapper}>
+                  <View key={index} style={styles.budgetBarContainer}>
+                    <Text style={styles.barLabel}>{data.month}</Text>
+                    <View style={styles.budgetBarBg}>
                       <View
                         style={[
-                          styles.bar,
+                          styles.budgetBar,
                           {
-                            height: `${
-                              maxMonthlyAmount > 0
-                                ? (data.amount / maxMonthlyAmount) * 100
-                                : 10
+                            width: `${
+                              monthlyBudget > 0
+                                ? Math.min((data.amount / monthlyBudget) * 100, 100)
+                                : 0
                             }%`,
                             backgroundColor:
-                              index === monthlyData.length - 1
-                                ? Colors.primary
-                                : Colors.primaryLight,
+                              data.amount > monthlyBudget
+                                ? Colors.status.error
+                                : Colors.status.success,
                           },
                         ]}
                       />
                     </View>
-                    <Text style={styles.barLabel}>{data.month}</Text>
                     <Text style={styles.barAmount}>
                       {formatCurrency(data.amount, primaryCurrency)}
                     </Text>
                   </View>
                 ))}
               </View>
-            </View>
+              <View style={styles.budgetLegend}>
+                <View style={styles.budgetLegendItem}>
+                  <View
+                    style={[
+                      styles.budgetLegendColor,
+                      { backgroundColor: Colors.accentLight },
+                    ]}
+                  />
+                  <Text style={styles.budgetLegendText}>Budget</Text>
+                </View>
+                <View style={styles.budgetLegendItem}>
+                  <View
+                    style={[
+                      styles.budgetLegendColor,
+                      { backgroundColor: Colors.status.success },
+                    ]}
+                  />
+                  <Text style={styles.budgetLegendText}>Dépenses (sous budget)</Text>
+                </View>
+                <View style={styles.budgetLegendItem}>
+                  <View
+                    style={[
+                      styles.budgetLegendColor,
+                      { backgroundColor: Colors.status.error },
+                    ]}
+                  />
+                  <Text style={styles.budgetLegendText}>Dépenses (dépassement)</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
         </SlideIn>
 
@@ -677,5 +720,54 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     fontSize: Typography.fontSize.md,
     color: Colors.text.secondary,
+  },
+  budgetChartContainer: {
+    marginTop: Spacing.lg,
+  },
+  budgetBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  budgetBarBg: {
+    flex: 1,
+    height: 24,
+    backgroundColor: Colors.accentLight,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.sm,
+    overflow: 'hidden',
+  },
+  budgetBar: {
+    height: '100%',
+    backgroundColor: Colors.accent,
+    borderRadius: BorderRadius.md,
+  },
+  budgetLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+  },
+  budgetLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.sm,
+  },
+  budgetLegendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.xs,
+  },
+  budgetLegendText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+  },
+  budgetCard: {
+    backgroundColor: Colors.card.blue,
+  },
+  summarySubtitle: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
   },
 });

@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {SocialSignInButtons} from '@/shared/components';
@@ -31,7 +33,7 @@ const URBANIST_COLORS = {
 };
 
 export function SignInScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const {signInWithGoogle, signInWithApple, isLoading, error} = useAuth();
   const {showToast} = useToast();
@@ -136,9 +138,17 @@ export function SignInScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             En vous connectant, vous acceptez nos{' '}
-            <Text style={styles.linkText}>Conditions d'utilisation</Text> et
-            notre{' '}
-            <Text style={styles.linkText}>Politique de confidentialité</Text>
+            <Text
+              style={styles.linkText}
+              onPress={() => navigation.navigate('TermsOfService')}>
+              Conditions d'utilisation
+            </Text>{' '}
+            et notre{' '}
+            <Text
+              style={styles.linkText}
+              onPress={() => navigation.navigate('PrivacyPolicy')}>
+              Politique de confidentialité
+            </Text>
           </Text>
         </View>
       </ScrollView>

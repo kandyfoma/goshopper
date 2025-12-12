@@ -24,6 +24,8 @@ import {
 } from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
 import {analyticsService} from '@/shared/services';
+import firestore from '@react-native-firebase/firestore';
+import {formatCurrency} from '@/shared/utils/helpers';
 
 const {width} = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.lg * 2 - Spacing.md) / 2;
@@ -206,10 +208,54 @@ export function HomeScreen() {
   } = useSubscription();
   const {profile: userProfile} = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
+  const [monthlySpending, setMonthlySpending] = useState(0);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     analyticsService.logScreenView('Home', 'HomeScreen');
   }, []);
+
+  // Fetch monthly spending
+  useEffect(() => {
+    const fetchMonthlySpending = async () => {
+      if (!userProfile?.userId) return;
+
+      try {
+        setIsLoadingStats(true);
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const receiptsSnapshot = await firestore()
+          .collection('artifacts')
+          .doc('goshopperai')
+          .collection('users')
+          .doc(userProfile.userId)
+          .collection('receipts')
+          .where('scannedAt', '>=', startOfMonth)
+          .get();
+
+        let total = 0;
+        receiptsSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          // Use the currency that matches user's budget preference
+          if (userProfile.preferredCurrency === 'CDF') {
+            total += data.totalCDF || 0;
+          } else {
+            total += data.totalUSD || 0;
+          }
+        });
+
+        setMonthlySpending(total);
+      } catch (error) {
+        console.error('Error fetching monthly spending:', error);
+        setMonthlySpending(0);
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+
+    fetchMonthlySpending();
+  }, [userProfile?.userId, userProfile?.preferredCurrency]);
 
   const handleScanPress = () => {
     if (!canScan) {
@@ -288,11 +334,15 @@ export function HomeScreen() {
               }
             />
             <StatCard
-              title="Économies"
-              value="$0"
+              title="Budget Mensuel"
+              value={
+                userProfile?.monthlyBudget
+                  ? formatCurrency(userProfile.monthlyBudget, userProfile.preferredCurrency)
+                  : 'Non défini'
+              }
               subtitle="ce mois"
               color="green"
-              icon="trending-down"
+              icon="wallet"
               onPress={() =>
                 navigation.navigate('Main', {screen: 'Stats'} as any)
               }
@@ -300,12 +350,18 @@ export function HomeScreen() {
           </View>
           <View style={styles.statsRow}>
             <StatCard
-              title="Alertes"
-              value="0"
-              subtitle="actives"
+              title="Dépenses Totales"
+              value={
+                isLoadingStats
+                  ? '—'
+                  : formatCurrency(monthlySpending, userProfile?.preferredCurrency || 'USD')
+              }
+              subtitle="ce mois"
               color="yellow"
-              icon="bell"
-              onPress={() => navigation.navigate('PriceAlerts')}
+              icon="credit-card"
+              onPress={() =>
+                navigation.navigate('Main', {screen: 'Stats'} as any)
+              }
             />
             <StatCard
               title="Liste"
@@ -321,37 +377,33 @@ export function HomeScreen() {
         {/* Main Scan Button */}
         <ScanButton onPress={handleScanPress} disabled={!canScan} />
 
-        {/* Subscription Status */}
-        {!isPremium && (
-          <TouchableOpacity
-            style={styles.subscriptionBanner}
-            onPress={() => navigation.navigate('Subscription')}>
-            <View style={styles.subscriptionContent}>
-              <View style={styles.subscriptionIcon}>
-                <Icon name="star" size="md" color={Colors.primary} />
-              </View>
-              <View style={styles.subscriptionText}>
-                <Text style={styles.subscriptionTitle}>
-                  {isTrialActive ? 'Essai gratuit' : 'Passez à Premium'}
-                </Text>
-                <Text style={styles.subscriptionSubtitle}>
-                  {isTrialActive
-                    ? `${trialDaysRemaining} jours restants`
-                    : 'Scans illimités & plus'}
-                </Text>
-              </View>
+        {/* Push Notifications Banner */}
+        <TouchableOpacity
+          style={styles.subscriptionBanner}
+          onPress={() => navigation.navigate('Settings')}>
+          <View style={styles.subscriptionContent}>
+            <View style={styles.subscriptionIcon}>
+              <Icon name="bell" size="md" color={Colors.primary} />
             </View>
-            <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
-          </TouchableOpacity>
-        )}
+            <View style={styles.subscriptionText}>
+              <Text style={styles.subscriptionTitle}>
+                Notifications Push
+              </Text>
+              <Text style={styles.subscriptionSubtitle}>
+                Gérez vos notifications
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+        </TouchableOpacity>
 
         {/* Quick Actions */}
         <Text style={styles.sectionTitle}>Actions rapides</Text>
         <View style={styles.quickActionsGrid}>
           <QuickAction
             icon="file-text"
-            label="Longue facture"
-            onPress={() => navigation.navigate('MultiPhotoScanner')}
+            label="Scanner facture"
+            onPress={() => navigation.navigate('Scanner')}
             color="blue"
           />
           <QuickAction

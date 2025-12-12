@@ -12,7 +12,6 @@ import {
   ScrollView,
   ActivityIndicator,
   FlatList,
-  Modal,
 } from 'react-native';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -25,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon} from '@/shared/components';
+import {Icon, Modal} from '@/shared/components';
 import firestore from '@react-native-firebase/firestore';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -208,18 +207,9 @@ export function ProfileSetupScreen() {
   const renderCityPicker = () => (
     <Modal
       visible={showCityPicker}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => setShowCityPicker(false)}>
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Sélectionnez votre ville</Text>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setShowCityPicker(false)}>
-            <Icon name="x" size="lg" color={Colors.text.primary} />
-          </TouchableOpacity>
-        </View>
+      variant="fullscreen"
+      title="Sélectionnez votre ville"
+      onClose={() => setShowCityPicker(false)}>
 
         {/* Search input */}
         <View style={styles.searchContainer}>
@@ -283,7 +273,6 @@ export function ProfileSetupScreen() {
             </View>
           }
         />
-      </SafeAreaView>
     </Modal>
   );
 
@@ -627,27 +616,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: Colors.background.primary,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
-  },
-  modalTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  closeButton: {
-    padding: Spacing.sm,
   },
   searchContainer: {
     flexDirection: 'row',

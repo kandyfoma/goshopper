@@ -346,7 +346,7 @@ export function LoginScreen() {
                 <View
                   style={[
                     styles.inputWrapper,
-                    emailError && styles.inputError,
+                    !!emailError && styles.inputError,
                     isLoading && styles.inputDisabled,
                   ]}>
                   <Icon name="mail" size="sm" color={URBANIST.textMuted} />
@@ -375,7 +375,7 @@ export function LoginScreen() {
                 <View
                   style={[
                     styles.inputWrapper,
-                    passwordError && styles.inputError,
+                    !!passwordError && styles.inputError,
                     isLoading && styles.inputDisabled,
                   ]}>
                   <Icon name="lock" size="sm" color={URBANIST.textMuted} />
@@ -516,9 +516,17 @@ export function LoginScreen() {
             {/* Terms */}
             <Text style={styles.termsText}>
               En vous connectant, vous acceptez nos{' '}
-              <Text style={styles.termsLink}>Conditions d'utilisation</Text> et
-              notre{' '}
-              <Text style={styles.termsLink}>Politique de confidentialité</Text>
+              <Text
+                style={styles.termsLink}
+                onPress={() => navigation.navigate('TermsOfService')}>
+                Conditions d'utilisation
+              </Text>{' '}
+              et notre{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => navigation.navigate('PrivacyPolicy')}>
+                Politique de confidentialité
+              </Text>
             </Text>
           </Animated.View>
         </ScrollView>
