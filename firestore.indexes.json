@@ -35,6 +35,14 @@
       ]
     },
     {
+      "collectionGroup": "prices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "storeNameNormalized", "order": "ASCENDING"},
+        {"fieldPath": "recordedAt", "order": "DESCENDING"}
+      ]
+    },
+    {
       "collectionGroup": "subscription",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

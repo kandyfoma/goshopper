@@ -15,6 +15,7 @@ import {Icon} from '@/shared/components';
 // Screens
 import {HomeScreen} from '@/features/home/screens';
 import {HistoryScreen} from '@/features/history/screens';
+import {UnifiedScannerScreen} from '@/features/scanner/screens';
 import {StatsScreen} from '@/features/stats/screens';
 import {ItemsScreen} from '@/features/items';
 import {ProfileScreen} from '@/features/profile/screens';
@@ -95,6 +96,15 @@ export function MainTabNavigator() {
         options={{
           tabBarIcon: ({focused}) => (
             <TabIcon focused={focused} icon="receipt" label="Historique" />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Scanner"
+        component={UnifiedScannerScreen}
+        options={{
+          tabBarIcon: ({focused}) => (
+            <TabIcon focused={focused} icon="camera" label="Scanner" />
           ),
         }}
       />

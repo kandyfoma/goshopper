@@ -529,6 +529,47 @@ const iconPaths: Record<
       </>
     ),
   },
+  'help-circle': {
+    outline: (
+      <>
+        <Circle
+          cx="12"
+          cy="12"
+          r="10"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line
+          x1="12"
+          y1="17"
+          x2="12.01"
+          y2="17"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  zap: {
+    outline: (
+      <Path
+        d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+    filled: (
+      <Path
+        d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"
+        fill="currentColor"
+      />
+    ),
+  },
   // UI / Chevrons
   'chevron-right': {
     outline: (
@@ -824,6 +865,57 @@ const iconPaths: Record<
     ),
   },
   // Additional
+  cpu: {
+    outline: (
+      <>
+        <Rect
+          x="4"
+          y="4"
+          width="16"
+          height="16"
+          rx="2"
+          ry="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Rect
+          x="9"
+          y="9"
+          width="6"
+          height="6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line x1="9" y1="1" x2="9" y2="4" strokeLinecap="round" />
+        <Line x1="15" y1="1" x2="15" y2="4" strokeLinecap="round" />
+        <Line x1="9" y1="20" x2="9" y2="23" strokeLinecap="round" />
+        <Line x1="15" y1="20" x2="15" y2="23" strokeLinecap="round" />
+        <Line x1="20" y1="9" x2="23" y2="9" strokeLinecap="round" />
+        <Line x1="20" y1="14" x2="23" y2="14" strokeLinecap="round" />
+        <Line x1="1" y1="9" x2="4" y2="9" strokeLinecap="round" />
+        <Line x1="1" y1="14" x2="4" y2="14" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'dollar-sign': {
+    outline: (
+      <>
+        <Line
+          x1="12"
+          y1="1"
+          x2="12"
+          y2="23"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   star: {
     outline: (
       <Path

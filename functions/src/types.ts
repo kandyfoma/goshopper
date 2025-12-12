@@ -106,6 +106,7 @@ export interface PricePoint {
   storeName: string;
   storeNameNormalized: string;
   price: number;
+  previousPrice?: number; // Track price changes
   currency: 'USD' | 'CDF';
   unit?: string;
   quantity?: number;
@@ -113,6 +114,9 @@ export interface PricePoint {
   recordedAt: Date;
   receiptId: string;
   userId: string;
+  // Matching metadata
+  matchConfidence?: number;
+  matchType?: 'exact' | 'fuzzy' | 'semantic';
 }
 
 export interface PriceComparison {

@@ -1,6 +1,6 @@
 // Stats Screen - Spending analytics and insights
 // Styled with GoShopperAI Design System (Blue + Gold)
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import Svg, {Circle, G, Path, Line, Text as SvgText} from 'react-native-svg';
 import firestore from '@react-native-firebase/firestore';
 import {
   Colors,
@@ -116,14 +117,15 @@ export function StatsScreen() {
       const categoryTotals: Record<string, number> = {};
       let totalSpent = 0;
       let totalSavings = 0;
+      let categoryRawTotal = 0; // For calculating percentages
 
       currentMonthReceipts.forEach(doc => {
         const data = doc.data();
         // Use the user's preferred currency for totals
         if (userPreferredCurrency === 'CDF') {
-          totalSpent += data.totalCDF || 0;
+          totalSpent += data.totalCDF || data.total || 0;
         } else {
-          totalSpent += data.totalUSD || 0;
+          totalSpent += data.totalUSD || data.total || 0;
         }
 
         // Calculate real savings from receipt data
@@ -131,31 +133,61 @@ export function StatsScreen() {
           totalSavings += data.savings;
         }
 
+        // Calculate category totals from items
+        // Items use the receipt's original currency
         (data.items || []).forEach((item: any) => {
           const category = item.category || 'Autre';
-          // Use the appropriate currency for category totals too
-          const itemTotal = userPreferredCurrency === 'CDF' ? (item.totalPriceCDF || 0) : (item.totalPriceUSD || 0);
+          const itemTotal = item.totalPrice || 0;
           categoryTotals[category] = (categoryTotals[category] || 0) + itemTotal;
+          categoryRawTotal += itemTotal;
         });
       });
 
       // Convert to category array with percentages
-      const categoryColors = {
+      const categoryColors: Record<string, string> = {
         Alimentation: Colors.primary,
         Boissons: Colors.status.success,
         Hygiène: '#8b5cf6',
+        Hygiene: '#8b5cf6',
         Ménage: Colors.accent,
+        Menage: Colors.accent,
         Bébé: '#ec4899',
+        Bebe: '#ec4899',
+        Électronique: '#3b82f6',
+        Electronique: '#3b82f6',
+        Vêtements: '#f97316',
+        Vetements: '#f97316',
+        Santé: '#ef4444',
+        Sante: '#ef4444',
+        Transport: '#06b6d4',
+        Loisirs: '#a855f7',
+        Épicerie: Colors.primary,
+        Epicerie: Colors.primary,
         Autre: Colors.text.tertiary,
+        Autres: Colors.text.tertiary,
       };
 
-      const categoryIcons = {
+      const categoryIcons: Record<string, string> = {
         Alimentation: 'cart',
         Boissons: 'trending-up',
         Hygiène: 'star',
+        Hygiene: 'star',
         Ménage: 'home',
+        Menage: 'home',
         Bébé: 'heart',
+        Bebe: 'heart',
+        Électronique: 'settings',
+        Electronique: 'settings',
+        Vêtements: 'user',
+        Vetements: 'user',
+        Santé: 'heart',
+        Sante: 'heart',
+        Transport: 'map-pin',
+        Loisirs: 'star',
+        Épicerie: 'cart',
+        Epicerie: 'cart',
         Autre: 'grid',
+        Autres: 'grid',
       };
 
       const categoriesArray: SpendingCategory[] = Object.entries(categoryTotals)
@@ -163,7 +195,7 @@ export function StatsScreen() {
           name,
           amount,
           percentage:
-            totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0,
+            categoryRawTotal > 0 ? Math.round((amount / categoryRawTotal) * 100) : 0,
           color:
             categoryColors[name as keyof typeof categoryColors] ||
             Colors.text.tertiary,
@@ -253,7 +285,48 @@ export function StatsScreen() {
     }
   };
 
-  const maxMonthlyAmount = Math.max(...monthlyData.map(d => d.amount));
+  const maxMonthlyAmount = Math.max(...monthlyData.map(d => d.amount), monthlyBudget);
+
+  // Donut chart calculations
+  const donutChartData = useMemo(() => {
+    if (categories.length === 0) return [];
+    
+    const total = categories.reduce((sum, cat) => sum + cat.amount, 0);
+    let startAngle = -90; // Start from top
+    
+    return categories.map(category => {
+      const angle = (category.amount / total) * 360;
+      const data = {
+        ...category,
+        startAngle,
+        endAngle: startAngle + angle,
+        sweepAngle: angle,
+      };
+      startAngle += angle;
+      return data;
+    });
+  }, [categories]);
+
+  // Create SVG arc path for donut chart
+  const createArcPath = (
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+  ) => {
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (endAngle * Math.PI) / 180;
+    
+    const x1 = centerX + radius * Math.cos(startRad);
+    const y1 = centerY + radius * Math.sin(startRad);
+    const x2 = centerX + radius * Math.cos(endRad);
+    const y2 = centerY + radius * Math.sin(endRad);
+    
+    const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+    
+    return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+  };
 
   if (isLoading) {
     return (
@@ -307,73 +380,120 @@ export function StatsScreen() {
           </View>
         </SlideIn>
 
-        {/* Monthly Trend */}
+        {/* Monthly Trend - Improved Bar Chart */}
         <SlideIn delay={200}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Budget vs Dépenses</Text>
-            <TouchableOpacity style={styles.chartCard} activeOpacity={0.9}>
-              <View style={styles.budgetChartContainer}>
-                {monthlyData.map((data, index) => (
-                  <View key={index} style={styles.budgetBarContainer}>
-                    <Text style={styles.barLabel}>{data.month}</Text>
-                    <View style={styles.budgetBarBg}>
-                      <View
-                        style={[
-                          styles.budgetBar,
-                          {
-                            width: `${
-                              monthlyBudget > 0
-                                ? Math.min((data.amount / monthlyBudget) * 100, 100)
-                                : 0
-                            }%`,
-                            backgroundColor:
-                              data.amount > monthlyBudget
-                                ? Colors.status.error
-                                : Colors.status.success,
-                          },
-                        ]}
+            <Text style={styles.sectionTitle}>Évolution Mensuelle</Text>
+            <View style={styles.chartCard}>
+              {/* Modern Bar Chart with SVG */}
+              <View style={styles.modernChartContainer}>
+                <Svg width={SCREEN_WIDTH - 80} height={200}>
+                  {/* Grid lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+                    <G key={i}>
+                      <Line
+                        x1="40"
+                        y1={160 - ratio * 130}
+                        x2={SCREEN_WIDTH - 80}
+                        y2={160 - ratio * 130}
+                        stroke={Colors.border.light}
+                        strokeWidth="1"
+                        strokeDasharray={i > 0 ? "5,5" : "0"}
                       />
-                    </View>
-                    <Text style={styles.barAmount}>
-                      {formatCurrency(data.amount, primaryCurrency)}
-                    </Text>
-                  </View>
-                ))}
+                      <SvgText
+                        x="35"
+                        y={165 - ratio * 130}
+                        fontSize="10"
+                        fill={Colors.text.tertiary}
+                        textAnchor="end"
+                      >
+                        {Math.round(maxMonthlyAmount * ratio).toLocaleString()}
+                      </SvgText>
+                    </G>
+                  ))}
+                  
+                  {/* Budget line */}
+                  <Line
+                    x1="40"
+                    y1={160 - (monthlyBudget / maxMonthlyAmount) * 130}
+                    x2={SCREEN_WIDTH - 80}
+                    y2={160 - (monthlyBudget / maxMonthlyAmount) * 130}
+                    stroke={Colors.accent}
+                    strokeWidth="2"
+                    strokeDasharray="8,4"
+                  />
+                  
+                  {/* Bars */}
+                  {monthlyData.map((data, index) => {
+                    const barWidth = 50;
+                    const gap = ((SCREEN_WIDTH - 120) - (monthlyData.length * barWidth)) / (monthlyData.length + 1);
+                    const x = 50 + gap * (index + 1) + barWidth * index;
+                    const barHeight = maxMonthlyAmount > 0 ? (data.amount / maxMonthlyAmount) * 130 : 0;
+                    const isOverBudget = data.amount > monthlyBudget;
+                    
+                    return (
+                      <G key={index}>
+                        {/* Bar background */}
+                        <Path
+                          d={`M ${x} 160 L ${x} ${160 - barHeight + 8} Q ${x} ${160 - barHeight} ${x + 8} ${160 - barHeight} L ${x + barWidth - 8} ${160 - barHeight} Q ${x + barWidth} ${160 - barHeight} ${x + barWidth} ${160 - barHeight + 8} L ${x + barWidth} 160 Z`}
+                          fill={isOverBudget ? Colors.status.error : Colors.primary}
+                        />
+                        {/* Gradient overlay */}
+                        <Path
+                          d={`M ${x} 160 L ${x} ${160 - barHeight + 8} Q ${x} ${160 - barHeight} ${x + 8} ${160 - barHeight} L ${x + barWidth - 8} ${160 - barHeight} Q ${x + barWidth} ${160 - barHeight} ${x + barWidth} ${160 - barHeight + 8} L ${x + barWidth} 160 Z`}
+                          fill="url(#barGradient)"
+                          opacity={0.3}
+                        />
+                        {/* Month label */}
+                        <SvgText
+                          x={x + barWidth / 2}
+                          y={180}
+                          fontSize="12"
+                          fill={Colors.text.secondary}
+                          textAnchor="middle"
+                          fontWeight="500"
+                        >
+                          {data.month}
+                        </SvgText>
+                        {/* Amount on top of bar */}
+                        <SvgText
+                          x={x + barWidth / 2}
+                          y={155 - barHeight}
+                          fontSize="11"
+                          fill={Colors.text.primary}
+                          textAnchor="middle"
+                          fontWeight="600"
+                        >
+                          {primaryCurrency === 'CDF' ? 
+                            `${(data.amount / 1000).toFixed(0)}k` : 
+                            `$${data.amount.toFixed(0)}`}
+                        </SvgText>
+                      </G>
+                    );
+                  })}
+                </Svg>
               </View>
-              <View style={styles.budgetLegend}>
-                <View style={styles.budgetLegendItem}>
-                  <View
-                    style={[
-                      styles.budgetLegendColor,
-                      { backgroundColor: Colors.accentLight },
-                    ]}
-                  />
-                  <Text style={styles.budgetLegendText}>Budget</Text>
+              
+              {/* Legend */}
+              <View style={styles.chartLegend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, {backgroundColor: Colors.primary}]} />
+                  <Text style={styles.legendText}>Dépenses</Text>
                 </View>
-                <View style={styles.budgetLegendItem}>
-                  <View
-                    style={[
-                      styles.budgetLegendColor,
-                      { backgroundColor: Colors.status.success },
-                    ]}
-                  />
-                  <Text style={styles.budgetLegendText}>Dépenses (sous budget)</Text>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, {backgroundColor: Colors.status.error}]} />
+                  <Text style={styles.legendText}>Dépassement</Text>
                 </View>
-                <View style={styles.budgetLegendItem}>
-                  <View
-                    style={[
-                      styles.budgetLegendColor,
-                      { backgroundColor: Colors.status.error },
-                    ]}
-                  />
-                  <Text style={styles.budgetLegendText}>Dépenses (dépassement)</Text>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendLine, {backgroundColor: Colors.accent}]} />
+                  <Text style={styles.legendText}>Budget ({formatCurrency(monthlyBudget, primaryCurrency)})</Text>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           </View>
         </SlideIn>
 
-        {/* Categories Breakdown */}
+        {/* Categories - Donut Chart + List */}
         <SlideIn delay={300}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Répartition par catégorie</Text>
@@ -382,49 +502,82 @@ export function StatsScreen() {
                 <View style={styles.emptyCategories}>
                   <Icon name="chart" size="lg" color={Colors.text.tertiary} />
                   <Text style={styles.emptyCategoriesText}>
-                    Aucune donnée disponible
+                    Scannez des reçus pour voir vos dépenses par catégorie
                   </Text>
                 </View>
               ) : (
-                categories.map((category, index) => (
-                  <View key={index} style={styles.categoryRow}>
-                    <View style={styles.categoryLeft}>
-                      <View
-                        style={[
-                          styles.categoryIcon,
-                          {backgroundColor: category.color + '20'},
-                        ]}>
-                        <Icon
-                          name={category.icon}
-                          size="sm"
-                          color={category.color}
-                        />
-                      </View>
-                      <View>
-                        <Text style={styles.categoryName}>{category.name}</Text>
-                        <Text style={styles.categoryAmount}>
-                          {formatCurrency(category.amount, primaryCurrency)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.categoryRight}>
-                      <Text style={styles.categoryPercentage}>
-                        {category.percentage}%
+                <>
+                  {/* Donut Chart */}
+                  <View style={styles.donutContainer}>
+                    <Svg width={180} height={180}>
+                      <G transform="translate(90, 90)">
+                        {donutChartData.map((item, index) => {
+                          // Handle case where one category is 100%
+                          if (item.sweepAngle >= 359.9) {
+                            return (
+                              <Circle
+                                key={index}
+                                cx={0}
+                                cy={0}
+                                r={70}
+                                fill={item.color}
+                              />
+                            );
+                          }
+                          return (
+                            <Path
+                              key={index}
+                              d={createArcPath(0, 0, 70, item.startAngle, item.endAngle)}
+                              fill={item.color}
+                            />
+                          );
+                        })}
+                        {/* Inner circle for donut effect */}
+                        <Circle cx={0} cy={0} r={45} fill={Colors.white} />
+                      </G>
+                    </Svg>
+                    {/* Center text */}
+                    <View style={styles.donutCenter}>
+                      <Text style={styles.donutCenterLabel}>Total</Text>
+                      <Text style={styles.donutCenterValue}>
+                        {formatCurrency(totalSpending, primaryCurrency)}
                       </Text>
-                      <View style={styles.categoryBarBg}>
-                        <View
-                          style={[
-                            styles.categoryBar,
-                            {
-                              width: `${category.percentage}%`,
-                              backgroundColor: category.color,
-                            },
-                          ]}
-                        />
-                      </View>
                     </View>
                   </View>
-                ))
+
+                  {/* Category List */}
+                  <View style={styles.categoryList}>
+                    {categories.map((category, index) => (
+                      <View 
+                        key={index} 
+                        style={[
+                          styles.categoryRow,
+                          index === categories.length - 1 && styles.categoryRowLast
+                        ]}
+                      >
+                        <View style={styles.categoryLeft}>
+                          <View
+                            style={[
+                              styles.categoryDot,
+                              {backgroundColor: category.color},
+                            ]}
+                          />
+                          <Text style={styles.categoryName}>{category.name}</Text>
+                        </View>
+                        <View style={styles.categoryRight}>
+                          <Text style={styles.categoryAmount}>
+                            {formatCurrency(category.amount, primaryCurrency)}
+                          </Text>
+                          <View style={styles.categoryPercentBadge}>
+                            <Text style={styles.categoryPercentText}>
+                              {category.percentage}%
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </>
               )}
             </View>
           </View>
@@ -509,13 +662,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   spendingCard: {
-    backgroundColor: Colors.white,
-    ...Shadows.md,
+    backgroundColor: Colors.card.white,
+    ...Shadows.sm,
   },
   savingsCard: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.card.green,
     overflow: 'hidden',
-    ...Shadows.lg,
+    ...Shadows.sm,
   },
   summaryGlow: {
     position: 'absolute',
@@ -552,7 +705,7 @@ const styles = StyleSheet.create({
   },
   summaryLabelWhite: {
     fontSize: Typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.8)',
+    color: Colors.text.secondary,
     marginBottom: Spacing.xs,
   },
   summaryAmount: {
@@ -563,7 +716,7 @@ const styles = StyleSheet.create({
   summaryAmountWhite: {
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
+    color: Colors.text.primary,
   },
   section: {
     marginBottom: Spacing.xl,
@@ -575,7 +728,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   chartCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     ...Shadows.sm,
@@ -619,16 +772,19 @@ const styles = StyleSheet.create({
   },
   emptyCategories: {
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
+    paddingVertical: Spacing['2xl'],
   },
   emptyCategoriesText: {
     fontSize: Typography.fontSize.md,
     color: Colors.text.tertiary,
     marginTop: Spacing.md,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.light,
@@ -648,17 +804,17 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontWeight: Typography.fontWeight.medium,
     color: Colors.text.primary,
-    marginBottom: 2,
   },
   categoryAmount: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.tertiary,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
   },
   categoryRight: {
-    width: 100,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   categoryPercentage: {
     fontSize: Typography.fontSize.md,
@@ -769,5 +925,82 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.text.tertiary,
     marginTop: Spacing.xs,
+  },
+  // New modern chart styles
+  modernChartContainer: {
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+  },
+  chartLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginTop: Spacing.md,
+    gap: Spacing.md,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: Spacing.xs,
+  },
+  legendLine: {
+    width: 16,
+    height: 3,
+    borderRadius: 2,
+    marginRight: Spacing.xs,
+  },
+  legendText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.text.secondary,
+  },
+  // Donut chart styles
+  donutContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+    position: 'relative',
+  },
+  donutCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutCenterLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.text.tertiary,
+  },
+  donutCenterValue: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+  },
+  categoryList: {
+    marginTop: Spacing.sm,
+  },
+  categoryDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: Spacing.sm,
+  },
+  categoryRowLast: {
+    borderBottomWidth: 0,
+  },
+  categoryPercentBadge: {
+    backgroundColor: Colors.background.secondary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
+  },
+  categoryPercentText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.secondary,
   },
 });

@@ -51,6 +51,7 @@ export {
   savePriceData,
   getPriceComparison,
   getPriceHistory,
+  getSmartPriceComparison,
 } from './prices/priceService';
 
 // Authentication & Verification functions

@@ -9,11 +9,9 @@ import {
   Image,
   ScrollView,
   Alert,
-  SafeAreaView,
   Animated,
   Easing,
   Dimensions,
-  StatusBar,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -465,41 +463,39 @@ export function UnifiedScannerScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background.primary} />
+    <View style={styles.container}>
+      {/* Top Info Bar */}
+      {state === 'idle' && scansRemaining !== undefined && scansRemaining !== Infinity && (
+        <Animated.View 
+          style={[
+            styles.topInfoBar,
+            {
+              opacity: fadeAnim,
+            }
+          ]}
+        >
+          <View style={styles.scansRemainingBadge}>
+            <Icon name="zap" size="xs" color={Colors.accent} />
+            <Text style={styles.scansRemainingText}>{scansRemaining} scans restants</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => Alert.alert(
+              '💡 Conseils',
+              '• Photo nette et bien éclairée\n• Ticket complet visible\n• Évitez reflets et ombres\n• Max 5 photos pour longs tickets'
+            )}
+            hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+          >
+            <Icon name="help-circle" size="sm" color={Colors.text.tertiary} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
       
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
-        {/* Header */}
-        <Animated.View 
-          style={[
-            styles.header,
-            {
-              opacity: fadeAnim,
-              transform: [{translateY: slideAnim}],
-            }
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Scanner</Text>
-            {scansRemaining !== undefined && scansRemaining !== Infinity && (
-              <View style={styles.scansBadge}>
-                <Text style={styles.scansBadgeText}>{scansRemaining} scans</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.headerSpacer} />
-        </Animated.View>
-
-        {/* Idle State - Welcome & Instructions */}
+        {/* Idle State - Modern Welcome */}
         {state === 'idle' && (
           <Animated.View 
             style={[
@@ -510,74 +506,64 @@ export function UnifiedScannerScreen() {
               }
             ]}
           >
-            <View style={styles.illustrationContainer}>
-              <Animated.View style={[styles.receiptIcon, {transform: [{scale: pulseAnim}]}]}>
-                <Text style={styles.receiptIconText}>🧾</Text>
+            {/* Hero Illustration */}
+            <View style={styles.heroContainer}>
+              <Animated.View style={[styles.heroCircle, {transform: [{scale: pulseAnim}]}]}>
+                <Icon name="camera" size="3xl" color={Colors.primary} />
               </Animated.View>
-              <View style={styles.sparkles}>
-                <Text style={styles.sparkle}>✨</Text>
-                <Text style={[styles.sparkle, styles.sparkleRight]}>✨</Text>
-              </View>
             </View>
 
-            <Text style={styles.welcomeTitle}>Scanner votre facture</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Prenez une ou plusieurs photos de votre ticket
-            </Text>
-            <Text style={styles.welcomeSubtitleLingala}>
-              Zwa foto moko to ebele ya tiki na yo
-            </Text>
+            {/* Welcome Text */}
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.welcomeTitle}>Scannez votre ticket</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Capturez votre reçu pour analyser vos dépenses
+              </Text>
+            </View>
 
-            <View style={styles.actionButtons}>
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
               <TouchableOpacity
-                style={styles.primaryButton}
+                style={styles.primaryActionButton}
                 onPress={() => handleAddPhoto(false)}
-                activeOpacity={0.8}
+                activeOpacity={0.9}
               >
-                <View style={styles.buttonIconContainer}>
-                  <Icon name="camera" size="lg" color={Colors.white} />
-                </View>
-                <View style={styles.buttonTextContainer}>
-                  <Text style={styles.primaryButtonText}>Prendre une photo</Text>
-                  <Text style={styles.primaryButtonSubtext}>Ouvrir la caméra</Text>
-                </View>
+                <Icon name="camera" size="md" color={Colors.white} />
+                <Text style={styles.primaryActionText}>Prendre une photo</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.secondaryButton}
+                style={styles.secondaryActionButton}
                 onPress={() => handleAddPhoto(true)}
-                activeOpacity={0.8}
+                activeOpacity={0.9}
               >
-                <View style={styles.buttonIconContainer}>
-                  <Icon name="image" size="lg" color={Colors.primary} />
-                </View>
-                <View style={styles.buttonTextContainer}>
-                  <Text style={styles.secondaryButtonText}>Choisir de la galerie</Text>
-                  <Text style={styles.secondaryButtonSubtext}>Sélectionner une image</Text>
-                </View>
+                <Icon name="image" size="sm" color={Colors.primary} />
+                <Text style={styles.secondaryActionText}>Galerie</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Tips */}
-            <View style={styles.tipsCard}>
-              <Text style={styles.tipsTitle}>💡 Conseils pour un meilleur scan</Text>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>📸</Text>
-                <Text style={styles.tipText}>Photo bien éclairée et nette</Text>
+            {/* Feature Cards */}
+            <View style={styles.featureCards}>
+              <View style={styles.featureCard}>
+                <Icon name="cpu" size="md" color={Colors.primary} />
+                <Text style={styles.featureTitle}>IA Puissante</Text>
+                <Text style={styles.featureDesc}>Extraction auto</Text>
               </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>📄</Text>
-                <Text style={styles.tipText}>Ticket complet visible</Text>
+              <View style={styles.featureCard}>
+                <Icon name="trending-up" size="md" color={Colors.primary} />
+                <Text style={styles.featureTitle}>Suivi Budget</Text>
+                <Text style={styles.featureDesc}>Vos dépenses</Text>
               </View>
-              <View style={styles.tipItem}>
-                <Text style={styles.tipEmoji}>🔢</Text>
-                <Text style={styles.tipText}>Jusqu'à 5 photos pour les longs tickets</Text>
+              <View style={styles.featureCard}>
+                <Icon name="dollar-sign" size="md" color={Colors.primary} />
+                <Text style={styles.featureTitle}>Économies</Text>
+                <Text style={styles.featureDesc}>Comparez</Text>
               </View>
             </View>
           </Animated.View>
         )}
 
-        {/* Reviewing State - Photo Preview */}
+        {/* Reviewing State - Modern Photo Preview */}
         {(state === 'reviewing' || state === 'capturing') && (
           <Animated.View 
             style={[
@@ -588,89 +574,100 @@ export function UnifiedScannerScreen() {
               }
             ]}
           >
-            <Text style={styles.reviewTitle}>
-              {photos.length} photo{photos.length > 1 ? 's' : ''} capturée{photos.length > 1 ? 's' : ''}
-            </Text>
-            <Text style={styles.reviewSubtitle}>
-              Ajoutez plus ou lancez l'analyse
-            </Text>
+            {/* Review Header */}
+            <View style={styles.reviewHeader}>
+              <View style={styles.reviewHeaderLeft}>
+                <View style={styles.reviewBadge}>
+                  <Text style={styles.reviewBadgeText}>{photos.length}/{MAX_PHOTOS}</Text>
+                </View>
+                <View>
+                  <Text style={styles.reviewTitle}>
+                    {photos.length} photo{photos.length > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.reviewSubtitle}>
+                    {photos.length < MAX_PHOTOS ? 'Ajoutez plus ou analysez' : 'Limite atteinte'}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
             {/* Photo Grid */}
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.photosGrid}
+              decelerationRate="fast"
+              snapToInterval={SCREEN_WIDTH * 0.85}
             >
               {photos.map((photo, index) => (
                 <Animated.View 
                   key={photo.id} 
                   style={[
-                    styles.photoCard,
+                    styles.photoCardModern,
                     {transform: [{scale: scaleAnim}]}
                   ]}
                 >
-                  <Image source={{uri: photo.uri}} style={styles.photoImage} />
-                  <View style={styles.photoBadge}>
-                    <Text style={styles.photoBadgeText}>{index + 1}</Text>
+                  <Image source={{uri: photo.uri}} style={styles.photoImageModern} />
+                  <View style={styles.photoOverlay}>
+                    <View style={styles.photoNumber}>
+                      <Text style={styles.photoNumberText}>{index + 1}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.photoDeleteButton}
+                      onPress={() => handleRemovePhoto(photo.id)}
+                      hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+                    >
+                      <Icon name="trash-2" size="sm" color={Colors.white} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={styles.photoRemoveButton}
-                    onPress={() => handleRemovePhoto(photo.id)}
-                  >
-                    <Icon name="x" size="sm" color={Colors.white} />
-                  </TouchableOpacity>
                 </Animated.View>
               ))}
 
               {photos.length < MAX_PHOTOS && (
                 <TouchableOpacity
-                  style={styles.addPhotoCard}
+                  style={styles.addPhotoCardModern}
                   onPress={() => handleAddPhoto(false)}
+                  activeOpacity={0.9}
                 >
-                  <Icon name="plus" size="xl" color={Colors.primary} />
-                  <Text style={styles.addPhotoText}>Ajouter</Text>
+                  <View style={styles.addPhotoIconContainer}>
+                    <Icon name="plus" size="lg" color={Colors.primary} />
+                  </View>
+                  <Text style={styles.addPhotoTextModern}>Ajouter</Text>
+                  <Text style={styles.addPhotoSubtext}>une photo</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
 
             {/* Review Actions */}
-            <View style={styles.reviewActions}>
+            <View style={styles.reviewActionsModern}>
               <TouchableOpacity
-                style={styles.processButton}
+                style={styles.analyzeButton}
                 onPress={handleProcess}
-                activeOpacity={0.8}
+                activeOpacity={0.9}
               >
-                <Text style={styles.processButtonIcon}>✨</Text>
-                <Text style={styles.processButtonText}>
-                  Analyser {photos.length > 1 ? `les ${photos.length} photos` : 'la photo'}
-                </Text>
+                <View style={styles.analyzeButtonContent}>
+                  <View style={styles.analyzeButtonIcon}>
+                    <Icon name="zap" size="md" color={Colors.white} />
+                  </View>
+                  <View style={styles.analyzeButtonTexts}>
+                    <Text style={styles.analyzeButtonText}>Analyser</Text>
+                    <Text style={styles.analyzeButtonSubtext}>
+                      {photos.length} {photos.length > 1 ? 'photos' : 'photo'}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
 
-              <View style={styles.reviewSecondaryActions}>
-                <TouchableOpacity
-                  style={styles.reviewSecondaryButton}
-                  onPress={() => handleAddPhoto(false)}
-                >
-                  <Icon name="camera" size="sm" color={Colors.text.primary} />
-                  <Text style={styles.reviewSecondaryText}>Photo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.reviewSecondaryButton}
-                  onPress={() => handleAddPhoto(true)}
-                >
-                  <Icon name="image" size="sm" color={Colors.text.primary} />
-                  <Text style={styles.reviewSecondaryText}>Galerie</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.reviewSecondaryButton}
-                  onPress={handleReset}
-                >
-                  <Icon name="refresh" size="sm" color={Colors.status.error} />
-                  <Text style={[styles.reviewSecondaryText, {color: Colors.status.error}]}>
-                    Réinitialiser
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setPhotos([]);
+                  setState('idle');
+                }}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.cancelButtonText}>Recommencer</Text>
+              </TouchableOpacity>
             </View>
           </Animated.View>
         )}
@@ -805,7 +802,7 @@ export function UnifiedScannerScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -816,312 +813,350 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
   },
+  
+  // Modern Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    backgroundColor: Colors.background.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.sm,
-  },
-  headerContent: {
-    flex: 1,
+
+  // Top Info Bar
+  topInfoBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
-  headerTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.text.primary,
-  },
-  scansBadge: {
-    backgroundColor: Colors.accent,
+  scansRemainingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.accentLight,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
+    gap: 4,
   },
-  scansBadgeText: {
+  scansRemainingText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.accent,
+  },
+  headerBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginBottom: 2,
+  },
+  headerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.accentLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  headerBadgeText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.white,
+    color: Colors.accent,
   },
-  headerSpacer: {
-    width: 44,
+  headerInfoButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
-  // Idle State
+  // Modern Idle State
   idleContainer: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
   },
-  illustrationContainer: {
+  heroContainer: {
     alignItems: 'center',
     marginBottom: Spacing.xl,
-    position: 'relative',
   },
-  receiptIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  heroCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: Colors.card.blue,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.md,
+    ...Shadows.sm,
   },
-  receiptIconText: {
-    fontSize: 60,
-  },
-  sparkles: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-  },
-  sparkle: {
-    fontSize: 28,
-    position: 'absolute',
-    top: 0,
-    left: 20,
-  },
-  sparkleRight: {
-    left: 'auto',
-    right: 20,
-    top: 30,
+  welcomeTextContainer: {
+    marginBottom: Spacing.xl,
   },
   welcomeTitle: {
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
     textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  welcomeSubtitle: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
-    textAlign: 'center',
     marginBottom: Spacing.xs,
   },
-  welcomeSubtitleLingala: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.primary,
+  welcomeSubtitle: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.secondary,
     textAlign: 'center',
-    fontStyle: 'italic',
-    marginBottom: Spacing.xl,
+    lineHeight: Typography.fontSize.base * 1.5,
+    paddingHorizontal: Spacing.md,
   },
-  actionButtons: {
+  
+  // Action Buttons
+  actionButtonsContainer: {
     gap: Spacing.md,
     marginBottom: Spacing.xl,
   },
-  primaryButton: {
+  primaryActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
+    gap: Spacing.sm,
     ...Shadows.md,
   },
-  buttonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  buttonTextContainer: {
-    flex: 1,
-  },
-  primaryButtonText: {
+  primaryActionText: {
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+    fontWeight: Typography.fontWeight.semiBold,
     color: Colors.white,
-    marginBottom: 2,
   },
-  primaryButtonSubtext: {
-    fontSize: Typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  secondaryButton: {
+  secondaryActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     borderWidth: 2,
     borderColor: Colors.border.light,
+    gap: Spacing.sm,
     ...Shadows.sm,
   },
-  secondaryButtonText: {
-    fontSize: Typography.fontSize.lg,
+  secondaryActionText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.primary,
+  },
+  
+  // Feature Cards
+  featureCards: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  featureCard: {
+    flex: 1,
+    backgroundColor: Colors.card.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    ...Shadows.sm,
+  },
+  featureTitle: {
+    fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.text.primary,
-    marginBottom: 2,
+    textAlign: 'center',
   },
-  secondaryButtonSubtext: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
-  },
-  tipsCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    ...Shadows.sm,
-  },
-  tipsTitle: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.text.primary,
-    marginBottom: Spacing.md,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  tipEmoji: {
-    fontSize: 18,
-    marginRight: Spacing.sm,
-  },
-  tipText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
-    flex: 1,
+  featureDesc: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.text.tertiary,
+    textAlign: 'center',
   },
 
-  // Review State
+  // Modern Review State
   reviewContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+  },
+  reviewHeader: {
+    marginBottom: Spacing.xl,
+  },
+  reviewHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  reviewBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reviewBadgeText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
   },
   reviewTitle: {
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: Spacing.xs,
   },
   reviewSubtitle: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.sm,
     color: Colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
+    marginTop: 2,
   },
   photosGrid: {
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
     gap: Spacing.md,
   },
-  photoCard: {
-    width: 140,
-    height: 180,
-    borderRadius: BorderRadius.xl,
+  photoCardModern: {
+    width: SCREEN_WIDTH * 0.7,
+    height: SCREEN_WIDTH * 0.85,
+    borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',
     backgroundColor: Colors.background.secondary,
     ...Shadows.md,
   },
-  photoImage: {
+  photoImageModern: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-  photoBadge: {
+  photoOverlay: {
     position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  photoNumber: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.lg,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Shadows.md,
   },
-  photoBadgeText: {
-    fontSize: Typography.fontSize.sm,
+  photoNumberText: {
+    fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
   },
-  photoRemoveButton: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  photoDeleteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.lg,
     backgroundColor: Colors.status.error,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  addPhotoCard: {
-    width: 140,
-    height: 180,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.primary,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addPhotoText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.primary,
-    marginTop: Spacing.sm,
-  },
-  reviewActions: {
-    marginTop: Spacing.xl,
-  },
-  processButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.status.success,
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
     ...Shadows.md,
   },
-  processButtonIcon: {
-    fontSize: 24,
-    marginRight: Spacing.sm,
+  addPhotoCardModern: {
+    width: SCREEN_WIDTH * 0.75,
+    height: SCREEN_WIDTH * 0.95,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
-  processButtonText: {
-    fontSize: Typography.fontSize.lg,
+  addPhotoIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  addPhotoTextModern: {
+    fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
+    color: Colors.primary,
   },
-  reviewSecondaryActions: {
+  addPhotoSubtext: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
+  },
+  reviewActionsModern: {
+    marginTop: Spacing.xl,
+    gap: Spacing.md,
+  },
+  analyzeButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadows.lg,
+  },
+  analyzeButtonContent: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.md,
   },
-  reviewSecondaryButton: {
-    flexDirection: 'row',
+  analyzeButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    ...Shadows.sm,
   },
-  reviewSecondaryText: {
+  analyzeButtonTexts: {
+    alignItems: 'center',
+  },
+  analyzeButtonText: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+  },
+  analyzeButtonSubtext: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.text.primary,
-    marginLeft: Spacing.xs,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  cancelButton: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.secondary,
   },
 
   // Processing State
