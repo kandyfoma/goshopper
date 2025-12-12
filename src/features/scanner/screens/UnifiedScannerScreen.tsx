@@ -23,6 +23,8 @@ import {cameraService, imageCompressionService} from '@/shared/services/camera';
 import {geminiService} from '@/shared/services/ai/gemini';
 import {analyticsService} from '@/shared/services/analytics';
 import {duplicateDetectionService} from '@/shared/services/duplicateDetection';
+import {hapticService} from '@/shared/services/hapticService';
+import {inAppReviewService} from '@/shared/services/inAppReviewService';
 import {offlineQueueService} from '@/shared/services/firebase';
 import {
   Colors,
@@ -266,6 +268,9 @@ export function UnifiedScannerScreen() {
     setPhotos(prev => [...prev, newPhoto]);
     setState('reviewing');
 
+    // Haptic feedback for successful capture
+    hapticService.success();
+
     // Animate new photo entrance
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -357,7 +362,14 @@ export function UnifiedScannerScreen() {
             items_count: response.receipt.items?.length || 0,
           });
 
+          // Success haptic feedback
+          hapticService.success();
           setState('success');
+
+          // Track scan for in-app review
+          inAppReviewService.incrementScanCount().then(() => {
+            inAppReviewService.requestReviewIfAppropriate();
+          });
 
           // Navigate after animation
           setTimeout(() => {
@@ -388,7 +400,14 @@ export function UnifiedScannerScreen() {
             photo_count: images.length,
           });
 
+          // Success haptic feedback
+          hapticService.success();
           setState('success');
+
+          // Track scan for in-app review
+          inAppReviewService.incrementScanCount().then(() => {
+            inAppReviewService.requestReviewIfAppropriate();
+          });
 
           const receiptId = result.receiptId;
           const receipt = result.receipt;
@@ -425,6 +444,8 @@ export function UnifiedScannerScreen() {
       }
 
       setError(userMessage);
+      // Error haptic feedback
+      hapticService.error();
       setState('error');
 
       analyticsService.logCustomEvent('scan_failed', {

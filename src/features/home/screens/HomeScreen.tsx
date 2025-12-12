@@ -24,7 +24,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
-import {analyticsService} from '@/shared/services';
+import {analyticsService, hapticService} from '@/shared/services';
 import firestore from '@react-native-firebase/firestore';
 import {formatCurrency} from '@/shared/utils/helpers';
 
@@ -154,6 +154,7 @@ const ScanButton = ({
   }, [glowAnim]);
 
   const handlePressIn = () => {
+    hapticService.light();
     Animated.spring(scaleAnim, {
       toValue: 0.96,
       useNativeDriver: true,

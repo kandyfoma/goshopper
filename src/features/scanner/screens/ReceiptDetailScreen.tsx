@@ -25,6 +25,7 @@ import {
 } from '@/shared/theme/theme';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {receiptStorageService, authService} from '@/shared/services/firebase';
+import {hapticService, shareService} from '@/shared/services';
 import {useAuth, useToast} from '@/shared/contexts';
 import {Spinner, Icon} from '@/shared/components';
 
@@ -265,7 +266,16 @@ export function ReceiptDetailScreen() {
           <Icon name="arrow-left" size="md" color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Détails du reçu</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          style={styles.shareButton}
+          onPress={() => {
+            hapticService.light();
+            if (receipt) {
+              shareService.shareReceipt(receipt);
+            }
+          }}>
+          <Icon name="share" size="md" color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -454,6 +464,12 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+  },
+  shareButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
 
   // Loading & Error States

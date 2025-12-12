@@ -217,11 +217,11 @@ Better offline experience with sync.
 
 | Feature | Status | Started | Completed |
 |---------|--------|---------|-----------|
-| Haptic Feedback | 🔲 Not Started | - | - |
+| Haptic Feedback | ✅ Completed | Dec 12 | Dec 12 |
+| In-App Review | ✅ Completed | Dec 12 | Dec 12 |
+| Share Functionality | ✅ Completed | Dec 12 | Dec 12 |
 | Dark Mode | 🔲 Not Started | - | - |
 | Gesture Navigation | 🔲 Not Started | - | - |
-| In-App Review | 🔲 Not Started | - | - |
-| Share Functionality | 🔲 Not Started | - | - |
 | Quick Actions | 🔲 Not Started | - | - |
 | Dynamic Type | 🔲 Not Started | - | - |
 | Spotlight Search | 🔲 Not Started | - | - |

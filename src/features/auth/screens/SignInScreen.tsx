@@ -17,6 +17,7 @@ import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {SocialSignInButtons} from '@/shared/components';
 import {Colors, Typography, Spacing, BorderRadius} from '@/shared/theme/theme';
+import {hapticService} from '@/shared/services';
 
 // Urbanist Design Colors
 const URBANIST_COLORS = {
@@ -44,12 +45,15 @@ export function SignInScreen() {
       return;
     }
 
+    hapticService.light();
     setIsSigningIn(true);
     try {
       await signInWithGoogle();
+      hapticService.success();
       showToast('Connexion réussie avec Google', 'success');
     } catch (err: any) {
       console.error('Google sign-in error:', err);
+      hapticService.error();
       showToast(err?.message || 'Échec de la connexion Google', 'error');
     } finally {
       setIsSigningIn(false);
@@ -61,12 +65,15 @@ export function SignInScreen() {
       return;
     }
 
+    hapticService.light();
     setIsSigningIn(true);
     try {
       await signInWithApple();
+      hapticService.success();
       showToast('Connexion réussie avec Apple', 'success');
     } catch (err: any) {
       console.error('Apple sign-in error:', err);
+      hapticService.error();
       showToast(err?.message || 'Échec de la connexion Apple', 'error');
     } finally {
       setIsSigningIn(false);
