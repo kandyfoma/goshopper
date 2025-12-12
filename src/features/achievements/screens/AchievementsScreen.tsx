@@ -422,7 +422,7 @@ export function AchievementsScreen() {
                     style={[
                       styles.achievementIcon,
                       styles.achievementIconLocked,
-                    ]>
+                    ]}>
                     <Icon
                       name="lock"
                       size="md"

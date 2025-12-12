@@ -20,6 +20,7 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SvgXml} from 'react-native-svg';
 import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
+import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {useAuth} from '@/shared/contexts';
 import {Icon} from '@/shared/components';
 import {logoUrbanistSvg} from '../../../../assets/logo-icon';
@@ -79,6 +80,8 @@ export function LoginScreen() {
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(
     null,
   );
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -239,6 +242,37 @@ export function LoginScreen() {
       setError(err?.message || 'Échec de la connexion Apple');
     } finally {
       setSocialLoading(null);
+    }
+  };
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const status = await biometricService.getStatus();
+      setBiometricStatus(status);
+    };
+    checkBiometric();
+  }, []);
+
+  // Handle biometric login
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    setError(null);
+    try {
+      const result = await biometricService.login();
+      if (result.success && result.credentials) {
+        // Auto-fill email and show success
+        setEmail(result.credentials.email);
+        setSuccessMessage('Connexion biométrique réussie!');
+        // Navigate to main app
+        navigation.navigate('MainTab' as never);
+      } else {
+        setError(result.error || 'Authentification échouée');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Échec de la connexion biométrique');
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -499,6 +533,41 @@ export function LoginScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+
+              {/* Biometric Login Button */}
+              {biometricStatus?.isAvailable && biometricStatus?.isEnabled && (
+                <>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>ou</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.biometricButton,
+                      isLoading && styles.buttonDisabled,
+                    ]}
+                    onPress={handleBiometricLogin}
+                    disabled={isLoading || biometricLoading}
+                    activeOpacity={0.7}>
+                    {biometricLoading ? (
+                      <ActivityIndicator size="small" color={URBANIST.primary} />
+                    ) : (
+                      <>
+                        <Icon
+                          name={biometricService.getBiometryIcon(biometricStatus.biometryType)}
+                          size="md"
+                          color={URBANIST.primary}
+                        />
+                        <Text style={styles.biometricButtonText}>
+                          Connexion avec {biometricService.getBiometryDisplayName(biometricStatus.biometryType)}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             {/* Register Link */}
@@ -782,6 +851,24 @@ const styles = StyleSheet.create({
   },
   appleButtonText: {
     color: URBANIST.white,
+  },
+
+  // Biometric Button
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: URBANIST.cardBg,
+    borderWidth: 2,
+    borderColor: URBANIST.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  biometricButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: URBANIST.primary,
   },
 
   // Register Row

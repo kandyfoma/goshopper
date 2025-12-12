@@ -395,10 +395,10 @@ export function HomeScreen() {
               value={trialScansUsed || 0}
               subtitle={
                 isPremium
-                  ? 'illimités'
+                  ? 'illimitės'
                   : `/${5 - (trialScansUsed || 0)} restants`
               }
-              color="red"
+              color="blue"
               icon="camera"
               onPress={() =>
                 navigation.navigate('Main', {screen: 'History'} as any)
@@ -412,7 +412,7 @@ export function HomeScreen() {
                   : 'Non défini'
               }
               subtitle="ce mois"
-              color="cosmos"
+              color="yellow"
               icon="wallet"
               onPress={() => navigation.navigate('Stats')}
             />
@@ -426,7 +426,7 @@ export function HomeScreen() {
                   : formatCurrency(monthlySpending, userProfile?.preferredCurrency || 'USD')
               }
               subtitle="ce mois"
-              color="crimson"
+              color="red"
               icon="credit-card"
               onPress={() => navigation.navigate('Stats')}
             />
@@ -463,19 +463,19 @@ export function HomeScreen() {
             icon="help"
             label="Assistant IA"
             onPress={() => navigation.navigate('AIAssistant')}
-            color="cream"
+            color="yellow"
           />
           <QuickAction
             icon="trophy"
             label="Mes succès"
             onPress={() => navigation.navigate('Achievements')}
-            color="crimson"
+            color="blue"
           />
           <QuickAction
             icon="settings"
             label="Paramètres"
             onPress={() => navigation.navigate('Settings')}
-            color="red"
+            color="crimson"
           />
         </View>
       </ScrollView>

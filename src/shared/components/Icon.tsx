@@ -840,6 +840,69 @@ const iconPaths: Record<
       </>
     ),
   },
+  fingerprint: {
+    outline: (
+      <>
+        <Path
+          d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M12 2c-1.85 4.5-1.85 9.5 0 14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M5 19c2.5-3.5 2.5-8.5 0-12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M19 19c-2.5-3.5-2.5-8.5 0-12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M12 22c1.85-4.5 1.85-9.5 0-14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'scan-face': {
+    outline: (
+      <>
+        <Path
+          d="M3 7V5a2 2 0 0 1 2-2h2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M17 3h2a2 2 0 0 1 2 2v2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M21 17v2a2 2 0 0 1-2 2h-2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M7 21H5a2 2 0 0 1-2-2v-2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d="M7 17v-1a5 5 0 0 1 10 0v1"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   'credit-card': {
     outline: (
       <>
@@ -2124,6 +2187,267 @@ const iconPaths: Record<
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+      </>
+    ),
+  },
+
+  // Missing icons
+  'arrow-left': {
+    outline: (
+      <Path
+        d="M19 12H5m7 7l-7-7 7-7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'arrow-right': {
+    outline: (
+      <Path
+        d="M5 12h14m-7 7l7-7-7-7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'chevron-left': {
+    outline: (
+      <Polyline
+        points="15 18 9 12 15 6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'chevron-right': {
+    outline: (
+      <Polyline
+        points="9 18 15 12 9 6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'alert-circle': {
+    outline: (
+      <>
+        <Circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="12" y1="8" x2="12" y2="12" strokeLinecap="round" />
+        <Line x1="12" y1="16" x2="12.01" y2="16" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'alert-triangle': {
+    outline: (
+      <>
+        <Path
+          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line x1="12" y1="9" x2="12" y2="13" strokeLinecap="round" />
+        <Line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'award': {
+    outline: (
+      <>
+        <Circle cx="12" cy="8" r="7" strokeLinecap="round" strokeLinejoin="round" />
+        <Polyline
+          points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'bar-chart-2': {
+    outline: (
+      <>
+        <Line x1="18" y1="20" x2="18" y2="10" strokeLinecap="round" />
+        <Line x1="12" y1="20" x2="12" y2="4" strokeLinecap="round" />
+        <Line x1="6" y1="20" x2="6" y2="14" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'bell-off': {
+    outline: (
+      <>
+        <Path
+          d="M13.73 21a2 2 0 0 1-3.46 0M18.63 13A17.889 17.889 0 0 1 18 8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M6.26 6.26A5.86 5.86 0 0 0 6 9c0 7-3 9-3 9h14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  'check-circle': {
+    outline: (
+      <>
+        <Path
+          d="M22 11.08V12a10 10 0 1 1-5.93-9.14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="22 4 12 14.01 9 11.01"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'credit-card': {
+    outline: (
+      <>
+        <Rect x="1" y="4" width="22" height="16" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="1" y1="10" x2="23" y2="10" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'dollar-sign': {
+    outline: (
+      <>
+        <Line x1="12" y1="1" x2="12" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'file-text': {
+    outline: (
+      <>
+        <Path
+          d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="14 2 14 8 20 8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line x1="9" y1="15" x2="15" y2="15" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="9" y1="19" x2="15" y2="19" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  'help-circle': {
+    outline: (
+      <>
+        <Circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d="M12 16v.01M12 12a2 2 0 0 0-2-2 2 2 0 0 0-2 2c0 .736.627 1.304 1.414 1.914.788.61 1.586 1.21 1.586 2.086 0 .627-.627 1.304-1.414 1.91"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'map-pin': {
+    outline: (
+      <>
+        <Path
+          d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  'shopping-bag': {
+    outline: (
+      <>
+        <Circle cx="9" cy="21" r="1" strokeLinecap="round" strokeLinejoin="round" />
+        <Circle cx="20" cy="21" r="1" strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'shopping-cart': {
+    outline: (
+      <>
+        <Circle cx="9" cy="21" r="1" strokeLinecap="round" strokeLinejoin="round" />
+        <Circle cx="20" cy="21" r="1" strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'trending-down': {
+    outline: (
+      <>
+        <Polyline
+          points="23 18 13.5 8.5 8.5 13.5 1 6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="17 18 23 18 23 12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'trending-up': {
+    outline: (
+      <>
+        <Polyline
+          points="23 6 13.5 15.5 8.5 10.5 1 18"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="17 6 23 6 23 12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'trash-2': {
+    outline: (
+      <>
+        <Polyline
+          points="3 6 5 6 21 6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line x1="10" y1="11" x2="10" y2="17" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="14" y1="11" x2="14" y2="17" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  'x-circle': {
+    outline: (
+      <>
+        <Circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="15" y1="9" x2="9" y2="15" strokeLinecap="round" strokeLinejoin="round" />
+        <Line x1="9" y1="9" x2="15" y2="15" strokeLinecap="round" strokeLinejoin="round" />
       </>
     ),
   },
