@@ -26,6 +26,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
+import {useToast} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -34,6 +35,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ForgotPasswordScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const {showToast} = useToast();
 
   // Form state
   const [email, setEmail] = useState('');
@@ -186,7 +188,12 @@ export function ForgotPasswordScreen() {
                 <Text style={styles.successText}>{successMessage}</Text>
                 <TouchableOpacity
                   style={styles.primaryButton}
-                  onPress={() => navigation.navigate('Login')}
+                  onPress={() => {
+                    showToast('Email de réinitialisation envoyé!', 'success', 2000);
+                    setTimeout(() => {
+                      navigation.navigate('Login');
+                    }, 2000);
+                  }}
                   activeOpacity={0.8}>
                   <Text style={styles.buttonText}>Retour à la connexion</Text>
                 </TouchableOpacity>

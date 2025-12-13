@@ -505,11 +505,7 @@ export function WelcomeScreen() {
     }
   }, [currentIndex]);
 
-  const handleSkip = useCallback(() => {
-    hapticService.medium();
-    setAutoAdvanceEnabled(false);
-    handleGetStarted();
-  }, []);
+
 
   const handleGetStarted = useCallback(async () => {
     hapticService.success();
@@ -585,27 +581,17 @@ export function WelcomeScreen() {
 
           <View style={styles.headerActions}>
             {!isLastSlide && (
-              <>
-                <TouchableOpacity
-                  style={styles.pauseButton}
-                  onPress={handlePause}
-                  activeOpacity={0.7}
-                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                  <Icon 
-                    name={autoAdvanceEnabled ? 'pause' : 'play'} 
-                    size="sm" 
-                    color={Colors.text.secondary} 
-                  />
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.skipButton}
-                  onPress={handleSkip}
-                  activeOpacity={0.7}
-                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                  <Text style={styles.skipButtonText}>Passer</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity
+                style={styles.pauseButton}
+                onPress={handlePause}
+                activeOpacity={0.7}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                <Icon 
+                  name={autoAdvanceEnabled ? 'pause' : 'play'} 
+                  size="sm" 
+                  color={Colors.text.secondary} 
+                />
+              </TouchableOpacity>
             )}
           </View>
         </Animated.View>

@@ -16,7 +16,7 @@ import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {RootStackParamList} from '@/shared/types';
-import {useSubscription, useUser, useTheme} from '@/shared/contexts';
+import {useSubscription, useUser, useTheme, useAuth} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -276,6 +276,7 @@ const QuickAction = ({
 export function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {colors, isDarkMode} = useTheme();
+  const {isAuthenticated} = useAuth();
   const {
     canScan,
     subscription,
@@ -347,13 +348,13 @@ export function HomeScreen() {
   const handleScanPress = () => {
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
-      navigation.navigate('Subscription');
+      navigation.push('Subscription');
       return;
     }
 
     if (!userProfile?.defaultCity) {
       analyticsService.logCustomEvent('scan_redirect_city_selection');
-      navigation.navigate('CitySelection');
+      navigation.push('CitySelection');
       return;
     }
 
@@ -375,6 +376,155 @@ export function HomeScreen() {
   const userName = userProfile?.displayName?.split(' ')[0] || '';
   const isPremium = subscription?.isSubscribed;
 
+  // Guest Welcome Content
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: colors.background.primary}]}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background.primary}
+        />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroIconContainer}>
+              <LinearGradient
+                colors={[Colors.card.crimson, Colors.card.red]}
+                style={styles.heroIconGradient}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 1}}>
+                <Icon name="shopping-bag" size="xl" color={Colors.white} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.heroTitle}>Bienvenue sur GoShopperAI</Text>
+            <Text style={styles.heroSubtitle}>
+              L'application intelligente qui révolutionne vos achats
+            </Text>
+          </View>
+
+          {/* Features Grid */}
+          <View style={styles.featuresGrid}>
+            <View style={[styles.featureCard, {backgroundColor: Colors.card.blue}]}>
+              <Icon name="camera" size="lg" color={Colors.text.primary} />
+              <Text style={styles.featureTitle}>Scanner vos tickets</Text>
+              <Text style={styles.featureDescription}>
+                Numérisez instantanément vos reçus et gardez une trace de tous vos achats
+              </Text>
+            </View>
+
+            <View style={[styles.featureCard, {backgroundColor: Colors.card.cosmos}]}>
+              <Icon name="stats" size="lg" color={Colors.text.inverse} />
+              <Text style={[styles.featureTitle, {color: Colors.text.inverse}]}>Comparer les prix</Text>
+              <Text style={[styles.featureDescription, {color: Colors.text.inverse}]}>
+                Trouvez les meilleurs prix dans tous vos magasins préférés
+              </Text>
+            </View>
+
+            <View style={[styles.featureCard, {backgroundColor: Colors.card.yellow}]}>
+              <Icon name="wallet" size="lg" color={Colors.text.primary} />
+              <Text style={styles.featureTitle}>Gérer votre budget</Text>
+              <Text style={styles.featureDescription}>
+                Suivez vos dépenses et économisez plus facilement
+              </Text>
+            </View>
+
+            <View style={[styles.featureCard, {backgroundColor: Colors.card.cream}]}>
+              <Icon name="help" size="lg" color={Colors.text.primary} />
+              <Text style={styles.featureTitle}>Assistant IA</Text>
+              <Text style={styles.featureDescription}>
+                Obtenez des conseils personnalisés pour optimiser vos achats
+              </Text>
+            </View>
+          </View>
+
+          {/* Benefits Section */}
+          <View style={styles.benefitsSection}>
+            <Text style={styles.benefitsTitle}>Pourquoi rejoindre notre communauté ?</Text>
+            
+            <View style={styles.benefitItem}>
+              <View style={[styles.benefitIcon, {backgroundColor: Colors.card.blue}]}>
+                <Icon name="check-circle" size="sm" color={Colors.text.primary} />
+              </View>
+              <View style={styles.benefitText}>
+                <Text style={styles.benefitTitle}>Gratuit pour commencer</Text>
+                <Text style={styles.benefitDescription}>5 scans gratuits pour découvrir l'app</Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={[styles.benefitIcon, {backgroundColor: Colors.card.cosmos}]}>
+                <Icon name="shield" size="sm" color={Colors.text.inverse} />
+              </View>
+              <View style={styles.benefitText}>
+                <Text style={styles.benefitTitle}>Sécurisé et privé</Text>
+                <Text style={styles.benefitDescription}>Vos données sont protégées et confidentielles</Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={[styles.benefitIcon, {backgroundColor: Colors.card.yellow}]}>
+                <Icon name="trending-up" size="sm" color={Colors.text.primary} />
+              </View>
+              <View style={styles.benefitText}>
+                <Text style={styles.benefitTitle}>Économisez plus</Text>
+                <Text style={styles.benefitDescription}>En moyenne 20% d'économies par mois</Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={[styles.benefitIcon, {backgroundColor: Colors.card.crimson}]}>
+                <Icon name="users" size="sm" color={Colors.text.inverse} />
+              </View>
+              <View style={styles.benefitText}>
+                <Text style={styles.benefitTitle}>Rejoignez la communauté</Text>
+                <Text style={styles.benefitDescription}>Des milliers d'utilisateurs satisfaits</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* CTA Buttons */}
+          <View style={styles.ctaContainer}>
+            <TouchableOpacity
+              style={styles.ctaPrimary}
+              onPress={() => {
+                analyticsService.logCustomEvent('guest_register_clicked');
+                navigation.push('Register');
+              }}>
+              <LinearGradient
+                colors={[Colors.card.crimson, Colors.card.red]}
+                style={styles.ctaGradient}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 1}}>
+                <Text style={styles.ctaPrimaryText}>Créer un compte gratuit</Text>
+                <Icon name="arrow-right" size="sm" color={Colors.white} />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.ctaSecondary}
+              onPress={() => {
+                analyticsService.logCustomEvent('guest_login_clicked');
+                navigation.push('Login');
+              }}>
+              <Text style={styles.ctaSecondaryText}>J'ai déjà un compte</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.guestFooter}>
+            <Text style={styles.footerText}>
+              En vous inscrivant, c'est{' '}
+              <Text style={styles.footerHighlight}>gratuit, rapide et sécurisé</Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // Authenticated User Content
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: colors.background.primary}]}>
       <StatusBar
@@ -392,7 +542,7 @@ export function HomeScreen() {
           </View>
           <TouchableOpacity
             style={[styles.notificationButton, {backgroundColor: colors.background.secondary}]}
-            onPress={() => navigation.navigate('PriceAlerts')}>
+            onPress={() => navigation.push('Notifications')}>
             <Icon name="bell" size="md" color={colors.text.primary} />
           </TouchableOpacity>
         </View>
@@ -430,7 +580,7 @@ export function HomeScreen() {
               subtitle="articles"
               color="cosmos"
               icon="cart"
-              onPress={() => navigation.navigate('ShoppingList')}
+              onPress={() => navigation.push('ShoppingList')}
             />
           </View>
           <View style={styles.statsRow}>
@@ -444,7 +594,7 @@ export function HomeScreen() {
               subtitle="Budget Mensuel"
               color="yellow"
               icon="wallet"
-              onPress={() => navigation.navigate('Stats')}
+              onPress={() => navigation.push('Stats')}
             />
             <StatCard
               title=""
@@ -456,7 +606,7 @@ export function HomeScreen() {
               subtitle="Dépenses Totales"
               color="yellow"
               icon="credit-card"
-              onPress={() => navigation.navigate('Stats')}
+              onPress={() => navigation.push('Stats')}
             />
           </View>
         </View>
@@ -470,31 +620,31 @@ export function HomeScreen() {
           <QuickAction
             icon="stats"
             label="Statistiques"
-            onPress={() => navigation.navigate('Stats')}
+            onPress={() => navigation.push('Stats')}
             color="cosmos"
           />
           <QuickAction
             icon="shopping-bag"
             label="Mes Magasins"
-            onPress={() => navigation.navigate('Shops')}
+            onPress={() => navigation.push('Shops')}
             color="blue"
           />
           <QuickAction
             icon="help"
             label="Assistant IA"
-            onPress={() => navigation.navigate('AIAssistant')}
+            onPress={() => navigation.push('AIAssistant')}
             color="yellow"
           />
           <QuickAction
             icon="trophy"
             label="Mes succès"
-            onPress={() => navigation.navigate('Achievements')}
+            onPress={() => navigation.push('Achievements')}
             color="blue"
           />
           <QuickAction
             icon="settings"
             label="Paramètres"
-            onPress={() => navigation.navigate('Settings')}
+            onPress={() => navigation.push('Settings')}
             color="crimson"
           />
         </View>
@@ -749,6 +899,147 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     marginTop: Spacing.sm,
     textAlign: 'center',
+  },
+
+  // Guest Welcome Styles
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl * 2,
+    marginBottom: Spacing.xl,
+  },
+  heroIconContainer: {
+    marginBottom: Spacing.lg,
+  },
+  heroIconGradient: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.xl,
+  },
+  heroTitle: {
+    fontSize: Typography.fontSize['4xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    letterSpacing: Typography.letterSpacing.tight,
+  },
+  heroSubtitle: {
+    fontSize: Typography.fontSize.lg,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+
+  featuresGrid: {
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  featureCard: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadows.md,
+  },
+  featureTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  featureDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    lineHeight: 20,
+  },
+
+  benefitsSection: {
+    marginBottom: Spacing.xl * 2,
+  },
+  benefitsTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.lg,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.lg,
+  },
+  benefitIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  benefitText: {
+    flex: 1,
+  },
+  benefitTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs / 2,
+  },
+  benefitDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    lineHeight: 18,
+  },
+
+  ctaContainer: {
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  ctaPrimary: {
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  ctaGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  ctaPrimaryText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+  },
+  ctaSecondary: {
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    borderWidth: 2,
+    borderColor: Colors.border.medium,
+    alignItems: 'center',
+  },
+  ctaSecondaryText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+  },
+
+  guestFooter: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  footerText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+  },
+  footerHighlight: {
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.primary,
   },
 });
 

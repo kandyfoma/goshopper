@@ -1,0 +1,50 @@
+{
+  "KinMart": {
+    "item_pattern": "([A-Za-z\\s]+?)\\s+(\\d+(?:\\.\\d+)?)?\\s*[xX*]\\s*([0-9,\\.]+)",
+    "total_pattern": "TOTAL[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "SOUS-TOTAL[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "TVA[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{1,2}[/-]\\d{1,2}[/-]\\d{4})",
+    "currency": "CDF"
+  },
+  "CongoMarket": {
+    "item_pattern": "(.+?)\\s+(\\d+(?:\\.\\d+)?)\\s*[xX*]\\s*([0-9\\.]+)",
+    "total_pattern": "MONTANT TOTAL[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "SOUS TOTAL[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "TAXE[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{2}/\\d{2}/\\d{4})",
+    "currency": "CDF"
+  },
+  "Shoprite": {
+    "item_pattern": "(.+?)\\s+(\\d+(?:\\.\\d+)?)?\\s*@\\s*([0-9,\\.]+)",
+    "total_pattern": "TOTAL[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "SUBTOTAL[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "VAT[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{1,2}/\\d{1,2}/\\d{4})",
+    "currency": "CDF"
+  },
+  "Carrefour": {
+    "item_pattern": "(.+?)\\s+(\\d+(?:\\.\\d+)?)?\\s*[xX*]\\s*([0-9,\\.]+)",
+    "total_pattern": "TOTAL TTC[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "TOTAL HT[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "TVA[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{2}/\\d{2}/\\d{4})",
+    "currency": "CDF"
+  },
+  "TotalEnergies": {
+    "item_pattern": "(.+?)\\s+(\\d+(?:\\.\\d+)?)?\\s*L\\s*([0-9,\\.]+)",
+    "total_pattern": "TOTAL[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "SOUS-TOTAL[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "TVA[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{2}/\\d{2}/\\d{4})",
+    "currency": "CDF"
+  },
+  "LocalShop": {
+    "item_pattern": "(.+?)\\s+(\\d+(?:\\.\\d+)?)?\\s*[xX*]\\s*([0-9,\\.]+)",
+    "total_pattern": "TOTAL[:\\s]*([0-9,\\.]+)",
+    "subtotal_pattern": "SOUS TOTAL[:\\s]*([0-9,\\.]+)",
+    "tax_pattern": "TAXE[:\\s]*([0-9,\\.]+)",
+    "date_pattern": "(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})",
+    "currency": "CDF"
+  }
+}

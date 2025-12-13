@@ -26,6 +26,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
+import {useToast} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ResetPasswordRouteProp = RouteProp<RootStackParamList, 'ResetPassword'>;
@@ -33,6 +34,7 @@ type ResetPasswordRouteProp = RouteProp<RootStackParamList, 'ResetPassword'>;
 export function ResetPasswordScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ResetPasswordRouteProp>();
+  const {showToast} = useToast();
   const oobCode = (route.params as any)?.oobCode || '';
 
   // Form state
@@ -195,7 +197,12 @@ export function ResetPasswordScreen() {
           </Text>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => {
+              showToast('Mot de passe réinitialisé avec succès!', 'success', 2000);
+              setTimeout(() => {
+                navigation.navigate('Login');
+              }, 2000);
+            }}
             activeOpacity={0.8}>
             <View style={styles.buttonInner}>
               <Text style={styles.buttonText}>Se connecter</Text>

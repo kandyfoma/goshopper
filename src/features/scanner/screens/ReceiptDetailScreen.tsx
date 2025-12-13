@@ -216,7 +216,7 @@ export function ReceiptDetailScreen() {
   }, [receiptId, passedReceipt, showToast]);
 
   const handleCompare = () => {
-    navigation.navigate('PriceComparison', {receiptId});
+    navigation.push('PriceComparison', {receiptId});
   };
 
   if (loading) {

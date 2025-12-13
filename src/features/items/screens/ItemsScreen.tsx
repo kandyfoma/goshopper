@@ -14,6 +14,7 @@ import {
   Pressable,
   Modal,
 } from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import {
   Colors,
@@ -45,8 +46,9 @@ interface ItemData {
 }
 
 export function ItemsScreen() {
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
+  const navigation = useNavigation();
   const [items, setItems] = useState<ItemData[]>([]);
   const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

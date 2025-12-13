@@ -51,7 +51,7 @@ export const sendWeeklySavingsTips = functions
       for (const user of usersWithTokens) {
         try {
           const tip = await generateSavingsTip(user.userId, user.language);
-          await sendSavingsTipNotification(user.fcmToken, tip, user.language);
+          await sendSavingsTipNotification(user.fcmToken, tip, user.language, user.userId);
           console.log(`Sent savings tip to user ${user.userId}`);
         } catch (error) {
           console.error(`Failed to send tip to user ${user.userId}:`, error);
@@ -106,6 +106,7 @@ export const sendAchievementNotification = functions
         fcmToken,
         achievementTitle,
         language,
+        userId,
       );
 
       return {success: true, message: 'Achievement notification sent'};
@@ -146,7 +147,7 @@ export const sendSyncCompleteNotification = functions
         return {success: false, message: 'No FCM token available'};
       }
 
-      await sendSyncCompleteNotificationToUser(fcmToken, syncedCount, language);
+      await sendSyncCompleteNotificationToUser(fcmToken, syncedCount, language, userId);
 
       return {success: true, message: 'Sync complete notification sent'};
     } catch (error) {
@@ -395,6 +396,7 @@ async function sendSavingsTipNotification(
   fcmToken: string,
   tip: string,
   language: string,
+  userId?: string,
 ): Promise<void> {
   const title = language === 'fr' ? "💡 Conseil d'Économie" : '💡 Savings Tip';
 
@@ -424,6 +426,19 @@ async function sendSavingsTipNotification(
       },
     },
   });
+
+  // Save notification to Firestore if userId provided
+  if (userId) {
+    await db
+      .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+      .add({
+        title,
+        body: tip,
+        type: 'savings_tip',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      });
+  }
 }
 
 /**
@@ -433,6 +448,7 @@ async function sendAchievementNotificationToUser(
   fcmToken: string,
   achievementTitle: string,
   language: string,
+  userId?: string,
 ): Promise<void> {
   const title =
     language === 'fr' ? '🏆 Achievement Débloqué!' : '🏆 Achievement Unlocked!';
@@ -468,6 +484,20 @@ async function sendAchievementNotificationToUser(
       },
     },
   });
+
+  // Save notification to Firestore if userId provided
+  if (userId) {
+    await db
+      .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+      .add({
+        title,
+        body,
+        type: 'achievement',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        data: {achievementTitle},
+      });
+  }
 }
 
 /**
@@ -477,6 +507,7 @@ async function sendSyncCompleteNotificationToUser(
   fcmToken: string,
   syncedCount: number,
   language: string,
+  userId?: string,
 ): Promise<void> {
   const title =
     language === 'fr' ? '🔄 Synchronisation Terminée' : '🔄 Sync Complete';
@@ -511,6 +542,20 @@ async function sendSyncCompleteNotificationToUser(
       },
     },
   });
+
+  // Save notification to Firestore if userId provided
+  if (userId) {
+    await db
+      .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+      .add({
+        title,
+        body,
+        type: 'sync_complete',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        data: {syncedCount},
+      });
+  }
 }
 
 /**
@@ -587,6 +632,21 @@ export const checkSubscriptionExpiration = functions
           language,
         );
 
+        // Save notification to Firestore
+        let title: string;
+        let body: string;
+        if (daysUntilExpiration <= 1) {
+          title = language === 'fr' ? '⚠️ Abonnement Expire Demain!' : '⚠️ Subscription Expires Tomorrow!';
+          body = language === 'fr' ? "Renouvelez maintenant pour ne pas perdre vos fonctionnalités premium." : 'Renew now to keep your premium features.';
+        } else if (daysUntilExpiration <= 3) {
+          title = language === 'fr' ? `⏰ ${daysUntilExpiration} Jours Restants!` : `⏰ ${daysUntilExpiration} Days Left!`;
+          body = language === 'fr' ? 'Votre abonnement expire bientôt.' : 'Your subscription expires soon.';
+        } else {
+          title = language === 'fr' ? "📅 Rappel d'Abonnement" : '📅 Subscription Reminder';
+          body = language === 'fr' ? `Votre abonnement expire dans ${daysUntilExpiration} jours.` : `Your subscription expires in ${daysUntilExpiration} days.`;
+        }
+        await saveSubscriptionNotification(userId, title, body, daysUntilExpiration, subscription.planId || 'standard');
+
         // Update subscription status
         await doc.ref.update({
           expirationNotificationSent: true,
@@ -645,6 +705,21 @@ export const checkSubscriptionExpiration = functions
           daysUntilExpiration,
           language,
         );
+
+        // Save notification to Firestore
+        let title: string;
+        let body: string;
+        if (daysUntilExpiration <= 1) {
+          title = language === 'fr' ? '⚠️ Essai Gratuit Termine Demain!' : '⚠️ Free Trial Ends Tomorrow!';
+          body = language === 'fr' ? 'Passez à un abonnement premium pour continuer.' : 'Upgrade to premium to continue.';
+        } else if (daysUntilExpiration <= 3) {
+          title = language === 'fr' ? `⏰ ${daysUntilExpiration} Jours d'Essai Restants` : `⏰ ${daysUntilExpiration} Trial Days Left`;
+          body = language === 'fr' ? 'Votre essai gratuit se termine bientôt.' : 'Your free trial ends soon.';
+        } else {
+          title = language === 'fr' ? '📅 Rappel Essai Gratuit' : '📅 Trial Reminder';
+          body = language === 'fr' ? `Plus que ${daysUntilExpiration} jours d'essai gratuit.` : `${daysUntilExpiration} days left in your free trial.`;
+        }
+        await saveTrialNotification(userId, title, body, daysUntilExpiration);
 
         await doc.ref.update({
           expirationNotificationSent: true,
@@ -741,6 +816,32 @@ async function sendSubscriptionExpirationNotification(
 }
 
 /**
+ * Save subscription expiration notification to Firestore
+ */
+async function saveSubscriptionNotification(
+  userId: string,
+  title: string,
+  body: string,
+  daysRemaining: number,
+  planId: string,
+): Promise<void> {
+  try {
+    await db
+      .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+      .add({
+        title,
+        body,
+        type: 'subscription_expiring',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        data: {daysRemaining, planId, action: 'renew'},
+      });
+  } catch (error) {
+    console.error('Error saving subscription notification:', error);
+  }
+}
+
+/**
  * Send trial expiration notification
  */
 async function sendTrialExpirationNotification(
@@ -805,4 +906,29 @@ async function sendTrialExpirationNotification(
       },
     },
   });
+}
+
+/**
+ * Save trial expiration notification to Firestore
+ */
+async function saveTrialNotification(
+  userId: string,
+  title: string,
+  body: string,
+  daysRemaining: number,
+): Promise<void> {
+  try {
+    await db
+      .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+      .add({
+        title,
+        body,
+        type: 'trial_expiring',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        data: {daysRemaining, action: 'subscribe'},
+      });
+  } catch (error) {
+    console.error('Error saving trial notification:', error);
+  }
 }

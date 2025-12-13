@@ -12,7 +12,7 @@ import {
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useToast} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -119,6 +119,7 @@ const DRC_CITIES = [
 export function CitySelectionScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user} = useAuth();
+  const {showToast} = useToast();
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -144,6 +145,7 @@ export function CitySelectionScreen() {
         );
 
       // Navigate to scanner
+      showToast('Ville sélectionnée!', 'success', 2000);
       navigation.replace('Scanner');
     } catch (error) {
       console.error('Error saving city:', error);

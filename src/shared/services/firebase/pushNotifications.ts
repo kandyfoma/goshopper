@@ -5,13 +5,15 @@ import messaging, {
 import functions from '@react-native-firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
-import {Platform, PermissionsAndroid} from 'react-native';
+import {Platform, PermissionsAndroid, NativeModules} from 'react-native';
 import {APP_ID} from './config';
 
 const FCM_TOKEN_KEY = '@goshopperai/fcm_token';
 const NOTIFICATION_PREFS_KEY = '@goshopperai/notification_prefs';
 
 const USERS_COLLECTION = (userId: string) => `apps/${APP_ID}/users/${userId}`;
+
+const {NotificationChannelModule} = NativeModules;
 
 export interface NotificationPreferences {
   priceAlerts: boolean;
@@ -39,6 +41,16 @@ class PushNotificationService {
    * Initialize push notifications
    */
   async init(): Promise<void> {
+    // Create notification channels on Android
+    if (Platform.OS === 'android' && NotificationChannelModule) {
+      try {
+        await NotificationChannelModule.createNotificationChannels();
+        console.log('[PushNotifications] Channels created');
+      } catch (error) {
+        console.error('[PushNotifications] Channel creation error:', error);
+      }
+    }
+
     // Request permission
     const hasPermission = await this.requestPermission();
 

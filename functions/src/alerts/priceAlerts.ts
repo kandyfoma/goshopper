@@ -124,17 +124,17 @@ async function sendAlertNotifications(
         continue;
       }
 
+      const title = '🔔 Alerte Prix!';
+      const body = `${
+        alert.productName
+      } est maintenant à $${alert.currentPrice.toFixed(2)} chez ${
+        alert.storeName
+      }!`;
+
       // Send push notification
       await admin.messaging().send({
         token: fcmToken,
-        notification: {
-          title: '🔔 Alerte Prix!',
-          body: `${
-            alert.productName
-          } est maintenant à $${alert.currentPrice.toFixed(2)} chez ${
-            alert.storeName
-          }!`,
-        },
+        notification: {title, body},
         data: {
           type: 'price_alert',
           alertId: alert.alertId,
@@ -159,6 +159,23 @@ async function sendAlertNotifications(
           },
         },
       });
+
+      // Save notification to Firestore
+      await db
+        .collection(`artifacts/${config.app.id}/users/${alert.userId}/notifications`)
+        .add({
+          title,
+          body,
+          type: 'price_alert',
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          data: {
+            alertId: alert.alertId,
+            productName: alert.productName,
+            currentPrice: alert.currentPrice,
+            storeName: alert.storeName,
+          },
+        });
 
       // Mark notification as sent
       const alertPath = `artifacts/${config.app.id}/users/${alert.userId}/priceAlerts/${alert.alertId}`;

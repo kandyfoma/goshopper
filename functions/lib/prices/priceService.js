@@ -37,26 +37,19 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = void 0;
+exports.getSmartPriceComparison = exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const config_1 = require("../config");
+const itemMatchingService_1 = require("./itemMatchingService");
 const db = admin.firestore();
 /**
- * Normalize product name for matching
- */
-function normalizeProductName(name) {
-    return name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-/**
- * Save price data from parsed receipt
- * Called internally after receipt parsing
+ * Save price data from parsed receipt with smart matching
+ * - Same shop + same price = skip (no duplicate needed)
+ * - Same shop + different price = create new entry (track price history)
+ * - No match = create new entry
+ *
+ * Uses fuzzy matching to handle different naming conventions across shops
  */
 exports.savePriceData = functions
     .region(config_1.config.app.region)
@@ -68,29 +61,29 @@ exports.savePriceData = functions
         return null;
     }
     try {
-        const batch = db.batch();
-        const pricesCollection = db.collection(config_1.collections.prices);
-        const now = admin.firestore.FieldValue.serverTimestamp();
-        for (const item of receipt.items) {
-            const pricePointRef = pricesCollection.doc();
-            const pricePoint = {
-                productName: item.name,
-                productNameNormalized: item.nameNormalized || normalizeProductName(item.name),
-                storeName: receipt.storeName,
-                storeNameNormalized: receipt.storeNameNormalized,
-                price: item.unitPrice,
-                currency: receipt.currency,
-                unit: item.unit,
-                quantity: item.quantity,
-                pricePerUnit: item.unitPrice,
-                recordedAt: now,
-                receiptId,
-                userId,
-            };
-            batch.set(pricePointRef, pricePoint);
+        // Prepare items for batch processing
+        const items = receipt.items.map(item => ({
+            name: item.name,
+            nameNormalized: item.nameNormalized || (0, itemMatchingService_1.normalizeProductName)(item.name),
+            unitPrice: item.unitPrice,
+            unit: item.unit,
+            quantity: item.quantity,
+        }));
+        // Use smart upsert with fuzzy matching
+        const result = await (0, itemMatchingService_1.batchSmartUpsertPriceData)(items, {
+            storeName: receipt.storeName,
+            storeNameNormalized: receipt.storeNameNormalized || (0, itemMatchingService_1.normalizeProductName)(receipt.storeName),
+            currency: receipt.currency,
+            receiptId,
+            userId,
+        });
+        console.log(`Processed ${items.length} items for receipt ${receiptId}: ` +
+            `${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+        // Log any interesting matches for debugging
+        const fuzzyMatches = result.results.filter(r => r.matchedName && r.itemName !== r.matchedName);
+        if (fuzzyMatches.length > 0) {
+            console.log('Fuzzy matches found:', fuzzyMatches.map(m => `"${m.itemName}" -> "${m.matchedName}"`).join(', '));
         }
-        await batch.commit();
-        console.log(`Saved ${receipt.items.length} price points for receipt ${receiptId}`);
         return null;
     }
     catch (error) {
@@ -138,7 +131,7 @@ exports.getPriceComparison = functions
         }
         const comparisons = [];
         // Collect all normalized product names
-        const normalizedNames = receiptItems.map(item => item.nameNormalized || normalizeProductName(item.name));
+        const normalizedNames = receiptItems.map(item => item.nameNormalized || (0, itemMatchingService_1.normalizeProductName)(item.name));
         // Remove duplicates to avoid unnecessary queries
         const uniqueNormalizedNames = [...new Set(normalizedNames)];
         // Query all price data for these products in batches (Firestore 'in' limit is 10)
@@ -163,7 +156,7 @@ exports.getPriceComparison = functions
         }
         // Generate comparisons for each item
         for (const item of receiptItems) {
-            const normalizedName = item.nameNormalized || normalizeProductName(item.name);
+            const normalizedName = item.nameNormalized || (0, itemMatchingService_1.normalizeProductName)(item.name);
             const prices = priceDataMap.get(normalizedName) || [];
             if (prices.length === 0) {
                 // No comparison data available
@@ -234,7 +227,7 @@ exports.getPriceHistory = functions
         throw new functions.https.HttpsError('invalid-argument', 'Product name required');
     }
     try {
-        const normalizedName = normalizeProductName(productName);
+        const normalizedName = (0, itemMatchingService_1.normalizeProductName)(productName);
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         const priceQuery = await db
@@ -280,6 +273,69 @@ exports.getPriceHistory = functions
     catch (error) {
         console.error('Get price history error:', error);
         throw new functions.https.HttpsError('internal', 'Failed to get price history');
+    }
+});
+/**
+ * Get smart price comparison using fuzzy matching
+ * Finds similar products across all stores, not just exact matches
+ */
+exports.getSmartPriceComparison = functions
+    .region(config_1.config.app.region)
+    .runWith({
+    timeoutSeconds: 120,
+    memory: '512MB',
+})
+    .https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const { productName, currentStore, currentPrice } = data;
+    if (!productName) {
+        throw new functions.https.HttpsError('invalid-argument', 'Product name required');
+    }
+    try {
+        // Find similar products across all stores
+        const similarProducts = await (0, itemMatchingService_1.findSimilarProductsAcrossStores)(productName, currentStore);
+        if (similarProducts.length === 0) {
+            return {
+                success: true,
+                productName,
+                currentPrice,
+                currentStore,
+                alternatives: [],
+                bestPrice: currentPrice,
+                bestStore: currentStore,
+                potentialSavings: 0,
+            };
+        }
+        // Calculate best price and savings
+        const prices = similarProducts.map(p => p.price);
+        const bestPrice = Math.min(...prices);
+        const bestProduct = similarProducts.find(p => p.price === bestPrice);
+        const potentialSavings = currentPrice ? Math.max(0, currentPrice - bestPrice) : 0;
+        return {
+            success: true,
+            productName,
+            currentPrice,
+            currentStore,
+            alternatives: similarProducts.map(p => ({
+                productName: p.productName,
+                storeName: p.storeName,
+                price: p.price,
+                currency: p.currency,
+                similarity: Math.round(p.similarity * 100),
+                recordedAt: p.recordedAt,
+            })),
+            bestPrice,
+            bestStore: bestProduct.storeName,
+            bestProductName: bestProduct.productName,
+            potentialSavings: Math.round(potentialSavings * 100) / 100,
+            matchCount: similarProducts.length,
+        };
+    }
+    catch (error) {
+        console.error('Smart price comparison error:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to get smart price comparison');
     }
 });
 //# sourceMappingURL=priceService.js.map

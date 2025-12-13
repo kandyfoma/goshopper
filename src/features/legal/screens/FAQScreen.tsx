@@ -173,7 +173,7 @@ export function FAQScreen() {
             <TouchableOpacity
               style={styles.contactButton}
               onPress={() =>
-                navigation.navigate('Settings' as any)
+                navigation.push('Settings' as any)
               }
               activeOpacity={0.9}>
               <Icon name="message" size="sm" color={Colors.primary} />

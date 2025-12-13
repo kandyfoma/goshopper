@@ -21,7 +21,7 @@ import {SvgXml} from 'react-native-svg';
 import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useToast} from '@/shared/contexts';
 import {Icon} from '@/shared/components';
 import {logoGochujangSvg} from '../../../../assets/logo-icon';
 
@@ -69,6 +69,7 @@ export function LoginScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const {signInWithGoogle, signInWithApple} = useAuth();
+  const {showToast} = useToast();
 
   // Form state
   const [email, setEmail] = useState('');
@@ -264,8 +265,11 @@ export function LoginScreen() {
         // Auto-fill email and show success
         setEmail(result.credentials.email);
         setSuccessMessage('Connexion biométrique réussie!');
+        showToast('Connexion biométrique réussie!', 'success', 2000);
         // Navigate to main app
-        navigation.navigate('MainTab' as never);
+        setTimeout(() => {
+          navigation.navigate('MainTab' as never);
+        }, 2000);
       } else {
         setError(result.error || 'Authentification échouée');
       }
@@ -274,11 +278,6 @@ export function LoginScreen() {
     } finally {
       setBiometricLoading(false);
     }
-  };
-
-  // Handle skip
-  const handleSkip = () => {
-    navigation.navigate('MainTab' as never);
   };
 
   // Clear field errors on change
@@ -311,16 +310,9 @@ export function LoginScreen() {
         backgroundColor="#FFFFFF"
       />
 
-      {/* Header with Skip */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={{width: 70}} />
-        <TouchableOpacity
-          onPress={handleSkip}
-          style={styles.skipButton}
-          activeOpacity={0.7}
-          disabled={isLoading}>
-          <Text style={styles.skipText}>Ignorer</Text>
-        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -576,7 +568,7 @@ export function LoginScreen() {
                 Vous n'avez pas de compte?
               </Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate('Register')}
+                onPress={() => navigation.push('Register')}
                 disabled={isLoading}>
                 <Text style={styles.registerLink}> Créer un compte</Text>
               </TouchableOpacity>
@@ -587,13 +579,13 @@ export function LoginScreen() {
               En vous connectant, vous acceptez nos{' '}
               <Text
                 style={styles.termsLink}
-                onPress={() => navigation.navigate('TermsOfService')}>
+                onPress={() => navigation.push('TermsOfService')}>
                 Conditions d'utilisation
               </Text>{' '}
               et notre{' '}
               <Text
                 style={styles.termsLink}
-                onPress={() => navigation.navigate('PrivacyPolicy')}>
+                onPress={() => navigation.push('PrivacyPolicy')}>
                 Politique de confidentialité
               </Text>
             </Text>
@@ -615,22 +607,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-  },
-  skipButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: GOCHUJANG.cardBg,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  skipText: {
-    fontSize: 14,
-    color: GOCHUJANG.textSecondary,
-    fontWeight: '600',
   },
   keyboardView: {
     flex: 1,

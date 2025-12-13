@@ -35,7 +35,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function HistoryScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {user} = useAuth();
+  const {user, isAuthenticated} = useAuth();
   const isOnline = useIsOnline();
 
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -43,6 +43,13 @@ export function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.push('Login');
+    }
+  }, [isAuthenticated, navigation]);
 
   useEffect(() => {
     // Track screen view
@@ -193,7 +200,7 @@ export function HistoryScreen() {
 
   const handleReceiptPress = (receiptId: string, receipt: Receipt) => {
     analyticsService.logCustomEvent('receipt_viewed', {receipt_id: receiptId});
-    navigation.navigate('ReceiptDetail', {receiptId, receipt});
+    navigation.push('ReceiptDetail', {receiptId});
   };
 
   const getStatusColor = (status: Receipt['status']) => {

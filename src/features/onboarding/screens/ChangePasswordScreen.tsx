@@ -26,11 +26,13 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
+import {useToast} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function ChangePasswordScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const {showToast} = useToast();
 
   // Form state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -188,7 +190,12 @@ export function ChangePasswordScreen() {
           </Text>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              showToast('Mot de passe modifié avec succès!', 'success', 2000);
+              setTimeout(() => {
+                navigation.goBack();
+              }, 2000);
+            }}
             activeOpacity={0.8}>
             <View style={styles.buttonInner}>
               <Text style={styles.buttonText}>Retour aux paramètres</Text>

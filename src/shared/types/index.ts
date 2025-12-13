@@ -27,6 +27,7 @@ export type RootStackParamList = {
   UpdateProfile: undefined;
   Stats: undefined;
   // Phase 1.1 Screens
+  Notifications: undefined;
   PriceAlerts: undefined;
   Achievements: undefined;
   BudgetSettings: undefined;

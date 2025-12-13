@@ -21,6 +21,7 @@ import {useSubscription, useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {cameraService, imageCompressionService} from '@/shared/services/camera';
 import {geminiService} from '@/shared/services/ai/gemini';
+import {hybridReceiptProcessor} from '@/shared/services/ai/hybridReceiptProcessor';
 import {analyticsService} from '@/shared/services/analytics';
 import {duplicateDetectionService} from '@/shared/services/duplicateDetection';
 import {hapticService} from '@/shared/services/hapticService';
@@ -43,7 +44,8 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 interface CapturedPhoto {
   id: string;
   uri: string;
-  base64?: string;
+  // base64 removed from state to prevent memory leaks
+  // Generated on-demand during processing
 }
 
 type ScanState = 'idle' | 'capturing' | 'reviewing' | 'processing' | 'success' | 'error';
@@ -190,18 +192,24 @@ export function UnifiedScannerScreen() {
         useNativeDriver: false,
       }).start();
 
-      pulseAnimation.start();
-      rotateAnimation.start();
-      scanAnimation.start();
+      const animations = [pulseAnimation, rotateAnimation, scanAnimation];
+      animations.forEach(anim => anim.start());
 
       return () => {
-        pulseAnimation.stop();
-        rotateAnimation.stop();
-        scanAnimation.stop();
+        // Stop and reset ALL animations to prevent memory leaks
+        animations.forEach(anim => {
+          anim.stop();
+          anim.reset && anim.reset();
+        });
+        
+        // Reset all animated values to free memory
+        pulseAnim.setValue(1);
+        rotateAnim.setValue(0);
+        scanLineAnim.setValue(0);
         progressAnim.setValue(0);
       };
     }
-  }, [state]);
+  }, [state, pulseAnim, rotateAnim, scanLineAnim, progressAnim]);
 
   // Success animation
   useEffect(() => {
@@ -236,7 +244,7 @@ export function UnifiedScannerScreen() {
           : 'Vous avez atteint votre limite de scans. Passez à Premium pour continuer.',
         [
           {text: 'Annuler', style: 'cancel'},
-          {text: 'Voir Premium', onPress: () => navigation.navigate('Subscription')},
+          {text: 'Voir Premium', onPress: () => navigation.push('Subscription')},
         ]
       );
       return;
@@ -256,13 +264,10 @@ export function UnifiedScannerScreen() {
       return;
     }
 
-    // Compress and convert to base64
-    const base64 = await imageCompressionService.compressToBase64(result.uri);
-
+    // Store only URI - base64 will be generated during processing
     const newPhoto: CapturedPhoto = {
       id: `photo_${Date.now()}`,
       uri: result.uri,
-      base64,
     };
 
     setPhotos(prev => [...prev, newPhoto]);
@@ -309,7 +314,10 @@ export function UnifiedScannerScreen() {
     retryCountRef.current = 0;
 
     try {
-      const images = photos.filter(p => p.base64).map(p => p.base64!);
+      // Generate base64 from URIs on-demand to avoid memory issues
+      const images = await Promise.all(
+        photos.map(p => imageCompressionService.compressToBase64(p.uri))
+      );
 
       // Check for duplicates on first image
       if (images.length > 0 && user?.uid) {
@@ -347,19 +355,21 @@ export function UnifiedScannerScreen() {
       let result: ParseReceiptV2Result | undefined;
 
       if (images.length === 1) {
-        // Single photo - use direct Gemini processing
-        const response = await geminiService.parseReceipt(
+        // Single photo - use hybrid processing (local + AI fallback)
+        console.log('Using hybrid receipt processor...');
+        const response = await hybridReceiptProcessor.processReceipt(
           images[0],
           user?.uid || 'unknown-user'
         );
 
         if (response.success && response.receipt) {
           await recordScan();
-          
+
           analyticsService.logCustomEvent('scan_completed', {
             success: true,
             photo_count: 1,
             items_count: response.receipt.items?.length || 0,
+            processing_method: 'hybrid', // Track that hybrid processing was used
           });
 
           // Success haptic feedback
@@ -371,11 +381,13 @@ export function UnifiedScannerScreen() {
             inAppReviewService.requestReviewIfAppropriate();
           });
 
+          // Show success toast before navigation
+          showToast('Reçu analysé avec succès!', 'success', 2000);
+
           // Navigate after animation
           setTimeout(() => {
             navigation.replace('ReceiptDetail', {
               receiptId: response.receipt!.id,
-              receipt: response.receipt,
             });
           }, 2000);
           return;
@@ -409,12 +421,13 @@ export function UnifiedScannerScreen() {
             inAppReviewService.requestReviewIfAppropriate();
           });
 
+          // Show success toast before navigation
+          showToast('Reçu analysé avec succès!', 'success', 2000);
+
           const receiptId = result.receiptId;
-          const receipt = result.receipt;
           setTimeout(() => {
             navigation.replace('ReceiptDetail', {
               receiptId: receiptId,
-              receipt: receipt,
             });
           }, 2000);
           return;

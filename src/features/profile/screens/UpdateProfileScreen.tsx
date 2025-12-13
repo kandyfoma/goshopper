@@ -18,7 +18,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth, useUser} from '@/shared/contexts';
+import {useAuth, useUser, useToast} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -67,6 +67,7 @@ export function UpdateProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user, isAuthenticated} = useAuth();
   const {profile} = useUser();
+  const {showToast} = useToast();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -164,6 +165,7 @@ export function UpdateProfileScreen() {
       });
 
       Alert.alert('Succès', 'Votre profil a été mis à jour avec succès!');
+      showToast('Profil mis à jour avec succès!', 'success', 3000);
       navigation.goBack();
     } catch (error) {
       console.error('Error updating profile:', error);

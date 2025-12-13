@@ -7,6 +7,8 @@ import {Receipt} from '@/shared/types';
 
 const OFFLINE_QUEUE_KEY = '@goshopperai/offline_queue';
 const PENDING_IMAGES_KEY = '@goshopperai/pending_images';
+const MAX_QUEUE_SIZE = 10; // Reasonable limit to prevent storage overflow
+const MAX_QUEUE_AGE_DAYS = 7; // Remove items older than 7 days
 
 export interface QueuedReceipt {
   id: string;
@@ -75,13 +77,46 @@ class OfflineQueueService {
 
   /**
    * Add a receipt to the offline queue
+   * Enforces size limits and removes old items to prevent storage overflow
    */
   async queueReceipt(
     receipt: Partial<Receipt>,
     imageUris: string[],
     userId: string,
   ): Promise<QueuedReceipt> {
-    const queue = await this.getQueue();
+    let queue = await this.getQueue();
+
+    // Remove old items (older than MAX_QUEUE_AGE_DAYS)
+    const now = new Date();
+    const initialLength = queue.length;
+    queue = queue.filter(item => {
+      const age = now.getTime() - new Date(item.queuedAt).getTime();
+      const maxAge = MAX_QUEUE_AGE_DAYS * 24 * 60 * 60 * 1000;
+      return age < maxAge;
+    });
+
+    if (initialLength > queue.length) {
+      console.log(
+        `[OfflineQueue] Removed ${initialLength - queue.length} old items from queue`,
+      );
+    }
+
+    // Enforce size limit
+    if (queue.length >= MAX_QUEUE_SIZE) {
+      // Remove oldest item
+      queue.sort(
+        (a, b) =>
+          new Date(a.queuedAt).getTime() - new Date(b.queuedAt).getTime(),
+      );
+      const removed = queue.shift();
+      console.warn(
+        `[OfflineQueue] Queue full (${MAX_QUEUE_SIZE} items). Removed oldest item:`,
+        removed?.id,
+      );
+
+      // Note: In production, you might want to show a toast to the user
+      // showToast('File d\'attente pleine. Le reçu le plus ancien a été supprimé.', 'warning');
+    }
 
     const queuedReceipt: QueuedReceipt = {
       id: receipt.id || `queued_${Date.now()}`,

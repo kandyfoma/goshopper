@@ -111,7 +111,7 @@ export function ShopDetailScreen() {
   };
 
   const handleReceiptPress = (receiptId: string, receipt: Receipt) => {
-    navigation.navigate('ReceiptDetail', {receiptId, receipt});
+    navigation.push('ReceiptDetail', {receiptId});
   };
 
   const renderReceiptItem = ({item}: {item: Receipt}) => {

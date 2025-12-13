@@ -56,47 +56,50 @@ function getGeminiAI() {
     return genAI;
 }
 // Prompt for receipt parsing - optimized for DRC market
-const PARSING_PROMPT = `You are a receipt/invoice parser specialized in the Democratic Republic of Congo (DRC) market.
+const PARSING_PROMPT = `You are an expert receipt/invoice OCR and data extraction system. Your task is to CAREFULLY READ and extract ALL visible text and data from the receipt image provided.
 
-Analyze this receipt image and extract the following information in JSON format:
+⚠️ CRITICAL: You MUST extract the ACTUAL text visible in the image. DO NOT use placeholder text like "Test Store", "Item 1", "Item 2", etc.
 
+READ THE IMAGE CAREFULLY and extract EXACTLY what you see:
+
+REQUIRED JSON STRUCTURE:
 {
-  "storeName": "Store/shop name",
-  "storeAddress": "Store address if visible",
-  "storePhone": "Phone number if visible",
-  "receiptNumber": "Receipt/invoice number if visible",
-  "date": "Date in YYYY-MM-DD format",
-  "currency": "USD or CDF (Congolese Franc) - primary currency",
+  "storeName": "ACTUAL store name from receipt (e.g., Shoprite, Carrefour, City Market)",
+  "storeAddress": "ACTUAL address if visible, or null",
+  "storePhone": "ACTUAL phone number if visible, or null",
+  "receiptNumber": "ACTUAL receipt/invoice number if visible, or null",
+  "date": "ACTUAL date in YYYY-MM-DD format from receipt",
+  "currency": "USD or CDF based on currency symbols in receipt",
   "items": [
     {
-      "name": "Product name in original language",
-      "quantity": 1,
-      "unitPrice": 0.00,
-      "totalPrice": 0.00,
-      "unit": "kg/L/piece/pack/etc",
+      "name": "EXACT product name as written on receipt",
+      "quantity": ACTUAL_NUMBER,
+      "unitPrice": ACTUAL_PRICE,
+      "totalPrice": ACTUAL_TOTAL,
+      "unit": "kg/L/pcs/etc if shown",
       "category": "Alimentation/Boissons/Hygiène/Ménage/Bébé/Autres"
     }
   ],
-  "subtotal": 0.00,
-  "tax": 0.00,
-  "total": 0.00,
-  "totalUSD": 0.00,
-  "totalCDF": 0.00
+  "subtotal": ACTUAL_SUBTOTAL_OR_NULL,
+  "tax": ACTUAL_TAX_OR_NULL,
+  "total": ACTUAL_TOTAL_AMOUNT,
+  "totalUSD": ACTUAL_USD_TOTAL_OR_NULL,
+  "totalCDF": ACTUAL_CDF_TOTAL_OR_NULL
 }
 
-Important rules:
-1. Currency detection: If prices are large numbers (thousands+), it's likely CDF. Small decimals suggest USD.
-2. Many DRC receipts show BOTH USD and CDF totals - extract both if present
-3. If only one currency total is shown, put it in both totalUSD and totalCDF (converted if needed)
-4. Common DRC stores: Shoprite, Carrefour, Peloustore, Hasson & Frères, City Market
-5. Keep product names in original language (French/Lingala)
-6. If quantity is not specified, assume 1
-7. Calculate totalPrice = quantity × unitPrice
-8. Categories: Alimentation (food), Boissons (drinks), Hygiène (personal care), Ménage (household), Bébé (baby), Autres (other)
-9. If date format is unclear, use current date
-10. Always return valid JSON
+EXTRACTION RULES:
+1. READ EVERY LINE of the receipt image carefully
+2. Extract ALL items listed - do not skip items or use placeholders
+3. Use the ACTUAL product names exactly as written (French/Lingala/English)
+4. Extract REAL prices - look for numbers with decimal points or currency symbols
+5. Currency: $ or USD = "USD" | FC or CDF or large numbers (1000+) = "CDF"
+6. If quantity not shown, assume 1
+7. If both USD and CDF totals visible, extract both
+8. Categories: Alimentation (food/groceries), Boissons (beverages), Hygiène (personal care), Ménage (household items), Bébé (baby products), Autres (other)
+9. Common DRC stores: Shoprite, Carrefour, Peloustore, Hasson & Frères, City Market, Kin Marché
+10. For handwritten receipts, do your best to interpret the text
 
-Respond ONLY with the JSON object, no additional text.`;
+⚠️ IMPORTANT: Return ONLY the JSON object with ACTUAL data from the receipt image. No markdown formatting, no explanations, no placeholder data.`;
 /**
  * Generate unique ID for items
  */

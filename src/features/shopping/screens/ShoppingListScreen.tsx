@@ -589,6 +589,43 @@ export function ShoppingListScreen() {
         </Animated.View>
       )}
 
+      {/* Quick Actions */}
+      <View style={styles.quickActionsSection}>
+        <Text style={styles.quickActionsTitle}>Actions rapides</Text>
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity
+            style={[styles.quickAction, {backgroundColor: Colors.card.cosmos}]}
+            onPress={() => navigation.push('Stats')}>
+            <Icon name="stats" size="md" color={Colors.text.inverse} />
+            <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Statistiques</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
+            onPress={() => navigation.push('Shops')}>
+            <Icon name="shopping-bag" size="md" color={Colors.text.primary} />
+            <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Mes Magasins</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, {backgroundColor: Colors.card.yellow}]}
+            onPress={() => navigation.push('AIAssistant')}>
+            <Icon name="help" size="md" color={Colors.text.primary} />
+            <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Assistant IA</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
+            onPress={() => navigation.push('Achievements')}>
+            <Icon name="trophy" size="md" color={Colors.text.primary} />
+            <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Mes succès</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, {backgroundColor: Colors.card.crimson}]}
+            onPress={() => navigation.push('Settings')}>
+            <Icon name="settings" size="md" color={Colors.text.inverse} />
+            <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Paramètres</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* New List Modal */}
       <Modal
         visible={showNewListModal}
@@ -1214,5 +1251,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.white,
+  },
+  quickActionsSection: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+  },
+  quickActionsTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.md,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  quickAction: {
+    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) / 2,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 100,
+  },
+  quickActionLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
   },
 });

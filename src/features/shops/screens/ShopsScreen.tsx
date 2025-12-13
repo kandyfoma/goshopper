@@ -20,7 +20,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, EmptyState} from '@/shared/components';
+import {Icon, EmptyState, AppFooter} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
@@ -109,7 +109,7 @@ export function ShopsScreen() {
 
   const handleShopPress = (shop: Shop) => {
     analyticsService.logCustomEvent('shop_viewed', {shop_id: shop.id});
-    navigation.navigate('ShopDetail', {shopId: shop.id, shopName: shop.name});
+    navigation.push('ShopDetail', {shopId: shop.id, shopName: shop.name});
   };
 
   const getCardColor = (index: number) => {
@@ -118,7 +118,7 @@ export function ShopsScreen() {
 
   const renderShopItem = ({item, index}: {item: Shop; index: number}) => {
     const cardColor = getCardColor(index);
-    const bgColor = Colors.cards[cardColor];
+    const bgColor = Colors.card[cardColor];
     const isDarkBg = ['red', 'crimson', 'cosmos'].includes(cardColor);
     const textColor = isDarkBg ? Colors.text.inverse : Colors.text.primary;
     const subtextColor = isDarkBg
@@ -247,6 +247,7 @@ export function ShopsScreen() {
             description="Scannez des factures pour voir vos magasins ici"
           />
         }
+        ListFooterComponent={<AppFooter compact />}
       />
     </SafeAreaView>
   );

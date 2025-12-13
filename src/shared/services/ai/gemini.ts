@@ -41,6 +41,11 @@ interface ParseReceiptResponse {
 }
 
 class GeminiService {
+  private rateLimitedUntil: Date | null = null;
+  private consecutiveFailures = 0;
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 5;
+  private readonly MAX_CONSECUTIVE_FAILURES = 10;
+
   /**
    * Parse a receipt image using Gemini AI via Cloud Function
    */
@@ -48,6 +53,32 @@ class GeminiService {
     imageBase64: string,
     userId: string,
   ): Promise<ReceiptScanResult> {
+    // Circuit breaker check - if too many consecutive failures, stop trying
+    if (this.consecutiveFailures >= this.CIRCUIT_BREAKER_THRESHOLD) {
+      const waitMinutes = Math.min(this.consecutiveFailures, this.MAX_CONSECUTIVE_FAILURES);
+      
+      // Reset circuit breaker after wait time
+      if (this.consecutiveFailures < this.MAX_CONSECUTIVE_FAILURES) {
+        setTimeout(() => {
+          console.log('Circuit breaker reset - retrying service');
+          this.consecutiveFailures = 0;
+        }, waitMinutes * 60 * 1000);
+      }
+      
+      return {
+        success: false,
+        error: 'Le service de scan est temporairement indisponible. Réessayez dans quelques minutes.',
+      };
+    }
+
+    // Rate limit check
+    if (this.rateLimitedUntil && new Date() < this.rateLimitedUntil) {
+      const waitSeconds = Math.ceil((this.rateLimitedUntil.getTime() - Date.now()) / 1000);
+      return {
+        success: false,
+        error: `Trop de demandes. Veuillez attendre ${waitSeconds} secondes.`,
+      };
+    }
     try {
       // Get current user's auth token for authenticated call
       const currentUser = auth().currentUser;
@@ -83,6 +114,22 @@ class GeminiService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('HTTP error response:', response.status, errorText);
+        
+        // Handle rate limiting (429 Too Many Requests)
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 1 min
+          this.rateLimitedUntil = new Date(Date.now() + waitTime);
+          
+          this.consecutiveFailures++;
+          
+          return {
+            success: false,
+            error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+          };
+        }
+        
+        this.consecutiveFailures++;
         throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
       }
 
@@ -122,6 +169,9 @@ class GeminiService {
         result.receiptId,
       );
 
+      // Success - reset failure counter
+      this.consecutiveFailures = 0;
+
       return {
         success: true,
         receipt,
@@ -131,6 +181,9 @@ class GeminiService {
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       console.error('Error details:', JSON.stringify(error, null, 2));
+
+      // Increment failure counter for circuit breaker
+      this.consecutiveFailures++;
 
       // Handle specific error types
       if (error.code === 'functions/resource-exhausted') {

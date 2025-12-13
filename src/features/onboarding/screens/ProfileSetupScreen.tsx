@@ -16,7 +16,7 @@ import {
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useToast} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -73,6 +73,7 @@ export function ProfileSetupScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ProfileSetupRouteProp>();
   const {user} = useAuth();
+  const {showToast} = useToast();
 
   // Extract names from displayName if available
   const extractNamesFromDisplayName = (displayName: string | null) => {
@@ -191,6 +192,7 @@ export function ProfileSetupScreen() {
         );
 
       // Navigate to main app
+      showToast('Bienvenue sur GoShopperAI!', 'success', 3000);
       navigation.reset({
         index: 0,
         routes: [{name: 'Main'}],

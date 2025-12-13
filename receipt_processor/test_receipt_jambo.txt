@@ -1,0 +1,19 @@
+JAMBO SUPERMARKET
+123 Main Street, Kinshasa
+Tel: +243 123 456 789
+
+Date: 2024-01-15 14:30
+Receipt #: JB-2024-001
+
+Items:
+1. Rice 5kg ............. 25000 CDF
+2. Cooking Oil 2L ...... 18000 CDF
+3. Sugar 2kg ............ 12000 CDF
+4. Soap Bars x3 ......... 9000 CDF
+
+Subtotal: ................ 64000 CDF
+Tax (16%): ............... 10240 CDF
+Total: ................... 74240 CDF
+
+Thank you for shopping at Jambo!
+Customer Service: +243 987 654 321

@@ -90,39 +90,61 @@ class ReceiptStorageService {
   }
   /**
    * Save a receipt and update/create the associated shop
+   * Receipt is saved first (critical), shop update happens in background (non-critical)
    */
   async saveReceipt(receipt: Receipt, userId: string): Promise<string> {
-    const batch = firestore().batch();
-
-    // 1. Save receipt
+    // Save receipt FIRST (most important) - no batch to prevent data loss
     const receiptRef = firestore()
       .collection(RECEIPTS_COLLECTION(userId))
       .doc(receipt.id);
 
-    batch.set(receiptRef, {
-      ...receipt,
-      date: firestore.Timestamp.fromDate(receipt.date),
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
-      scannedAt: firestore.FieldValue.serverTimestamp(),
-    });
+    try {
+      await receiptRef.set({
+        ...receipt,
+        date: firestore.Timestamp.fromDate(receipt.date),
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+        scannedAt: firestore.FieldValue.serverTimestamp(),
+      });
 
-    // 2. Update or create shop
-    await this.updateShopFromReceipt(receipt, userId, batch);
+      // Update shop in background (non-blocking, non-critical)
+      // If this fails, receipt is still saved
+      this.updateShopFromReceipt(receipt, userId, null).catch(error => {
+        console.error('Failed to update shop stats (non-critical):', error);
+        // Don't throw - shop update is not critical
+      });
 
-    await batch.commit();
+      return receipt.id;
+    } catch (error) {
+      console.error('Failed to save receipt:', error);
 
-    return receipt.id;
+      // Try one more time with a new ID (in case of ID conflict)
+      const newReceiptRef = firestore()
+        .collection(RECEIPTS_COLLECTION(userId))
+        .doc();
+
+      await newReceiptRef.set({
+        ...receipt,
+        id: newReceiptRef.id,
+        date: firestore.Timestamp.fromDate(receipt.date),
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+        scannedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      return newReceiptRef.id;
+    }
   }
 
   /**
    * Update or create a shop based on receipt data
    * Shop is automatically detected from receipt - user doesn't create manually
+   * Can be called with or without batch for flexible error handling
    */
   private async updateShopFromReceipt(
     receipt: Receipt,
     userId: string,
-    batch: FirebaseFirestoreTypes.WriteBatch,
+    batch: FirebaseFirestoreTypes.WriteBatch | null,
   ): Promise<void> {
     const shopId =
       receipt.storeNameNormalized || this.normalizeStoreName(receipt.storeName);
@@ -133,41 +155,79 @@ class ReceiptStorageService {
 
     const shopDoc = await shopRef.get();
 
-    if (shopDoc.exists) {
-      // Update existing shop
-      batch.update(shopRef, {
-        receiptCount: firestore.FieldValue.increment(1),
-        totalSpent: firestore.FieldValue.increment(receipt.total),
-        lastVisit: firestore.Timestamp.fromDate(receipt.date),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-        // Update address/phone if not set
-        ...(receipt.storeAddress && !shopDoc.data()?.address
-          ? {address: receipt.storeAddress}
-          : {}),
-        ...(receipt.storePhone && !shopDoc.data()?.phone
-          ? {phone: receipt.storePhone}
-          : {}),
-      });
-    } else {
-      // Create new shop - automatically from receipt data
-      const newShop: Omit<Shop, 'createdAt' | 'updatedAt'> = {
-        id: shopId,
-        name: receipt.storeName,
-        nameNormalized: shopId,
-        address: receipt.storeAddress,
-        phone: receipt.storePhone,
-        receiptCount: 1,
-        totalSpent: receipt.total,
-        currency: receipt.currency,
-        lastVisit: receipt.date,
-      };
+    if (batch) {
+      // Use batch if provided (legacy support)
+      if (shopDoc.exists) {
+        // Update existing shop
+        batch.update(shopRef, {
+          receiptCount: firestore.FieldValue.increment(1),
+          totalSpent: firestore.FieldValue.increment(receipt.total),
+          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+          // Update address/phone if not set
+          ...(receipt.storeAddress && !shopDoc.data()?.address
+            ? {address: receipt.storeAddress}
+            : {}),
+          ...(receipt.storePhone && !shopDoc.data()?.phone
+            ? {phone: receipt.storePhone}
+            : {}),
+        });
+      } else {
+        // Create new shop - automatically from receipt data
+        const newShop: Omit<Shop, 'createdAt' | 'updatedAt'> = {
+          id: shopId,
+          name: receipt.storeName,
+          nameNormalized: shopId,
+          address: receipt.storeAddress,
+          phone: receipt.storePhone,
+          receiptCount: 1,
+          totalSpent: receipt.total,
+          currency: receipt.currency,
+          lastVisit: receipt.date,
+        };
 
-      batch.set(shopRef, {
-        ...newShop,
-        lastVisit: firestore.Timestamp.fromDate(receipt.date),
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+        batch.set(shopRef, {
+          ...newShop,
+          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    } else {
+      // Direct update (no batch) - safer for background operations
+      if (shopDoc.exists) {
+        await shopRef.update({
+          receiptCount: firestore.FieldValue.increment(1),
+          totalSpent: firestore.FieldValue.increment(receipt.total),
+          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+          ...(receipt.storeAddress && !shopDoc.data()?.address
+            ? {address: receipt.storeAddress}
+            : {}),
+          ...(receipt.storePhone && !shopDoc.data()?.phone
+            ? {phone: receipt.storePhone}
+            : {}),
+        });
+      } else {
+        const newShop: Omit<Shop, 'createdAt' | 'updatedAt'> = {
+          id: shopId,
+          name: receipt.storeName,
+          nameNormalized: shopId,
+          address: receipt.storeAddress,
+          phone: receipt.storePhone,
+          receiptCount: 1,
+          totalSpent: receipt.total,
+          currency: receipt.currency,
+          lastVisit: receipt.date,
+        };
+
+        await shopRef.set({
+          ...newShop,
+          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
     }
   }
 

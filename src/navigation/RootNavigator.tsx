@@ -30,6 +30,7 @@ import {SettingsScreen} from '@/features/settings/screens';
 import {UpdateProfileScreen, BudgetSettingsScreen} from '@/features/profile/screens';
 
 // Phase 1.1 & 1.2 Screens
+import {NotificationsScreen} from '@/features/notifications';
 import {PriceAlertsScreen} from '@/features/alerts';
 import {ShoppingListScreen} from '@/features/shopping';
 import {AIAssistantScreen} from '@/features/assistant';
@@ -190,7 +191,7 @@ export function RootNavigator() {
       {/* Auth screens available for navigation */}
       <Stack.Screen
         name="SignIn"
-        component={SignInScreen}
+        component={LoginScreen}
         options={{animation: 'slide_from_right'}}
       />
       <Stack.Screen
@@ -274,6 +275,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="Stats"
         component={StatsScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
         options={{headerShown: false}}
       />
       <Stack.Screen

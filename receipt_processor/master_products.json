@@ -1,0 +1,774 @@
+{
+  "products": [
+    {
+      "product_id": "PROD_001",
+      "normalized_name": "plantain",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "banane plantain",
+        "plantain mûr"
+      ],
+      "aliases_en": [
+        "plantain",
+        "plantain banana",
+        "cooking banana"
+      ]
+    },
+    {
+      "product_id": "PROD_002",
+      "normalized_name": "banana",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "banane",
+        "banane douce"
+      ],
+      "aliases_en": [
+        "banana",
+        "sweet banana"
+      ]
+    },
+    {
+      "product_id": "PROD_003",
+      "normalized_name": "orange",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "orange",
+        "oranges"
+      ],
+      "aliases_en": [
+        "orange",
+        "oranges"
+      ]
+    },
+    {
+      "product_id": "PROD_004",
+      "normalized_name": "apple",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "pomme",
+        "pommes"
+      ],
+      "aliases_en": [
+        "apple",
+        "apples"
+      ]
+    },
+    {
+      "product_id": "PROD_005",
+      "normalized_name": "mango",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "mangue",
+        "mangues"
+      ],
+      "aliases_en": [
+        "mango",
+        "mangoes"
+      ]
+    },
+    {
+      "product_id": "PROD_006",
+      "normalized_name": "pineapple",
+      "category": "Fruits",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "ananas"
+      ],
+      "aliases_en": [
+        "pineapple"
+      ]
+    },
+    {
+      "product_id": "PROD_007",
+      "normalized_name": "papaya",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "papaye",
+        "pawpaw"
+      ],
+      "aliases_en": [
+        "papaya",
+        "pawpaw"
+      ]
+    },
+    {
+      "product_id": "PROD_008",
+      "normalized_name": "avocado",
+      "category": "Fruits",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "avocat",
+        "avocats"
+      ],
+      "aliases_en": [
+        "avocado",
+        "avocados"
+      ]
+    },
+    {
+      "product_id": "PROD_009",
+      "normalized_name": "lemon",
+      "category": "Fruits",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "citron",
+        "citrons"
+      ],
+      "aliases_en": [
+        "lemon",
+        "lemons"
+      ]
+    },
+    {
+      "product_id": "PROD_010",
+      "normalized_name": "watermelon",
+      "category": "Fruits",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "pastèque",
+        "melon d'eau"
+      ],
+      "aliases_en": [
+        "watermelon"
+      ]
+    },
+    {
+      "product_id": "PROD_020",
+      "normalized_name": "tomato",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "tomate",
+        "tomates"
+      ],
+      "aliases_en": [
+        "tomato",
+        "tomatoes"
+      ]
+    },
+    {
+      "product_id": "PROD_021",
+      "normalized_name": "onion",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "oignon",
+        "oignons"
+      ],
+      "aliases_en": [
+        "onion",
+        "onions"
+      ]
+    },
+    {
+      "product_id": "PROD_022",
+      "normalized_name": "garlic",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "ail"
+      ],
+      "aliases_en": [
+        "garlic"
+      ]
+    },
+    {
+      "product_id": "PROD_023",
+      "normalized_name": "carrot",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "carotte",
+        "carottes"
+      ],
+      "aliases_en": [
+        "carrot",
+        "carrots"
+      ]
+    },
+    {
+      "product_id": "PROD_024",
+      "normalized_name": "potato",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "pomme de terre",
+        "patate"
+      ],
+      "aliases_en": [
+        "potato",
+        "potatoes"
+      ]
+    },
+    {
+      "product_id": "PROD_025",
+      "normalized_name": "cassava",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "manioc",
+        "kwanga"
+      ],
+      "aliases_en": [
+        "cassava",
+        "manioc"
+      ]
+    },
+    {
+      "product_id": "PROD_026",
+      "normalized_name": "cabbage",
+      "category": "Vegetables",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "chou",
+        "choux"
+      ],
+      "aliases_en": [
+        "cabbage"
+      ]
+    },
+    {
+      "product_id": "PROD_027",
+      "normalized_name": "spinach",
+      "category": "Vegetables",
+      "unit_of_measure": "bunch",
+      "aliases_fr": [
+        "épinard",
+        "épinards"
+      ],
+      "aliases_en": [
+        "spinach"
+      ]
+    },
+    {
+      "product_id": "PROD_028",
+      "normalized_name": "pepper",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "poivre",
+        "piment",
+        "poivron"
+      ],
+      "aliases_en": [
+        "pepper",
+        "bell pepper",
+        "chili"
+      ]
+    },
+    {
+      "product_id": "PROD_029",
+      "normalized_name": "eggplant",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "aubergine",
+        "aubergines"
+      ],
+      "aliases_en": [
+        "eggplant",
+        "aubergine"
+      ]
+    },
+    {
+      "product_id": "PROD_030",
+      "normalized_name": "okra",
+      "category": "Vegetables",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "gombo",
+        "gombos"
+      ],
+      "aliases_en": [
+        "okra",
+        "lady finger"
+      ]
+    },
+    {
+      "product_id": "PROD_040",
+      "normalized_name": "chicken",
+      "category": "Proteins",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "poulet",
+        "poulets"
+      ],
+      "aliases_en": [
+        "chicken"
+      ]
+    },
+    {
+      "product_id": "PROD_041",
+      "normalized_name": "beef",
+      "category": "Proteins",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "boeuf",
+        "viande de boeuf"
+      ],
+      "aliases_en": [
+        "beef"
+      ]
+    },
+    {
+      "product_id": "PROD_042",
+      "normalized_name": "goat",
+      "category": "Proteins",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "chèvre",
+        "viande de chèvre"
+      ],
+      "aliases_en": [
+        "goat",
+        "goat meat"
+      ]
+    },
+    {
+      "product_id": "PROD_043",
+      "normalized_name": "fish",
+      "category": "Proteins",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "poisson",
+        "poissons"
+      ],
+      "aliases_en": [
+        "fish"
+      ]
+    },
+    {
+      "product_id": "PROD_044",
+      "normalized_name": "egg",
+      "category": "Proteins",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "oeuf",
+        "oeufs"
+      ],
+      "aliases_en": [
+        "egg",
+        "eggs"
+      ]
+    },
+    {
+      "product_id": "PROD_045",
+      "normalized_name": "tilapia",
+      "category": "Proteins",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "tilapia"
+      ],
+      "aliases_en": [
+        "tilapia"
+      ]
+    },
+    {
+      "product_id": "PROD_046",
+      "normalized_name": "sardine",
+      "category": "Proteins",
+      "unit_of_measure": "can",
+      "aliases_fr": [
+        "sardine",
+        "sardines"
+      ],
+      "aliases_en": [
+        "sardine",
+        "sardines"
+      ]
+    },
+    {
+      "product_id": "PROD_050",
+      "normalized_name": "milk",
+      "category": "Dairy",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "lait"
+      ],
+      "aliases_en": [
+        "milk"
+      ]
+    },
+    {
+      "product_id": "PROD_051",
+      "normalized_name": "butter",
+      "category": "Dairy",
+      "unit_of_measure": "g",
+      "aliases_fr": [
+        "beurre"
+      ],
+      "aliases_en": [
+        "butter"
+      ]
+    },
+    {
+      "product_id": "PROD_052",
+      "normalized_name": "cheese",
+      "category": "Dairy",
+      "unit_of_measure": "g",
+      "aliases_fr": [
+        "fromage"
+      ],
+      "aliases_en": [
+        "cheese"
+      ]
+    },
+    {
+      "product_id": "PROD_053",
+      "normalized_name": "yogurt",
+      "category": "Dairy",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "yaourt",
+        "yogourt"
+      ],
+      "aliases_en": [
+        "yogurt",
+        "yoghurt"
+      ]
+    },
+    {
+      "product_id": "PROD_060",
+      "normalized_name": "rice",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "riz"
+      ],
+      "aliases_en": [
+        "rice"
+      ]
+    },
+    {
+      "product_id": "PROD_061",
+      "normalized_name": "flour",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "farine"
+      ],
+      "aliases_en": [
+        "flour"
+      ]
+    },
+    {
+      "product_id": "PROD_062",
+      "normalized_name": "bread",
+      "category": "Grains",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "pain"
+      ],
+      "aliases_en": [
+        "bread"
+      ]
+    },
+    {
+      "product_id": "PROD_063",
+      "normalized_name": "pasta",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "pâtes",
+        "spaghetti",
+        "macaroni"
+      ],
+      "aliases_en": [
+        "pasta",
+        "spaghetti",
+        "macaroni"
+      ]
+    },
+    {
+      "product_id": "PROD_064",
+      "normalized_name": "corn",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "maïs"
+      ],
+      "aliases_en": [
+        "corn",
+        "maize"
+      ]
+    },
+    {
+      "product_id": "PROD_065",
+      "normalized_name": "beans",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "haricots",
+        "haricot"
+      ],
+      "aliases_en": [
+        "beans",
+        "kidney beans"
+      ]
+    },
+    {
+      "product_id": "PROD_066",
+      "normalized_name": "peanuts",
+      "category": "Grains",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "arachides",
+        "cacahuètes"
+      ],
+      "aliases_en": [
+        "peanuts",
+        "groundnuts"
+      ]
+    },
+    {
+      "product_id": "PROD_070",
+      "normalized_name": "palm_oil",
+      "category": "Oils",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "huile de palme",
+        "huile rouge"
+      ],
+      "aliases_en": [
+        "palm oil",
+        "red oil"
+      ]
+    },
+    {
+      "product_id": "PROD_071",
+      "normalized_name": "vegetable_oil",
+      "category": "Oils",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "huile végétale",
+        "huile"
+      ],
+      "aliases_en": [
+        "vegetable oil",
+        "cooking oil"
+      ]
+    },
+    {
+      "product_id": "PROD_072",
+      "normalized_name": "salt",
+      "category": "Condiments",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "sel"
+      ],
+      "aliases_en": [
+        "salt"
+      ]
+    },
+    {
+      "product_id": "PROD_073",
+      "normalized_name": "sugar",
+      "category": "Condiments",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "sucre"
+      ],
+      "aliases_en": [
+        "sugar"
+      ]
+    },
+    {
+      "product_id": "PROD_074",
+      "normalized_name": "tomato_paste",
+      "category": "Condiments",
+      "unit_of_measure": "can",
+      "aliases_fr": [
+        "concentré de tomate",
+        "pâte de tomate"
+      ],
+      "aliases_en": [
+        "tomato paste",
+        "tomato puree"
+      ]
+    },
+    {
+      "product_id": "PROD_075",
+      "normalized_name": "mayonnaise",
+      "category": "Condiments",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "mayonnaise",
+        "mayo"
+      ],
+      "aliases_en": [
+        "mayonnaise",
+        "mayo"
+      ]
+    },
+    {
+      "product_id": "PROD_076",
+      "normalized_name": "maggi",
+      "category": "Condiments",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "maggi",
+        "cube maggi"
+      ],
+      "aliases_en": [
+        "maggi",
+        "bouillon cube"
+      ]
+    },
+    {
+      "product_id": "PROD_080",
+      "normalized_name": "water",
+      "category": "Beverages",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "eau",
+        "eau minérale"
+      ],
+      "aliases_en": [
+        "water",
+        "mineral water"
+      ]
+    },
+    {
+      "product_id": "PROD_081",
+      "normalized_name": "soda",
+      "category": "Beverages",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "soda",
+        "boisson gazeuse"
+      ],
+      "aliases_en": [
+        "soda",
+        "soft drink"
+      ]
+    },
+    {
+      "product_id": "PROD_082",
+      "normalized_name": "juice",
+      "category": "Beverages",
+      "unit_of_measure": "L",
+      "aliases_fr": [
+        "jus",
+        "jus de fruit"
+      ],
+      "aliases_en": [
+        "juice",
+        "fruit juice"
+      ]
+    },
+    {
+      "product_id": "PROD_083",
+      "normalized_name": "beer",
+      "category": "Beverages",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "bière",
+        "primus",
+        "skol"
+      ],
+      "aliases_en": [
+        "beer"
+      ]
+    },
+    {
+      "product_id": "PROD_084",
+      "normalized_name": "coffee",
+      "category": "Beverages",
+      "unit_of_measure": "g",
+      "aliases_fr": [
+        "café"
+      ],
+      "aliases_en": [
+        "coffee"
+      ]
+    },
+    {
+      "product_id": "PROD_085",
+      "normalized_name": "tea",
+      "category": "Beverages",
+      "unit_of_measure": "g",
+      "aliases_fr": [
+        "thé"
+      ],
+      "aliases_en": [
+        "tea"
+      ]
+    },
+    {
+      "product_id": "PROD_090",
+      "normalized_name": "soap",
+      "category": "Hygiene",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "savon"
+      ],
+      "aliases_en": [
+        "soap"
+      ]
+    },
+    {
+      "product_id": "PROD_091",
+      "normalized_name": "detergent",
+      "category": "Hygiene",
+      "unit_of_measure": "kg",
+      "aliases_fr": [
+        "détergent",
+        "omo",
+        "ariel"
+      ],
+      "aliases_en": [
+        "detergent",
+        "washing powder"
+      ]
+    },
+    {
+      "product_id": "PROD_092",
+      "normalized_name": "toothpaste",
+      "category": "Hygiene",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "dentifrice"
+      ],
+      "aliases_en": [
+        "toothpaste"
+      ]
+    },
+    {
+      "product_id": "PROD_093",
+      "normalized_name": "toilet_paper",
+      "category": "Hygiene",
+      "unit_of_measure": "roll",
+      "aliases_fr": [
+        "papier toilette",
+        "papier hygiénique"
+      ],
+      "aliases_en": [
+        "toilet paper",
+        "toilet roll"
+      ]
+    },
+    {
+      "product_id": "PROD_094",
+      "normalized_name": "diapers",
+      "category": "Baby",
+      "unit_of_measure": "pack",
+      "aliases_fr": [
+        "couches",
+        "pampers"
+      ],
+      "aliases_en": [
+        "diapers",
+        "nappies",
+        "pampers"
+      ]
+    }
+  ],
+  "version": "1.0.0",
+  "last_updated": "2024-12-13"
+}

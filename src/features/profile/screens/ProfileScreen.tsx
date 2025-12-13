@@ -22,7 +22,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon} from '@/shared/components';
+import {Icon, AppFooter} from '@/shared/components';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {firebase} from '@react-native-firebase/functions';
@@ -245,11 +245,7 @@ export function ProfileScreen() {
           />
           <StatCard
             icon="wallet"
-            value={
-              profile?.monthlyBudget
-                ? formatCurrency(profile.monthlyBudget, profile.preferredCurrency)
-                : 'Non défini'
-            }
+            value={formatCurrency(profile?.monthlyBudget || 0, profile?.preferredCurrency || 'USD')}
             label="Budget"
             color="cosmos"
           />
@@ -263,7 +259,7 @@ export function ProfileScreen() {
               ? styles.subscriptionCardPremium
               : styles.subscriptionCardFree,
           ]}
-          onPress={() => navigation.navigate('Subscription')}
+          onPress={() => navigation.push('Subscription')}
           activeOpacity={0.8}>
           <View style={styles.subscriptionLeft}>
             <View
@@ -305,7 +301,7 @@ export function ProfileScreen() {
               iconColor="red"
               onPress={() => {
                 analyticsService.logCustomEvent('profile_update_started');
-                navigation.navigate('UpdateProfile');
+                navigation.push('UpdateProfile');
               }}
             />
             <MenuItem
@@ -313,7 +309,7 @@ export function ProfileScreen() {
               title="Ville par défaut"
               subtitle={profile?.defaultCity || 'Non définie'}
               iconColor="cosmos"
-              onPress={() => navigation.navigate('CitySelection')}
+              onPress={() => navigation.push('CitySelection')}
             />
           </View>
         </View>
@@ -324,24 +320,18 @@ export function ProfileScreen() {
             <MenuItem
               icon="wallet"
               title="Paramètres du Budget"
-              subtitle={profile?.monthlyBudget ? `${formatCurrency(profile.monthlyBudget, profile.preferredCurrency)} / mois` : 'Non défini'}
+              subtitle={profile?.monthlyBudget ? `${formatCurrency(profile.monthlyBudget, profile.preferredCurrency)} / mois` : `${formatCurrency(0, profile?.preferredCurrency || 'USD')} / mois`}
               iconColor="crimson"
               onPress={() => {
                 analyticsService.logCustomEvent('budget_settings_opened');
-                navigation.navigate('BudgetSettings');
+                navigation.push('BudgetSettings');
               }}
-            />
-            <MenuItem
-              icon="bell"
-              title="Notifications"
-              iconColor="blue"
-              onPress={() => navigation.navigate('Settings')}
             />
             <MenuItem
               icon="settings"
               title="Paramètres"
               iconColor="cosmos"
-              onPress={() => navigation.navigate('Settings')}
+              onPress={() => navigation.push('Settings')}
             />
             <MenuItem
               icon="help"
@@ -359,7 +349,7 @@ export function ProfileScreen() {
               icon="trophy"
               title="Mes succès"
               iconColor="red"
-              onPress={() => navigation.navigate('Achievements')}
+              onPress={() => navigation.push('Achievements')}
             />
             <MenuItem
               icon="file-text"
@@ -376,8 +366,8 @@ export function ProfileScreen() {
           <Text style={styles.signOutText}>Se déconnecter</Text>
         </TouchableOpacity>
 
-        {/* App Version */}
-        <Text style={styles.versionText}>GoShopper AI v1.0.0</Text>
+        {/* App Footer */}
+        <AppFooter compact />
       </ScrollView>
     </SafeAreaView>
   );

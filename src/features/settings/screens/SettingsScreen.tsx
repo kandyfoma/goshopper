@@ -25,7 +25,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, AppFooter} from '@/shared/components';
 import {useDynamicType} from '@/shared/hooks';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatDate} from '@/shared/utils/helpers';
@@ -53,6 +53,18 @@ function SettingItem({
   danger = false,
   iconBgColor,
 }: SettingItemProps) {
+  // Determine if background is dark (cosmos, red, crimson)
+  const isDarkBg = iconBgColor && (
+    iconBgColor === Colors.card.cosmos || 
+    iconBgColor === Colors.card.crimson || 
+    iconBgColor === Colors.card.red
+  );
+  const iconColor = danger 
+    ? Colors.status.error 
+    : isDarkBg 
+      ? Colors.text.inverse 
+      : Colors.text.primary;
+  
   return (
     <TouchableOpacity
       style={styles.settingItem}
@@ -68,7 +80,7 @@ function SettingItem({
         <Icon
           name={icon}
           size="sm"
-          color={danger ? Colors.status.error : Colors.text.primary}
+          color={iconColor}
         />
       </View>
       <View style={styles.settingContent}>
@@ -219,11 +231,11 @@ export function SettingsScreen() {
   };
 
   const handlePrivacyPolicy = () => {
-    navigation.navigate('PrivacyPolicy');
+    navigation.push('PrivacyPolicy');
   };
 
   const handleTermsOfService = () => {
-    navigation.navigate('TermsOfService');
+    navigation.push('TermsOfService');
   };
 
   return (
@@ -283,7 +295,7 @@ export function SettingsScreen() {
         <SlideIn delay={200}>
           <TouchableOpacity
             style={styles.subscriptionCard}
-            onPress={() => navigation.navigate('Subscription')}
+            onPress={() => navigation.push('Subscription')}
             activeOpacity={0.9}>
             <LinearGradient
               colors={[Colors.card.crimson, Colors.card.red]}
@@ -431,7 +443,7 @@ export function SettingsScreen() {
               subtitle="Gérer vos alertes de prix"
               showArrow={true}
               iconBgColor={Colors.card.cream}
-              onPress={() => navigation.navigate('PriceAlerts')}
+              onPress={() => navigation.push('PriceAlerts')}
             />
           </SettingSection>
         </SlideIn>
@@ -457,50 +469,7 @@ export function SettingsScreen() {
               title="FAQ"
               subtitle="Questions fréquentes"
               iconBgColor={Colors.card.red}
-              onPress={() => navigation.navigate('FAQ')}
-            />
-          </SettingSection>
-        </SlideIn>
-
-        <SlideIn delay={500}>
-          <SettingSection title="Fonctionnalités">
-            <SettingItem
-              icon="trophy"
-              title="Succès"
-              subtitle="Découvrez vos achievements"
-              iconBgColor={Colors.card.cream}
-              onPress={() => navigation.navigate('Achievements')}
-            />
-            <SettingItem
-              icon="shopping-bag"
-              title="Liste de courses"
-              subtitle="Gérer vos listes d'achats"
-              iconBgColor={Colors.card.crimson}
-              onPress={() => navigation.navigate('ShoppingList')}
-            />
-            <SettingItem
-              icon="bot"
-              title="Assistant IA"
-              subtitle="Discutez avec l'assistant intelligent"
-              iconBgColor={Colors.card.cosmos}
-              onPress={() => navigation.navigate('AIAssistant')}
-            />
-          </SettingSection>
-        </SlideIn>
-
-        <SlideIn delay={600}>
-          <SettingSection title="Légal">
-            <SettingItem
-              icon="lock"
-              title="Politique de confidentialité"
-              iconBgColor={Colors.card.red}
-              onPress={handlePrivacyPolicy}
-            />
-            <SettingItem
-              icon="document"
-              title="Conditions d'utilisation"
-              iconBgColor={Colors.card.cosmos}
-              onPress={handleTermsOfService}
+              onPress={() => navigation.push('FAQ')}
             />
           </SettingSection>
         </SlideIn>
@@ -530,18 +499,9 @@ export function SettingsScreen() {
           </SettingSection>
         </SlideIn>
 
-        {/* App Info */}
+        {/* App Footer */}
         <FadeIn delay={700}>
-          <View style={styles.appInfo}>
-            <View style={styles.appLogoContainer}>
-              <Icon name="cart" size="md" color={Colors.primary} />
-            </View>
-            <Text style={styles.appName}>GoShopperAI</Text>
-            <Text style={styles.appVersion}>Version 1.0.0</Text>
-            <Text style={styles.appCopyright}>
-              © 2024 GoShopperAI. Tous droits réservés.
-            </Text>
-          </View>
+          <AppFooter />
         </FadeIn>
       </ScrollView>
     </SafeAreaView>
