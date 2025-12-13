@@ -11,7 +11,6 @@ import {Colors} from '@/shared/theme/theme';
 // Screens
 import {MainTabNavigator} from './MainTabNavigator';
 import {
-  WelcomeScreen,
   LoginScreen,
   RegisterScreen,
   ForgotPasswordScreen,
@@ -19,6 +18,7 @@ import {
   ChangePasswordScreen,
   ProfileSetupScreen,
 } from '@/features/onboarding/screens';
+import {WelcomeScreen} from '@/features/onboarding/screens/WelcomeScreenSimple';
 import {SignInScreen} from '@/features/auth/screens/SignInScreen';
 import {
   UnifiedScannerScreen,
@@ -63,11 +63,7 @@ export function RootNavigator() {
       try {
         const hasSeenOnboarding = await AsyncStorage.getItem(ONBOARDING_KEY);
         setIsFirstLaunch(hasSeenOnboarding === null);
-
-        // Mark onboarding as complete for future launches
-        if (hasSeenOnboarding === null) {
-          await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-        }
+        // Don't mark onboarding as complete here - let WelcomeScreen do it when user completes it
       } catch (error) {
         // If error, assume first launch
         setIsFirstLaunch(true);
@@ -146,11 +142,20 @@ export function RootNavigator() {
     isAuthenticated,
     'profileComplete:',
     isProfileComplete,
+    'isFirstLaunch:',
+    isFirstLaunch,
   );
 
-  // If authenticated and profile is not complete, show profile setup first
-  const initialRoute =
-    isAuthenticated && isProfileComplete === false ? 'ProfileSetup' : 'Main';
+  // Determine initial route based on state
+  let initialRoute: keyof RootStackParamList = 'Main';
+  
+  if (isFirstLaunch) {
+    // First time user - show Welcome screen
+    initialRoute = 'Welcome';
+  } else if (isAuthenticated && isProfileComplete === false) {
+    // Authenticated but profile incomplete - show profile setup
+    initialRoute = 'ProfileSetup';
+  }
 
   return (
     <Stack.Navigator
@@ -159,6 +164,17 @@ export function RootNavigator() {
         headerShown: false,
         animation: 'slide_from_right',
       }}>
+      {/* Welcome Screen - shown for first-time users */}
+      {isFirstLaunch && (
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{
+            animation: 'fade',
+            gestureEnabled: false,
+          }}
+        />
+      )}
       {/* Profile Setup - shown first if authenticated but profile incomplete */}
       {isAuthenticated && isProfileComplete === false && (
         <Stack.Screen

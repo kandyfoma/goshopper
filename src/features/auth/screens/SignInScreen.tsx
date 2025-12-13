@@ -23,13 +23,13 @@ import {hapticService} from '@/shared/services';
 const URBANIST_COLORS = {
   background: '#FFFFFF',
   cardBg: '#FFFFFF',
-  primaryAccent: '#D8DFE9',
-  secondaryAccent: '#CFDECA',
-  highlightAccent: '#EFF0A3',
+  primaryAccent: '#669BBC',
+  secondaryAccent: '#FDF0D5',
+  highlightAccent: '#F5E6C3',
   textPrimary: '#212121',
   textSecondary: '#6B7280',
   textMuted: '#9CA3AF',
-  primary: '#8B5CF6',
+  primary: '#C1121F',
   border: '#E5E7EB',
 };
 
@@ -275,3 +275,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

@@ -15,7 +15,7 @@ const URBANIST_COLORS = {
   background: '#FFFFFF',
   cardBg: '#FFFFFF',
   primaryAccent: '#D8DFE9',
-  secondaryAccent: '#CFDECA',
+  secondaryAccent: '#FDF0D5',
   highlightAccent: '#EFF0A3',
   textPrimary: '#212121',
   textSecondary: '#6B7280',
@@ -168,3 +168,4 @@ const styles = StyleSheet.create({
 });
 
 export default EmptyState;
+

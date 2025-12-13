@@ -1,0 +1,7 @@
+<svg width="108" height="108" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+  <!-- Letter G centered in safe zone (18px padding on each side) -->
+  <g transform="translate(27, 22)">
+    <path d="M27 0C12.1 0 0 12.1 0 27C0 41.9 12.1 54 27 54C32.5 54 37.5 52.5 41.7 49.8V30.4H23.6V38.8H33.3V43.5C31.4 44.3 29.3 44.8 27 44.8C15.8 44.8 8.5 36.8 8.5 27C8.5 15.8 17.3 8.5 27 8.5C35 8.5 41.8 13.1 44.8 19.8L52.4 14.8C47.3 5.7 38 0 27 0Z" 
+          fill="#FDF0D5"/>
+  </g>
+</svg>

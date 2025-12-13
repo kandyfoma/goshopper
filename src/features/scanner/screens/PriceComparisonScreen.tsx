@@ -14,6 +14,7 @@ import functions from '@react-native-firebase/functions';
 import {RootStackParamList, PriceComparison} from '@/shared/types';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency} from '@/shared/utils/helpers';
+import {Icon} from '@/shared/components';
 
 type PriceComparisonRouteProp = RouteProp<
   RootStackParamList,
@@ -133,9 +134,23 @@ export function PriceComparisonScreen() {
         contentContainerStyle={styles.scrollContent}>
         {/* Savings Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryIcon}>
-            {totalSavings > 0 ? '💡' : '🎉'}
-          </Text>
+          <View style={styles.summaryIconContainer}>
+            {totalSavings > 0 ? (
+              <Icon 
+                name="help-circle" 
+                size="2xl" 
+                color={COLORS.primary[500]}
+                variant="filled"
+              />
+            ) : (
+              <Icon 
+                name="gift" 
+                size="2xl" 
+                color={COLORS.info}
+                variant="filled"
+              />
+            )}
+          </View>
           {totalSavings > 0 ? (
             <>
               <Text style={styles.summaryTitle}>Économie potentielle</Text>
@@ -253,9 +268,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  summaryIcon: {
-    fontSize: 48,
+  summaryIconContainer: {
     marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summaryTitle: {
     fontSize: 18,

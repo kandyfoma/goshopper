@@ -124,10 +124,10 @@ export const SUBSCRIPTION_PLANS = {
 
 // Mobile Money Providers
 export const MOBILE_MONEY_PROVIDERS = [
-  {id: 'mpesa', name: 'M-Pesa', icon: '📱'},
-  {id: 'orange', name: 'Orange Money', icon: '🟠'},
-  {id: 'airtel', name: 'Airtel Money', icon: '🔴'},
-  {id: 'afrimoney', name: 'AfriMoney', icon: '💚'},
+  {id: 'mpesa', name: 'M-Pesa', icon: 'phone'},
+  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF7F00'},
+  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#C1121F'},
+  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#00A86B'},
 ] as const;
 
 // UI Constants

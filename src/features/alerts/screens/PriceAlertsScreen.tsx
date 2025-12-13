@@ -431,7 +431,7 @@ export function PriceAlertsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.background.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xxl,
+    padding: Spacing['2xl'],
   },
   emptyIconContainer: {
     width: 100,
@@ -581,6 +581,12 @@ const styles = StyleSheet.create({
     color: Colors.text.tertiary,
     marginTop: Spacing.xs,
   },
+  alertCityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
   triggeredBadge: {
     backgroundColor: Colors.card.cream,
     paddingHorizontal: Spacing.sm,
@@ -599,7 +605,18 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.border.medium,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  priceLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
   },
   currentPrice: {
     fontSize: Typography.fontSize.md,
@@ -619,7 +636,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.border.medium,
   },
   toggleButton: {
     backgroundColor: Colors.card.cream,
@@ -721,7 +738,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   createButtonDisabled: {
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.border.light,
   },
   createButtonText: {
     fontSize: Typography.fontSize.md,

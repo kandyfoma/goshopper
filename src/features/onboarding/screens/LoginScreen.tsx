@@ -1,4 +1,4 @@
-// Login Screen - Comprehensive authentication with Urbanist design
+// Login Screen - Comprehensive authentication with GOCHUJANG design
 import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
@@ -23,22 +23,22 @@ import {authService} from '@/shared/services/firebase';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {useAuth} from '@/shared/contexts';
 import {Icon} from '@/shared/components';
-import {logoUrbanistSvg} from '../../../../assets/logo-icon';
+import {logoGochujangSvg} from '../../../../assets/logo-icon';
 
-// Urbanist Design Colors
-const URBANIST = {
+// Gochujang Warm Design Colors
+const GOCHUJANG = {
   background: '#FFFFFF', // White
   cardBg: '#FFFFFF',
-  primaryAccent: '#D8DFE9', // Alice Blue
-  secondaryAccent: '#CFDECA', // Honeydew
-  highlightAccent: '#EFF0A3', // Vanilla
-  textPrimary: '#212121', // Eerie Black
-  textSecondary: '#6B7280',
-  textMuted: '#9CA3AF',
-  primary: '#8B5CF6',
-  success: '#10B981',
-  error: '#EF4444',
-  border: '#E5E7EB',
+  primaryAccent: '#669BBC', // Blue Marble
+  secondaryAccent: '#FDF0D5', // Varden Cream
+  highlightAccent: '#F5E6C3', // Warm Beige
+  textPrimary: '#780000', // Gochujang Red
+  textSecondary: '#003049', // Cosmos Blue
+  textMuted: '#669BBC', // Blue Marble
+  primary: '#C1121F', // Crimson Blaze
+  success: '#22C55E',
+  error: '#C1121F', // Crimson Blaze
+  border: '#F5E6C3',
   white: '#FFFFFF',
 };
 
@@ -344,7 +344,7 @@ export function LoginScreen() {
             {/* Logo & Title */}
             <View style={styles.logoSection}>
               <View style={styles.logoWrapper}>
-                <SvgXml xml={logoUrbanistSvg} width={80} height={80} />
+                <SvgXml xml={logoGochujangSvg} width={80} height={80} />
               </View>
               <Text style={styles.appName}>GoShopperAI</Text>
               <Text style={styles.tagline}>
@@ -355,7 +355,7 @@ export function LoginScreen() {
             {/* Success Message */}
             {successMessage && (
               <View style={styles.successBanner}>
-                <Icon name="check-circle" size="sm" color={URBANIST.success} />
+                <Icon name="check-circle" size="sm" color={GOCHUJANG.success} />
                 <Text style={styles.successText}>{successMessage}</Text>
               </View>
             )}
@@ -367,7 +367,7 @@ export function LoginScreen() {
                   styles.errorBanner,
                   {transform: [{translateX: shakeAnimation}]},
                 ]}>
-                <Icon name="alert-triangle" size="sm" color={URBANIST.error} />
+                <Icon name="alert-triangle" size="sm" color={GOCHUJANG.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </Animated.View>
             )}
@@ -383,11 +383,11 @@ export function LoginScreen() {
                     !!emailError && styles.inputError,
                     isLoading && styles.inputDisabled,
                   ]}>
-                  <Icon name="mail" size="sm" color={URBANIST.textMuted} />
+                  <Icon name="mail" size="sm" color={GOCHUJANG.textMuted} />
                   <TextInput
                     style={styles.input}
                     placeholder="votre@email.com"
-                    placeholderTextColor={URBANIST.textMuted}
+                    placeholderTextColor={GOCHUJANG.textMuted}
                     value={email}
                     onChangeText={handleEmailChange}
                     keyboardType="email-address"
@@ -412,12 +412,12 @@ export function LoginScreen() {
                     !!passwordError && styles.inputError,
                     isLoading && styles.inputDisabled,
                   ]}>
-                  <Icon name="lock" size="sm" color={URBANIST.textMuted} />
+                  <Icon name="lock" size="sm" color={GOCHUJANG.textMuted} />
                   <TextInput
                     ref={passwordInputRef}
                     style={styles.input}
                     placeholder="••••••••"
-                    placeholderTextColor={URBANIST.textMuted}
+                    placeholderTextColor={GOCHUJANG.textMuted}
                     value={password}
                     onChangeText={handlePasswordChange}
                     secureTextEntry={!showPassword}
@@ -433,7 +433,7 @@ export function LoginScreen() {
                     <Icon
                       name={showPassword ? 'eye' : 'eye-off'}
                       size="sm"
-                      color={URBANIST.textMuted}
+                      color={GOCHUJANG.textMuted}
                     />
                   </TouchableOpacity>
                 </View>
@@ -459,11 +459,11 @@ export function LoginScreen() {
                 disabled={isLoading}
                 activeOpacity={0.8}>
                 {loading ? (
-                  <ActivityIndicator color={URBANIST.white} size="small" />
+                  <ActivityIndicator color={GOCHUJANG.white} size="small" />
                 ) : (
                   <>
                     <Text style={styles.loginButtonText}>Se connecter</Text>
-                    <Icon name="arrow-right" size="sm" color={URBANIST.white} />
+                    <Icon name="arrow-right" size="sm" color={GOCHUJANG.white} />
                   </>
                 )}
               </TouchableOpacity>
@@ -491,7 +491,7 @@ export function LoginScreen() {
                     {socialLoading === 'google' ? (
                       <ActivityIndicator
                         size="small"
-                        color={URBANIST.textPrimary}
+                        color={GOCHUJANG.textPrimary}
                       />
                     ) : (
                       <>
@@ -517,10 +517,10 @@ export function LoginScreen() {
                     disabled={isLoading}
                     activeOpacity={0.7}>
                     {socialLoading === 'apple' ? (
-                      <ActivityIndicator size="small" color={URBANIST.white} />
+                      <ActivityIndicator size="small" color={GOCHUJANG.white} />
                     ) : (
                       <>
-                        <Icon name="apple" size="sm" color={URBANIST.white} />
+                        <Icon name="apple" size="sm" color={GOCHUJANG.white} />
                         <Text
                           style={[
                             styles.socialButtonText,
@@ -552,13 +552,13 @@ export function LoginScreen() {
                     disabled={isLoading || biometricLoading}
                     activeOpacity={0.7}>
                     {biometricLoading ? (
-                      <ActivityIndicator size="small" color={URBANIST.primary} />
+                      <ActivityIndicator size="small" color={GOCHUJANG.primary} />
                     ) : (
                       <>
                         <Icon
                           name={biometricService.getBiometryIcon(biometricStatus.biometryType)}
                           size="md"
-                          color={URBANIST.primary}
+                          color={GOCHUJANG.primary}
                         />
                         <Text style={styles.biometricButtonText}>
                           Connexion avec {biometricService.getBiometryDisplayName(biometricStatus.biometryType)}
@@ -607,7 +607,7 @@ export function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: URBANIST.background,
+    backgroundColor: GOCHUJANG.background,
   },
   header: {
     flexDirection: 'row',
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   skipButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: URBANIST.cardBg,
+    backgroundColor: GOCHUJANG.cardBg,
     borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 14,
-    color: URBANIST.textSecondary,
+    color: GOCHUJANG.textSecondary,
     fontWeight: '600',
   },
   keyboardView: {
@@ -664,13 +664,13 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 32,
     fontWeight: '700',
-    color: URBANIST.textPrimary,
+    color: GOCHUJANG.textPrimary,
     letterSpacing: -0.5,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 16,
-    color: URBANIST.textSecondary,
+    color: GOCHUJANG.textSecondary,
     textAlign: 'center',
   },
 
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   },
   successText: {
     flex: 1,
-    color: URBANIST.success,
+    color: GOCHUJANG.success,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -701,14 +701,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: URBANIST.error,
+    color: GOCHUJANG.error,
     fontSize: 14,
     fontWeight: '500',
   },
 
   // Login Card
   loginCard: {
-    backgroundColor: URBANIST.cardBg,
+    backgroundColor: GOCHUJANG.cardBg,
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
@@ -726,21 +726,21 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: URBANIST.textPrimary,
+    color: GOCHUJANG.textPrimary,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: URBANIST.background,
+    backgroundColor: GOCHUJANG.background,
     borderWidth: 1.5,
-    borderColor: URBANIST.border,
+    borderColor: GOCHUJANG.border,
     borderRadius: 14,
     paddingHorizontal: 14,
     gap: 10,
   },
   inputError: {
-    borderColor: URBANIST.error,
+    borderColor: GOCHUJANG.error,
     backgroundColor: '#FEF2F2',
   },
   inputDisabled: {
@@ -750,13 +750,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     fontSize: 16,
-    color: URBANIST.textPrimary,
+    color: GOCHUJANG.textPrimary,
   },
   eyeButton: {
     padding: 4,
   },
   fieldError: {
-    color: URBANIST.error,
+    color: GOCHUJANG.error,
     fontSize: 13,
     marginTop: 6,
     marginLeft: 4,
@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: URBANIST.primary,
+    color: GOCHUJANG.primary,
     fontWeight: '600',
   },
 
@@ -778,7 +778,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: URBANIST.textPrimary,
+    backgroundColor: GOCHUJANG.textPrimary,
     borderRadius: 14,
     paddingVertical: 16,
     gap: 8,
@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: URBANIST.white,
+    color: GOCHUJANG.white,
   },
 
   // Divider
@@ -806,12 +806,12 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: URBANIST.border,
+    backgroundColor: GOCHUJANG.border,
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 13,
-    color: URBANIST.textMuted,
+    color: GOCHUJANG.textMuted,
   },
 
   // Social Buttons
@@ -824,9 +824,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: URBANIST.cardBg,
+    backgroundColor: GOCHUJANG.cardBg,
     borderWidth: 1.5,
-    borderColor: URBANIST.border,
+    borderColor: GOCHUJANG.border,
     borderRadius: 14,
     paddingVertical: 14,
     gap: 8,
@@ -843,14 +843,14 @@ const styles = StyleSheet.create({
   socialButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: URBANIST.textPrimary,
+    color: GOCHUJANG.textPrimary,
   },
   appleButton: {
-    backgroundColor: URBANIST.textPrimary,
-    borderColor: URBANIST.textPrimary,
+    backgroundColor: GOCHUJANG.textPrimary,
+    borderColor: GOCHUJANG.textPrimary,
   },
   appleButtonText: {
-    color: URBANIST.white,
+    color: GOCHUJANG.white,
   },
 
   // Biometric Button
@@ -858,9 +858,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: URBANIST.cardBg,
+    backgroundColor: GOCHUJANG.cardBg,
     borderWidth: 2,
-    borderColor: URBANIST.primary,
+    borderColor: GOCHUJANG.primary,
     borderRadius: 14,
     paddingVertical: 16,
     gap: 12,
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
   biometricButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: URBANIST.primary,
+    color: GOCHUJANG.primary,
   },
 
   // Register Row
@@ -880,23 +880,25 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
-    color: URBANIST.textSecondary,
+    color: GOCHUJANG.textSecondary,
   },
   registerLink: {
     fontSize: 14,
     fontWeight: '700',
-    color: URBANIST.primary,
+    color: GOCHUJANG.primary,
   },
 
   // Terms
   termsText: {
     fontSize: 13,
-    color: URBANIST.textMuted,
+    color: GOCHUJANG.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
   termsLink: {
-    color: URBANIST.primary,
+    color: GOCHUJANG.primary,
     fontWeight: '600',
   },
 });
+
+

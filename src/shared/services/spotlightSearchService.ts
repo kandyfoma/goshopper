@@ -79,9 +79,13 @@ class SpotlightSearchService {
     this.isAvailable = await loadSearchApi();
     
     if (this.isAvailable && SearchApi) {
-      // Set up listener for search result selections
-      SearchApi.addOnSpotlightItemPressedListener(this.handleSearchItemPressed);
-      console.log('Spotlight Search: Initialized successfully');
+      // Set up listener for search result selections only if the method exists
+      if (typeof SearchApi.addOnSpotlightItemPressedListener === 'function') {
+        SearchApi.addOnSpotlightItemPressedListener(this.handleSearchItemPressed);
+        console.log('Spotlight Search: Initialized successfully');
+      } else {
+        console.log('Spotlight Search: API loaded but listener not available');
+      }
     }
   }
 
@@ -213,7 +217,9 @@ class SpotlightSearchService {
     if (!this.isAvailable || !SearchApi) return;
 
     try {
-      await SearchApi.deleteSpotlightItem(`receipt:${receiptId}`);
+      if (typeof SearchApi.deleteSpotlightItem === 'function') {
+        await SearchApi.deleteSpotlightItem(`receipt:${receiptId}`);
+      }
       this.indexedReceiptIds.delete(receiptId);
     } catch (error) {
       console.error('Spotlight Search: Failed to remove receipt', error);
@@ -227,7 +233,9 @@ class SpotlightSearchService {
     if (!this.isAvailable || !SearchApi) return;
 
     try {
-      await SearchApi.deleteSpotlightItem(`item:${itemId}`);
+      if (typeof SearchApi.deleteSpotlightItem === 'function') {
+        await SearchApi.deleteSpotlightItem(`item:${itemId}`);
+      }
       this.indexedItemIds.delete(itemId);
     } catch (error) {
       console.error('Spotlight Search: Failed to remove item', error);
@@ -241,7 +249,9 @@ class SpotlightSearchService {
     if (!this.isAvailable || !SearchApi) return;
 
     try {
-      await SearchApi.deleteSpotlightItem(`shop:${shopId}`);
+      if (typeof SearchApi.deleteSpotlightItem === 'function') {
+        await SearchApi.deleteSpotlightItem(`shop:${shopId}`);
+      }
       this.indexedShopIds.delete(shopId);
     } catch (error) {
       console.error('Spotlight Search: Failed to remove shop', error);
@@ -255,7 +265,9 @@ class SpotlightSearchService {
     if (!this.isAvailable || !SearchApi) return;
 
     try {
-      await SearchApi.deleteAllSpotlightItems();
+      if (typeof SearchApi.deleteAllSpotlightItems === 'function') {
+        await SearchApi.deleteAllSpotlightItems();
+      }
       this.indexedReceiptIds.clear();
       this.indexedItemIds.clear();
       this.indexedShopIds.clear();

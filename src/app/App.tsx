@@ -15,7 +15,7 @@ import {UserProvider} from '@/shared/contexts/UserContext';
 import {SubscriptionProvider} from '@/shared/contexts/SubscriptionContext';
 import {ThemeProvider} from '@/shared/contexts/ThemeContext';
 import {ToastProvider} from '@/shared/contexts/ToastContext';
-import {NetworkBanner, useNetwork, OfflineBanner} from '@/shared/components';
+import {NetworkBanner, useNetwork, OfflineBanner, SplashScreen} from '@/shared/components';
 import {initializeFirebase} from '@/shared/services/firebase/config';
 import {analyticsService} from '@/shared/services';
 import {pushNotificationService} from '@/shared/services/firebase';
@@ -126,12 +126,7 @@ function App(): React.JSX.Element {
   }
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>🛒 GoShopperAI</Text>
-        <Text style={styles.loadingSubtext}>Loading...</Text>
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return <NetworkAwareApp />;
@@ -155,22 +150,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#22c55e',
-  },
-  loadingText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
-  },
-  loadingSubtext: {
-    fontSize: 16,
-    color: '#fff',
   },
 });
 

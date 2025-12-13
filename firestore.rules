@@ -40,6 +40,20 @@ service cloud.firestore {
           allow write: if false;
         }
         
+        // User's shops (aggregated from receipts)
+        match /shops/{shopId} {
+          allow read: if isOwner(userId);
+          // Only Cloud Functions can write shop data
+          allow write: if false;
+        }
+        
+        // User's items (aggregated from receipts)
+        match /items/{itemId} {
+          allow read: if isOwner(userId);
+          // Only Cloud Functions can write item data
+          allow write: if false;
+        }
+        
         // Subscription status - allow user to create initial subscription
         match /subscription/{document=**} {
           allow read: if isOwner(userId);

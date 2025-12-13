@@ -501,7 +501,7 @@ export function AchievementsScreen() {
           </Animated.View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -53,13 +53,13 @@ const MAX_RETRY_ATTEMPTS = 3;
 
 // Fun loading messages
 const LOADING_MESSAGES = [
-  {emoji: '🔍', text: 'Recherche du ticket...', subtext: 'Kozela na tiki...'},
-  {emoji: '📸', text: 'Analyse de l\'image...', subtext: 'Kotala foto...'},
-  {emoji: '🧠', text: 'IA en action...', subtext: 'Intelligence artificielle ezo sebela...'},
-  {emoji: '📝', text: 'Extraction des articles...', subtext: 'Kobimisa biloko...'},
-  {emoji: '💰', text: 'Calcul des prix...', subtext: 'Kotanga ntalo...'},
-  {emoji: '✨', text: 'Presque fini...', subtext: 'Eza pene na kosila...'},
-  {emoji: '🎉', text: 'Finalisation...', subtext: 'Eza kosila...'},
+  {icon: 'search', text: 'Recherche du ticket...', subtext: 'Kozela na tiki...'},
+  {icon: 'camera', text: 'Analyse de l\'image...', subtext: 'Kotala foto...'},
+  {icon: 'cpu', text: 'IA en action...', subtext: 'Intelligence artificielle ezo sebela...'},
+  {icon: 'edit', text: 'Extraction des articles...', subtext: 'Kobimisa biloko...'},
+  {icon: 'dollar-sign', text: 'Calcul des prix...', subtext: 'Kotanga ntalo...'},
+  {icon: 'sparkles', text: 'Presque fini...', subtext: 'Eza pene na kosila...'},
+  {icon: 'gift', text: 'Finalisation...', subtext: 'Eza kosila...'},
 ];
 
 export function UnifiedScannerScreen() {
@@ -297,7 +297,7 @@ export function UnifiedScannerScreen() {
   }, []);
 
   // Process photos
-  const handleProcess = useCallback(async () => {
+  const handleProcess = useCallback(async (): Promise<void> => {
     if (photos.length === 0) {
       showToast('Prenez au moins une photo', 'error');
       return;
@@ -503,7 +503,7 @@ export function UnifiedScannerScreen() {
           </View>
           <TouchableOpacity
             onPress={() => Alert.alert(
-              '💡 Conseils',
+              'Conseils',
               '• Photo nette et bien éclairée\n• Ticket complet visible\n• Évitez reflets et ombres\n• Max 5 photos pour longs tickets'
             )}
             hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
@@ -707,9 +707,12 @@ export function UnifiedScannerScreen() {
                 ]}
               >
                 <Animated.View style={{transform: [{rotate: spin}]}}>
-                  <Text style={styles.processingEmoji}>
-                    {LOADING_MESSAGES[loadingMessageIndex].emoji}
-                  </Text>
+                  <Icon 
+                    name={LOADING_MESSAGES[loadingMessageIndex].icon}
+                    size="3xl"
+                    color={Colors.primary}
+                    variant="filled"
+                  />
                 </Animated.View>
               </Animated.View>
 
@@ -754,7 +757,12 @@ export function UnifiedScannerScreen() {
 
             {/* Fun Facts */}
             <View style={styles.funFactCard}>
-              <Text style={styles.funFactEmoji}>💡</Text>
+              <Icon 
+                name="help-circle"
+                size="lg"
+                color={Colors.primary}
+                variant="filled"
+              />
               <Text style={styles.funFactText}>
                 L'IA analyse chaque article, prix et devise de votre facture
               </Text>

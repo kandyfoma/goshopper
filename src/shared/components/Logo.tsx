@@ -1,24 +1,22 @@
 import React, {useEffect, useRef} from 'react';
-import {View, StyleSheet, Animated, Easing, ViewStyle} from 'react-native';
+import {View, StyleSheet, Animated, Easing, ViewStyle, Image} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import {
   logoIconSvg,
   logoIconWhiteSvg,
-  logoIconMinimalSvg,
-  logoFullSvg,
-  logoBlueGoldSvg,
-  logoPurpleOrangeSvg,
-  logoTealCoralSvg,
+  logoGochujangLightSvg,
+  logoGochujangCosmosSvg,
 } from '../../../assets/logo-icon';
+
+// PNG logo for Image component usage
+const logoPng = require('../../../assets/logo.png');
 
 type LogoVariant =
   | 'default'
   | 'white'
-  | 'minimal'
-  | 'full'
-  | 'blueGold'
-  | 'purpleOrange'
-  | 'tealCoral';
+  | 'light'
+  | 'cosmos'
+  | 'png';
 
 interface LogoProps {
   size?: number;
@@ -82,30 +80,32 @@ const Logo: React.FC<LogoProps> = ({
     switch (variant) {
       case 'white':
         return logoIconWhiteSvg;
-      case 'minimal':
-        return logoIconMinimalSvg;
-      case 'full':
-        return logoFullSvg;
-      case 'blueGold':
-        return logoBlueGoldSvg;
-      case 'purpleOrange':
-        return logoPurpleOrangeSvg;
-      case 'tealCoral':
-        return logoTealCoralSvg;
+      case 'light':
+        return logoGochujangLightSvg;
+      case 'cosmos':
+        return logoGochujangCosmosSvg;
+      case 'png':
+        return null; // Use Image component instead
       default:
         return logoIconSvg;
     }
   };
 
-  const getAspectRatio = () => {
-    // Full logo has different aspect ratio
-    if (variant === 'full') {
-      return {width: size * 2.8, height: size * 0.8};
-    }
-    return {width: size, height: size};
-  };
+  const dimensions = {width: size, height: size};
 
-  const dimensions = getAspectRatio();
+  // For PNG variant, use Image component
+  if (variant === 'png') {
+    return (
+      <Animated.View
+        style={[styles.container, style, {transform: [{scale: scaleAnim}]}]}>
+        <Image
+          source={logoPng}
+          style={{width: size, height: size, borderRadius: size * 0.22}}
+          resizeMode="contain"
+        />
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View

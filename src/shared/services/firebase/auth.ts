@@ -139,6 +139,7 @@ class AuthService {
 
       // Extract idToken from the response (v16+ structure)
       const idToken = response.data?.idToken;
+      const googleUser = response.data?.user;
 
       if (!idToken) {
         throw new Error('Google Sign-In failed - no ID token returned');
@@ -150,7 +151,27 @@ class AuthService {
       // Sign-in the user with the credential
       const credential = await auth().signInWithCredential(googleCredential);
 
-      return this.mapFirebaseUser(credential.user);
+      // Extract additional user data from Google response
+      const user = this.mapFirebaseUser(credential.user);
+
+      // If we have Google user data, update the user profile with full name
+      if (googleUser && (googleUser.givenName || googleUser.familyName)) {
+        const fullName = [googleUser.givenName, googleUser.familyName]
+          .filter(Boolean)
+          .join(' ');
+
+        if (fullName && fullName !== user.displayName) {
+          // Update Firebase Auth profile with full name
+          await credential.user.updateProfile({
+            displayName: fullName,
+          });
+
+          // Update our user object
+          user.displayName = fullName;
+        }
+      }
+
+      return user;
     } catch (error) {
       console.error('Google sign in failed:', error);
       throw error;
@@ -175,8 +196,10 @@ class AuthService {
         throw new Error('Apple Sign-In failed - no identify token returned');
       }
 
+      // Extract full name from Apple response
+      const {identityToken, nonce, fullName} = appleAuthRequestResponse;
+
       // Create a Firebase credential from the response
-      const {identityToken, nonce} = appleAuthRequestResponse;
       const appleCredential = auth.AppleAuthProvider.credential(
         identityToken,
         nonce,
@@ -185,7 +208,27 @@ class AuthService {
       // Sign the user in with the credential
       const credential = await auth().signInWithCredential(appleCredential);
 
-      return this.mapFirebaseUser(credential.user);
+      // Extract additional user data from Apple response
+      const user = this.mapFirebaseUser(credential.user);
+
+      // If we have Apple full name data, update the user profile
+      if (fullName && (fullName.givenName || fullName.familyName)) {
+        const displayName = [fullName.givenName, fullName.familyName]
+          .filter(Boolean)
+          .join(' ');
+
+        if (displayName && displayName !== user.displayName) {
+          // Update Firebase Auth profile with full name
+          await credential.user.updateProfile({
+            displayName: displayName,
+          });
+
+          // Update our user object
+          user.displayName = displayName;
+        }
+      }
+
+      return user;
     } catch (error) {
       console.error('Apple sign in failed:', error);
       throw error;

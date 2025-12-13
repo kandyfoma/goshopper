@@ -1,248 +1,103 @@
 /**
- * GoShopperAI Logo Variants
+ * GoShopperAI Logo & Color Configuration
  *
- * Color Palette Options:
- *
- * OPTION 1 - Trust & Prosperity (Blue + Gold) [RECOMMENDED]
- * - Primary (60%): #1E3A5F (Deep Navy Blue)
- * - Secondary (30%): #F5F7FA (Off-White)
- * - Accent (10%): #D4AF37 (Gold)
- *
- * OPTION 2 - Energy & Savings (Purple + Orange)
- * - Primary (60%): #5B21B6 (Deep Purple)
- * - Secondary (30%): #F8F5FF (Lavender Tint)
- * - Accent (10%): #F97316 (Vibrant Orange)
- *
- * OPTION 3 - Growth & Action (Teal + Coral)
- * - Primary (60%): #0F766E (Deep Teal)
- * - Secondary (30%): #F0FDFA (Mint Tint)
- * - Accent (10%): #EF4444 (Coral Red)
- *
- * OPTION 4 - Urbanist (Soft Pastel) [NEW]
- * - Primary (60%): #212121 (Eerie Black)
- * - Secondary (30%): #F6F5FA (Ghost White)
- * - Accent Blue: #D8DFE9 (Alice Blue)
- * - Accent Green: #CFDECA (Honeydew)
- * - Accent Yellow: #EFF0A3 (Vanilla)
+ * Warm Gochujang Color Palette:
+ * - Gochujang Red: #780000 (primary dark)
+ * - Crimson Blaze: #C1121F (primary vibrant)
+ * - Cosmos Blue: #003049 (deep teal)
+ * - Blue Marble: #669BBC (light blue accent)
+ * - Varden Cream: #FDF0D5 (warm cream/beige)
+ * - Warm Beige: #F5E6C3 (secondary cream)
  */
 
 // ============================================
-// OPTION 4: URBANIST SOFT PASTEL (NEW DEFAULT)
+// GOCHUJANG WARM PALETTE LOGO (DEFAULT)
+// Clean G letter without search icon
 // ============================================
-export const logoUrbanistSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Solid background color -->
-  <rect width="100" height="100" rx="24" fill="#D8DFE9"/>
-
-  <!-- Clean G letter without search -->
-  <g transform="translate(25, 20)">
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z"
-          fill="#212121"/>
-  </g>
-</svg>`;
-
-// ============================================
-// OPTION 1: BLUE + GOLD (Trust & Prosperity)
-// ============================================
-export const logoBlueGoldSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+export const logoGochujangSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgBlueGold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1E3A5F"/>
-      <stop offset="100%" style="stop-color:#152A45"/>
+    <linearGradient id="bgGochujang" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C1121F"/>
+      <stop offset="100%" style="stop-color:#780000"/>
     </linearGradient>
   </defs>
   
-  <!-- Background -->
-  <rect width="100" height="100" rx="22" fill="url(#bgBlueGold)"/>
+  <!-- Background with warm red gradient -->
+  <rect width="100" height="100" rx="22" fill="url(#bgGochujang)"/>
   
-  <!-- Letter G with integrated search -->
-  <g transform="translate(15, 18)">
-    <!-- Main G letter -->
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="white"/>
-    
-    <!-- Search magnifier integrated -->
-    <circle cx="54" cy="44" r="11" fill="none" stroke="#D4AF37" stroke-width="4"/>
-    <line x1="62" y1="52" x2="70" y2="60" stroke="#D4AF37" stroke-width="4" stroke-linecap="round"/>
+  <!-- Letter G - Clean version -->
+  <g transform="translate(18, 15)">
+    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 64 32 64C38.5 64 44.5 62.2 49.5 59V36H28V46H39.5V51.5C37.2 52.5 34.7 53 32 53C18.7 53 10 43.5 10 32C10 18.7 20.5 10 32 10C41.5 10 49.5 15.5 53 23.5L62 17.5C56 6.8 45 0 32 0Z" 
+          fill="#FDF0D5"/>
   </g>
 </svg>`;
 
-// ============================================
-// OPTION 2: PURPLE + ORANGE (Energy & Savings)
-// ============================================
-export const logoPurpleOrangeSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+// Cream background variant (for light themes)
+export const logoGochujangLightSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cream background -->
+  <rect width="100" height="100" rx="22" fill="#FDF0D5"/>
+  
+  <!-- Letter G - Clean version -->
+  <g transform="translate(18, 15)">
+    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 64 32 64C38.5 64 44.5 62.2 49.5 59V36H28V46H39.5V51.5C37.2 52.5 34.7 53 32 53C18.7 53 10 43.5 10 32C10 18.7 20.5 10 32 10C41.5 10 49.5 15.5 53 23.5L62 17.5C56 6.8 45 0 32 0Z" 
+          fill="#C1121F"/>
+  </g>
+</svg>`;
+
+// Cosmos Blue background variant
+export const logoGochujangCosmosSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgPurple" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#5B21B6"/>
-      <stop offset="100%" style="stop-color:#4C1D95"/>
+    <linearGradient id="bgCosmos" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#003049"/>
+      <stop offset="100%" style="stop-color:#001F33"/>
     </linearGradient>
   </defs>
   
-  <!-- Background -->
-  <rect width="100" height="100" rx="22" fill="url(#bgPurple)"/>
+  <!-- Cosmos blue background -->
+  <rect width="100" height="100" rx="22" fill="url(#bgCosmos)"/>
   
-  <!-- Letter G with integrated search -->
-  <g transform="translate(15, 18)">
-    <!-- Main G letter -->
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="white"/>
-    
-    <!-- Search magnifier integrated -->
-    <circle cx="54" cy="44" r="11" fill="none" stroke="#F97316" stroke-width="4"/>
-    <line x1="62" y1="52" x2="70" y2="60" stroke="#F97316" stroke-width="4" stroke-linecap="round"/>
+  <!-- Letter G - Clean version -->
+  <g transform="translate(18, 15)">
+    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 64 32 64C38.5 64 44.5 62.2 49.5 59V36H28V46H39.5V51.5C37.2 52.5 34.7 53 32 53C18.7 53 10 43.5 10 32C10 18.7 20.5 10 32 10C41.5 10 49.5 15.5 53 23.5L62 17.5C56 6.8 45 0 32 0Z" 
+          fill="#FDF0D5"/>
   </g>
 </svg>`;
 
-// ============================================
-// OPTION 3: TEAL + CORAL (Growth & Action)
-// ============================================
-export const logoTealCoralSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bgTeal" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0F766E"/>
-      <stop offset="100%" style="stop-color:#0D5D56"/>
-    </linearGradient>
-  </defs>
-  
-  <!-- Background -->
-  <rect width="100" height="100" rx="22" fill="url(#bgTeal)"/>
-  
-  <!-- Letter G with integrated search -->
-  <g transform="translate(15, 18)">
-    <!-- Main G letter -->
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="white"/>
-    
-    <!-- Search magnifier integrated -->
-    <circle cx="54" cy="44" r="11" fill="none" stroke="#EF4444" stroke-width="4"/>
-    <line x1="62" y1="52" x2="70" y2="60" stroke="#EF4444" stroke-width="4" stroke-linecap="round"/>
-  </g>
-</svg>`;
-
-// Default export (Urbanist soft pastel - new default)
-export const logoIconSvg = logoUrbanistSvg;
-
-// Urbanist full logo with text (no gradient)
-export const logoUrbanistFullSvg = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Logo icon with solid color -->
-  <g transform="translate(5, 5) scale(0.7)">
-    <rect width="100" height="100" rx="24" fill="#D8DFE9"/>
-    <g transform="translate(25, 20)">
-      <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-            fill="#212121"/>
-    </g>
-  </g>
-  
-  <!-- App name - Urbanist style -->
-  <text x="85" y="38" font-family="Urbanist, Arial, sans-serif" font-size="26" font-weight="700" fill="#212121">GoShopper</text>
-  <text x="230" y="38" font-family="Urbanist, Arial, sans-serif" font-size="26" font-weight="700" fill="#CFDECA">AI</text>
-  
-  <!-- Tagline -->
-  <text x="85" y="58" font-family="Urbanist, Arial, sans-serif" font-size="12" fill="#666666">Économisez intelligemment</text>
-</svg>`;
-
-// White variant for dark mode
+// White icon variant
 export const logoIconWhiteSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
+  <!-- White background -->
   <rect width="100" height="100" rx="22" fill="white"/>
   
-  <!-- Letter G with integrated search -->
-  <g transform="translate(15, 18)">
-    <!-- Main G letter -->
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="#1E3A5F"/>
-    
-    <!-- Search magnifier integrated -->
-    <circle cx="54" cy="44" r="11" fill="none" stroke="#D4AF37" stroke-width="4"/>
-    <line x1="62" y1="52" x2="70" y2="60" stroke="#D4AF37" stroke-width="4" stroke-linecap="round"/>
+  <!-- Letter G - Clean version -->
+  <g transform="translate(18, 15)">
+    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 64 32 64C38.5 64 44.5 62.2 49.5 59V36H28V46H39.5V51.5C37.2 52.5 34.7 53 32 53C18.7 53 10 43.5 10 32C10 18.7 20.5 10 32 10C41.5 10 49.5 15.5 53 23.5L62 17.5C56 6.8 45 0 32 0Z" 
+          fill="#C1121F"/>
   </g>
 </svg>`;
 
-// Minimal variant (no background)
-export const logoIconMinimalSvg = `<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Letter G with integrated search -->
-  <g transform="translate(15, 18)">
-    <!-- Main G letter -->
-    <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-          fill="#1E3A5F"/>
-    
-    <!-- Search magnifier integrated -->
-    <circle cx="54" cy="44" r="11" fill="none" stroke="#D4AF37" stroke-width="4"/>
-    <line x1="62" y1="52" x2="70" y2="60" stroke="#D4AF37" stroke-width="4" stroke-linecap="round"/>
-  </g>
-</svg>`;
-
-// Full logo with text
-export const logoFullSvg = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bgFull" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1E3A5F"/>
-      <stop offset="100%" style="stop-color:#152A45"/>
-    </linearGradient>
-  </defs>
-  
-  <!-- Logo icon -->
-  <g transform="translate(5, 5) scale(0.7)">
-    <rect width="100" height="100" rx="22" fill="url(#bgFull)"/>
-    <g transform="translate(15, 18)">
-      <path d="M32 0C14.3 0 0 14.3 0 32C0 49.7 14.3 60 32 60C38 60 43.5 58.5 48 55.8V35H30V45H38V49C36.2 49.8 34.2 50 32 50C20 50 10 42 10 32C10 20 20 10 32 10C40 10 47 14.5 50 21L58 16C53 6.5 43.5 0 32 0Z" 
-            fill="white"/>
-      <circle cx="54" cy="44" r="11" fill="none" stroke="#D4AF37" stroke-width="4"/>
-      <line x1="62" y1="52" x2="70" y2="60" stroke="#D4AF37" stroke-width="4" stroke-linecap="round"/>
-    </g>
-  </g>
-  
-  <!-- App name -->
-  <text x="85" y="38" font-family="Arial, sans-serif" font-size="26" font-weight="bold" fill="#1E3A5F">GoShopper</text>
-  <text x="230" y="38" font-family="Arial, sans-serif" font-size="26" font-weight="bold" fill="#D4AF37">AI</text>
-  
-  <!-- Tagline -->
-  <text x="85" y="58" font-family="Arial, sans-serif" font-size="12" fill="#64748B">Économisez intelligemment</text>
-</svg>`;
-
-// Color palette exports for use throughout the app
+// ============================================
+// COLOR PALETTE EXPORTS
+// ============================================
 export const ColorPalette = {
-  // Option 4: Urbanist Soft Pastel (New Default)
-  urbanist: {
-    primary: '#212121', // Eerie Black
-    secondary: '#F6F5FA', // Ghost White
-    accentBlue: '#D8DFE9', // Alice Blue
-    accentGreen: '#CFDECA', // Honeydew
-    accentYellow: '#EFF0A3', // Vanilla
-    text: '#212121',
-    textLight: '#666666',
-    white: '#FFFFFF',
-  },
-  // Option 1: Blue + Gold
-  blueGold: {
-    primary: '#1E3A5F',
-    primaryDark: '#152A45',
-    secondary: '#F5F7FA',
-    accent: '#D4AF37',
-    text: '#1E293B',
-    textLight: '#64748B',
-    white: '#FFFFFF',
-  },
-  // Option 2: Purple + Orange
-  purpleOrange: {
-    primary: '#5B21B6',
-    primaryDark: '#4C1D95',
-    secondary: '#F8F5FF',
-    accent: '#F97316',
-    text: '#1E293B',
-    textLight: '#64748B',
-    white: '#FFFFFF',
-  },
-  // Option 3: Teal + Coral
-  tealCoral: {
-    primary: '#0F766E',
-    primaryDark: '#0D5D56',
-    secondary: '#F0FDFA',
-    accent: '#EF4444',
-    text: '#1E293B',
-    textLight: '#64748B',
+  // Gochujang Warm Palette (Primary/Default)
+  gochujang: {
+    primary: '#C1121F', // Crimson Blaze
+    primaryDark: '#780000', // Gochujang Red
+    secondary: '#FDF0D5', // Varden Cream
+    secondaryDark: '#F5E6C3', // Warm Beige
+    accent: '#003049', // Cosmos Blue
+    accentLight: '#669BBC', // Blue Marble
+    text: '#780000',
+    textLight: '#003049',
     white: '#FFFFFF',
   },
 };
 
-// Default color palette (Urbanist - new default)
-export const Colors = ColorPalette.urbanist;
+// Default color palette - Gochujang Warm
+export const Colors = ColorPalette.gochujang;
+
+// Default exports - Gochujang style
+export const logoIconSvg = logoGochujangSvg;
+
+// Logo image path (for use with Image component)
+export const logoImagePath = require('./logo.png');

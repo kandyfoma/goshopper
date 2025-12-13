@@ -145,22 +145,22 @@ export function StatsScreen() {
 
       // Convert to category array with percentages
       const categoryColors: Record<string, string> = {
-        Alimentation: Colors.primary,
-        Boissons: Colors.status.success,
-        Hygiène: '#8b5cf6',
-        Hygiene: '#8b5cf6',
-        Ménage: Colors.accent,
+        Alimentation: Colors.primary, // Crimson Blaze
+        Boissons: Colors.status.success, // Green
+        Hygiène: '#669BBC', // Blue Marble
+        Hygiene: '#669BBC',
+        Ménage: Colors.accent, // Cosmos Blue
         Menage: Colors.accent,
-        Bébé: '#ec4899',
-        Bebe: '#ec4899',
-        Électronique: '#3b82f6',
-        Electronique: '#3b82f6',
-        Vêtements: '#f97316',
-        Vetements: '#f97316',
-        Santé: '#ef4444',
-        Sante: '#ef4444',
-        Transport: '#06b6d4',
-        Loisirs: '#a855f7',
+        Bébé: '#C1121F', // Crimson Blaze
+        Bebe: '#C1121F',
+        Électronique: '#003049', // Cosmos Blue
+        Electronique: '#003049',
+        Vêtements: '#F5E6C3', // Warm Beige
+        Vetements: '#F5E6C3',
+        Santé: '#780000', // Gochujang Red
+        Sante: '#780000',
+        Transport: '#669BBC', // Blue Marble
+        Loisirs: '#FDF0D5', // Varden Cream
         Épicerie: Colors.primary,
         Epicerie: Colors.primary,
         Autre: Colors.text.tertiary,
