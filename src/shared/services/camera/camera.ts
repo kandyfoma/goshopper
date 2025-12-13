@@ -25,6 +25,7 @@ const DEFAULT_CAMERA_OPTIONS: CameraOptions = {
   maxHeight: 2500,
   includeBase64: true, // Get base64 directly to avoid saving files
   saveToPhotos: false,
+  cameraType: 'front', // Use front camera for selfie mode
 };
 
 class CameraService {

@@ -111,16 +111,19 @@ const StatCard = ({
       onPress={onPress}
       activeOpacity={onPress ? 0.8 : 1}
       disabled={!onPress}>
-      <View style={styles.statCardHeader}>
-        <Text style={[styles.statCardTitle, {color: textColor}]}>{title}</Text>
-        {icon && (
-          <View style={styles.statCardIcon}>
-            <Icon name={icon} size="sm" color={iconColor} />
-          </View>
-        )}
+      {/* Icon at top right */}
+      {icon && (
+        <View style={styles.statCardIconTop}>
+          <Icon name={icon} size="sm" color={iconColor} />
+        </View>
+      )}
+      
+      {/* Text content at bottom */}
+      <View style={styles.statCardTextContent}>
+        {title && <Text style={[styles.statCardTitle, {color: textColor}]}>{title}</Text>}
+        <Text style={[styles.statCardValue, {color: textColor}]}>{value}</Text>
+        {subtitle && <Text style={[styles.statCardSubtitle, {color: textColor}]}>{subtitle}</Text>}
       </View>
-      <Text style={[styles.statCardValue, {color: textColor}]}>{value}</Text>
-      {subtitle && <Text style={[styles.statCardSubtitle, {color: textColor}]}>{subtitle}</Text>}
     </TouchableOpacity>
   );
 };
@@ -408,12 +411,12 @@ export function HomeScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statsRow}>
             <StatCard
-              title="Scans"
+              title=""
               value={trialScansUsed || 0}
               subtitle={
                 isPremium
-                  ? 'illimitės'
-                  : `/${5 - (trialScansUsed || 0)} restants`
+                  ? 'illimités'
+                  : `${5 - (trialScansUsed || 0)} scans restants`
               }
               color="blue"
               icon="camera"
@@ -422,38 +425,38 @@ export function HomeScreen() {
               }
             />
             <StatCard
-              title="Budget Mensuel"
-              value={
-                userProfile?.monthlyBudget
-                  ? formatCurrency(userProfile.monthlyBudget, userProfile.preferredCurrency)
-                  : 'Non défini'
-              }
-              subtitle="ce mois"
-              color="yellow"
-              icon="wallet"
-              onPress={() => navigation.navigate('Stats')}
+              title=""
+              value="0"
+              subtitle="articles"
+              color="cosmos"
+              icon="cart"
+              onPress={() => navigation.navigate('ShoppingList')}
             />
           </View>
           <View style={styles.statsRow}>
             <StatCard
-              title="Dépenses Totales"
+              title=""
               value={
-                isLoadingStats
-                  ? '—'
-                  : formatCurrency(monthlySpending, userProfile?.preferredCurrency || 'USD')
+                userProfile?.monthlyBudget
+                  ? `${userProfile.monthlyBudget} ${userProfile?.preferredCurrency || 'USD'}`
+                  : `0 ${userProfile?.preferredCurrency || 'USD'}`
               }
-              subtitle="ce mois"
-              color="red"
-              icon="credit-card"
+              subtitle="Budget Mensuel"
+              color="yellow"
+              icon="wallet"
               onPress={() => navigation.navigate('Stats')}
             />
             <StatCard
-              title="Liste"
-              value="0"
-              subtitle="articles"
-              color="cream"
-              icon="cart"
-              onPress={() => navigation.navigate('ShoppingList')}
+              title=""
+              value={
+                isLoadingStats
+                  ? '—'
+                  : `${monthlySpending.toFixed(0)} ${userProfile?.preferredCurrency || 'USD'}`
+              }
+              subtitle="Dépenses Totales"
+              color="yellow"
+              icon="credit-card"
+              onPress={() => navigation.navigate('Stats')}
             />
           </View>
         </View>
@@ -587,28 +590,30 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing.base,
     minHeight: 120,
+    justifyContent: 'flex-end',
   },
   statCardLarge: {
     minHeight: 160,
   },
-  statCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
-  },
-  statCardTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.text.secondary,
-  },
-  statCardIcon: {
+  statCardIconTop: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statCardTextContent: {
+    width: '100%',
+  },
+  statCardTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.xs,
   },
   statCardValue: {
     fontSize: Typography.fontSize['3xl'],

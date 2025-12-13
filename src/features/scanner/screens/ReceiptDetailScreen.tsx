@@ -262,7 +262,14 @@ export function ReceiptDetailScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}>
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              // Fallback to main screen if no back stack
+              navigation.navigate('Main');
+            }
+          }}>
           <Icon name="arrow-left" size="md" color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Détails du reçu</Text>

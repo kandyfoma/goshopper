@@ -5,6 +5,7 @@ import functions from '@react-native-firebase/functions';
 import auth from '@react-native-firebase/auth';
 import {Receipt, ReceiptItem, ReceiptScanResult} from '@/shared/types';
 import {generateUUID} from '@/shared/utils/helpers';
+import {ocrCorrectionService} from '../ocrCorrectionService';
 
 // Cloud Functions region - must match deployed functions
 const FUNCTIONS_REGION = 'europe-west1';
@@ -192,7 +193,7 @@ class GeminiService {
     // Transform items
     const items: ReceiptItem[] = data.items.map((item, index) => ({
       id: `${receiptId}-item-${index}`,
-      name: item.name,
+      name: ocrCorrectionService.correctProductName(item.name),
       nameNormalized: this.normalizeProductName(item.name),
       quantity: item.quantity,
       unitPrice: item.unitPrice,

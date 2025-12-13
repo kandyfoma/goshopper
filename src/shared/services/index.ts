@@ -9,3 +9,4 @@ export {dynamicTypeService} from './dynamicTypeService';
 export {spotlightSearchService} from './spotlightSearchService';
 export {offlineService} from './offlineService';
 export {widgetDataService} from './widgetDataService';
+export {ocrCorrectionService} from './ocrCorrectionService';

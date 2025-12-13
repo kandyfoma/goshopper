@@ -241,15 +241,17 @@ export function ProfileScreen() {
             icon="receipt"
             value={userStats.loading ? '—' : userStats.totalReceipts}
             label="Scans"
-            color="red"
+            color="blue"
           />
           <StatCard
-            icon="trending-down"
+            icon="wallet"
             value={
-              userStats.loading ? '—' : formatCurrency(userStats.totalSavings)
+              profile?.monthlyBudget
+                ? formatCurrency(profile.monthlyBudget, profile.preferredCurrency)
+                : 'Non défini'
             }
-            label="Économies"
-            color="crimson"
+            label="Budget"
+            color="cosmos"
           />
         </View>
 
@@ -414,7 +416,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 36,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.white,
   },
   premiumBadge: {
     position: 'absolute',

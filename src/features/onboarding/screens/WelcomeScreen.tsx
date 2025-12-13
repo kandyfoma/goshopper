@@ -57,7 +57,7 @@ const SLIDES: OnboardingSlide[] = [
       "Votre assistant intelligent pour des achats plus malins.",
     gradientColors: [Colors.primary, Colors.primaryDark],
     iconName: 'sparkles',
-    lottieSource: require('@/assets/animations/sparkles.json'),
+    lottieSource: require('../../../../assets/animations/sparkles.json'),
     accentColor: Colors.primary,
   },
   {
@@ -69,7 +69,7 @@ const SLIDES: OnboardingSlide[] = [
       'Prenez simplement en photo vos tickets de caisse.',
     gradientColors: [Colors.secondary, Colors.secondaryDark],
     iconName: 'camera',
-    lottieSource: require('@/assets/animations/scan.json'),
+    lottieSource: require('../../../../assets/animations/scan.json'),
     accentColor: Colors.secondary,
   },
   {
@@ -81,7 +81,7 @@ const SLIDES: OnboardingSlide[] = [
       'Suivez vos dépenses et comparez les prix facilement.',
     gradientColors: [Colors.status.success, Colors.status.successLight],
     iconName: 'trending-up',
-    lottieSource: require('@/assets/animations/trending.json'),
+    lottieSource: require('../../../../assets/animations/trending.json'),
     accentColor: Colors.status.success,
   },
 ];

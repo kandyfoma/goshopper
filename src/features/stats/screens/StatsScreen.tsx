@@ -134,12 +134,23 @@ export function StatsScreen() {
         }
 
         // Calculate category totals from items
-        // Items use the receipt's original currency
+        // Convert to user's preferred currency for consistency
         (data.items || []).forEach((item: any) => {
           const category = item.category || 'Autre';
           const itemTotal = item.totalPrice || 0;
-          categoryTotals[category] = (categoryTotals[category] || 0) + itemTotal;
-          categoryRawTotal += itemTotal;
+
+          // Convert item total to user's preferred currency if needed
+          let convertedItemTotal = itemTotal;
+          if (userPreferredCurrency === 'CDF' && data.currency === 'USD') {
+            // Convert USD to CDF (approximate rate)
+            convertedItemTotal = itemTotal * 2800; // Using approximate USD to CDF rate
+          } else if (userPreferredCurrency === 'USD' && data.currency === 'CDF') {
+            // Convert CDF to USD
+            convertedItemTotal = itemTotal / 2800;
+          }
+
+          categoryTotals[category] = (categoryTotals[category] || 0) + convertedItemTotal;
+          categoryRawTotal += convertedItemTotal;
         });
       });
 

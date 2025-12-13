@@ -1,11 +1,11 @@
 /**
  * Widget Data Service
  * 
- * Manages data sharing between React Native app and native widgets.
- * Uses App Groups (iOS) and SharedPreferences (Android) for data persistence.
+ * Manages data for widgets using AsyncStorage.
+ * Native widget communication can be added later via native modules.
  */
 
-import {Platform} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types for widget data
 export interface WidgetSpendingData {
@@ -33,101 +33,52 @@ export interface WidgetShoppingList {
   checkedItems: number;
 }
 
-// App Group identifier (must match iOS widget configuration)
-const APP_GROUP = 'group.com.goshopperai.widgets';
-
-// SharedPreferences name (must match Android widget configuration)
-const SHARED_PREFS_NAME = 'com.goshopperai.widgets';
-
 // Widget data keys
 const WIDGET_KEYS = {
-  SPENDING: 'widget_spending_data',
-  QUICK_STATS: 'widget_quick_stats',
-  SHOPPING_LIST: 'widget_shopping_list',
-};
-
-// Lazy load the shared preferences library
-let SharedGroupPreferences: any = null;
-
-const loadSharedPreferences = async (): Promise<boolean> => {
-  if (SharedGroupPreferences !== null) {
-    return SharedGroupPreferences !== false;
-  }
-
-  try {
-    SharedGroupPreferences = require('react-native-shared-group-preferences').default;
-    return true;
-  } catch (error) {
-    console.log('Widget Service: react-native-shared-group-preferences not available');
-    SharedGroupPreferences = false;
-    return false;
-  }
+  SPENDING: '@widget_spending_data',
+  QUICK_STATS: '@widget_quick_stats',
+  SHOPPING_LIST: '@widget_shopping_list',
 };
 
 class WidgetDataService {
-  private isAvailable: boolean = false;
-
   /**
    * Initialize the widget data service
    */
   async initialize(): Promise<void> {
-    this.isAvailable = await loadSharedPreferences();
-    
-    if (this.isAvailable) {
-      console.log('Widget Service: Initialized successfully');
-    }
+    // No initialization needed for AsyncStorage
   }
 
   /**
    * Check if widget data sharing is available
    */
   isWidgetDataAvailable(): boolean {
-    return this.isAvailable;
+    return true;
   }
 
   /**
-   * Save data to shared storage accessible by widgets
+   * Save data to storage
    */
   private async saveData(key: string, data: any): Promise<void> {
-    if (!this.isAvailable || !SharedGroupPreferences) return;
-
     try {
       const jsonData = JSON.stringify(data);
-      
-      if (Platform.OS === 'ios') {
-        await SharedGroupPreferences.setItem(key, jsonData, APP_GROUP);
-      } else {
-        await SharedGroupPreferences.setItem(key, jsonData, SHARED_PREFS_NAME);
-      }
-      
-      console.log('Widget Service: Saved data for key:', key);
+      await AsyncStorage.setItem(key, jsonData);
     } catch (error) {
-      console.error('Widget Service: Failed to save data:', error);
+      // Silently fail - widget data is not critical
     }
   }
 
   /**
-   * Read data from shared storage
+   * Read data from storage
    */
   private async getData<T>(key: string): Promise<T | null> {
-    if (!this.isAvailable || !SharedGroupPreferences) return null;
-
     try {
-      let jsonData: string | null;
-      
-      if (Platform.OS === 'ios') {
-        jsonData = await SharedGroupPreferences.getItem(key, APP_GROUP);
-      } else {
-        jsonData = await SharedGroupPreferences.getItem(key, SHARED_PREFS_NAME);
-      }
-      
+      const jsonData = await AsyncStorage.getItem(key);
       if (jsonData) {
         return JSON.parse(jsonData) as T;
       }
     } catch (error) {
-      console.error('Widget Service: Failed to get data:', error);
+      // Silently fail
     }
-    
     return null;
   }
 
@@ -139,17 +90,16 @@ class WidgetDataService {
       ...data,
       lastUpdated: new Date().toISOString(),
     });
-    
-    // Trigger widget refresh
-    this.refreshWidgets();
   }
 
   /**
    * Update quick stats widget data
    */
   async updateQuickStatsWidget(data: WidgetQuickStats): Promise<void> {
-    await this.saveData(WIDGET_KEYS.QUICK_STATS, data);
-    this.refreshWidgets();
+    await this.saveData(WIDGET_KEYS.QUICK_STATS, {
+      ...data,
+      lastUpdated: new Date().toISOString(),
+    });
   }
 
   /**
@@ -157,39 +107,27 @@ class WidgetDataService {
    */
   async updateShoppingListWidget(data: WidgetShoppingList): Promise<void> {
     await this.saveData(WIDGET_KEYS.SHOPPING_LIST, data);
-    this.refreshWidgets();
   }
 
   /**
-   * Get current spending widget data
+   * Get spending widget data
    */
   async getSpendingWidgetData(): Promise<WidgetSpendingData | null> {
     return this.getData<WidgetSpendingData>(WIDGET_KEYS.SPENDING);
   }
 
   /**
-   * Get current quick stats widget data
+   * Get quick stats widget data
    */
   async getQuickStatsWidgetData(): Promise<WidgetQuickStats | null> {
     return this.getData<WidgetQuickStats>(WIDGET_KEYS.QUICK_STATS);
   }
 
   /**
-   * Get current shopping list widget data
+   * Get shopping list widget data
    */
   async getShoppingListWidgetData(): Promise<WidgetShoppingList | null> {
     return this.getData<WidgetShoppingList>(WIDGET_KEYS.SHOPPING_LIST);
-  }
-
-  /**
-   * Trigger native widget refresh
-   * Note: Actual implementation requires native code
-   */
-  private refreshWidgets(): void {
-    // On iOS, this would trigger WidgetKit timeline reload
-    // On Android, this would send broadcast to update AppWidget
-    // The actual implementation is in the native widget code
-    console.log('Widget Service: Refresh triggered');
   }
 
   /**
@@ -213,29 +151,17 @@ class WidgetDataService {
     }
     
     await Promise.all(promises);
-    this.refreshWidgets();
   }
 
   /**
    * Clear all widget data
    */
   async clearAllWidgetData(): Promise<void> {
-    if (!this.isAvailable || !SharedGroupPreferences) return;
-
     try {
       const keys = Object.values(WIDGET_KEYS);
-      
-      for (const key of keys) {
-        if (Platform.OS === 'ios') {
-          await SharedGroupPreferences.setItem(key, '', APP_GROUP);
-        } else {
-          await SharedGroupPreferences.setItem(key, '', SHARED_PREFS_NAME);
-        }
-      }
-      
-      console.log('Widget Service: Cleared all widget data');
+      await AsyncStorage.multiRemove(keys);
     } catch (error) {
-      console.error('Widget Service: Failed to clear data:', error);
+      // Silently fail
     }
   }
 }
