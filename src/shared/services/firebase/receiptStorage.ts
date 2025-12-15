@@ -405,7 +405,7 @@ class ReceiptStorageService {
     
     for (const [key, value] of Object.entries(obj)) {
       if (value !== undefined) {
-        if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !value.toDate) {
+        if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !(value as any).toDate) {
           // Recursively clean nested objects, but skip Date objects and Firestore objects
           cleaned[key] = this.removeUndefinedFields(value);
         } else {

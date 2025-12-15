@@ -767,6 +767,18 @@
         "nappies",
         "pampers"
       ]
+    },
+    {
+      "product_id": "PROD_095",
+      "normalized_name": "test_product",
+      "category": "Test",
+      "unit_of_measure": "piece",
+      "aliases_fr": [
+        "produit test"
+      ],
+      "aliases_en": [
+        "test product"
+      ]
     }
   ],
   "version": "1.0.0",

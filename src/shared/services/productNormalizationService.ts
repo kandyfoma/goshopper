@@ -345,5 +345,4 @@ class ProductNormalizationService {
   }
 }
 
-export const productNormalizationService = new ProductNormalizationService();</content>
-<parameter name="filePath">c:\Personal Project\goshopperai\src\shared\services\productNormalizationService.ts
+export const productNormalizationService = new ProductNormalizationService();

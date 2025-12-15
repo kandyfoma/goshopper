@@ -1,0 +1,88 @@
+{
+  "items": [
+    {
+      "name": "Banane Plantain",
+      "quantity": 2,
+      "price": 1000,
+      "shop": "Carrefour Kinshasa"
+    },
+    {
+      "name": "BNN PLTN",
+      "quantity": 3,
+      "price": 1500,
+      "shop": "Super Marché Local"
+    },
+    {
+      "name": "Pomme de terre",
+      "quantity": 5,
+      "price": 2500,
+      "shop": "Marché Central"
+    },
+    {
+      "name": "PDT",
+      "quantity": 2,
+      "price": 1000,
+      "shop": "Mini Market"
+    },
+    {
+      "name": "Tomate fraiches",
+      "quantity": 4,
+      "price": 800,
+      "shop": "Carrefour Kinshasa"
+    },
+    {
+      "name": "TOM",
+      "quantity": 2,
+      "price": 400,
+      "shop": "Super Marché Local"
+    },
+    {
+      "name": "Huile végétale 1L",
+      "quantity": 1,
+      "price": 2500,
+      "shop": "Marché Central"
+    },
+    {
+      "name": "HLE VGT",
+      "quantity": 1,
+      "price": 2500,
+      "shop": "Mini Market"
+    },
+    {
+      "name": "Poulet entier",
+      "quantity": 1,
+      "price": 5000,
+      "shop": "Carrefour Kinshasa"
+    },
+    {
+      "name": "POUL",
+      "quantity": 1,
+      "price": 5000,
+      "shop": "Super Marché Local"
+    },
+    {
+      "name": "Pain complet",
+      "quantity": 2,
+      "price": 500,
+      "shop": "Boulangerie"
+    },
+    {
+      "name": "Riz blanc 5kg",
+      "quantity": 1,
+      "price": 10000,
+      "shop": "Marché Central"
+    },
+    {
+      "name": "Eau minérale 1.5L",
+      "quantity": 6,
+      "price": 3000,
+      "shop": "Carrefour Kinshasa"
+    },
+    {
+      "name": "EAU MIN",
+      "quantity": 3,
+      "price": 1500,
+      "shop": "Mini Market"
+    }
+  ]
+}

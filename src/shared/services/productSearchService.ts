@@ -415,5 +415,4 @@ class ProductSearchService {
   }
 }
 
-export const productSearchService = new ProductSearchService();</content>
-<parameter name="filePath">c:\Personal Project\goshopperai\src\shared\services\productSearchService.ts
+export const productSearchService = new ProductSearchService();

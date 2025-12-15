@@ -9,6 +9,7 @@ import {config} from '../config';
 
 const db = admin.firestore();
 
+// @ts-expect-error - Interface defined for future use
 interface MasterProduct {
   productId: string;
   normalizedName: string;
@@ -20,6 +21,7 @@ interface MasterProduct {
   updatedAt: admin.firestore.Timestamp;
 }
 
+// @ts-expect-error - Interface defined for future use
 interface ProductMapping {
   productId: string;
   rawText: string;

@@ -1,6 +1,7 @@
 {
   "mappings": {
-    "special kinshasa banana": "PROD_001"
+    "special kinshasa banana": "PROD_001",
+    "special kinshasa banana|shop_123": "PROD_001"
   },
   "version": "1.0.0",
   "last_updated": "2024-12-13"

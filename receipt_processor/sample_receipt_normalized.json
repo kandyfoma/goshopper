@@ -1,0 +1,198 @@
+[
+  {
+    "name": "Banane Plantain",
+    "quantity": 2,
+    "price": 1000,
+    "shop": "Carrefour Kinshasa",
+    "normalization": {
+      "product_id": "PROD_001",
+      "normalized_name": "plantain",
+      "confidence": 1.0,
+      "match_method": "exact",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "BNN PLTN",
+    "quantity": 3,
+    "price": 1500,
+    "shop": "Super Marché Local",
+    "normalization": {
+      "product_id": "PROD_001",
+      "normalized_name": "plantain",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Pomme de terre",
+    "quantity": 5,
+    "price": 2500,
+    "shop": "Marché Central",
+    "normalization": {
+      "product_id": "PROD_024",
+      "normalized_name": "potato",
+      "confidence": 1.0,
+      "match_method": "exact",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "PDT",
+    "quantity": 2,
+    "price": 1000,
+    "shop": "Mini Market",
+    "normalization": {
+      "product_id": "PROD_024",
+      "normalized_name": "potato",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Tomate fraiches",
+    "quantity": 4,
+    "price": 800,
+    "shop": "Carrefour Kinshasa",
+    "normalization": {
+      "product_id": "PROD_020",
+      "normalized_name": "tomato",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "TOM",
+    "quantity": 2,
+    "price": 400,
+    "shop": "Super Marché Local",
+    "normalization": {
+      "product_id": "PROD_020",
+      "normalized_name": "tomato",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Huile végétale 1L",
+    "quantity": 1,
+    "price": 2500,
+    "shop": "Marché Central",
+    "normalization": {
+      "product_id": "PROD_071",
+      "normalized_name": "vegetable_oil",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "HLE VGT",
+    "quantity": 1,
+    "price": 2500,
+    "shop": "Mini Market",
+    "normalization": {
+      "product_id": "PROD_071",
+      "normalized_name": "vegetable_oil",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Poulet entier",
+    "quantity": 1,
+    "price": 5000,
+    "shop": "Carrefour Kinshasa",
+    "normalization": {
+      "product_id": "PROD_040",
+      "normalized_name": "chicken",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "POUL",
+    "quantity": 1,
+    "price": 5000,
+    "shop": "Super Marché Local",
+    "normalization": {
+      "product_id": "PROD_040",
+      "normalized_name": "chicken",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Pain complet",
+    "quantity": 2,
+    "price": 500,
+    "shop": "Boulangerie",
+    "normalization": {
+      "product_id": "PROD_062",
+      "normalized_name": "bread",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Riz blanc 5kg",
+    "quantity": 1,
+    "price": 10000,
+    "shop": "Marché Central",
+    "normalization": {
+      "product_id": "PROD_060",
+      "normalized_name": "rice",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "Eau minérale 1.5L",
+    "quantity": 6,
+    "price": 3000,
+    "shop": "Carrefour Kinshasa",
+    "normalization": {
+      "product_id": "PROD_080",
+      "normalized_name": "water",
+      "confidence": 0.9,
+      "match_method": "similarity",
+      "needs_review": false,
+      "suggestions": []
+    }
+  },
+  {
+    "name": "EAU MIN",
+    "quantity": 3,
+    "price": 1500,
+    "shop": "Mini Market",
+    "normalization": {
+      "product_id": "PROD_080",
+      "normalized_name": "water",
+      "confidence": 0.95,
+      "match_method": "abbreviation",
+      "needs_review": false,
+      "suggestions": []
+    }
+  }
+]

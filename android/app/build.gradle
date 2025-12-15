@@ -80,7 +80,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
+        setProperty("archivesBaseName", "goshopperai-v1.0.0")
     }
     signingConfigs {
         debug {
@@ -89,17 +90,33 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (project.hasProperty('GOSHOPPER_UPLOAD_STORE_FILE')) {
+                storeFile file(GOSHOPPER_UPLOAD_STORE_FILE)
+                storePassword GOSHOPPER_UPLOAD_STORE_PASSWORD
+                keyAlias GOSHOPPER_UPLOAD_KEY_ALIAS
+                keyPassword GOSHOPPER_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // For production release, configure signing in gradle.properties
+            // See store-assets/APP_READINESS_CHECKLIST.md for setup instructions
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            
+            // Optimize build
+            shrinkResources enableProguardInReleaseBuilds
+            
+            // Enable R8 full mode for better optimization
+            if (enableProguardInReleaseBuilds) {
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            }
         }
     }
 }

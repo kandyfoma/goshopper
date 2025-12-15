@@ -18,6 +18,24 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from difflib import SequenceMatcher
 
+# Import translation module
+try:
+    from translator import translator
+    TRANSLATION_AVAILABLE = True
+except ImportError:
+    TRANSLATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Translation module not available. Install translator.py for multilingual support.")
+
+# Import embeddings module
+try:
+    from embeddings import SemanticMatcher
+    EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    EMBEDDINGS_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Embeddings module not available. Install embeddings.py for semantic matching.")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -200,11 +218,13 @@ class ProductNormalizer:
         self.master_products: Dict[str, Any] = {}
         self.product_mappings: Dict[str, str] = {}  # raw_text -> product_id
         self.product_index: Dict[str, str] = {}  # normalized_text -> product_id
+        self.semantic_matcher: Optional[Any] = None  # Will be initialized if embeddings available
         
         # Load data
         self._load_master_products()
         self._load_product_mappings()
         self._build_product_index()
+        self._init_semantic_matcher()
         
         logger.info(f"ProductNormalizer initialized with {len(self.master_products.get('products', []))} products")
 
@@ -299,6 +319,31 @@ class ProductNormalizer:
             self.product_index[cleaned] = product_id
         
         logger.info(f"Built product index with {len(self.product_index)} entries")
+
+    def _init_semantic_matcher(self) -> None:
+        """Initialize semantic matcher with product corpus"""
+        if not EMBEDDINGS_AVAILABLE:
+            logger.info("Semantic matching not available (embeddings module not found)")
+            return
+        
+        try:
+            # Build corpus from all product names and aliases
+            corpus = []
+            for product in self.master_products.get("products", []):
+                corpus.append(product["normalized_name"])
+                corpus.extend(product.get("aliases_fr", []))
+                corpus.extend(product.get("aliases_en", []))
+            
+            # Also add cleaned versions
+            corpus_cleaned = [self.clean_text(text) for text in corpus]
+            corpus_all = list(set(corpus + corpus_cleaned))
+            
+            # Initialize matcher
+            self.semantic_matcher = SemanticMatcher(use_transformers=False, corpus=corpus_all)
+            logger.info(f"Initialized semantic matcher with corpus of {len(corpus_all)} items")
+        except Exception as e:
+            logger.warning(f"Failed to initialize semantic matcher: {e}")
+            self.semantic_matcher = None
 
     # ========================================================================
     # PHASE 2: Text Cleaning and Preprocessing
@@ -464,9 +509,10 @@ class ProductNormalizer:
         
         Implements the hybrid matching approach:
         1. Priority 1: Exact match lookup
-        2. Priority 2: Abbreviation expansion + exact match
-        3. Priority 3: Combined similarity scoring
-        4. Priority 4: Flag for manual review if confidence too low
+        2. Priority 2: Translation + exact match (NEW - Phase 3.1)
+        3. Priority 3: Abbreviation expansion + exact match
+        4. Priority 4: Combined similarity scoring
+        5. Priority 5: Flag for manual review if confidence too low
         
         Args:
             raw_name: Raw product name from receipt
@@ -507,7 +553,41 @@ class ProductNormalizer:
                 "suggestions": []
             }
         
-        # Priority 2: Abbreviation expansion + exact match
+        # Priority 2: Translation + exact match (Phase 3.1)
+        if TRANSLATION_AVAILABLE:
+            # Try translating to English (pivot language)
+            translated = translator.normalize_to_pivot(raw_name, pivot_language='en')
+            translated_cleaned = self.clean_text(translated)
+            
+            if translated_cleaned != cleaned and translated_cleaned in self.product_index:
+                product_id = self.product_index[translated_cleaned]
+                product = self._get_product_by_id(product_id)
+                return {
+                    "product_id": product_id,
+                    "normalized_name": product["normalized_name"] if product else translated_cleaned,
+                    "confidence": 0.98,
+                    "match_method": "translation",
+                    "needs_review": False,
+                    "suggestions": []
+                }
+            
+            # Try all language variants
+            variants = translator.get_all_variants(raw_name)
+            for variant in variants:
+                variant_cleaned = self.clean_text(variant)
+                if variant_cleaned in self.product_index:
+                    product_id = self.product_index[variant_cleaned]
+                    product = self._get_product_by_id(product_id)
+                    return {
+                        "product_id": product_id,
+                        "normalized_name": product["normalized_name"] if product else variant_cleaned,
+                        "confidence": 0.96,
+                        "match_method": "translation_variant",
+                        "needs_review": False,
+                        "suggestions": []
+                    }
+        
+        # Priority 3: Abbreviation expansion + exact match
         if expanded != cleaned:
             expanded_cleaned = self.clean_text(expanded)
             if expanded_cleaned in self.product_index:
@@ -522,32 +602,72 @@ class ProductNormalizer:
                     "suggestions": []
                 }
         
-        # Priority 3: Combined similarity scoring
+        # Priority 4: Combined similarity scoring
         best_match = None
         best_score = 0.0
         suggestions = []
         
-        for indexed_text, product_id in self.product_index.items():
-            score = self.combined_similarity(cleaned, indexed_text)
-            
-            if score > best_score:
-                best_score = score
-                best_match = (product_id, indexed_text)
-            
-            # Collect suggestions for scores above 0.5
-            if score > 0.5:
-                product = self._get_product_by_id(product_id)
-                suggestions.append({
-                    "product_id": product_id,
-                    "normalized_name": product["normalized_name"] if product else indexed_text,
-                    "score": round(score, 3)
-                })
+        # Prepare search variants (original + translated)
+        search_variants = [cleaned]
+        if TRANSLATION_AVAILABLE:
+            for variant in translator.get_all_variants(raw_name):
+                variant_cleaned = self.clean_text(variant)
+                if variant_cleaned not in search_variants:
+                    search_variants.append(variant_cleaned)
+        
+        # Search against all indexed products using all variants
+        for search_text in search_variants:
+            for indexed_text, product_id in self.product_index.items():
+                score = self.combined_similarity(search_text, indexed_text)
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = (product_id, indexed_text)
+                
+                # Collect suggestions for scores above 0.5
+                if score > 0.5:
+                    product = self._get_product_by_id(product_id)
+                    # Avoid duplicate suggestions
+                    existing_ids = [s["product_id"] for s in suggestions]
+                    if product_id not in existing_ids:
+                        suggestions.append({
+                            "product_id": product_id,
+                            "normalized_name": product["normalized_name"] if product else indexed_text,
+                            "score": round(score, 3)
+                        })
+        
+        # Phase 3.2: Try semantic/embedding-based matching if enabled
+        if self.semantic_matcher and best_score < 0.9:
+            # Try semantic matching against all indexed texts
+            for indexed_text, product_id in self.product_index.items():
+                for search_text in search_variants:
+                    try:
+                        semantic_score = self.semantic_matcher.similarity(search_text, indexed_text)
+                        # Weight semantic score slightly lower than text similarity
+                        weighted_score = semantic_score * 0.9
+                        
+                        if weighted_score > best_score:
+                            best_score = weighted_score
+                            best_match = (product_id, indexed_text)
+                        
+                        if semantic_score > 0.5:
+                            product = self._get_product_by_id(product_id)
+                            existing_ids = [s["product_id"] for s in suggestions]
+                            if product_id not in existing_ids:
+                                suggestions.append({
+                                    "product_id": product_id,
+                                    "normalized_name": product["normalized_name"] if product else indexed_text,
+                                    "score": round(semantic_score, 3),
+                                    "method": "semantic"
+                                })
+                    except Exception as e:
+                        logger.debug(f"Semantic matching error: {e}")
         
         # Sort suggestions by score
         suggestions.sort(key=lambda x: x["score"], reverse=True)
         suggestions = suggestions[:5]  # Top 5 suggestions
         
-        # Priority 4: Check confidence threshold
+        # Priority 5: Check confidence threshold
         if best_score >= 0.85 and best_match:
             product_id, matched_text = best_match
             product = self._get_product_by_id(product_id)
