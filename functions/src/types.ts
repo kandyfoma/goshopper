@@ -89,6 +89,15 @@ export interface Subscription {
 
   // Auto-renewal
   autoRenew: boolean;
+  autoRenewFailureCount?: number;
+  lastRenewalAttemptDate?: Date;
+  lastRenewalFailureReason?: string;
+  autoRenewDisabledReason?: string;
+  autoRenewDisabledAt?: Date;
+
+  // Downgrade scheduling (for end-of-period downgrades)
+  pendingDowngradePlanId?: 'basic' | 'standard' | 'premium';
+  pendingDowngradeEffectiveDate?: Date;
 
   // Expiration notifications
   expirationNotificationSent?: boolean;

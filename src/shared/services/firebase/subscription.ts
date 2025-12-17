@@ -1,6 +1,7 @@
 // Subscription Service
 import firestore from '@react-native-firebase/firestore';
 import functions from '@react-native-firebase/functions';
+import {addDays} from 'date-fns';
 import {Subscription, SubscriptionState} from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
 import {authService} from './auth';
@@ -81,8 +82,8 @@ class SubscriptionService {
       return true; // Unlimited scans during trial
     }
 
-    // Check active subscription
-    if (subscription.isSubscribed && subscription.status === 'active') {
+    // Check active subscription (including cancelled but not expired)
+    if (subscription.isSubscribed && (subscription.status === 'active' || subscription.status === 'cancelled')) {
       // Check if subscription hasn't expired
       if (subscription.subscriptionEndDate) {
         const isValid = new Date(subscription.subscriptionEndDate) > new Date();
@@ -122,8 +123,8 @@ class SubscriptionService {
       return Infinity;
     }
 
-    // Check active subscription
-    if (subscription.isSubscribed && subscription.status === 'active') {
+    // Check active subscription (including cancelled but not expired)
+    if (subscription.isSubscribed && (subscription.status === 'active' || subscription.status === 'cancelled')) {
       // Premium users have unlimited scans
       if (subscription.planId === 'premium') {
         return Infinity;
@@ -166,13 +167,13 @@ class SubscriptionService {
       return;
     }
 
-    // Premium users have unlimited scans
-    if (subscription.planId === 'premium' && subscription.status === 'active') {
+    // Premium users have unlimited scans (including cancelled)
+    if (subscription.planId === 'premium' && (subscription.status === 'active' || subscription.status === 'cancelled')) {
       return;
     }
 
-    // Basic/Standard users have limited scans
-    if (subscription.isSubscribed && subscription.status === 'active') {
+    // Basic/Standard users have limited scans (including cancelled)
+    if (subscription.isSubscribed && (subscription.status === 'active' || subscription.status === 'cancelled')) {
       const planLimit =
         PLAN_SCAN_LIMITS[
           subscription.planId as keyof typeof PLAN_SCAN_LIMITS
@@ -228,9 +229,8 @@ class SubscriptionService {
       }
     }
 
-    // Extend trial by TRIAL_EXTENSION_DAYS
-    const newTrialEnd = new Date();
-    newTrialEnd.setDate(newTrialEnd.getDate() + TRIAL_EXTENSION_DAYS);
+    // Extend trial by TRIAL_EXTENSION_DAYS using date-fns
+    const newTrialEnd = addDays(new Date(), TRIAL_EXTENSION_DAYS);
 
     await firestore().doc(COLLECTIONS.subscription(user.uid)).update({
       trialEndDate: newTrialEnd,
@@ -291,10 +291,9 @@ class SubscriptionService {
     userId: string,
     subscription: Subscription,
   ): Promise<void> {
-    // Calculate trial end date (2 months from now)
+    // Calculate trial end date (2 months from now) using date-fns
     const trialStartDate = new Date();
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DURATION_DAYS);
+    const trialEndDate = addDays(trialStartDate, TRIAL_DURATION_DAYS);
 
     await firestore()
       .doc(COLLECTIONS.subscription(userId))
@@ -314,8 +313,7 @@ class SubscriptionService {
    */
   private getDefaultSubscription(userId: string): Subscription {
     const trialStartDate = new Date();
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DURATION_DAYS);
+    const trialEndDate = addDays(trialStartDate, TRIAL_DURATION_DAYS);
 
     return {
       userId,

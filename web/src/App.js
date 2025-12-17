@@ -121,7 +121,7 @@ function App() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p>&copy; 2025 GoShopper. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} GoShopper. All rights reserved. | Property of <a href="https://www.africaniteservices.com" target="_blank" rel="noopener noreferrer" style={{color: 'inherit', textDecoration: 'underline'}}>Africanite Services</a></p>
           </div>
         </footer>
       </div>
@@ -278,7 +278,7 @@ function HomeSection() {
         <div className="section-container">
           <div className="download-content">
             <h2>Prêt à commencer ?</h2>
-            <p>Rejoignez des milliers d'utilisateurs qui économisent déjà du temps et de l'argent avec GoShopperAI</p>
+            <p>Rejoignez des milliers d'utilisateurs qui économisent déjà du temps et de l'argent avec GoShopper</p>
             <div className="download-buttons">
               <a href="#" className="download-btn android">
                 <div className="download-icon google-play">
@@ -1265,12 +1265,6 @@ function Support() {
                 <h3>Documentation</h3>
                 <p>Guides complets et tutoriels</p>
                 <p>Disponible 24/7</p>
-              </div>
-              <div className="contact-method">
-                <div className="contact-icon">🏪</div>
-                <h3>Partenariats magasins</h3>
-                <p>partnerships@goshopper.app</p>
-                <p>Intégration points de vente</p>
               </div>
             </div>
           </div>

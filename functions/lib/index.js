@@ -37,7 +37,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchMasterProducts = exports.addProductMapping = exports.initializeMasterProducts = exports.getCityItems = exports.rebuildItemsAggregation = exports.aggregateItemsOnReceipt = exports.getSpendingSuggestions = exports.processNLQuery = exports.checkSubscriptionExpiration = exports.sendAdminBroadcast = exports.sendSyncCompleteNotification = exports.sendAchievementNotification = exports.sendWeeklySavingsTips = exports.getUserAlerts = exports.createPriceAlert = exports.scheduledAlertCheck = exports.checkPriceAlerts = exports.checkIdentifierAvailability = exports.completeRegistration = exports.verifyCode = exports.sendVerificationCode = exports.getSmartPriceComparison = exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = exports.getUserStats = exports.extendTrial = exports.checkExpiredSubscriptions = exports.cancelSubscription = exports.getSubscriptionPricing = exports.renewSubscription = exports.upgradeSubscription = exports.recordScanUsage = exports.getSubscriptionStatus = exports.stripeWebhook = exports.confirmCardPayment = exports.createCardPaymentIntent = exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = exports.quickExtractReceipt = exports.parseReceiptV2 = exports.parseReceipt = void 0;
+exports.getSpendingSuggestions = exports.processNLQuery = exports.checkSubscriptionExpiration = exports.sendAdminBroadcast = exports.sendSyncCompleteNotification = exports.sendAchievementNotification = exports.sendWeeklySavingsTips = exports.getUserAlerts = exports.createPriceAlert = exports.scheduledAlertCheck = exports.checkPriceAlerts = exports.checkIdentifierAvailability = exports.completeRegistration = exports.verifyCode = exports.sendVerificationCode = exports.getSmartPriceComparison = exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = exports.sendManualExpirationWarning = exports.checkExpirationWarnings = exports.manuallyRenewSubscription = exports.processAutoRenewals = exports.getUserStats = exports.extendTrial = exports.checkExpiredSubscriptions = exports.cancelSubscription = exports.getSubscriptionPricing = exports.renewSubscription = exports.downgradeSubscription = exports.upgradeSubscription = exports.recordScanUsage = exports.getSubscriptionStatus = exports.listDeadLetterEvents = exports.getWebhookStats = exports.retryWebhookEvent = exports.processWebhookRetries = exports.retryRefund = exports.listUserRefunds = exports.getRefundStatus = exports.requestRefund = exports.stripeWebhook = exports.confirmCardPayment = exports.createCardPaymentIntent = exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = exports.quickExtractReceipt = exports.parseReceiptV2 = exports.parseReceipt = void 0;
+exports.testAppleNotification = exports.appleNotifications = exports.searchMasterProducts = exports.addProductMapping = exports.initializeMasterProducts = exports.getCityItems = exports.rebuildItemsAggregation = exports.aggregateItemsOnReceipt = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -66,17 +67,35 @@ var stripe_1 = require("./payments/stripe");
 Object.defineProperty(exports, "createCardPaymentIntent", { enumerable: true, get: function () { return stripe_1.createCardPaymentIntent; } });
 Object.defineProperty(exports, "confirmCardPayment", { enumerable: true, get: function () { return stripe_1.confirmCardPayment; } });
 Object.defineProperty(exports, "stripeWebhook", { enumerable: true, get: function () { return stripe_1.stripeWebhook; } });
+var refunds_1 = require("./payments/refunds");
+Object.defineProperty(exports, "requestRefund", { enumerable: true, get: function () { return refunds_1.requestRefund; } });
+Object.defineProperty(exports, "getRefundStatus", { enumerable: true, get: function () { return refunds_1.getRefundStatus; } });
+Object.defineProperty(exports, "listUserRefunds", { enumerable: true, get: function () { return refunds_1.listUserRefunds; } });
+Object.defineProperty(exports, "retryRefund", { enumerable: true, get: function () { return refunds_1.retryRefund; } });
+// Webhook management functions
+var webhookRetry_1 = require("./webhooks/webhookRetry");
+Object.defineProperty(exports, "processWebhookRetries", { enumerable: true, get: function () { return webhookRetry_1.processWebhookRetries; } });
+Object.defineProperty(exports, "retryWebhookEvent", { enumerable: true, get: function () { return webhookRetry_1.retryWebhookEvent; } });
+Object.defineProperty(exports, "getWebhookStats", { enumerable: true, get: function () { return webhookRetry_1.getWebhookStats; } });
+Object.defineProperty(exports, "listDeadLetterEvents", { enumerable: true, get: function () { return webhookRetry_1.listDeadLetterEvents; } });
 // Subscription functions
 var subscriptionManager_1 = require("./subscription/subscriptionManager");
 Object.defineProperty(exports, "getSubscriptionStatus", { enumerable: true, get: function () { return subscriptionManager_1.getSubscriptionStatus; } });
 Object.defineProperty(exports, "recordScanUsage", { enumerable: true, get: function () { return subscriptionManager_1.recordScanUsage; } });
 Object.defineProperty(exports, "upgradeSubscription", { enumerable: true, get: function () { return subscriptionManager_1.upgradeSubscription; } });
+Object.defineProperty(exports, "downgradeSubscription", { enumerable: true, get: function () { return subscriptionManager_1.downgradeSubscription; } });
 Object.defineProperty(exports, "renewSubscription", { enumerable: true, get: function () { return subscriptionManager_1.renewSubscription; } });
 Object.defineProperty(exports, "getSubscriptionPricing", { enumerable: true, get: function () { return subscriptionManager_1.getSubscriptionPricing; } });
 Object.defineProperty(exports, "cancelSubscription", { enumerable: true, get: function () { return subscriptionManager_1.cancelSubscription; } });
 Object.defineProperty(exports, "checkExpiredSubscriptions", { enumerable: true, get: function () { return subscriptionManager_1.checkExpiredSubscriptions; } });
 Object.defineProperty(exports, "extendTrial", { enumerable: true, get: function () { return subscriptionManager_1.extendTrial; } });
 Object.defineProperty(exports, "getUserStats", { enumerable: true, get: function () { return subscriptionManager_1.getUserStats; } });
+var autoRenewal_1 = require("./subscription/autoRenewal");
+Object.defineProperty(exports, "processAutoRenewals", { enumerable: true, get: function () { return autoRenewal_1.processAutoRenewals; } });
+Object.defineProperty(exports, "manuallyRenewSubscription", { enumerable: true, get: function () { return autoRenewal_1.manuallyRenewSubscription; } });
+var expirationNotifications_1 = require("./subscription/expirationNotifications");
+Object.defineProperty(exports, "checkExpirationWarnings", { enumerable: true, get: function () { return expirationNotifications_1.checkExpirationWarnings; } });
+Object.defineProperty(exports, "sendManualExpirationWarning", { enumerable: true, get: function () { return expirationNotifications_1.sendManualExpirationWarning; } });
 // Price functions
 var priceService_1 = require("./prices/priceService");
 Object.defineProperty(exports, "savePriceData", { enumerable: true, get: function () { return priceService_1.savePriceData; } });
@@ -116,4 +135,8 @@ var productManagement_1 = require("./products/productManagement");
 Object.defineProperty(exports, "initializeMasterProducts", { enumerable: true, get: function () { return productManagement_1.initializeMasterProducts; } });
 Object.defineProperty(exports, "addProductMapping", { enumerable: true, get: function () { return productManagement_1.addProductMapping; } });
 Object.defineProperty(exports, "searchMasterProducts", { enumerable: true, get: function () { return productManagement_1.searchMasterProducts; } });
+// Apple Sign-In Notification functions
+var appleNotifications_1 = require("./auth/appleNotifications");
+Object.defineProperty(exports, "appleNotifications", { enumerable: true, get: function () { return appleNotifications_1.appleNotifications; } });
+Object.defineProperty(exports, "testAppleNotification", { enumerable: true, get: function () { return appleNotifications_1.testAppleNotification; } });
 //# sourceMappingURL=index.js.map

@@ -32,12 +32,27 @@ export {
   confirmCardPayment,
   stripeWebhook,
 } from './payments/stripe';
+export {
+  requestRefund,
+  getRefundStatus,
+  listUserRefunds,
+  retryRefund,
+} from './payments/refunds';
+
+// Webhook management functions
+export {
+  processWebhookRetries,
+  retryWebhookEvent,
+  getWebhookStats,
+  listDeadLetterEvents,
+} from './webhooks/webhookRetry';
 
 // Subscription functions
 export {
   getSubscriptionStatus,
   recordScanUsage,
   upgradeSubscription,
+  downgradeSubscription,
   renewSubscription,
   getSubscriptionPricing,
   cancelSubscription,
@@ -45,6 +60,14 @@ export {
   extendTrial,
   getUserStats,
 } from './subscription/subscriptionManager';
+export {
+  processAutoRenewals,
+  manuallyRenewSubscription,
+} from './subscription/autoRenewal';
+export {
+  checkExpirationWarnings,
+  sendManualExpirationWarning,
+} from './subscription/expirationNotifications';
 
 // Price functions
 export {
@@ -102,5 +125,5 @@ export {
 // Apple Sign-In Notification functions
 export {
   appleNotifications,
-  testAppleNotifications,
+  testAppleNotification,
 } from './auth/appleNotifications';

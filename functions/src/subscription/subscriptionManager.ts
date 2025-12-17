@@ -5,13 +5,14 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import {addMonths, addDays} from 'date-fns';
 import {config, collections} from '../config';
 import {Subscription} from '../types';
 
 const db = admin.firestore();
 
-// Default exchange rate fallback
-const DEFAULT_EXCHANGE_RATE = 2220; // 1 USD = 2,220 CDF
+// Default exchange rate fallback (updated Dec 2025)
+const DEFAULT_EXCHANGE_RATE = 2700; // 1 USD = 2,700 CDF
 
 // Trial configuration
 const TRIAL_DURATION_DAYS = 60; // 2 months
@@ -135,8 +136,7 @@ export const getSubscriptionStatus = functions
       if (!subscriptionDoc.exists) {
         // Initialize new user subscription with 2-month trial
         const now = new Date();
-        const trialEndDate = new Date(now);
-        trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DURATION_DAYS);
+        const trialEndDate = addDays(now, TRIAL_DURATION_DAYS);
 
         const initialSubscription: Partial<Subscription> = {
           userId,
@@ -284,12 +284,27 @@ export const recordScanUsage = functions
           };
         }
 
-        // Check subscription status
-        if (!subscription.isSubscribed || subscription.status !== 'active') {
+        // Check subscription status (allow cancelled but not expired)
+        if (!subscription.isSubscribed || 
+            (subscription.status !== 'active' && subscription.status !== 'cancelled')) {
           throw new functions.https.HttpsError(
             'resource-exhausted',
             'No active subscription. Please subscribe to continue.',
           );
+        }
+
+        // Check if subscription has expired (even if status is active/cancelled)
+        if (subscription.subscriptionEndDate) {
+          const endDate = subscription.subscriptionEndDate instanceof admin.firestore.Timestamp
+            ? subscription.subscriptionEndDate.toDate()
+            : new Date(subscription.subscriptionEndDate);
+          
+          if (endDate < new Date()) {
+            throw new functions.https.HttpsError(
+              'resource-exhausted',
+              'Subscription has expired. Please renew to continue.',
+            );
+          }
         }
 
         // Premium users have unlimited scans
@@ -374,6 +389,14 @@ export const extendTrial = functions
         );
       }
 
+      // Prevent extending trial if user already has paid subscription
+      if (subscription.isSubscribed) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Cannot extend trial for users with active subscription',
+        );
+      }
+
       // Check if extension is within 7 days of trial end
       if (subscription.trialEndDate) {
         const trialEnd =
@@ -394,8 +417,7 @@ export const extendTrial = functions
       }
 
       // Extend trial
-      const newTrialEnd = new Date();
-      newTrialEnd.setDate(newTrialEnd.getDate() + TRIAL_EXTENSION_DAYS);
+      const newTrialEnd = addDays(new Date(), TRIAL_EXTENSION_DAYS);
 
       await subscriptionRef.update({
         trialEndDate: admin.firestore.Timestamp.fromDate(newTrialEnd),
@@ -457,17 +479,35 @@ export const upgradeSubscription = functions
       : 1;
 
     try {
+      // Idempotency check - prevent processing same transaction twice
+      const existingTransaction = await db
+        .collectionGroup('subscription')
+        .where('transactionId', '==', transactionId)
+        .limit(1)
+        .get();
+
+      if (!existingTransaction.empty) {
+        const existingData = existingTransaction.docs[0].data() as Subscription;
+        // Transaction already processed - return existing result
+        return {
+          success: true,
+          planId: existingData.planId,
+          durationMonths: existingData.durationMonths || duration,
+          scanLimit: PLAN_SCAN_LIMITS[existingData.planId || planId] || 25,
+          expiresAt: existingData.subscriptionEndDate,
+          message: 'Transaction already processed (idempotent)',
+        };
+      }
+
       const subscriptionRef = db.doc(collections.subscription(userId));
       const now = new Date();
 
-      // Calculate subscription end date based on duration
-      const endDate = new Date(now);
-      endDate.setMonth(endDate.getMonth() + duration);
+      // Calculate subscription end date based on duration (using date-fns for safety)
+      const endDate = addMonths(now, duration);
 
-      // Reset billing period start
+      // Reset billing period start (monthly billing cycle for scan reset)
       const billingPeriodStart = new Date(now);
-      const billingPeriodEnd = new Date(now);
-      billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1); // Monthly billing cycle for scan reset
+      const billingPeriodEnd = addMonths(now, 1);
 
       // Calculate pricing
       const pricing = calculateSubscriptionPrice(
@@ -518,6 +558,159 @@ export const upgradeSubscription = functions
   });
 
 /**
+ * Downgrade subscription plan
+ * User downgrades to a lower tier, keeps current subscription period
+ * Change takes effect immediately with prorated credit (optional)
+ */
+export const downgradeSubscription = functions
+  .region(config.app.region)
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Authentication required',
+      );
+    }
+
+    const userId = context.auth.uid;
+    const {newPlanId, immediate = true} = data;
+
+    if (!newPlanId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'New plan ID is required',
+      );
+    }
+
+    const validPlans = ['basic', 'standard', 'premium'];
+    if (!validPlans.includes(newPlanId)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid plan');
+    }
+
+    try {
+      const subscriptionRef = db.doc(collections.subscription(userId));
+      const subscriptionDoc = await subscriptionRef.get();
+
+      if (!subscriptionDoc.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Subscription not found',
+        );
+      }
+
+      const subscription = subscriptionDoc.data() as Subscription;
+
+      if (!subscription.isSubscribed || !subscription.planId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'No active subscription to downgrade',
+        );
+      }
+
+      // Validate downgrade (can't "downgrade" to a higher plan)
+      const planHierarchy: Record<string, number> = {
+        basic: 1,
+        standard: 2,
+        premium: 3,
+      };
+
+      const currentPlanLevel = planHierarchy[subscription.planId];
+      const newPlanLevel = planHierarchy[newPlanId];
+
+      if (newPlanLevel >= currentPlanLevel) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          `Cannot downgrade from ${subscription.planId} to ${newPlanId}. Use upgradeSubscription instead.`,
+        );
+      }
+
+      const now = new Date();
+      const subscriptionEnd =
+        subscription.subscriptionEndDate instanceof admin.firestore.Timestamp
+          ? subscription.subscriptionEndDate.toDate()
+          : new Date(subscription.subscriptionEndDate!);
+
+      // Calculate remaining days
+      const daysRemaining = Math.max(
+        0,
+        Math.ceil((subscriptionEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      );
+
+      // Calculate prorated credit (optional - for future refund feature)
+      const currentPlanPrice = BASE_PRICES[subscription.planId];
+      const newPlanPrice = BASE_PRICES[newPlanId];
+      const daysInPeriod =
+        subscription.durationMonths === 1
+          ? 30
+          : subscription.durationMonths! * 30;
+      const creditPerDay = (currentPlanPrice - newPlanPrice) / daysInPeriod;
+      const proratedCredit = Math.round(creditPerDay * daysRemaining * 100) / 100;
+
+      if (immediate) {
+        // Immediate downgrade - applies now
+        // Reset monthly scans if new plan has lower limit
+        const newScanLimit = PLAN_SCAN_LIMITS[newPlanId];
+        const currentMonthlyScans = subscription.monthlyScansUsed || 0;
+
+        const updates: Partial<Subscription> = {
+          planId: newPlanId as 'basic' | 'standard' | 'premium',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+        };
+
+        // If user has exceeded new plan's limit, cap their usage
+        if (
+          newScanLimit !== -1 &&
+          currentMonthlyScans > newScanLimit
+        ) {
+          updates.monthlyScansUsed = newScanLimit;
+        }
+
+        await subscriptionRef.update(updates);
+
+        return {
+          success: true,
+          newPlanId,
+          scanLimit: newScanLimit,
+          monthlyScansRemaining:
+            newScanLimit === -1
+              ? -1
+              : Math.max(0, newScanLimit - (updates.monthlyScansUsed || currentMonthlyScans)),
+          proratedCredit, // For future refund feature
+          message: 'Plan downgraded immediately',
+          effectiveDate: now.toISOString(),
+        };
+      } else {
+        // Scheduled downgrade - takes effect at end of current period
+        await subscriptionRef.update({
+          pendingDowngradePlanId: newPlanId,
+          pendingDowngradeEffectiveDate:
+            admin.firestore.Timestamp.fromDate(subscriptionEnd),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+          success: true,
+          newPlanId,
+          scanLimit: PLAN_SCAN_LIMITS[newPlanId],
+          message: `Plan will downgrade to ${newPlanId} on ${subscriptionEnd.toISOString()}`,
+          effectiveDate: subscriptionEnd.toISOString(),
+        };
+      }
+    } catch (error) {
+      console.error('Downgrade subscription error:', error);
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to downgrade subscription',
+      );
+    }
+  });
+
+/**
  * Renew/Resubscribe before expiration
  * Allows users to renew early - extends from current end date
  */
@@ -552,6 +745,25 @@ export const renewSubscription = functions
       : 1;
 
     try {
+      // Idempotency check - prevent processing same renewal twice
+      const existingTransaction = await db
+        .collectionGroup('subscription')
+        .where('transactionId', '==', transactionId)
+        .limit(1)
+        .get();
+
+      if (!existingTransaction.empty) {
+        const existingData = existingTransaction.docs[0].data() as Subscription;
+        return {
+          success: true,
+          planId: existingData.planId,
+          durationMonths: existingData.durationMonths || duration,
+          scanLimit: PLAN_SCAN_LIMITS[existingData.planId || planId] || 25,
+          expiresAt: existingData.subscriptionEndDate,
+          message: 'Renewal already processed (idempotent)',
+        };
+      }
+
       const subscriptionRef = db.doc(collections.subscription(userId));
       const subscriptionDoc = await subscriptionRef.get();
 
@@ -579,9 +791,8 @@ export const renewSubscription = functions
         }
       }
 
-      // Calculate new end date from the start date
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + duration);
+      // Calculate new end date from the start date (using date-fns)
+      const endDate = addMonths(startDate, duration);
 
       // Calculate pricing
       const pricing = calculateSubscriptionPrice(
@@ -604,6 +815,7 @@ export const renewSubscription = functions
           transactionId,
           autoRenew: true,
           expirationNotificationSent: false,
+          expirationNotificationDate: null,
           daysUntilExpiration: null,
           ...paymentDetails,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -795,7 +1007,35 @@ export const checkExpiredSubscriptions = functions
         console.log(`Expired ${trialExpiredCount} trials`);
       }
 
-      // 3. Reset monthly scans for subscriptions starting a new billing period
+      // 3. Apply pending downgrades that have reached their effective date
+      const pendingDowngradesQuery = await db
+        .collectionGroup('subscription')
+        .where('pendingDowngradePlanId', '!=', null)
+        .where('pendingDowngradeEffectiveDate', '<=', now)
+        .get();
+
+      let downgradeCount = 0;
+      const downgradeBatch = db.batch();
+
+      pendingDowngradesQuery.docs.forEach(doc => {
+        const subscription = doc.data() as Subscription;
+        const newPlanId = subscription.pendingDowngradePlanId!;
+
+        downgradeBatch.update(doc.ref, {
+          planId: newPlanId,
+          pendingDowngradePlanId: admin.firestore.FieldValue.delete(),
+          pendingDowngradeEffectiveDate: admin.firestore.FieldValue.delete(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        downgradeCount++;
+      });
+
+      if (downgradeCount > 0) {
+        await downgradeBatch.commit();
+        console.log(`Applied ${downgradeCount} pending downgrades`);
+      }
+
+      // 4. Reset monthly scans for subscriptions starting a new billing period
       const resetScansQuery = await db
         .collectionGroup('subscription')
         .where('isSubscribed', '==', true)
@@ -804,13 +1044,15 @@ export const checkExpiredSubscriptions = functions
 
       let resetCount = 0;
 
+      // Use batch writes for better performance and atomicity
+      const resetBatch = db.batch();
+      
       for (const doc of resetScansQuery.docs) {
-        // Calculate new billing period
+        // Calculate new billing period using date-fns
         const newBillingStart = new Date();
-        const newBillingEnd = new Date();
-        newBillingEnd.setMonth(newBillingEnd.getMonth() + 1);
+        const newBillingEnd = addMonths(newBillingStart, 1);
 
-        await doc.ref.update({
+        resetBatch.update(doc.ref, {
           monthlyScansUsed: 0,
           currentBillingPeriodStart:
             admin.firestore.Timestamp.fromDate(newBillingStart),
@@ -819,6 +1061,10 @@ export const checkExpiredSubscriptions = functions
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         resetCount++;
+      }
+
+      if (resetCount > 0) {
+        await resetBatch.commit();
       }
 
       if (resetCount > 0) {

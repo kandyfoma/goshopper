@@ -10,6 +10,7 @@ const rnBiometrics = new ReactNativeBiometrics({allowDeviceCredentials: true});
 const BIOMETRIC_ENABLED_KEY = '@biometric_enabled';
 const BIOMETRIC_USER_ID_KEY = '@biometric_user_id';
 const BIOMETRIC_USER_EMAIL_KEY = '@biometric_user_email';
+const BIOMETRIC_USER_PHONE_KEY = '@biometric_user_phone';
 
 export interface BiometricStatus {
   isAvailable: boolean;
@@ -20,6 +21,7 @@ export interface BiometricStatus {
 export interface BiometricCredentials {
   userId: string;
   email: string;
+  phoneNumber?: string;
 }
 
 class BiometricService {
@@ -81,7 +83,7 @@ class BiometricService {
   /**
    * Enable biometric login for the current user
    */
-  async enable(userId: string, email: string): Promise<boolean> {
+  async enable(userId: string, email: string, phoneNumber?: string): Promise<boolean> {
     try {
       // First verify biometrics work
       const {success} = await this.authenticate('Confirmer votre identité');
@@ -94,6 +96,9 @@ class BiometricService {
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
       await AsyncStorage.setItem(BIOMETRIC_USER_ID_KEY, userId);
       await AsyncStorage.setItem(BIOMETRIC_USER_EMAIL_KEY, email);
+      if (phoneNumber) {
+        await AsyncStorage.setItem(BIOMETRIC_USER_PHONE_KEY, phoneNumber);
+      }
       
       return true;
     } catch (error) {
@@ -110,6 +115,7 @@ class BiometricService {
       await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
       await AsyncStorage.removeItem(BIOMETRIC_USER_ID_KEY);
       await AsyncStorage.removeItem(BIOMETRIC_USER_EMAIL_KEY);
+      await AsyncStorage.removeItem(BIOMETRIC_USER_PHONE_KEY);
     } catch (error) {
       console.error('Failed to disable biometric:', error);
     }
@@ -122,9 +128,10 @@ class BiometricService {
     try {
       const userId = await AsyncStorage.getItem(BIOMETRIC_USER_ID_KEY);
       const email = await AsyncStorage.getItem(BIOMETRIC_USER_EMAIL_KEY);
+      const phoneNumber = await AsyncStorage.getItem(BIOMETRIC_USER_PHONE_KEY);
       
       if (userId && email) {
-        return {userId, email};
+        return {userId, email, phoneNumber: phoneNumber || undefined};
       }
       return null;
     } catch (error) {

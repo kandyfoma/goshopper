@@ -7,14 +7,9 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
 import {config} from '../config';
 
 const db = admin.firestore();
-
-// Apple's public key for verifying JWT signatures
-// In production, you should fetch these from Apple's JWKS endpoint
-const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 
 interface AppleNotificationPayload {
   iss: string; // Apple

@@ -1,5 +1,5 @@
 // Authentication Service
-import auth, {FirebaseAuthTypes, PhoneAuthSnapshot} from '@react-native-firebase/auth';
+import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import firebase from '@react-native-firebase/app';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
@@ -150,7 +150,7 @@ class AuthService {
         await this.storeTemporaryEmail(phoneNumber, email);
       }
       
-      return { verificationId: confirmation.verificationId };
+      return { verificationId: confirmation.verificationId || '' };
     } catch (error) {
       console.error('❌ [SMS OTP] Phone verification failed:', error);
       throw error;
@@ -249,7 +249,7 @@ class AuthService {
       console.log('📱 [SMS OTP] New Verification ID:', confirmation.verificationId);
       console.log('📱 [SMS OTP] In production, new SMS sent to:', phoneNumber);
       
-      return { verificationId: confirmation.verificationId };
+      return { verificationId: confirmation.verificationId || '' };
     } catch (error) {
       console.error('❌ [SMS OTP] Failed to resend code:', error);
       throw error;

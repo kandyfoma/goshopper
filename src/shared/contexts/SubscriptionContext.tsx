@@ -52,17 +52,7 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       let scansRemaining = 0;
       let canScan = false;
 
-      // ==========================================
-      // TESTING MODE: Allow unlimited scanning
-      // TODO: Remove this for production
-      // ==========================================
-      const TESTING_MODE = true;
-
-      if (TESTING_MODE) {
-        // Testing mode - always allow scanning
-        scansRemaining = -1; // -1 represents unlimited
-        canScan = true;
-      } else if (isTrialActive) {
+      if (isTrialActive) {
         // Trial users have unlimited scans
         scansRemaining = -1; // -1 represents unlimited
         canScan = true;
