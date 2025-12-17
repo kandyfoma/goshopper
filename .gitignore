@@ -144,6 +144,7 @@ playwright-report/
 # Android signing configs
 android/app/*.keystore
 android/app/*.properties
+android/gradle.properties
 
 # iOS provisioning profiles
 ios/*.mobileprovision
