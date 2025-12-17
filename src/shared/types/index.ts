@@ -43,6 +43,10 @@ export type RootStackParamList = {
   TermsOfService: undefined;
   CityItems: undefined;
   Items: undefined;
+  // Support Screens
+  Support: undefined;
+  Contact: undefined;
+  Terms: undefined;
 };
 
 export type MainTabParamList = {

@@ -28,7 +28,7 @@ import {
 } from '@/features/scanner/screens';
 import {SubscriptionScreen} from '@/features/subscription/screens';
 import {SettingsScreen} from '@/features/settings/screens';
-import {UpdateProfileScreen, BudgetSettingsScreen} from '@/features/profile/screens';
+import {UpdateProfileScreen, BudgetSettingsScreen, SupportScreen, ContactScreen, TermsScreen} from '@/features/profile/screens';
 
 // Phase 1.1 & 1.2 Screens
 import {NotificationsScreen} from '@/features/notifications';
@@ -340,6 +340,21 @@ export function RootNavigator() {
       <Stack.Screen
         name="Items"
         component={ItemsScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="Contact"
+        component={ContactScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="Terms"
+        component={TermsScreen}
         options={{headerShown: false}}
       />
     </Stack.Navigator>

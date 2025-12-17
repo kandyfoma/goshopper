@@ -14,6 +14,7 @@ import {analyticsService} from '@/shared/services';
 interface AuthContextType extends AuthState {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -116,6 +117,30 @@ export function AuthProvider({children}: AuthProviderProps) {
     }
   }, []);
 
+  const signInWithFacebook = useCallback(async () => {
+    setState(prev => ({...prev, isLoading: true, error: null}));
+    try {
+      const user = await authService.signInWithFacebook();
+      setState({
+        user,
+        isLoading: false,
+        isAuthenticated: true,
+        error: null,
+      });
+
+      // Track sign in event
+      analyticsService.logLogin('facebook');
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Échec de la connexion Facebook';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage,
+      }));
+      throw err; // Re-throw so the caller can handle it
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     setState(prev => ({...prev, isLoading: true}));
     try {
@@ -141,6 +166,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         ...state,
         signInWithGoogle,
         signInWithApple,
+        signInWithFacebook,
         signOut,
       }}>
       {children}

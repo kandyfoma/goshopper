@@ -31,18 +31,29 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {signInWithGoogle, signInWithApple} = useAuth();
+  const {signInWithGoogle, signInWithApple, signInWithFacebook} = useAuth();
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(
+  const [verificationCode, setVerificationCode] = useState('');
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationId, setVerificationId] = useState('');
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(
     null,
   );
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+    if (!phoneNumber || !password || !confirmPassword) {
+      Alert.alert('Erreur', 'Veuillez saisir un numéro de téléphone et un mot de passe');
+      return;
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
+      Alert.alert('Erreur', 'Veuillez saisir un numéro de téléphone valide');
       return;
     }
 
@@ -61,10 +72,45 @@ export function RegisterScreen() {
 
     setLoading(true);
     try {
-      await authService.signUpWithEmail(email, password);
-      // Navigation will be handled by AuthContext
+      // Start phone verification
+      const confirmation = await authService.signUpWithPhoneNumber(phoneNumber, email);
+      setVerificationId(confirmation.verificationId);
+      setShowVerification(true);
+      Alert.alert('Code envoyé', 'Un code de vérification a été envoyé à votre téléphone');
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Inscription échouée');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verificationCode || verificationCode.length !== 6) {
+      Alert.alert('Erreur', 'Veuillez saisir le code de vérification à 6 chiffres');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.confirmPhoneVerification(verificationId, verificationCode, password, email);
+      Alert.alert('Succès', 'Votre compte a été créé avec succès !');
+      // Navigation will be handled by AuthContext
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Code de vérification invalide');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Resending OTP to:', phoneNumber);
+      const confirmation = await authService.resendOTP(phoneNumber);
+      setVerificationId(confirmation.verificationId);
+      Alert.alert('Code renvoyé', 'Un nouveau code de vérification a été envoyé');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Échec de renvoi du code');
     } finally {
       setLoading(false);
     }
@@ -87,6 +133,17 @@ export function RegisterScreen() {
       await signInWithApple();
     } catch (err: any) {
       Alert.alert('Erreur', err?.message || 'Échec de la connexion Apple');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const handleFacebookSignIn = async () => {
+    setSocialLoading('facebook');
+    try {
+      await signInWithFacebook();
+    } catch (err: any) {
+      Alert.alert('Erreur', err?.message || 'Échec de la connexion Facebook');
     } finally {
       setSocialLoading(null);
     }
@@ -117,7 +174,25 @@ export function RegisterScreen() {
           {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>Numéro de téléphone *</Text>
+              <View style={styles.inputWrapper}>
+                <Icon name="phone" size="md" color={Colors.text.secondary} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="+243 xxx xxx xxx"
+                  placeholderTextColor={Colors.text.tertiary}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading && !showVerification}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email (optionnel)</Text>
               <View style={styles.inputWrapper}>
                 <Icon name="mail" size="md" color={Colors.text.secondary} />
                 <TextInput
@@ -129,7 +204,7 @@ export function RegisterScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!loading}
+                  editable={!loading && !showVerification}
                 />
               </View>
             </View>
@@ -168,19 +243,54 @@ export function RegisterScreen() {
               </View>
             </View>
 
+            {showVerification && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Code de vérification</Text>
+                <View style={styles.inputWrapper}>
+                  <Icon name="key" size="md" color={Colors.text.secondary} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Code à 6 chiffres"
+                    placeholderTextColor={Colors.text.tertiary}
+                    value={verificationCode}
+                    onChangeText={setVerificationCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.button, styles.primaryButton]}
-              onPress={handleRegister}
+              onPress={showVerification ? handleVerifyCode : handleRegister}
               disabled={loading}>
               {loading ? (
                 <ActivityIndicator color={Colors.white} />
               ) : (
                 <View style={styles.buttonInner}>
-                  <Text style={styles.buttonText}>S'inscrire</Text>
+                  <Text style={styles.buttonText}>
+                    {showVerification ? 'Vérifier le code' : 'S\'inscrire'}
+                  </Text>
                   <Icon name="arrow-right" size="md" color={Colors.white} />
                 </View>
               )}
             </TouchableOpacity>
+
+            {showVerification && (
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton]}
+                onPress={handleResendOTP}
+                disabled={loading}>
+                <View style={styles.buttonInner}>
+                  <Icon name="refresh-cw" size="md" color={Colors.primary} />
+                  <Text style={styles.secondaryButtonText}>
+                    Renvoyer le code
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
 
             {/* Divider */}
             <View style={styles.divider}>
@@ -224,6 +334,23 @@ export function RegisterScreen() {
                 )}
               </TouchableOpacity>
             )}
+
+            <TouchableOpacity
+              style={[styles.button, styles.socialButton, styles.facebookButton]}
+              onPress={handleFacebookSignIn}
+              disabled={loading || socialLoading !== null}>
+              {socialLoading === 'facebook' ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <>
+                  <Text style={styles.facebookIcon}>f</Text>
+                  <Text
+                    style={[styles.socialButtonText, styles.facebookButtonText]}>
+                    Continuer avec Facebook
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Footer */}
@@ -318,6 +445,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.text.primary,
     ...Shadows.md,
   },
+  secondaryButton: {
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  secondaryButtonText: {
+    color: Colors.primary,
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+  },
   buttonInner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -367,6 +504,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.text.primary,
   },
   appleButtonText: {
+    color: Colors.white,
+  },
+  facebookButton: {
+    backgroundColor: '#1877F2',
+    borderColor: '#1877F2',
+  },
+  facebookButtonText: {
+    color: Colors.white,
+  },
+  facebookIcon: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.white,
   },
   footer: {

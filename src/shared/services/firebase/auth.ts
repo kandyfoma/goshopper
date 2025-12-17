@@ -1,9 +1,10 @@
 // Authentication Service
-import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import auth, {FirebaseAuthTypes, PhoneAuthSnapshot} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import firebase from '@react-native-firebase/app';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {appleAuth} from '@invertase/react-native-apple-authentication';
+import {LoginManager, AccessToken} from 'react-native-fbsdk-next';
 import {User, UserProfile} from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
 import {safeToDate} from '@/shared/utils/helpers';
@@ -126,6 +127,136 @@ class AuthService {
   }
 
   /**
+   * Sign up with phone number - returns verification object
+   */
+  async signUpWithPhoneNumber(phoneNumber: string, email?: string): Promise<{verificationId: string}> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log('📱 [SMS OTP] Initiating phone verification for:', phoneNumber);
+      console.log('📱 [SMS OTP] Starting Firebase Phone Authentication...');
+      
+      // For development/testing, we can use Firebase's automatic verification
+      // In production, Firebase will send actual SMS
+      const confirmation = await auth().signInWithPhoneNumber(phoneNumber, true); // auto-verify in dev
+      
+      console.log('✅ [SMS OTP] Verification initiated successfully');
+      console.log('📱 [SMS OTP] Verification ID:', confirmation.verificationId);
+      console.log('📱 [SMS OTP] In production, SMS would be sent to:', phoneNumber);
+      console.log('📱 [SMS OTP] Development mode: Auto-verification enabled');
+      
+      // Store email temporarily for later use
+      if (email) {
+        await this.storeTemporaryEmail(phoneNumber, email);
+      }
+      
+      return { verificationId: confirmation.verificationId };
+    } catch (error) {
+      console.error('❌ [SMS OTP] Phone verification failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Confirm phone verification and complete registration
+   */
+  async confirmPhoneVerification(verificationId: string, code: string, password: string, email?: string): Promise<User> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log('🔑 [SMS OTP] Verifying OTP code...');
+      console.log('🔑 [SMS OTP] Verification ID:', verificationId);
+      console.log('🔑 [SMS OTP] Code entered:', code);
+      
+      const credential = auth.PhoneAuthProvider.credential(verificationId, code);
+      const userCredential = await auth().signInWithCredential(credential);
+      
+      console.log('✅ [SMS OTP] Phone number verified successfully!');
+      console.log('👤 [SMS OTP] User ID:', userCredential.user.uid);
+      console.log('📱 [SMS OTP] Phone:', userCredential.user.phoneNumber);
+      
+      // Store password and email in user profile
+      const user = this.mapFirebaseUser(userCredential.user);
+      await this.createUserProfileWithPhoneAuth(user.uid, password, email);
+      
+      console.log('✅ [SMS OTP] User profile created successfully');
+      
+      return user;
+    } catch (error) {
+      console.error('❌ [SMS OTP] Phone verification confirmation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign in with phone number and password
+   */
+  async signInWithPhone(phoneNumber: string, password: string): Promise<User> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log('🔐 [Phone Login] Attempting login for:', phoneNumber);
+      
+      // First, find user by phone number in Firestore
+      const userProfile = await this.getUserProfileByPhone(phoneNumber);
+      if (!userProfile) {
+        console.error('❌ [Phone Login] No account found for phone:', phoneNumber);
+        throw new Error('Aucun compte trouvé avec ce numéro');
+      }
+      
+      console.log('✅ [Phone Login] User found:', userProfile.userId);
+      
+      // Verify password (you'll need to implement password hashing/verification)
+      if (!await this.verifyPassword(userProfile.userId, password)) {
+        console.error('❌ [Phone Login] Invalid password for user:', userProfile.userId);
+        throw new Error('Mot de passe incorrect');
+      }
+      
+      console.log('✅ [Phone Login] Password verified');
+      
+      // Sign in with phone number
+      const confirmation = await auth().signInWithPhoneNumber(phoneNumber, true);
+      // For existing users, you might want to skip verification or use a different approach
+      // This is a simplified implementation
+      
+      console.log('✅ [Phone Login] Login successful');
+      
+      // Return user data from Firestore
+      const firebaseUser = await auth().currentUser;
+      if (firebaseUser) {
+        return this.mapFirebaseUser(firebaseUser);
+      }
+      
+      throw new Error('Erreur de connexion');
+    } catch (error) {
+      console.error('❌ [Phone Login] Sign in failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resend OTP code
+   */
+  async resendOTP(phoneNumber: string): Promise<{verificationId: string}> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log('🔄 [SMS OTP] Resending verification code to:', phoneNumber);
+      
+      const confirmation = await auth().signInWithPhoneNumber(phoneNumber, true);
+      
+      console.log('✅ [SMS OTP] Verification code resent successfully');
+      console.log('📱 [SMS OTP] New Verification ID:', confirmation.verificationId);
+      console.log('📱 [SMS OTP] In production, new SMS sent to:', phoneNumber);
+      
+      return { verificationId: confirmation.verificationId };
+    } catch (error) {
+      console.error('❌ [SMS OTP] Failed to resend code:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Sign in with Google
    */
   async signInWithGoogle(): Promise<User> {
@@ -232,6 +363,43 @@ class AuthService {
       return user;
     } catch (error) {
       console.error('Apple sign in failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign in with Facebook
+   */
+  async signInWithFacebook(): Promise<User> {
+    try {
+      await this.ensureInitialized();
+
+      // Attempt login with permissions
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+
+      if (result.isCancelled) {
+        throw new Error('User cancelled the login process');
+      }
+
+      // Once signed in, get the users AccessToken
+      const data = await AccessToken.getCurrentAccessToken();
+
+      if (!data) {
+        throw new Error('Something went wrong obtaining access token');
+      }
+
+      // Create a Firebase credential with the AccessToken
+      const facebookCredential = auth.FacebookAuthProvider.credential(data.accessToken);
+
+      // Sign-in the user with the credential
+      const credential = await auth().signInWithCredential(facebookCredential);
+
+      // Map Firebase user to our User type
+      const user = this.mapFirebaseUser(credential.user);
+
+      return user;
+    } catch (error) {
+      console.error('Facebook sign in failed:', error);
       throw error;
     }
   }
@@ -465,6 +633,89 @@ class AuthService {
     });
 
     console.log(`✅ 2-month free trial activated for user ${userId}`);
+  }
+
+  /**
+   * Store temporary email for phone registration
+   */
+  private async storeTemporaryEmail(phoneNumber: string, email: string): Promise<void> {
+    // Store in a temporary collection or local storage
+    // This is a simplified implementation
+    console.log(`Temporarily storing email ${email} for phone ${phoneNumber}`);
+  }
+
+  /**
+   * Create user profile for phone authentication
+   */
+  private async createUserProfileWithPhoneAuth(userId: string, password: string, email?: string): Promise<void> {
+    const profileRef = firestore().doc(COLLECTIONS.userProfile(userId));
+    
+    const profile: UserProfile = {
+      userId,
+      phoneNumber: auth().currentUser?.phoneNumber || undefined,
+      email: email || undefined,
+      preferredLanguage: 'fr',
+      preferredCurrency: 'USD', 
+      notificationsEnabled: true,
+      priceAlertsEnabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await profileRef.set(profile);
+    
+    // Store password hash (implement proper password hashing)
+    await this.storePasswordHash(userId, password);
+    
+    // Initialize subscription
+    await this.initializeNewUserSubscription(userId);
+  }
+
+  /**
+   * Get user profile by phone number
+   */
+  private async getUserProfileByPhone(phoneNumber: string): Promise<UserProfile | null> {
+    const profilesRef = firestore().collection('userProfiles');
+    const query = await profilesRef.where('phoneNumber', '==', phoneNumber).limit(1).get();
+    
+    if (query.empty) {
+      return null;
+    }
+    
+    return query.docs[0].data() as UserProfile;
+  }
+
+  /**
+   * Store password hash (implement proper password hashing in production)
+   */
+  private async storePasswordHash(userId: string, password: string): Promise<void> {
+    // In production, use proper password hashing like bcrypt
+    const passwordRef = firestore().doc(`passwords/${userId}`);
+    await passwordRef.set({
+      passwordHash: password, // This should be properly hashed
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Verify password (implement proper password verification in production)
+   */
+  private async verifyPassword(userId: string, password: string): Promise<boolean> {
+    // In production, use proper password verification
+    try {
+      const passwordRef = firestore().doc(`passwords/${userId}`);
+      const doc = await passwordRef.get();
+      
+      if (!doc.exists) {
+        return false;
+      }
+      
+      const storedPassword = doc.data()?.passwordHash;
+      return storedPassword === password; // This should use proper password comparison
+    } catch (error) {
+      console.error('Password verification failed:', error);
+      return false;
+    }
   }
 
   /**

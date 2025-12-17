@@ -102,6 +102,7 @@ export function UpdateProfileScreen() {
     age: '',
     sex: '' as '' | 'male' | 'female' | 'other',
     phoneNumber: '',
+    email: '',
     monthlyBudget: '',
     city: '',
   });
@@ -118,6 +119,7 @@ export function UpdateProfileScreen() {
         age: profile.age?.toString() || '',
         sex: profile.sex || '',
         phoneNumber: profile.phoneNumber || '',
+        email: profile.email || '',
         monthlyBudget: profile.monthlyBudget?.toString() || '',
         city: profile.defaultCity || '',
       });
@@ -151,6 +153,17 @@ export function UpdateProfileScreen() {
       }
       if (formData.phoneNumber.trim()) {
         updateData.phoneNumber = formData.phoneNumber.trim();
+      }
+      if (formData.email.trim()) {
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(formData.email.trim())) {
+          updateData.email = formData.email.trim();
+        } else {
+          Alert.alert('Erreur', 'Format d\'email invalide');
+          setIsLoading(false);
+          return;
+        }
       }
       if (formData.monthlyBudget.trim()) {
         updateData.monthlyBudget = parseFloat(formData.monthlyBudget.trim());
@@ -409,6 +422,30 @@ export function UpdateProfileScreen() {
                   placeholder="+243 XXX XXX XXX"
                   placeholderTextColor={Colors.text.tertiary}
                   keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+
+            {/* Email Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email (optionnel)</Text>
+              <View style={styles.inputWrapper}>
+                <Icon
+                  name="mail"
+                  size="sm"
+                  color={Colors.text.tertiary}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={formData.email}
+                  onChangeText={value =>
+                    handleInputChange('email', value)
+                  }
+                  placeholder="votre@email.com"
+                  placeholderTextColor={Colors.text.tertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
               </View>
             </View>

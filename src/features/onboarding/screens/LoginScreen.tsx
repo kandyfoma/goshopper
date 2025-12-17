@@ -13,6 +13,7 @@ import {
   Animated,
   Keyboard,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -69,23 +70,23 @@ const getErrorMessage = (errorCode: string): string => {
 export function LoginScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const {signInWithGoogle, signInWithApple} = useAuth();
+  const {signInWithGoogle, signInWithApple, signInWithFacebook} = useAuth();
   const {showToast} = useToast();
 
   // Form state
-  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(
     null,
   );
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -138,17 +139,18 @@ export function LoginScreen() {
     ]).start();
   };
 
-  // Validate email
-  const validateEmail = (value: string): boolean => {
+  // Validate phone number
+  const validatePhoneNumber = (value: string): boolean => {
     if (!value.trim()) {
-      setEmailError("L'email est requis");
+      setPhoneError('Le numéro de téléphone est requis');
       return false;
     }
-    if (!EMAIL_REGEX.test(value)) {
-      setEmailError("Format d'email invalide");
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(value.replace(/\s/g, ''))) {
+      setPhoneError('Format de numéro invalide');
       return false;
     }
-    setEmailError(null);
+    setPhoneError(null);
     return true;
   };
 
@@ -173,17 +175,17 @@ export function LoginScreen() {
     setSuccessMessage(null);
 
     // Validate inputs
-    const isEmailValid = validateEmail(email);
+    const isPhoneValid = validatePhoneNumber(phoneNumber);
     const isPasswordValid = validatePassword(password);
 
-    if (!isEmailValid || !isPasswordValid) {
+    if (!isPhoneValid || !isPasswordValid) {
       triggerShake();
       return;
     }
 
     setLoading(true);
     try {
-      await authService.signInWithEmail(email.trim(), password);
+      await authService.signInWithPhone(phoneNumber.trim(), password);
       setSuccessMessage('Connexion réussie!');
     } catch (err: any) {
       const errorMessage = getErrorMessage(err.code || '');
@@ -194,31 +196,16 @@ export function LoginScreen() {
     }
   };
 
-  // Handle forgot password
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      setEmailError('Entrez votre email pour réinitialiser');
-      triggerShake();
-      return;
-    }
-
-    if (!EMAIL_REGEX.test(email)) {
-      setEmailError("Format d'email invalide");
-      triggerShake();
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      await authService.sendPasswordResetEmail(email.trim());
-      setSuccessMessage('Email de réinitialisation envoyé!');
-    } catch (err: any) {
-      setError(getErrorMessage(err.code || ''));
-    } finally {
-      setLoading(false);
-    }
+  // Handle forgot password - redirect to contact support
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Mot de passe oublié',
+      'Pour réinitialiser votre mot de passe, veuillez contacter notre support.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Contacter le support', onPress: () => navigation.navigate('Contact') }
+      ]
+    );
   };
 
   // Handle Google sign in
@@ -247,6 +234,19 @@ export function LoginScreen() {
     }
   };
 
+  // Handle Facebook sign in
+  const handleFacebookSignIn = async () => {
+    setSocialLoading('facebook');
+    setError(null);
+    try {
+      await signInWithFacebook();
+    } catch (err: any) {
+      setError(err?.message || 'Échec de la connexion Facebook');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
   // Check biometric availability on mount
   useEffect(() => {
     const checkBiometric = async () => {
@@ -263,8 +263,8 @@ export function LoginScreen() {
     try {
       const result = await biometricService.login();
       if (result.success && result.credentials) {
-        // Auto-fill email and show success
-        setEmail(result.credentials.email);
+        // Auto-fill phone and show success
+        setPhoneNumber(result.credentials.phoneNumber || result.credentials.email || '');
         setSuccessMessage('Connexion biométrique réussie!');
         showToast('Connexion biométrique réussie!', 'success', 2000);
         // Navigate to main app
@@ -282,10 +282,10 @@ export function LoginScreen() {
   };
 
   // Clear field errors on change
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    if (emailError) {
-      setEmailError(null);
+  const handlePhoneChange = (value: string) => {
+    setPhoneNumber(value);
+    if (phoneError) {
+      setPhoneError(null);
     }
     if (error) {
       setError(null);
@@ -367,23 +367,23 @@ export function LoginScreen() {
 
             {/* Login Card */}
             <View style={styles.loginCard}>
-              {/* Email Input */}
+              {/* Phone Number Input */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email</Text>
+                <Text style={styles.inputLabel}>Numéro de téléphone</Text>
                 <View
                   style={[
                     styles.inputWrapper,
-                    !!emailError && styles.inputError,
+                    !!phoneError && styles.inputError,
                     isLoading && styles.inputDisabled,
                   ]}>
-                  <Icon name="mail" size="sm" color={GOCHUJANG.textMuted} />
+                  <Icon name="phone" size="sm" color={GOCHUJANG.textMuted} />
                   <TextInput
                     style={styles.input}
-                    placeholder="votre@email.com"
+                    placeholder="+243 xxx xxx xxx"
                     placeholderTextColor={GOCHUJANG.textMuted}
-                    value={email}
-                    onChangeText={handleEmailChange}
-                    keyboardType="email-address"
+                    value={phoneNumber}
+                    onChangeText={handlePhoneChange}
+                    keyboardType="phone-pad"
                     autoCapitalize="none"
                     autoCorrect={false}
                     editable={!isLoading}
@@ -391,8 +391,8 @@ export function LoginScreen() {
                     onSubmitEditing={() => passwordInputRef.current?.focus()}
                   />
                 </View>
-                {emailError && (
-                  <Text style={styles.fieldError}>{emailError}</Text>
+                {phoneError && (
+                  <Text style={styles.fieldError}>{phoneError}</Text>
                 )}
               </View>
 
@@ -525,6 +525,33 @@ export function LoginScreen() {
                     )}
                   </TouchableOpacity>
                 )}
+
+                {/* Facebook Sign-In - All platforms */}
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    styles.facebookButton,
+                    styles.singleSocialButton,
+                    isLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleFacebookSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.7}>
+                  {socialLoading === 'facebook' ? (
+                    <ActivityIndicator size="small" color={GOCHUJANG.white} />
+                  ) : (
+                    <>
+                      <Text style={styles.facebookIcon}>f</Text>
+                      <Text
+                        style={[
+                          styles.socialButtonText,
+                          styles.facebookButtonText,
+                        ]}>
+                        Continuer avec Facebook
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* Biometric Login Button */}
@@ -827,6 +854,18 @@ const styles = StyleSheet.create({
     borderColor: GOCHUJANG.textPrimary,
   },
   appleButtonText: {
+    color: GOCHUJANG.white,
+  },
+  facebookButton: {
+    backgroundColor: '#1877F2',
+    borderColor: '#1877F2',
+  },
+  facebookButtonText: {
+    color: GOCHUJANG.white,
+  },
+  facebookIcon: {
+    fontSize: 18,
+    fontWeight: '700',
     color: GOCHUJANG.white,
   },
 

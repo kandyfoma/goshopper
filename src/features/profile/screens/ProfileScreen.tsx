@@ -357,7 +357,10 @@ export function ProfileScreen() {
               icon="help"
               title="Aide et support"
               iconColor="cream"
-              onPress={() => {}}
+              onPress={() => {
+                analyticsService.logCustomEvent('support_opened');
+                navigation.push('Support');
+              }}
             />
           </View>
         </View>
@@ -375,7 +378,10 @@ export function ProfileScreen() {
               icon="file-text"
               title="Conditions d'utilisation"
               iconColor="blue"
-              onPress={() => {}}
+              onPress={() => {
+                analyticsService.logCustomEvent('terms_opened');
+                navigation.push('Terms');
+              }}
             />
           </View>
         </View>
