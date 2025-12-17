@@ -87,7 +87,7 @@ export function TermsOfServiceScreen() {
         <FadeIn delay={200}>
           <View style={styles.lastUpdated}>
             <Text style={styles.lastUpdatedText}>
-              Dernière mise à jour: Décembre 2024
+              Dernière mise à jour: 17 décembre 2025 - Version 2.0
             </Text>
           </View>
         </FadeIn>
@@ -95,58 +95,88 @@ export function TermsOfServiceScreen() {
         {/* Terms Content */}
         <View style={styles.content}>
           <TermsSection
-            title="1. Acceptation des Conditions"
-            content="En utilisant GoShopperAI, vous acceptez d'être lié par ces conditions d'utilisation. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser l'application."
+            title="1. ACCEPTATION DES CONDITIONS"
+            content="En téléchargeant, installant, accédant ou utilisant GoShopper, vous acceptez d'être juridiquement lié par les présentes Conditions Générales d'Utilisation. Ces Conditions constituent un accord juridiquement contraignant. SI VOUS N'ACCEPTEZ PAS CES CONDITIONS DANS LEUR INTÉGRALITÉ, VOUS N'ÊTES PAS AUTORISÉ À UTILISER LE SERVICE."
           />
 
           <TermsSection
-            title="2. Description du Service"
-            content="GoShopperAI est une application mobile qui permet de scanner des tickets de caisse, suivre les prix des articles, et recevoir des alertes personnalisées. Le service est fourni 'en l'état' sans garanties expresses ou implicites."
+            title="2. DESCRIPTION DU SERVICE"
+            content="GoShopper est une application mobile utilisant l'intelligence artificielle qui fournit: Numérisation intelligente (scan et extraction automatique reçus), analyse des dépenses (suivi, catégorisation, analyse achats), gestion budgétaire (outils planification, optimisation), synchronisation multi-appareils, alertes personnalisées, insights IA. Service fourni 'en l'état' et 'selon disponibilité'."
           />
 
           <TermsSection
-            title="3. Utilisation Acceptable"
-            content="Vous vous engagez à utiliser l'application uniquement pour des fins légales et conformément à ces conditions. Il est interdit d'utiliser l'application pour des activités frauduleuses, illégales ou nuisibles."
+            title="3. ADMISSIBILITÉ ET COMPTES"
+            content="Conditions d'admissibilité: Âge minimum 13 ans, consentement parental pour 13-18 ans, capacité juridique conclure contrats contraignants, utilisation légale dans votre juridiction. Gestion compte: Informations exactes obligatoires, un compte par personne, responsabilité totale activités sous compte, maintien confidentialité identifiants, notification immédiate utilisation non autorisée."
           />
 
           <TermsSection
-            title="4. Comptes Utilisateur"
-            content="Pour utiliser certaines fonctionnalités, vous devez créer un compte. Vous êtes responsable de maintenir la confidentialité de vos identifiants et de toutes les activités qui se produisent sous votre compte."
+            title="4. UTILISATION ACCEPTABLE"
+            content="Usages autorisés: Besoins personnels non commerciaux, scanner vos propres reçus, gérer dépenses personnelles/budgets familiaux. Activités STRICTEMENT interdites: Utilisation frauduleuse (faux reçus, manipulation données), violations techniques (piratage, ingénierie inverse), atteintes sécurité (contournement mesures, malwares), violations droits (propriété intellectuelle, usurpation identité), usage commercial non autorisé, automatisation (robots, scrapers)."
           />
 
           <TermsSection
-            title="5. Propriété Intellectuelle"
-            content="L'application et son contenu sont protégés par les droits d'auteur et autres lois sur la propriété intellectuelle. Vous ne pouvez pas copier, modifier ou distribuer le contenu sans autorisation préalable."
+            title="5. PROPRIÉTÉ INTELLECTUELLE"
+            content="Notre propriété: Application (code source, algorithmes, interface, design), marques (logo GoShopper, noms commerciaux), technologies (IA, OCR, bases données propriétaires). Licence accordée: Limitée, non exclusive, non transférable, révocable pour usage personnel exclusivement. Vos droits: Vous conservez propriété reçus/données personnelles, mais accordez licence traitement pour fournir service."
           />
 
           <TermsSection
-            title="6. Données et Confidentialité"
-            content="Vos données sont collectées et traitées conformément à notre politique de confidentialité. En utilisant l'application, vous consentez à cette collecte et traitement."
+            title="6. PRÉCISION DONNÉES ET RESPONSABILITÉ"
+            content="Précision OCR: Technologie IA peut occasionnellement produire erreurs, vérification requise avant utilisation, amélioration continue mais pas garantie 100%. Pas de conseil financier: Service fournit outils analyse/organisation, pas conseils financiers professionnels, toutes décisions financières votre seule responsabilité, consultation conseiller qualifié pour décisions importantes."
           />
 
           <TermsSection
-            title="7. Limitation de Responsabilité"
-            content="GoShopperAI ne peut être tenu responsable des dommages directs, indirects, spéciaux ou consécutifs découlant de l'utilisation de l'application. L'utilisation se fait à vos propres risques."
+            title="7. ABONNEMENTS ET PAIEMENTS"
+            content="Plans: Gratuit avec fonctionnalités limitées, premium avec fonctionnalités avancées. Facturation: Périodique à l'avance, renouvellement automatique sauf annulation, moyens paiement (cartes, mobile money). Annulation: Via paramètres Application, accès premium continue jusqu'à fin période payée. Remboursements: Régis par politiques app stores. Modifications prix: Préavis 30 jours."
           />
 
           <TermsSection
-            title="8. Résiliation"
-            content="Nous nous réservons le droit de suspendre ou résilier votre compte à tout moment pour violation de ces conditions. Vous pouvez également résilier votre compte à tout moment."
+            title="8. GARANTIES ET EXCLUSIONS"
+            content="DANS MESURE MAXIMALE AUTORISÉE LOI, SERVICE FOURNI 'EN L'ÉTAT' SANS GARANTIES: Qualité marchande/adaptation usage particulier, non-contrefaçon droits propriété intellectuelle, fonctionnement ininterrompu/exempt erreurs, exactitude contenu/données, sécurité complète contre menaces. Risques assumés par utilisateur."
           />
 
           <TermsSection
-            title="9. Modifications"
-            content="Ces conditions peuvent être modifiées à tout moment. Nous vous informerons des changements importants. L'utilisation continue de l'application constitue l'acceptation des nouvelles conditions."
+            title="9. LIMITATION DE RESPONSABILITÉ"
+            content="MESURE MAXIMALE AUTORISÉE LOI, GOSHOPPER PAS RESPONSABLE: Dommages indirects (perte profits, économies, opportunités), dommages consécutifs (interruption activité, perte données, réputation), dommages punitifs/exemplaires, préjudice moral/stress émotionnel. Responsabilité totale ne dépassera jamais montant payé 12 derniers mois. Exceptions: Négligence grave, faute intentionnelle, droits consommateurs impératifs."
           />
 
           <TermsSection
-            title="10. Droit Applicable"
-            content="Ces conditions sont régies par le droit français. Tout litige sera soumis à la compétence exclusive des tribunaux français."
+            title="10. INDEMNISATION"
+            content="Vous acceptez indemniser, défendre et dégager responsabilité GoShopper contre réclamations découlant de: Utilisation Service violation Conditions, violation droits tiers, négligence/faute intentionnelle, contenu soumis via Service. Protection maximale société contre risques utilisateur malveillant ou négligent."
           />
 
           <TermsSection
-            title="11. Contact"
-            content="Pour toute question concernant ces conditions, contactez-nous à legal@goshopperai.com ou via l'application."
+            title="11. RÉSILIATION"
+            content="Résiliation utilisateur: Suppression Application appareils, contact support client, fonctions suppression compte Application. Résiliation société: Immédiate avec/sans motif, violation Conditions, cessation service, inactivité prolongée, protection intérêts. Effets résiliation: Droit utilisation cesse immédiatement, suppression compte/données possible, clauses survivent, aucun remboursement (sauf exceptions légales)."
+          />
+
+          <TermsSection
+            title="12. FORCE MAJEURE"
+            content="Pas responsables retard/défaut exécution circonstances indépendantes volonté raisonnable: Catastrophes naturelles, guerres, terrorisme, grèves, conflits sociaux, défaillances infrastructure internet/électrique, actions gouvernementales, changements réglementaires, pandemies, urgences sanitaires publiques. Suspension obligations pendant durée empêchement."
+          />
+
+          <TermsSection
+            title="13. JURIDICTION ET LOI APPLICABLE"
+            content="Droit applicable: Conditions régies lois françaises sans égard principes conflit lois. Compétence: Tribunaux français compétence exclusive, sous réserve droits impératifs consommateurs. Résolution alternative: Négociation directe encouragée, médiation tiers neutre, arbitrage si convenu mutuellement. Procédures amiables avant action judiciaire."
+          />
+
+          <TermsSection
+            title="14. CONFORMITÉ RÉGLEMENTAIRE"
+            content="Service développé conformité: Réglementation européenne protection données (RGPD), lois françaises informatique et libertés, réglementations app stores (Apple, Google), standards sécurité industrie. Adaptation continue évolutions réglementaires pour maintenir conformité maximale."
+          />
+
+          <TermsSection
+            title="15. DISPOSITIONS GÉNÉRALES"
+            content="Intégralité accord: Conditions + Politique Confidentialité constituent accord complet. Divisibilité: Si disposition invalide, autres restent vigueur. Renonciation: Défaut exercice droit pas renonciation. Cession: Vous pas céder droits sans consentement écrit, nous pouvons céder sans restriction. Pas partenariat/joint-venture/emploi/agence créé."
+          />
+
+          <TermsSection
+            title="16. CONTACT ET SUPPORT"
+            content="Communications officielles: support@goshopper.app (technique 48h), legal@goshopper.app (légal 5j), privacy@goshopper.app (données 30j RGPD), https://goshopper.app (site web). Délais réponse garantis pour protection utilisateurs et conformité réglementaire."
+          />
+
+          <TermsSection
+            title="17. ACCEPTATION FINALE"
+            content="EN UTILISANT SERVICE GOSHOPPER, VOUS RECONNAISSEZ AVOIR LU, COMPRIS ET ACCEPTÉ CES CONDITIONS GÉNÉRALES D'UTILISATION DANS LEUR INTÉGRALITÉ. Accord juridiquement contraignant en vigueur. Utilisation continue constitue acceptation renouvelée."
           />
         </View>
 

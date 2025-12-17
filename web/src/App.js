@@ -130,12 +130,12 @@ function App() {
 
 function HomeSection() {
   useEffect(() => {
-    document.title = 'GoShopper - Scan de Reçus Intelligent et Comparaison de Prix en RDC';
+    document.title = 'GoShopper - Scan de Reçus Intelligent et Gestion de Budget';
     
     // Update meta description for home page
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Application mobile révolutionnaire avec IA pour scanner vos reçus, comparer les prix et gérer vos dépenses en RDC. Paiements mobile money M-Pesa, Orange Money, Airtel Money.');
+      metaDescription.setAttribute('content', 'Application mobile révolutionnaire avec IA pour scanner vos reçus, analyser vos dépenses et optimiser votre budget. Support mobile money et paiements sécurisés.');
     }
     
     // Update Open Graph tags
@@ -157,10 +157,10 @@ function HomeSection() {
         <div className="hero-container">
           <div className="hero-content">
             <h1 className="hero-title">
-              Scan de Reçus Intelligent RDC avec <span className="gradient-text">Intelligence Artificielle</span>
+              Transformez vos Reçus grâce à l'<span className="gradient-text">Intelligence Artificielle</span>
             </h1>
             <p className="hero-subtitle">
-              Transformez vos reçus en données organisées en quelques secondes. GoShopper utilise l'IA avancée pour extraire automatiquement chaque détail et comparer les prix à Kinshasa et partout en RDC.
+              Transformez vos reçus en données organisées en quelques secondes. GoShopper utilise l'IA avancée pour extraire automatiquement chaque détail et analyser vos habitudes d'achat.
             </p>
             <div className="hero-buttons">
               <ScrollLink to="#download" className="btn btn-primary">
@@ -190,7 +190,7 @@ function HomeSection() {
           <div className="hero-visual">
             <div className="phone-mockup">
               <div className="phone-screen">
-                <img src="/app-screenshot.jpg" alt="Interface de l'application GoShopper montrant le scan de reçus intelligent et la comparaison de prix en RDC" className="app-screenshot" />
+                <img src="/app-screenshot.jpg" alt="Interface de l'application GoShopper montrant le scan de reçus intelligent et la gestion des dépenses" className="app-screenshot" />
               </div>
             </div>
           </div>
@@ -201,23 +201,23 @@ function HomeSection() {
       <section id="features" className="features">
         <div className="section-container">
           <div className="section-header">
-            <h2>Pourquoi Choisir GoShopper en RDC ?</h2>
-            <p>Découvrez l'avenir de la gestion des dépenses avec nos fonctionnalités révolutionnaires adaptées au marché congolais</p>
+            <h2>Pourquoi Choisir GoShopper ?</h2>
+            <p>Découvrez l'avenir de la gestion des dépenses avec nos fonctionnalités révolutionnaires</p>
           </div>
           <div className="features-grid">
             <div className="feature-card">
               <div className="feature-icon">🔍</div>
-              <h3>Scan IA Précis - Reçus RDC</h3>
-              <p>Intelligence artificielle avancée qui extrait automatiquement texte, prix et catégories de vos reçus congolais avec 99,9% de précision.</p>
+              <h3>Scan IA Précis et Universel</h3>
+              <p>Intelligence artificielle avancée qui extrait automatiquement texte, prix et catégories de vos reçus avec 99,9% de précision, peu importe le format.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">📱</div>
               <h3>Fonctionnement Hors Ligne</h3>
-              <p>Scannez vos reçus même sans internet à Kinshasa. Synchronisation automatique dès le retour de connexion.</p>
+              <p>Scannez vos reçus même sans connexion internet. Synchronisation automatique dès le retour en ligne.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">🏷️</div>
-              <h3>Catégorisation Intelligente RDC</h3>
+              <h3>Catégorisation Intelligente</h3>
               <p>La catégorisation automatique des dépenses apprend de vos habitudes de dépenses pour une organisation personnalisée.</p>
             </div>
             <div className="feature-card">
@@ -312,11 +312,11 @@ function HomeSection() {
 
 function PrivacyPolicy() {
   useEffect(() => {
-    document.title = 'Politique de Confidentialité | GoShopper - Protection des Données en RDC';
+    document.title = 'Politique de Confidentialité | GoShopper - Protection des Données';
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Politique de confidentialité GoShopper - Comment nous protégeons vos données personnelles et respectons votre vie privée en République Démocratique du Congo.');
+      metaDescription.setAttribute('content', 'Politique de confidentialité complète de GoShopper - Protection maximale de vos données personnelles conforme RGPD, CCPA et réglementations internationales.');
     }
     
     const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -334,91 +334,184 @@ function PrivacyPolicy() {
     <section className="legal-page">
       <div className="legal-container">
         <div className="legal-header">
-          <h1>Politique de confidentialité</h1>
-          <p className="legal-date">Dernière mise à jour : 15 janvier 2025</p>
+          <h1>Politique de Confidentialité</h1>
+          <p className="legal-date">Dernière mise à jour : 17 décembre 2025</p>
+          <p className="legal-version">Version 2.0</p>
         </div>
         
         <div className="legal-content">
           <div className="legal-section">
-            <h2>Informations que nous collectons</h2>
-            <p>GoShopperAI s'engage à protéger votre vie privée. Nous collectons uniquement les informations minimales nécessaires pour fournir nos services :</p>
+            <h2>1. INTRODUCTION</h2>
+            <p>GoShopper ("nous", "notre", "nos", "la Société") exploite l'application mobile GoShopper ("l'Application", "le Service"). Cette politique de confidentialité ("Politique") vous informe de nos pratiques concernant la collecte, l'utilisation, la divulgation et la protection de vos informations personnelles lorsque vous utilisez notre Service.</p>
+            <p><strong>EN UTILISANT NOTRE SERVICE, VOUS CONSENTEZ À LA COLLECTE, L'UTILISATION ET LA DIVULGATION DE VOS INFORMATIONS CONFORMÉMENT À CETTE POLITIQUE.</strong></p>
+          </div>
+
+          <div className="legal-section">
+            <h2>2. INFORMATIONS COLLECTÉES</h2>
+            
+            <h3>2.1 Informations Fournies Volontairement</h3>
             <ul>
-              <li><strong>Images de reçus :</strong> Les photos que vous prenez sont traitées localement sur votre appareil lorsque possible</li>
-              <li><strong>Données extraites :</strong> Texte, montants et catégories extraits des reçus</li>
-              <li><strong>Informations de compte :</strong> Adresse e-mail et informations de profil de base si vous créez un compte</li>
-              <li><strong>Analyses d'utilisation :</strong> Statistiques anonymes d'utilisation de l'application pour améliorer notre service</li>
+              <li><strong>Informations de Compte :</strong> Adresse e-mail, nom, photo de profil (lors de l'inscription via Google, Apple, ou création manuelle)</li>
+              <li><strong>Données de Reçus :</strong> Images de reçus scannés, noms de magasins, produits, prix, dates</li>
+              <li><strong>Listes d'Achats :</strong> Articles ajoutés à vos listes personnelles</li>
+              <li><strong>Préférences :</strong> Paramètres de l'application, magasins favoris, préférences de notification</li>
+              <li><strong>Communications :</strong> Messages envoyés via notre support client</li>
+            </ul>
+
+            <h3>2.2 Informations Collectées Automatiquement</h3>
+            <ul>
+              <li><strong>Informations d'Appareil :</strong> Modèle, système d'exploitation, identifiants uniques d'appareil</li>
+              <li><strong>Données d'Utilisation :</strong> Fonctionnalités utilisées, temps passé dans l'app, fréquence d'utilisation, interactions</li>
+              <li><strong>Données de Localisation :</strong> Localisation approximative (ville/région) pour afficher les magasins à proximité (uniquement avec votre permission explicite)</li>
+              <li><strong>Données Analytiques :</strong> Rapports de plantage, métriques de performance, erreurs d'application</li>
+              <li><strong>Métadonnées Techniques :</strong> Adresse IP, informations de session, journaux d'activité</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Comment nous utilisons vos informations</h2>
-            <p>Vos données sont utilisées exclusivement pour fournir et améliorer les services GoShopperAI :</p>
+            <h2>3. UTILISATION DES INFORMATIONS</h2>
+            <p>Nous utilisons vos données exclusivement pour :</p>
             <ul>
-              <li>Traitement des images de reçus pour extraire les informations de dépenses</li>
-              <li>Stockage et organisation sécurisés de vos données de dépenses</li>
-              <li>Fourniture d'analyses et d'insights sur les dépenses</li>
-              <li>Amélioration de nos modèles d'IA pour une meilleure précision</li>
-              <li>Envoi de mises à jour importantes du service (avec votre consentement)</li>
+              <li><strong>Fonctionnalité de Base :</strong> Traitement et analyse des données de reçus, suivi des prix, génération d'insights de dépenses</li>
+              <li><strong>Authentification et Sécurité :</strong> Création et gestion de comptes, vérification d'identité, prévention de fraude</li>
+              <li><strong>Personnalisation :</strong> Adaptation de l'expérience utilisateur, recommandations personnalisées</li>
+              <li><strong>Amélioration du Service :</strong> Développement technique, amélioration de la précision OCR, correction de bugs</li>
+              <li><strong>Support Client :</strong> Fourniture d'assistance technique et réponse aux demandes</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Sécurité et stockage des données</h2>
-            <p>Nous mettons en œuvre des mesures de sécurité standard de l'industrie :</p>
+            <h2>4. BASE LÉGALE DU TRAITEMENT (RGPD)</h2>
+            <p>Nous traitons vos données personnelles sur la base de :</p>
             <ul>
-              <li><strong>Cryptage :</strong> Toutes les données sont cryptées en transit et au repos</li>
-              <li><strong>Traitement local :</strong> La numérisation des reçus est effectuée sur votre appareil lorsque possible</li>
-              <li><strong>Stockage cloud sécurisé :</strong> Données stockées avec Firebase et sécurité d'entreprise</li>
-              <li><strong>Contrôles d'accès :</strong> Politiques d'accès interne strictes et journaux d'audit</li>
-              <li><strong>Minimisation des données :</strong> Nous stockons uniquement les informations nécessaires</li>
+              <li><strong>Exécution du Contrat :</strong> Fourniture du service que vous avez demandé</li>
+              <li><strong>Intérêts Légitimes :</strong> Amélioration du service, prévention de fraude, sécurité</li>
+              <li><strong>Consentement :</strong> Marketing, géolocalisation, cookies non essentiels</li>
+              <li><strong>Obligation Légale :</strong> Conformité aux lois applicables</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Partage des données</h2>
-            <p>Nous ne vendons, n'échangeons ni ne partageons vos informations personnelles avec des tiers, sauf :</p>
+            <h2>5. PARTAGE ET DIVULGATION DES DONNÉES</h2>
+            
+            <h3>5.1 Nous NE Partageons JAMAIS</h3>
             <ul>
-              <li>Avec votre consentement explicite</li>
-              <li>Pour nous conformer aux obligations légales</li>
-              <li>Pour protéger nos droits et prévenir la fraude</li>
-              <li>Avec des prestataires de services sous accords de confidentialité stricts</li>
+              <li>Vos informations personnelles à des fins commerciales</li>
+              <li>Vos données de reçus avec des tiers non autorisés</li>
+              <li>Vos informations avec des annonceurs ou brokers de données</li>
+              <li>Vos données financières à des fins de marketing</li>
+            </ul>
+
+            <h3>5.2 Partage Autorisé Uniquement</h3>
+            <ul>
+              <li><strong>Prestataires de Services :</strong> Google Firebase (hébergement sécurisé), services d'authentification (sous accords de confidentialité stricts)</li>
+              <li><strong>Obligations Légales :</strong> Lorsque requis par la loi, ordonnances judiciaires, ou pour protéger nos droits légaux</li>
+              <li><strong>Protection de Sécurité :</strong> Prévention de fraude, protection contre les cyberattaques</li>
+              <li><strong>Consentement Explicite :</strong> Uniquement si vous donnez votre autorisation spécifique</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Vos droits</h2>
-            <p>Vous avez un contrôle total sur vos données :</p>
+            <h2>6. SÉCURITÉ ET PROTECTION DES DONNÉES</h2>
             <ul>
-              <li><strong>Accès :</strong> Demander une copie de toutes vos données stockées</li>
-              <li><strong>Correction :</strong> Mettre à jour ou corriger les informations inexactes</li>
-              <li><strong>Suppression :</strong> Demander la suppression permanente de votre compte et de vos données</li>
-              <li><strong>Portabilité :</strong> Exporter vos données dans un format lisible par machine</li>
-              <li><strong>Désinscription :</strong> Vous désabonner des communications à tout moment</li>
+              <li><strong>Chiffrement :</strong> Chiffrement AES-256 pour toutes les données en transit et au repos</li>
+              <li><strong>Authentification Sécurisée :</strong> OAuth 2.0, authentification multi-facteurs optionnelle</li>
+              <li><strong>Contrôles d'Accès :</strong> Accès basé sur les rôles, authentification forte des employés</li>
+              <li><strong>Surveillance :</strong> Monitoring continu des activités suspectes, journaux d'audit complets</li>
+              <li><strong>Traitement Local :</strong> La reconnaissance optique de caractères (OCR) est effectuée localement sur votre appareil lorsque possible</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Utilisateurs internationaux</h2>
-            <p>GoShopperAI se conforme aux réglementations internationales sur la confidentialité, y compris le RGPD, la CCPA et d'autres lois régionales sur la confidentialité. Le traitement des données est effectué conformément aux normes de confidentialité les plus élevées, quel que soit votre lieu.</p>
+            <h2>7. VOS DROITS ET CONTRÔLES</h2>
+            <ul>
+              <li><strong>Accès :</strong> Obtenir une copie complète de toutes vos données personnelles</li>
+              <li><strong>Rectification :</strong> Corriger les informations inexactes ou incomplètes</li>
+              <li><strong>Suppression :</strong> Demander la suppression définitive de votre compte et données ("droit à l'oubli")</li>
+              <li><strong>Portabilité :</strong> Exporter vos données dans un format structuré et lisible</li>
+              <li><strong>Opposition :</strong> Vous opposer au traitement de vos données pour des finalités spécifiques</li>
+              <li><strong>Retrait de Consentement :</strong> Révoquer vos consentements à tout moment</li>
+            </ul>
+            
+            <h3>Comment Exercer vos Droits</h3>
+            <p>Contactez-nous à <strong>privacy@goshopper.app</strong> avec votre demande spécifique et une preuve d'identité. Délai de réponse : 30 jours maximum.</p>
           </div>
 
           <div className="legal-section">
-            <h2>Confidentialité des enfants</h2>
-            <p>GoShopperAI n'est pas destiné aux enfants de moins de 13 ans. Nous ne collectons pas sciemment d'informations personnelles auprès d'enfants de moins de 13 ans. Si vous pensez que nous avons collecté des informations auprès d'un enfant de moins de 13 ans, veuillez nous contacter immédiatement.</p>
+            <h2>8. CONSERVATION DES DONNÉES</h2>
+            <ul>
+              <li><strong>Données de Compte :</strong> Conservées tant que votre compte est actif</li>
+              <li><strong>Images de Reçus :</strong> Conservées jusqu'à suppression manuelle ou fermeture du compte</li>
+              <li><strong>Données d'Usage :</strong> Conservées pendant 24 mois maximum</li>
+              <li><strong>Journaux de Sécurité :</strong> Conservés pendant 12 mois</li>
+            </ul>
+            <p>Les données supprimées sont définitivement effacées dans les 30 jours.</p>
           </div>
 
           <div className="legal-section">
-            <h2>Modifications de cette politique</h2>
-            <p>Nous pouvons mettre à jour cette politique de confidentialité périodiquement. Les utilisateurs seront informés des changements importants via l'application ou par e-mail. L'utilisation continue de GoShopperAI après les modifications constitue l'acceptation de la politique mise à jour.</p>
+            <h2>9. CONFIDENTIALITÉ DES MINEURS</h2>
+            <ul>
+              <li>Service non destiné aux enfants de moins de 13 ans</li>
+              <li>Vérification de l'âge lors de l'inscription</li>
+              <li>Suppression immédiate des données si utilisation par un mineur détectée</li>
+              <li>Consentement parental requis pour les utilisateurs de 13-16 ans (selon juridiction)</li>
+            </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Nous contacter</h2>
-            <p>Si vous avez des questions sur cette politique de confidentialité ou nos pratiques de données, veuillez nous contacter :</p>
+            <h2>10. CONFORMITÉ RÉGLEMENTAIRE</h2>
+            <p>Cette politique respecte :</p>
+            <ul>
+              <li><strong>RGPD</strong> (Règlement Général sur la Protection des Données) - Union Européenne</li>
+              <li><strong>CCPA</strong> (California Consumer Privacy Act) - Californie, États-Unis</li>
+              <li><strong>COPPA</strong> (Children's Online Privacy Protection Act) - États-Unis</li>
+              <li><strong>Loi Informatique et Libertés</strong> - France</li>
+              <li>Autres réglementations locales applicables</li>
+            </ul>
+            <p><strong>Représentant UE :</strong> eu-representative@goshopper.app</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>11. VIOLATIONS DE DONNÉES</h2>
+            <p>En cas de violation de données personnelles :</p>
+            <ul>
+              <li>Notification aux autorités compétentes dans les 72 heures</li>
+              <li>Information des utilisateurs affectés si risque élevé</li>
+              <li>Mesures correctives immédiates</li>
+            </ul>
+          </div>
+
+          <div className="legal-section">
+            <h2>12. MODIFICATIONS DE CETTE POLITIQUE</h2>
+            <ul>
+              <li>Notification via l'application pour modifications importantes</li>
+              <li>E-mail de notification aux utilisateurs enregistrés</li>
+              <li>Publication de la nouvelle version sur notre site web</li>
+              <li>Période de préavis de 30 jours pour changements substantiels</li>
+            </ul>
+            <p>L'utilisation continue du service après modifications constitue votre acceptation de la politique révisée.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>13. CONTACT ET RÉCLAMATIONS</h2>
             <div className="contact-info">
-              <p><strong>E-mail :</strong> privacy@goshopper.app</p>
-              <p><strong>Adresse :</strong> Équipe de confidentialité GoShopperAI<br/>123 Rue Tech<br/>Ville Innovation, IC 12345</p>
+              <p><strong>E-mail Confidentialité :</strong> privacy@goshopper.app</p>
+              <p><strong>Support Général :</strong> support@goshopper.app</p>
+              <p><strong>Site Web :</strong> https://goshopper.app/privacy</p>
+              <p><strong>Délégué à la Protection des Données :</strong> dpo@goshopper.app</p>
             </div>
+            
+            <h3>Réclamations</h3>
+            <ul>
+              <li>Droit de déposer une plainte auprès de l'autorité de supervision compétente</li>
+              <li><strong>France :</strong> Commission Nationale de l'Informatique et des Libertés (CNIL)</li>
+              <li><strong>UE :</strong> Autorité de protection des données de votre pays de résidence</li>
+            </ul>
+          </div>
+
+          <div className="legal-section">
+            <h2>14. JURIDICTION ET LOI APPLICABLE</h2>
+            <p>Cette Politique est régie par les lois françaises et européennes. Tout litige sera soumis à la compétence exclusive des tribunaux français, sans préjudice de vos droits en tant que consommateur.</p>
           </div>
         </div>
       </div>
@@ -428,11 +521,11 @@ function PrivacyPolicy() {
 
 function TermsConditions() {
   useEffect(() => {
-    document.title = 'Conditions Générales d\'Utilisation | GoShopper - Termes et Services';
+    document.title = 'Conditions Générales d\'Utilisation | GoShopper - Protection Légale Complète';
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Conditions générales d\'utilisation de GoShopper - Termes, règles et conditions pour utiliser notre application de scan de reçus en République Démocratique du Congo.');
+      metaDescription.setAttribute('content', 'Conditions générales complètes de GoShopper - Termes juridiquement contraignants, protection maximale et utilisation responsable de notre application IA.');
     }
     
     const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -450,125 +543,213 @@ function TermsConditions() {
     <section className="legal-page">
       <div className="legal-container">
         <div className="legal-header">
-          <h1>Conditions générales</h1>
-          <p className="legal-date">Dernière mise à jour : 15 janvier 2025</p>
+          <h1>Conditions Générales d'Utilisation</h1>
+          <p className="legal-date">Dernière mise à jour : 17 décembre 2025</p>
+          <p className="legal-version">Version 2.0</p>
         </div>
         
         <div className="legal-content">
           <div className="legal-section">
-            <h2>Acceptation des conditions</h2>
-            <p>En téléchargeant, installant ou utilisant l'application mobile GoShopperAI ("Application"), vous acceptez d'être lié par ces Conditions générales ("Conditions"). Si vous n'acceptez pas ces Conditions, n'utilisez pas l'Application.</p>
+            <h2>1. ACCEPTATION DES CONDITIONS</h2>
+            <p>En téléchargeant, installant, accédant ou utilisant l'application mobile GoShopper ("l'Application", "le Service"), vous acceptez d'être juridiquement lié par les présentes Conditions Générales d'Utilisation ("Conditions", "CGU"). Ces Conditions constituent un accord juridiquement contraignant entre vous ("Utilisateur", "vous", "votre") et GoShopper ("nous", "notre", "nos", "la Société").</p>
+            <p><strong>SI VOUS N'ACCEPTEZ PAS CES CONDITIONS DANS LEUR INTÉGRALITÉ, VOUS N'ÊTES PAS AUTORISÉ À UTILISER LE SERVICE ET DEVEZ IMMÉDIATEMENT CESSER TOUTE UTILISATION.</strong></p>
           </div>
 
           <div className="legal-section">
-            <h2>Description du service</h2>
-            <p>GoShopperAI est une application mobile qui fournit :</p>
+            <h2>2. DESCRIPTION DU SERVICE</h2>
+            <p>GoShopper est une application mobile utilisant l'intelligence artificielle qui fournit :</p>
             <ul>
-              <li>Numérisation et extraction de texte des reçus alimentée par l'IA</li>
-              <li>Suivi et catégorisation des dépenses</li>
-              <li>Analyses financières et insights</li>
-              <li>Stockage cloud sécurisé et synchronisation</li>
-              <li>Accès multi-appareils à vos données de dépenses</li>
+              <li><strong>Numérisation Intelligente :</strong> Scan et extraction automatique de données des reçus</li>
+              <li><strong>Analyse des Dépenses :</strong> Suivi, catégorisation et analyse de vos achats</li>
+              <li><strong>Gestion Budgétaire :</strong> Outils de planification et optimisation des dépenses</li>
+              <li><strong>Synchronisation Multi-Appareils :</strong> Accès à vos données sur plusieurs dispositifs</li>
+              <li><strong>Alertes Personnalisées :</strong> Notifications basées sur vos habitudes d'achat</li>
+              <li><strong>Insights IA :</strong> Recommandations personnalisées pour optimiser votre budget</li>
+            </ul>
+            <p>Le Service est fourni "en l'état" et "selon disponibilité". Nous nous réservons le droit de modifier, suspendre ou interrompre tout ou partie du Service à tout moment.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>3. ADMISSIBILITÉ ET COMPTES UTILISATEURS</h2>
+            
+            <h3>3.1 Conditions d'Admissibilité</h3>
+            <ul>
+              <li><strong>Âge Minimum :</strong> Vous devez avoir au moins 13 ans pour utiliser le Service</li>
+              <li><strong>Consentement Parental :</strong> Les utilisateurs de 13-18 ans doivent obtenir le consentement de leurs parents/tuteurs</li>
+              <li><strong>Capacité Juridique :</strong> Vous devez avoir la capacité juridique de conclure des contrats contraignants</li>
+              <li><strong>Juridiction :</strong> L'utilisation du Service doit être légale dans votre juridiction</li>
+            </ul>
+
+            <h3>3.2 Création et Gestion de Compte</h3>
+            <ul>
+              <li><strong>Informations Exactes :</strong> Vous devez fournir des informations complètes, exactes et à jour</li>
+              <li><strong>Unicité du Compte :</strong> Un seul compte par personne physique</li>
+              <li><strong>Responsabilité :</strong> Vous êtes entièrement responsable de toutes activités sous votre compte</li>
+              <li><strong>Sécurité :</strong> Vous devez maintenir la confidentialité de vos identifiants de connexion</li>
+              <li><strong>Notification :</strong> Vous devez nous informer immédiatement de toute utilisation non autorisée</li>
+            </ul>
+
+            <h3>3.3 Suspension et Résiliation de Compte</h3>
+            <p>Nous pouvons suspendre ou résilier votre compte immédiatement et sans préavis si vous violez ces Conditions, utilisez le Service de manière frauduleuse, portez atteinte aux droits d'autrui, ou présentez des activités suspectes.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>4. UTILISATION ACCEPTABLE</h2>
+            
+            <h3>4.1 Usages Autorisés</h3>
+            <ul>
+              <li>Vos besoins personnels et non commerciaux</li>
+              <li>Scanner et analyser vos propres reçus et tickets de caisse</li>
+              <li>Gérer vos dépenses personnelles et budgets familiaux</li>
+              <li>Accéder aux fonctionnalités selon les limites de votre plan d'abonnement</li>
+            </ul>
+
+            <h3>4.2 Activités Strictement Interdites</h3>
+            <ul>
+              <li><strong>Utilisation Frauduleuse :</strong> Scanner de faux reçus, manipuler des données, créer de fausses informations</li>
+              <li><strong>Violations Techniques :</strong> Tenter de pirater, décompiler, désosser, ou faire de l'ingénierie inverse de l'Application</li>
+              <li><strong>Sécurité :</strong> Contourner les mesures de sécurité, accéder aux systèmes non autorisés, transmettre des malwares</li>
+              <li><strong>Atteintes aux Droits :</strong> Violer les droits de propriété intellectuelle, usurper l'identité d'autrui, harceler d'autres utilisateurs</li>
+              <li><strong>Usage Commercial :</strong> Revendre, redistribuer ou exploiter commercialement le Service sans autorisation écrite</li>
+              <li><strong>Automatisation :</strong> Utiliser des robots, scrapers ou systèmes automatisés pour accéder au Service</li>
+            </ul>
+
+            <h3>4.3 Conséquences des Violations</h3>
+            <p>Toute violation peut entraîner : suspension immédiate, résiliation définitive sans remboursement, poursuites judiciaires civiles et/ou pénales, réclamation de dommages-intérêts.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>5. PROPRIÉTÉ INTELLECTUELLE</h2>
+            <ul>
+              <li><strong>Application :</strong> Tous les droits, titres et intérêts dans l'Application, y compris le code source, algorithmes, interface utilisateur, design, fonctionnalités</li>
+              <li><strong>Marques :</strong> Logo GoShopper, noms commerciaux, marques de service sont notre propriété exclusive</li>
+              <li><strong>Technologies :</strong> Algorithmes d'IA, modèles d'apprentissage automatique, bases de données propriétaires</li>
+              <li><strong>Licence Accordée :</strong> Nous vous accordons une licence limitée, non exclusive, non transférable, révocable pour utiliser l'Application exclusivement pour vos besoins personnels</li>
+            </ul>
+            <p>Vous conservez tous droits de propriété sur vos reçus et données personnelles, mais nous accordez une licence pour traiter vos données afin de fournir le Service.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>6. PRÉCISION DES DONNÉES ET LIMITATION DE RESPONSABILITÉ</h2>
+            
+            <h3>6.1 Précision de la Reconnaissance Optique (OCR)</h3>
+            <ul>
+              <li><strong>Technologie IA :</strong> L'extraction de données des reçus utilise l'intelligence artificielle qui peut occasionnellement produire des erreurs</li>
+              <li><strong>Vérification Requise :</strong> Vous devez toujours vérifier l'exactitude des données extraites avant de les utiliser</li>
+              <li><strong>Amélioration Continue :</strong> Nous nous efforçons d'améliorer constamment la précision, mais ne garantissons pas une précision de 100%</li>
+            </ul>
+
+            <h3>6.2 Pas de Conseil Financier</h3>
+            <ul>
+              <li><strong>Outil d'Information :</strong> Le Service fournit des outils d'analyse et d'organisation, pas de conseils financiers professionnels</li>
+              <li><strong>Responsabilité Utilisateur :</strong> Toutes décisions financières basées sur les données du Service sont de votre seule responsabilité</li>
+              <li><strong>Consultation Professionnelle :</strong> Consultez un conseiller financier qualifié pour des décisions importantes</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Comptes utilisateurs</h2>
-            <p>Pour accéder à certaines fonctionnalités, vous devrez peut-être créer un compte. Vous êtes responsable de :</p>
+            <h2>7. ABONNEMENTS, PAIEMENTS ET REMBOURSEMENTS</h2>
             <ul>
-              <li>Maintenir la confidentialité de vos identifiants de compte</li>
-              <li>Toutes les activités qui se déroulent sous votre compte</li>
-              <li>Fournir des informations exactes et complètes</li>
-              <li>Mettre à jour vos informations de compte rapidement si nécessaire</li>
-              <li>Nous informer immédiatement de toute utilisation non autorisée</li>
+              <li><strong>Plans d'Abonnement :</strong> Plan gratuit avec fonctionnalités limitées et plans premium avec fonctionnalités avancées</li>
+              <li><strong>Facturation Périodique :</strong> Les frais d'abonnement sont facturés à l'avance pour chaque période d'abonnement</li>
+              <li><strong>Renouvellement Automatique :</strong> Les abonnements se renouvellent automatiquement sauf annulation</li>
+              <li><strong>Moyens de Paiement :</strong> Cartes de crédit/débit, mobile money, et autres moyens disponibles</li>
+              <li><strong>Annulation :</strong> Vous pouvez annuler à tout moment via les paramètres de l'Application</li>
+              <li><strong>Remboursements :</strong> Régis par les politiques des app stores (Apple App Store, Google Play Store)</li>
+              <li><strong>Modifications de Prix :</strong> Nous pouvons modifier les prix avec un préavis de 30 jours</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Utilisation acceptable</h2>
-            <p>Vous acceptez d'utiliser GoShopperAI uniquement à des fins légales et conformément à ces Conditions. Les activités interdites incluent :</p>
+            <h2>8. GARANTIES ET EXCLUSIONS</h2>
+            <p><strong>DANS LA MESURE MAXIMALE AUTORISÉE PAR LA LOI, LE SERVICE EST FOURNI "EN L'ÉTAT" ET "SELON DISPONIBILITÉ" SANS AUCUNE GARANTIE, EXPRESSE OU IMPLICITE, Y COMPRIS MAIS SANS S'Y LIMITER :</strong></p>
             <ul>
-              <li>Utiliser l'Application à des fins illégales ou non autorisées</li>
-              <li>Tenter de pirater, d'ingénierie inverse ou de compromettre l'Application</li>
-              <li>Télécharger du contenu malveillant ou des virus</li>
-              <li>Interférer avec le fonctionnement ou la sécurité de l'Application</li>
-              <li>Violer toute loi ou réglementation applicable</li>
-              <li>Usurper l'identité d'autrui ou fournir des informations fausses</li>
+              <li><strong>Qualité Marchande</strong> et adaptation à un usage particulier</li>
+              <li><strong>Non-Contrefaçon</strong> des droits de propriété intellectuelle</li>
+              <li><strong>Fonctionnement Ininterrompu</strong> ou exempt d'erreurs</li>
+              <li><strong>Exactitude</strong> du contenu ou des données</li>
+              <li><strong>Sécurité</strong> complète contre toutes menaces</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Propriété intellectuelle</h2>
-            <p>L'Application GoShopperAI et tout son contenu, ses fonctionnalités et ses fonctionnalités sont la propriété de GoShopperAI et sont protégés par le droit d'auteur international, les marques et d'autres lois sur la propriété intellectuelle. Vous recevez une licence limitée, non exclusive et non transférable pour utiliser l'Application à des fins personnelles uniquement.</p>
+            <h2>9. LIMITATION DE RESPONSABILITÉ</h2>
+            <p><strong>DANS LA MESURE MAXIMALE AUTORISÉE PAR LA LOI, GOSHOPPER, SES DIRIGEANTS, EMPLOYÉS, AGENTS ET PARTENAIRES NE SERONT EN AUCUN CAS RESPONSABLES DE :</strong></p>
+            <ul>
+              <li><strong>Dommages Indirects :</strong> Perte de profits, d'économies, d'opportunités commerciales</li>
+              <li><strong>Dommages Consécutifs :</strong> Interruption d'activité, perte de données, dommages réputation</li>
+              <li><strong>Dommages Punitifs</strong> ou exemplaires</li>
+              <li><strong>Préjudice Moral</strong> ou stress émotionnel</li>
+            </ul>
+            <p>Notre responsabilité totale envers vous ne dépassera jamais le montant total que vous avez payé pour le Service au cours des 12 derniers mois.</p>
           </div>
 
           <div className="legal-section">
-            <h2>Précision des données</h2>
-            <p>Bien que GoShopperAI s'efforce d'atteindre une haute précision dans la numérisation des reçus et l'extraction de données :</p>
+            <h2>10. INDEMNISATION</h2>
+            <p>Vous acceptez d'indemniser, défendre et dégager de toute responsabilité GoShopper contre toute réclamation, demande, dommage, perte, coût ou dépense découlant de :</p>
             <ul>
-              <li>Le traitement par IA peut occasionnellement produire des erreurs</li>
-              <li>Les utilisateurs doivent vérifier l'exactitude des données extraites</li>
-              <li>GoShopperAI n'est pas responsable des décisions financières basées sur les données extraites</li>
-              <li>L'Application est un outil pour aider au suivi des dépenses, pas pour remplacer le jugement financier</li>
+              <li>Votre utilisation du Service en violation de ces Conditions</li>
+              <li>Votre violation de droits de tiers</li>
+              <li>Votre négligence ou faute intentionnelle</li>
+              <li>Tout contenu que vous soumettez via le Service</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Confidentialité et données</h2>
-            <p>Votre confidentialité est importante pour nous. Notre collecte, utilisation et protection de vos informations personnelles sont régies par notre Politique de confidentialité, qui est incorporée dans ces Conditions par référence.</p>
+            <h2>11. RÉSILIATION</h2>
+            <p>Vous pouvez résilier votre compte à tout moment. Nous pouvons résilier ou suspendre votre accès immédiatement si vous violez ces Conditions, nous cessons de fournir le Service, votre compte reste inactif, ou nous déterminons que la résiliation est nécessaire.</p>
+            <p>En cas de résiliation : votre droit d'utiliser le Service cesse immédiatement, nous pouvons supprimer votre compte et toutes vos données, aucun remboursement des frais payés (sauf exceptions légales).</p>
           </div>
 
           <div className="legal-section">
-            <h2>Abonnement et paiements</h2>
-            <p>GoShopperAI peut offrir des fonctionnalités premium via des plans d'abonnement :</p>
+            <h2>12. FORCE MAJEURE</h2>
+            <p>Nous ne serons pas responsables de tout retard ou défaut d'exécution résultant de circonstances indépendantes de notre volonté : catastrophes naturelles, guerres, grèves, défaillances d'infrastructure, actions gouvernementales, pandemies.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>13. JURIDICTION ET LOI APPLICABLE</h2>
+            <p>Ces Conditions sont régies par les lois françaises. Tout litige sera soumis à la compétence exclusive des tribunaux français, sous réserve des droits impératifs des consommateurs. Nous encourageons la résolution amiable des différends par négociation directe, médiation ou arbitrage.</p>
+          </div>
+
+          <div className="legal-section">
+            <h2>14. CONFORMITÉ RÉGLEMENTAIRE</h2>
+            <p>Le Service est développé en conformité avec :</p>
             <ul>
-              <li>Les frais d'abonnement sont facturés à l'avance</li>
-              <li>Les abonnements se renouvellent automatiquement sauf annulation</li>
-              <li>Les remboursements sont régis par les politiques des app stores</li>
-              <li>Nous pouvons modifier les prix d'abonnement avec préavis</li>
-              <li>Les périodes d'essai gratuites peuvent être soumises à des conditions supplémentaires</li>
+              <li>Réglementation européenne sur la protection des données (RGPD)</li>
+              <li>Lois françaises sur l'informatique et les libertés</li>
+              <li>Réglementations des app stores (Apple, Google)</li>
+              <li>Standards de sécurité de l'industrie</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Avis de non-responsabilité</h2>
-            <p>L'APPLICATION EST FOURNI "EN L'ÉTAT" SANS GARANTIES D'AUCUNE SORTE. GOSHOPPERAI DÉCLINE TOUTES LES GARANTIES, EXPRESSES OU IMPLICITES, Y COMPRIS MAIS SANS S'Y LIMITER :</p>
+            <h2>15. DISPOSITIONS GÉNÉRALES</h2>
             <ul>
-              <li>La qualité marchande et l'adaptation à un usage particulier</li>
-              <li>La non-violation des droits de tiers</li>
-              <li>L'exactitude, l'exhaustivité ou la fiabilité du contenu</li>
-              <li>Le fonctionnement ininterrompu ou sans erreur</li>
+              <li><strong>Intégralité de l'Accord :</strong> Ces Conditions constituent l'intégralité de l'accord entre vous et nous</li>
+              <li><strong>Divisibilité :</strong> Si une disposition est jugée invalide, les autres restent en vigueur</li>
+              <li><strong>Cession :</strong> Vous ne pouvez pas céder vos droits sans notre consentement écrit</li>
             </ul>
           </div>
 
           <div className="legal-section">
-            <h2>Limitation de responsabilité</h2>
-            <p>DANS LA MESURE MAXIMALE AUTORISÉE PAR LA LOI, GOSHOPPERAI NE SERA PAS RESPONSABLE DE TOUT DOMMAGE INDIRECT, ACCESSOIRE, SPÉCIAL, CONSÉCUTIF OU PUNITIF, Y COMPRIS MAIS SANS S'Y LIMITER LA PERTE DE PROFITS, DE DONNÉES OU D'UTILISATION, DÉCOULANT DE OU LIÉ À VOTRE UTILISATION DE L'APPLICATION.</p>
-          </div>
-
-          <div className="legal-section">
-            <h2>Résiliation</h2>
-            <p>Nous pouvons résilier ou suspendre votre compte et l'accès à l'Application à notre seule discrétion, sans préavis, pour un comportement que nous croyons violer ces Conditions ou nuire à d'autres utilisateurs, à nous ou à des tiers.</p>
-          </div>
-
-          <div className="legal-section">
-            <h2>Loi applicable</h2>
-            <p>Ces Conditions sont régies et interprétées conformément aux lois de [Votre Juridiction], sans égard aux principes de conflit de lois. Tout litige découlant de ces Conditions ou de votre utilisation de l'Application sera résolu devant les tribunaux de [Votre Juridiction].</p>
-          </div>
-
-          <div className="legal-section">
-            <h2>Modifications des conditions</h2>
-            <p>Nous nous réservons le droit de modifier ces Conditions à tout moment. Les modifications prendront effet lorsqu'elles seront publiées dans l'Application ou sur notre site web. Votre utilisation continue de l'Application après la publication des modifications constitue votre acceptation des Conditions modifiées.</p>
-          </div>
-
-          <div className="legal-section">
-            <h2>Informations de contact</h2>
-            <p>Si vous avez des questions sur ces Conditions générales, veuillez nous contacter :</p>
+            <h2>16. CONTACT ET SUPPORT</h2>
             <div className="contact-info">
-              <p><strong>E-mail :</strong> legal@goshopper.app</p>
-              <p><strong>Support :</strong> support@goshopper.app</p>
-              <p><strong>Adresse :</strong> Équipe juridique GoShopperAI<br/>123 Rue Tech<br/>Ville Innovation, IC 12345</p>
+              <p><strong>Support Technique :</strong> support@goshopper.app</p>
+              <p><strong>Questions Légales :</strong> legal@goshopper.app</p>
+              <p><strong>Confidentialité :</strong> privacy@goshopper.app</p>
+              <p><strong>Site Web :</strong> https://goshopper.app</p>
             </div>
+            
+            <h3>Délais de Réponse</h3>
+            <ul>
+              <li>Support technique : 48 heures ouvrables</li>
+              <li>Questions légales : 5 jours ouvrables</li>
+              <li>Demandes de données personnelles : 30 jours (RGPD)</li>
+            </ul>
+          </div>
+
+          <div className="legal-section legal-acceptance">
+            <p><strong>EN UTILISANT LE SERVICE GOSHOPPER, VOUS RECONNAISSEZ AVOIR LU, COMPRIS ET ACCEPTÉ CES CONDITIONS GÉNÉRALES D'UTILISATION DANS LEUR INTÉGRALITÉ.</strong></p>
           </div>
         </div>
       </div>
@@ -656,7 +837,7 @@ function Support() {
         {
           id: 'scan-receipt',
           question: 'Comment scanner un ticket de caisse ?',
-          answer: 'Ouvrez l\'app GoShopper, appuyez sur l\'onglet "Scanner" en bas de l\'écran, puis prenez une photo claire de votre ticket. L\'IA analysera automatiquement tous les articles, prix et informations du magasin. Assurez-vous que le ticket est bien éclairé et que tous les éléments sont visibles.'
+          answer: 'Ouvrez l\'app GoShopper, appuyez sur l\'onglet "Scanner" en bas de l\'écran, puis prenez une photo claire de votre ticket. L\'IA analysera automatiquement tous les articles, prix et détails du reçu. Assurez-vous que le ticket est bien éclairé et que tous les éléments sont visibles.'
         },
         {
           id: 'edit-scanned',
@@ -706,12 +887,12 @@ function Support() {
         {
           id: 'price-comparison',
           question: 'Comment fonctionne la comparaison de prix ?',
-          answer: 'GoShopper compare automatiquement les prix de vos articles scannés avec d\'autres magasins de votre région. Vous recevez des suggestions d\'économies et pouvez voir l\'historique des prix pour chaque produit.'
+          answer: 'GoShopper analyse l\'historique de vos achats pour identifier des tendances de prix et vous suggérer des économies potentielles. Vous pouvez voir l\'évolution des prix pour chaque produit dans votre historique.'
         },
         {
           id: 'price-alerts',
           question: 'Comment créer des alertes de prix ?',
-          answer: 'Allez dans Paramètres > Alertes de prix, ou appuyez sur l\'icône cloche à côté d\'un article. Définissez un prix cible et vous recevrez une notification quand le prix baisse dans les magasins environnants.'
+          answer: 'Allez dans Paramètres > Alertes de prix, ou appuyez sur l\'icône cloche à côté d\'un article. Définissez un prix cible et vous recevrez une notification pour suivre l\'évolution des prix de vos produits préférés.'
         },
         {
           id: 'export-data',
@@ -736,7 +917,7 @@ function Support() {
         {
           id: 'sync-issues',
           question: 'Mes données ne se synchronisent pas',
-          answer: 'Vérifiez votre connexion Internet. Les données se synchronisent automatiquement en arrière-plan. Si le problème persiste, allez dans Paramètres > Synchronisation > Forcer la sync.'
+          answer: 'Vérifiez votre connexion Internet. Les données se synchronisent automatiquement en arrière-plan. Si le problème persiste, redémarrez l\'app ou forcez la synchronisation depuis l\'indicateur de statut en haut de l\'écran.'
         },
         {
           id: 'app-crashes',

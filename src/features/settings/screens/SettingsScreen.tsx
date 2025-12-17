@@ -26,7 +26,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn, AppFooter} from '@/shared/components';
-import {useDynamicType} from '@/shared/hooks';
+import {useDynamicType, useOffline} from '@/shared/hooks';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatDate} from '@/shared/utils/helpers';
 
@@ -118,6 +118,7 @@ export function SettingsScreen() {
   const {user, signOut, isAuthenticated} = useAuth();
   const {profile, toggleNotifications, togglePriceAlerts} = useUser();
   const {subscription, trialScansUsed} = useSubscription();
+  const {isOnline, isSyncing, pendingActions, lastSyncTime, syncNow, clearQueue} = useOffline();
   const {isDarkMode, toggleTheme, themeMode, setThemeMode} = useTheme();
   const {fontScale, isLargeText, shouldReduceMotion} = useDynamicType();
 
@@ -241,6 +242,54 @@ export function SettingsScreen() {
 
   const handleTermsOfService = () => {
     navigation.push('TermsOfService');
+  };
+
+  const handleForceSync = async () => {
+    if (isSyncing) return;
+    
+    try {
+      await syncNow();
+      Alert.alert('Synchronisation', 'Synchronisation terminée avec succès !');
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de synchroniser. Vérifiez votre connexion.');
+    }
+  };
+
+  const handleClearQueue = () => {
+    Alert.alert(
+      'Vider la file d\'attente',
+      'Êtes-vous sûr de vouloir supprimer toutes les données en attente de synchronisation ?',
+      [
+        {text: 'Annuler', style: 'cancel'},
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            await clearQueue();
+            Alert.alert('File vidée', 'Toutes les données en attente ont été supprimées.');
+          },
+        },
+      ]
+    );
+  };
+
+  const getSyncStatusText = () => {
+    if (isSyncing) return 'Synchronisation en cours...';
+    if (!isOnline) return 'Hors ligne';
+    if (pendingActions > 0) return `${pendingActions} action${pendingActions > 1 ? 's' : ''} en attente`;
+    return 'Synchronisé';
+  };
+
+  const getSyncSubtitle = () => {
+    if (!lastSyncTime) return 'Jamais synchronisé';
+    const now = new Date();
+    const diffMs = now.getTime() - lastSyncTime.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    
+    if (diffMinutes < 1) return 'À l\'instant';
+    if (diffMinutes < 60) return `Il y a ${diffMinutes} min`;
+    if (diffMinutes < 1440) return `Il y a ${Math.floor(diffMinutes / 60)} h`;
+    return `Il y a ${Math.floor(diffMinutes / 1440)} j`;
   };
 
   return (
@@ -450,6 +499,46 @@ export function SettingsScreen() {
               iconBgColor={Colors.card.cream}
               onPress={() => navigation.push('PriceAlerts')}
             />
+          </SettingSection>
+        </SlideIn>
+
+        <SlideIn delay={350}>
+          <SettingSection title="Synchronisation">
+            <SettingItem
+              icon={isSyncing ? "refresh" : isOnline ? "cloud" : "cloud-off"}
+              title="Statut de synchronisation"
+              subtitle={getSyncSubtitle()}
+              iconBgColor={isOnline ? Colors.card.blue : Colors.card.red}
+              rightElement={
+                <Text style={[
+                  styles.syncStatusText,
+                  !isOnline && styles.syncStatusOffline,
+                  isSyncing && styles.syncStatusSyncing
+                ]}>
+                  {getSyncStatusText()}
+                </Text>
+              }
+              showArrow={false}
+            />
+            {pendingActions > 0 && (
+              <SettingItem
+                icon="upload"
+                title="Forcer la synchronisation"
+                subtitle={`${pendingActions} action${pendingActions > 1 ? 's' : ''} en attente`}
+                iconBgColor={Colors.card.cream}
+                onPress={handleForceSync}
+              />
+            )}
+            {pendingActions > 0 && (
+              <SettingItem
+                icon="trash-2"
+                title="Vider la file d'attente"
+                subtitle="Supprimer toutes les données en attente"
+                iconBgColor={Colors.card.red}
+                onPress={handleClearQueue}
+                danger={true}
+              />
+            )}
           </SettingSection>
         </SlideIn>
 
@@ -728,6 +817,19 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.text.tertiary,
     marginTop: 2,
+  },
+
+  // Sync Status
+  syncStatusText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  syncStatusOffline: {
+    color: Colors.status.error,
+  },
+  syncStatusSyncing: {
+    color: Colors.primary,
   },
 
   // App Info

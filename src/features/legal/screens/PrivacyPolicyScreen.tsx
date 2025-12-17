@@ -87,7 +87,7 @@ export function PrivacyPolicyScreen() {
         <FadeIn delay={200}>
           <View style={styles.lastUpdated}>
             <Text style={styles.lastUpdatedText}>
-              Dernière mise à jour: Décembre 2024
+              Dernière mise à jour: 17 décembre 2025 - Version 2.0
             </Text>
           </View>
         </FadeIn>
@@ -95,43 +95,68 @@ export function PrivacyPolicyScreen() {
         {/* Policy Content */}
         <View style={styles.content}>
           <PolicySection
-            title="1. Collecte des Données"
-            content="Nous collectons uniquement les informations nécessaires au fonctionnement de l'application : vos tickets de caisse scannés, vos préférences d'application et vos informations de compte. Nous ne collectons pas de données sensibles sans votre consentement explicite."
+            title="1. INTRODUCTION"
+            content="GoShopper exploite l'application mobile GoShopper. Cette politique de confidentialité vous informe de nos pratiques concernant la collecte, l'utilisation, la divulgation et la protection de vos informations personnelles. EN UTILISANT NOTRE SERVICE, VOUS CONSENTEZ À LA COLLECTE, L'UTILISATION ET LA DIVULGATION DE VOS INFORMATIONS CONFORMÉMENT À CETTE POLITIQUE."
           />
 
           <PolicySection
-            title="2. Utilisation des Données"
-            content="Vos données sont utilisées exclusivement pour améliorer votre expérience utilisateur : analyse des prix, suggestions personnalisées, et fonctionnalités de l'application. Nous n'utilisons jamais vos données à des fins commerciales ou de marketing."
+            title="2. INFORMATIONS COLLECTÉES"
+            content="Informations Fournies: Informations de compte (e-mail, nom, photo), données de reçus (images scannées, noms de magasins, produits, prix), listes d'achats, préférences, communications support. Informations Automatiques: Informations d'appareil, données d'utilisation, localisation approximative (avec permission), données analytiques, métadonnées techniques."
           />
 
           <PolicySection
-            title="3. Partage des Données"
-            content="Vos données personnelles ne sont jamais vendues, louées ou partagées avec des tiers. Nous pouvons partager des données anonymisées et agrégées uniquement pour améliorer nos services."
+            title="3. UTILISATION DES INFORMATIONS"
+            content="Vos données sont utilisées exclusivement pour: Fonctionnalité de base (traitement reçus, suivi prix, insights dépenses), authentification et sécurité (gestion comptes, prévention fraude), personnalisation (expérience utilisateur, recommandations), amélioration du service (développement technique, OCR, bugs), support client (assistance technique)."
           />
 
           <PolicySection
-            title="4. Sécurité des Données"
-            content="Toutes vos données sont chiffrées et stockées sur des serveurs sécurisés. Nous utilisons les dernières technologies de sécurité pour protéger vos informations contre tout accès non autorisé."
+            title="4. BASE LÉGALE DU TRAITEMENT (RGPD)"
+            content="Nous traitons vos données sur la base de: Exécution du contrat (fourniture du service), intérêts légitimes (amélioration service, sécurité), consentement (marketing, géolocalisation), obligation légale (conformité lois). Cette politique respecte le RGPD, CCPA, COPPA et autres réglementations."
           />
 
           <PolicySection
-            title="5. Droits des Utilisateurs"
-            content="Vous avez le droit d'accéder, modifier ou supprimer vos données à tout moment. Vous pouvez également demander l'exportation de vos données ou la suppression complète de votre compte."
+            title="5. PARTAGE ET DIVULGATION"
+            content="Nous NE partageons JAMAIS: Vos informations personnelles à des fins commerciales, vos données de reçus avec des tiers non autorisés, vos informations avec des annonceurs. Partage autorisé uniquement: Prestataires de services (Firebase, OAuth) sous accords stricts, obligations légales, protection sécurité, consentement explicite."
           />
 
           <PolicySection
-            title="6. Cookies et Suivi"
-            content="Nous n'utilisons pas de cookies de suivi publicitaire. Les données analytiques sont anonymisées et utilisées uniquement pour améliorer l'application."
+            title="6. SÉCURITÉ ET PROTECTION"
+            content="Mesures techniques: Chiffrement AES-256 transit/repos, OAuth 2.0, contrôles d'accès basés rôles, surveillance continue activités suspectes. Mesures organisationnelles: Formation personnel sécurité données, politiques internes strictes, évaluations risques périodiques. Traitement local OCR lorsque possible."
           />
 
           <PolicySection
-            title="7. Modifications"
-            content="Cette politique peut être mise à jour occasionnellement. Nous vous informerons de tout changement important via l'application ou par email."
+            title="7. VOS DROITS ET CONTRÔLES"
+            content="Droits d'accès et contrôle: Accès (copie complète données), rectification (correction informations), suppression (droit à l'oubli), portabilité (export format structuré), opposition (traitement spécifique), retrait consentement. Contactez privacy@goshopper.app avec demande spécifique et preuve d'identité. Délai réponse: 30 jours maximum."
           />
 
           <PolicySection
-            title="8. Contact"
-            content="Pour toute question concernant cette politique ou vos données, contactez-nous à privacy@goshopperai.com ou via l'application."
+            title="8. CONSERVATION DES DONNÉES"
+            content="Durées de conservation: Données compte (tant que compte actif), images reçus (jusqu'à suppression manuelle/fermeture), données usage (24 mois max), journaux sécurité (12 mois). Suppression automatique: Données supprimées définitivement effacées dans 30 jours. Aucune récupération possible après suppression confirmée."
+          />
+
+          <PolicySection
+            title="9. CONFIDENTIALITÉ DES MINEURS"
+            content="Service non destiné enfants moins 13 ans. Vérification âge lors inscription. Suppression immédiate données si utilisation mineur détectée. Consentement parental requis utilisateurs 13-16 ans selon juridiction. Procédures vérification consentement parental mises en place."
+          />
+
+          <PolicySection
+            title="10. CONFORMITÉ RÉGLEMENTAIRE"
+            content="Cette politique respecte: RGPD (Union Européenne), CCPA (Californie), COPPA (États-Unis), Loi Informatique et Libertés (France), autres réglementations locales. Représentant UE: eu-representative@goshopper.app. Transferts internationaux avec clauses contractuelles types pour pays tiers."
+          />
+
+          <PolicySection
+            title="11. VIOLATIONS DE DONNÉES"
+            content="En cas violation données personnelles: Notification autorités compétentes dans 72h, information utilisateurs affectés si risque élevé, mesures correctives immédiates. Procédures incident établies pour réponse rapide et efficace."
+          />
+
+          <PolicySection
+            title="12. MODIFICATIONS POLITIQUE"
+            content="Notification changements: Via application (modifications importantes), e-mail notification utilisateurs enregistrés, publication nouvelle version site web, préavis 30 jours changements substantiels. Utilisation continue service après modifications constitue acceptation politique révisée."
+          />
+
+          <PolicySection
+            title="13. CONTACT ET RÉCLAMATIONS"
+            content="Contacts: privacy@goshopper.app (confidentialité), support@goshopper.app (support général), dpo@goshopper.app (délégué protection données). Réclamations: Droit dépôt plainte autorité supervision compétente. France: CNIL. UE: Autorité protection données pays résidence. Site web: https://goshopper.app/privacy"
           />
         </View>
 

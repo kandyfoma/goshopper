@@ -9,7 +9,7 @@
     <priority>1.0</priority>
     <xhtml:link 
       rel="alternate"
-      hreflang="fr-CD"
+      hreflang="fr"
       href="https://goshopper.app/" />
   </url>
   
@@ -20,7 +20,7 @@
     <priority>0.7</priority>
     <xhtml:link 
       rel="alternate"
-      hreflang="fr-CD"
+      hreflang="fr"
       href="https://goshopper.app/privacy" />
   </url>
   
@@ -31,7 +31,7 @@
     <priority>0.7</priority>
     <xhtml:link 
       rel="alternate"
-      hreflang="fr-CD"
+      hreflang="fr"
       href="https://goshopper.app/terms" />
   </url>
   
@@ -42,7 +42,7 @@
     <priority>0.8</priority>
     <xhtml:link 
       rel="alternate"
-      hreflang="fr-CD"
+      hreflang="fr"
       href="https://goshopper.app/support" />
   </url>
   
