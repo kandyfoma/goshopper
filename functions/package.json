@@ -1,7 +1,7 @@
 {
-  "name": "goshopperai-functions",
+  "name": "goshopper-functions",
   "version": "1.0.0",
-  "description": "Firebase Cloud Functions for GoShopperAI - Receipt scanning and price comparison",
+  "description": "Firebase Cloud Functions for GoShopper - Receipt scanning and price comparison",
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc",

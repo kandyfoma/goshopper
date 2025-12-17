@@ -124,4 +124,4 @@ This is the central part of your application that controls the flow.
 7. Deploy to mobile app
 
 This roadmap provides a clear path to building a robust, cost-effective receipt extraction system that leverages both local processing power and cloud AI capabilities.</content>
-<parameter name="filePath">c:\Personal Project\goshopperai\docs\HYBRID_RECEIPT_EXTRACTION_AGENT.md
+<parameter name="filePath">c:\Personal Project\goshopper\docs\HYBRID_RECEIPT_EXTRACTION_AGENT.md

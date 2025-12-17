@@ -1,6 +1,6 @@
 # Firebase Admin Tools
 
-This directory contains admin tools for managing the GoShopperAI Firebase database.
+This directory contains admin tools for managing the GoShopper Firebase database.
 
 ## Available Tools
 

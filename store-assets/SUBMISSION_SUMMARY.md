@@ -100,7 +100,7 @@ npm run build:android:windows
 - Or use existing script: `cd scripts && node generate-app-icons.js`
 
 **Locations:**
-- iOS: `ios/goshopperai/Images.xcassets/AppIcon.appiconset/`
+- iOS: `ios/goshopper/Images.xcassets/AppIcon.appiconset/`
 - Android: `android/app/src/main/res/mipmap-*/`
 
 #### 4. Capture Screenshots (Week 2)
@@ -148,7 +148,7 @@ Your legal documents are written, but they need to be online:
    ```
 
 2. **GitHub Pages** (Free)
-   - Create repo: `goshopperai-legal`
+   - Create repo: `goshopper-legal`
    - Convert MD to HTML
    - Enable Pages in settings
 

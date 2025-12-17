@@ -1,5 +1,5 @@
 /**
- * GoShopperAI - Prix Tracker / Invoice Intelligence
+ * GoShopper - Prix Tracker / Invoice Intelligence
  * Receipt scanning and price comparison app for DRC
  */
 

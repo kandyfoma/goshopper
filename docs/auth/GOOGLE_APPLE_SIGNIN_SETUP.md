@@ -1,6 +1,6 @@
 # Google and Apple Sign-In Setup Guide
 
-This guide will help you configure Google and Apple Sign-In for the GoShopperAI app.
+This guide will help you configure Google and Apple Sign-In for the GoShopper app.
 
 ## Prerequisites
 
@@ -49,8 +49,8 @@ GoogleSignin.configure({
 5. Select **App IDs** and click **Continue**
 6. Choose **App** and click **Continue**
 7. Fill in your app details:
-   - **Bundle ID**: `com.goshopperai.app`
-   - **Description**: GoShopperAI
+   - **Bundle ID**: `com.goshopper.app`
+   - **Description**: GoShopper
 8. Under **Capabilities**, enable **Sign In with Apple**
 9. Click **Continue** and **Register**
 

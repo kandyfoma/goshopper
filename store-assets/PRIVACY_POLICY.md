@@ -162,9 +162,9 @@ Your continued use of the app after changes constitutes acceptance of the update
 
 If you have questions, concerns, or requests regarding this Privacy Policy or your data:
 
-**Email:** privacy@goshopperai.com  
-**Support:** support@goshopperai.com  
-**Website:** https://goshopperai.com/privacy  
+**Email:** privacy@goshopper.app  
+**Support:** support@goshopper.app  
+**Website:** https://goshopper.app/privacy  
 
 **Mailing Address:**  
 GoShopper AI  

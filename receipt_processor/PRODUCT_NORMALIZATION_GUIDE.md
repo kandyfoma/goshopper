@@ -467,7 +467,7 @@ if __name__ == '__main__':
 
 ## 📄 License
 
-This product normalization system is part of the GoShopperAI project.
+This product normalization system is part of the GoShopper project.
 
 ## 🤝 Contributing
 

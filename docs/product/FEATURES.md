@@ -930,7 +930,7 @@ Users can scan receipts while offline. Scans are queued locally and automaticall
 ### Technical Notes
 
 - Uses `@react-native-community/netinfo` for connectivity monitoring
-- Local storage via AsyncStorage with key `@goshopperai_offline_queue`
+- Local storage via AsyncStorage with key `@goshopper_offline_queue`
 - Queue processed FIFO (First In, First Out)
 - Exponential backoff for retry logic
 

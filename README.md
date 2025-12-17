@@ -1,4 +1,4 @@
-# GoShopperAI (Prix Tracker)
+# GoShopper (Prix Tracker)
 
 A React Native mobile app for receipt scanning and price comparison, designed specifically for the Democratic Republic of Congo (DRC) market.
 
@@ -32,7 +32,7 @@ A React Native mobile app for receipt scanning and price comparison, designed sp
 ## Project Structure
 
 ```
-goshopperai/
+goshopper/
 ├── src/
 │   ├── app/                  # App entry point
 │   ├── features/             # Feature modules
@@ -72,7 +72,7 @@ goshopperai/
 1. **Clone and install dependencies**
 
    ```bash
-   cd goshopperai
+   cd goshopper
    npm install
    ```
 
@@ -150,4 +150,4 @@ This is a private project for the DRC market.
 
 ## License
 
-Proprietary - GoShopperAI © 2024
+Proprietary - GoShopper © 2024

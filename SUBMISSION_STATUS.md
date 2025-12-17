@@ -15,7 +15,7 @@ Your app is **ready for the submission process**! All technical configuration is
   - Face ID/Touch ID for biometric auth
   - Location services (optional)
 - ✅ Android build.gradle configured
-  - Application ID: `com.goshopperai.app`
+  - Application ID: `com.goshopper.app`
   - Version: 1.0.0 (Build 1)
   - Release signing structure ready
   - ProGuard optimization enabled
@@ -77,7 +77,7 @@ Your app is **ready for the submission process**! All technical configuration is
 #### 3. Generate Android Keystore
 - **Action**: Run the build script (it will create one)
   ```powershell
-  cd "c:\Personal Project\goshopperai"
+  cd "c:\Personal Project\goshopper"
   npm run build:android:windows
   ```
 - **CRITICAL**: Backup immediately to:
@@ -115,7 +115,7 @@ Your app is **ready for the submission process**! All technical configuration is
 3. Or use your existing logo assets
 
 **Installation**:
-- iOS: Copy to `ios/goshopperai/Images.xcassets/AppIcon.appiconset/`
+- iOS: Copy to `ios/goshopper/Images.xcassets/AppIcon.appiconset/`
 - Android: Copy to `android/app/src/main/res/mipmap-*/`
 
 #### 2. Capture Screenshots
@@ -158,7 +158,7 @@ firebase deploy --only hosting
 ```
 
 **Option 2: GitHub Pages** (free)
-- Create repo: `goshopperai-legal`
+- Create repo: `goshopper-legal`
 - Convert MD to HTML
 - Enable Pages in settings
 
@@ -231,7 +231,7 @@ Output: `android/app/build/outputs/bundle/release/app-release.aab`
 
 ### Check Readiness
 ```powershell
-cd "c:\Personal Project\goshopperai"
+cd "c:\Personal Project\goshopper"
 powershell -ExecutionPolicy Bypass -File "scripts\check-readiness.ps1"
 ```
 

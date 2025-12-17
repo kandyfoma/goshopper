@@ -15,12 +15,12 @@ service cloud.firestore {
     // Helper function to check if user has active subscription
     function hasSubscription() {
       return isAuthenticated() && 
-        exists(/databases/$(database)/documents/artifacts/goshopperai/users/$(request.auth.uid)/subscription/status) &&
-        get(/databases/$(database)/documents/artifacts/goshopperai/users/$(request.auth.uid)/subscription/status).data.isSubscribed == true;
+        exists(/databases/$(database)/documents/artifacts/goshopper/users/$(request.auth.uid)/subscription/status) &&
+        get(/databases/$(database)/documents/artifacts/goshopper/users/$(request.auth.uid)/subscription/status).data.isSubscribed == true;
     }
     
-    // GoShopperAI artifact data
-    match /artifacts/goshopperai {
+    // GoShopper artifact data
+    match /artifacts/goshopper {
       
       // User data - owner can read, owner can create on signup
       match /users/{userId} {

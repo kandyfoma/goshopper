@@ -2,7 +2,7 @@
 //  GoShopperWidget.swift
 //  GoShopperWidget
 //
-//  GoShopperAI Home Screen Widget
+//  GoShopper Home Screen Widget
 //  Displays spending summary and quick actions
 //
 
@@ -61,7 +61,7 @@ struct SpendingProvider: TimelineProvider {
     }
     
     private func loadSpendingData() -> SpendingData? {
-        guard let userDefaults = UserDefaults(suiteName: "group.com.goshopperai.widgets"),
+        guard let userDefaults = UserDefaults(suiteName: "group.com.goshopper.widgets"),
               let jsonString = userDefaults.string(forKey: "widget_spending_data"),
               let data = jsonString.data(using: .utf8) else {
             return nil
@@ -210,7 +210,7 @@ struct MediumSpendingView: View {
             
             // Right side - Quick action
             VStack {
-                Link(destination: URL(string: "goshopperai://scan")!) {
+                Link(destination: URL(string: "goshopper://scan")!) {
                     VStack(spacing: 4) {
                         Image(systemName: "camera.fill")
                             .font(.title2)

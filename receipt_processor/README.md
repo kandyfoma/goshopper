@@ -331,5 +331,5 @@ python -c "from extractor import identify_shop; print('Extractor ready')"
 
 ## License
 
-This project is part of the GoShopperAI application.</content>
-<parameter name="filePath">c:\Personal Project\goshopperai\receipt_processor\README.md
+This project is part of the GoShopper application.</content>
+<parameter name="filePath">c:\Personal Project\goshopper\receipt_processor\README.md

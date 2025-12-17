@@ -1,6 +1,6 @@
 # Modern Features Roadmap 🚀
 
-This document outlines modern mobile features to implement in GoShopperAI to enhance user experience and bring the app to current iOS/Android standards.
+This document outlines modern mobile features to implement in GoShopper to enhance user experience and bring the app to current iOS/Android standards.
 
 ## Already Implemented ✅
 

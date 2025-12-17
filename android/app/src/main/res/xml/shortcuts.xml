@@ -8,9 +8,9 @@
         android:shortcutLongLabel="@string/shortcut_scan_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.goshopperai"
-            android:targetClass="com.goshopperai.MainActivity"
-            android:data="goshopperai://scan" />
+            android:targetPackage="com.goshopper"
+            android:targetClass="com.goshopper.MainActivity"
+            android:data="goshopper://scan" />
     </shortcut>
     <shortcut
         android:shortcutId="shopping"
@@ -20,9 +20,9 @@
         android:shortcutLongLabel="@string/shortcut_shopping_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.goshopperai"
-            android:targetClass="com.goshopperai.MainActivity"
-            android:data="goshopperai://shopping" />
+            android:targetPackage="com.goshopper"
+            android:targetClass="com.goshopper.MainActivity"
+            android:data="goshopper://shopping" />
     </shortcut>
     <shortcut
         android:shortcutId="history"
@@ -32,8 +32,8 @@
         android:shortcutLongLabel="@string/shortcut_history_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.goshopperai"
-            android:targetClass="com.goshopperai.MainActivity"
-            android:data="goshopperai://history" />
+            android:targetPackage="com.goshopper"
+            android:targetClass="com.goshopper.MainActivity"
+            android:data="goshopper://history" />
     </shortcut>
 </shortcuts>

@@ -3,8 +3,8 @@
 ## 📱 App Information
 
 **App Name:** GoShopper AI  
-**Bundle ID (iOS):** com.goshopperai.app  
-**Package Name (Android):** com.goshopperai.app  
+**Bundle ID (iOS):** com.goshopper.app  
+**Package Name (Android):** com.goshopper.app  
 **Version:** 1.0.0  
 **Build Number:** 1  
 
@@ -126,7 +126,7 @@ See `STORE_DESCRIPTION.md`
 ### Required Documents
 - [ ] Privacy Policy published at: [URL]
 - [ ] Terms of Service published at: [URL]
-- [ ] Support page/email: support@goshopperai.com
+- [ ] Support page/email: support@goshopper.app
 
 ### Data Collection Disclosure
 - **User Data Collected:**
@@ -193,7 +193,7 @@ See `STORE_DESCRIPTION.md`
 
 ```bash
 # 1. Update version
-# Edit ios/goshopperai/Info.plist and set version
+# Edit ios/goshopper/Info.plist and set version
 
 # 2. Clean and install dependencies
 cd ios
@@ -283,10 +283,10 @@ cd android
 ## 📞 Support Information
 
 **Developer Name:** GoShopper AI Team  
-**Support Email:** support@goshopperai.com  
-**Website:** https://goshopperai.com  
-**Privacy Policy:** https://goshopperai.com/privacy  
-**Terms of Service:** https://goshopperai.com/terms  
+**Support Email:** support@goshopper.app  
+**Website:** https://goshopper.app  
+**Privacy Policy:** https://goshopper.app/privacy  
+**Terms of Service:** https://goshopper.app/terms  
 
 ## 🎯 Marketing Strategy
 

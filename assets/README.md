@@ -1,6 +1,6 @@
-# GoShopperAI Assets
+# GoShopper Assets
 
-This folder contains all visual assets for the GoShopperAI application.
+This folder contains all visual assets for the GoShopper application.
 
 ## Logo Files
 
@@ -22,7 +22,7 @@ This folder contains all visual assets for the GoShopperAI application.
 - **Usage**: Marketing materials, headers, about screens
 - **Includes**:
   - Logo icon
-  - "GoShopperAI" text
+  - "GoShopper" text
   - "Prix Tracker • Factures Intelligentes" tagline
 
 ### logo-icon.ts

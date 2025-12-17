@@ -68,7 +68,7 @@
 			<key>UIApplicationShortcutItemSubtitle</key>
 			<string>Scanner un ticket</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.goshopperai.scan</string>
+			<string>com.goshopper.scan</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconType</key>
@@ -78,7 +78,7 @@
 			<key>UIApplicationShortcutItemSubtitle</key>
 			<string>Voir ma liste</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.goshopperai.shopping</string>
+			<string>com.goshopper.shopping</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconType</key>
@@ -88,7 +88,7 @@
 			<key>UIApplicationShortcutItemSubtitle</key>
 			<string>Mes tickets</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.goshopperai.history</string>
+			<string>com.goshopper.history</string>
 		</dict>
 	</array>
 </dict>

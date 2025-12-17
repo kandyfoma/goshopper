@@ -17,7 +17,7 @@ The following items are **required** before submission:
 ## 📱 1. App Configuration
 
 ### iOS (Info.plist)
-- [ ] **Bundle Identifier**: Verify `com.goshopperai.app` is correct
+- [ ] **Bundle Identifier**: Verify `com.goshopper.app` is correct
 - [ ] **Version Number**: Confirm `1.0.0` (CFBundleShortVersionString)
 - [ ] **Build Number**: Confirm `1` (CFBundleVersion)
 - [ ] **App Name**: Verify "GoShopper AI" display name
@@ -28,7 +28,7 @@ The following items are **required** before submission:
   - [ ] Location (if used)
 
 ### Android (build.gradle)
-- [x] **Application ID**: `com.goshopperai.app` ✓
+- [x] **Application ID**: `com.goshopper.app` ✓
 - [x] **Version Code**: `1` ✓
 - [x] **Version Name**: `1.0.0` ✓
 - [ ] **Signing Config**: Configure release signing
@@ -70,7 +70,7 @@ The following items are **required** before submission:
 
 #### iOS Requirements
 - [ ] **App Store Icon**: 1024x1024px (PNG, no transparency)
-  - Location: `ios/goshopperai/Images.xcassets/AppIcon.appiconset/`
+  - Location: `ios/goshopper/Images.xcassets/AppIcon.appiconset/`
   - All required sizes via Xcode asset catalog
   
 #### Android Requirements
@@ -131,7 +131,7 @@ node generate-app-icons.js
   - Process: 24-48 hours for approval
   
 - [ ] **App Store Connect Setup**:
-  - [ ] Create App ID: `com.goshopperai.app`
+  - [ ] Create App ID: `com.goshopper.app`
   - [ ] Create Distribution Certificate
   - [ ] Create Provisioning Profile
   - [ ] Configure App Store listing
@@ -166,14 +166,14 @@ node generate-app-icons.js
   # Automated via build script, or manually:
   keytool -genkeypair -v -storetype PKCS12 `
     -keystore android/app/release.keystore `
-    -alias goshopperai-release `
+    -alias goshopper-release `
     -keyalg RSA -keysize 2048 -validity 10000
   ```
   
 - [ ] Create `android/gradle.properties`:
   ```properties
   GOSHOPPER_UPLOAD_STORE_FILE=release.keystore
-  GOSHOPPER_UPLOAD_KEY_ALIAS=goshopperai-release
+  GOSHOPPER_UPLOAD_KEY_ALIAS=goshopper-release
   GOSHOPPER_UPLOAD_STORE_PASSWORD=<your-password>
   GOSHOPPER_UPLOAD_KEY_PASSWORD=<your-password>
   ```
@@ -191,8 +191,8 @@ node generate-app-icons.js
 - [ ] **Host Documents Online**:
   - [ ] Deploy to web (Firebase Hosting, Vercel, etc.)
   - [ ] Get public URLs:
-    - Privacy Policy: `https://goshopperai.com/privacy`
-    - Terms of Service: `https://goshopperai.com/terms`
+    - Privacy Policy: `https://goshopper.app/privacy`
+    - Terms of Service: `https://goshopper.app/terms`
   - [ ] Add URLs to app config and store listings
 
 ### App Store Requirements

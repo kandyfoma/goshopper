@@ -1,6 +1,6 @@
 # App Icon Generation Guide
 
-This guide explains how to generate app icons from the SVG logo for GoShopperAI.
+This guide explains how to generate app icons from the SVG logo for GoShopper.
 
 ## Prerequisites
 

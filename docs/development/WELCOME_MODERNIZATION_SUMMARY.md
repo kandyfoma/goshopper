@@ -90,7 +90,7 @@
 ## ⚙️ Configuration Updates
 
 ### ✅ iOS Configuration
-- **File**: `ios/goshopperai/Info.plist`
+- **File**: `ios/goshopper/Info.plist`
 - **Added**: `NSMotionUsageDescription` for gyroscope permission
 - **Value**: "Nous utilisons les mouvements de l'appareil pour des animations interactives dans l'écran d'accueil"
 

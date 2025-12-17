@@ -4,7 +4,7 @@
 <dict>
     <key>com.apple.security.application-groups</key>
     <array>
-        <string>group.com.goshopperai.widgets</string>
+        <string>group.com.goshopper.widgets</string>
     </array>
 </dict>
 </plist>

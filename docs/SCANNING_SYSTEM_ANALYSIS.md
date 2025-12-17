@@ -1,7 +1,7 @@
 # Receipt Scanning & Saving System Analysis
 
 **Date:** 2024-12-22  
-**Purpose:** Comprehensive analysis of potential crashes, slowdowns, and edge cases in the GoShopperAI receipt scanning flow
+**Purpose:** Comprehensive analysis of potential crashes, slowdowns, and edge cases in the GoShopper receipt scanning flow
 
 ---
 

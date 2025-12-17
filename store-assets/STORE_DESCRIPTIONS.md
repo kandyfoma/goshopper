@@ -1,18 +1,18 @@
-# GoShopper AI - Store Descriptions
+# GoShopper - Store Descriptions
 
 ## 📱 App Store (iOS) Description
 
 ### English Version
 
-**Title:** GoShopper AI - Receipt Scanner & Price Tracker
+**Title:** GoShopper - Receipt Scanner & Price Tracker
 
 **Subtitle:** Smart shopping assistant for Congo (DRC)
 
 **Description:**
 
-Transform your shopping experience in Congo with GoShopper AI! 🛒✨
+Transform your shopping experience in Congo with GoShopper! 🛒✨
 
-GoShopper AI is your intelligent shopping companion that helps you track prices, manage receipts, and make smarter purchasing decisions. Designed specifically for shoppers in the Democratic Republic of Congo, our app uses advanced AI to simplify your grocery shopping.
+GoShopper is your intelligent shopping companion that helps you track prices, manage receipts, and make smarter purchasing decisions. Designed specifically for shoppers in the Democratic Republic of Congo, our app uses advanced AI to simplify your grocery shopping.
 
 **KEY FEATURES:**
 
@@ -52,7 +52,7 @@ GoShopper AI is your intelligent shopping companion that helps you track prices,
 • Spending goals and budget management
 • Multilingual support (French/English)
 
-**WHY GOSHOPPER AI?**
+**WHY GOSHOPPER?**
 
 ✓ Built specifically for Congo (DRC) market
 ✓ Supports local stores and products
@@ -78,21 +78,21 @@ Your data is encrypted and securely stored. We never sell your information to th
 • Recipe suggestions based on purchases
 • Cashback and rewards program
 
-Download GoShopper AI today and start shopping smarter! 🎉
+Download GoShopper today and start shopping smarter! 🎉
 
 ---
 
 ### French Version (Français)
 
-**Titre:** GoShopper AI - Scanner de Tickets & Suivi des Prix
+**Titre:** GoShopper - Scanner de Tickets & Suivi des Prix
 
 **Sous-titre:** Assistant intelligent pour vos achats au Congo (RDC)
 
 **Description:**
 
-Transformez votre expérience d'achat au Congo avec GoShopper AI ! 🛒✨
+Transformez votre expérience d'achat au Congo avec GoShopper ! 🛒✨
 
-GoShopper AI est votre compagnon intelligent qui vous aide à suivre les prix, gérer vos tickets et prendre des décisions d'achat plus intelligentes. Conçue spécialement pour les acheteurs en République Démocratique du Congo, notre application utilise l'IA avancée pour simplifier vos achats.
+GoShopper est votre compagnon intelligent qui vous aide à suivre les prix, gérer vos tickets et prendre des décisions d'achat plus intelligentes. Conçue spécialement pour les acheteurs en République Démocratique du Congo, notre application utilise l'IA avancée pour simplifier vos achats.
 
 **FONCTIONNALITÉS PRINCIPALES:**
 
@@ -303,7 +303,7 @@ receipt,scanner,price,tracker,shopping,budget,congo,kinshasa,drc,grocery,expense
 
 ## 📧 Support & Contact
 
-**Support Email:** support@goshopperai.com  
-**Website:** https://goshopperai.com  
+**Support Email:** support@goshopper.app  
+**Website:** https://goshopper.app  
 **Response Time:** Within 24 hours  
 **Languages:** French, English

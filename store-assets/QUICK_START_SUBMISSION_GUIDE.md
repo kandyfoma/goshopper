@@ -22,7 +22,7 @@ This guide provides the fastest path to get GoShopper AI into app stores.
    - Apps → Add (+) → New App
    - Platform: iOS
    - Name: GoShopper AI
-   - Bundle ID: `com.goshopperai.app` (create new)
+   - Bundle ID: `com.goshopper.app` (create new)
    - SKU: `GOSHOPPER-001`
    - User Access: Full Access
 
@@ -58,7 +58,7 @@ xcode-select --install
 # On Windows - Run PowerShell as Administrator
 keytool -genkeypair -v -storetype PKCS12 `
   -keystore android/app/release.keystore `
-  -alias goshopperai-release `
+  -alias goshopper-release `
   -keyalg RSA -keysize 2048 -validity 10000 `
   -dname "CN=GoShopper AI, OU=Mobile, O=GoShopper, L=City, ST=State, C=US" `
   -storepass YOUR_KEYSTORE_PASSWORD `
@@ -77,7 +77,7 @@ keytool -genkeypair -v -storetype PKCS12 `
 Create `android/gradle.properties`:
 ```properties
 GOSHOPPER_UPLOAD_STORE_FILE=release.keystore
-GOSHOPPER_UPLOAD_KEY_ALIAS=goshopperai-release
+GOSHOPPER_UPLOAD_KEY_ALIAS=goshopper-release
 GOSHOPPER_UPLOAD_STORE_PASSWORD=your_keystore_password_here
 GOSHOPPER_UPLOAD_KEY_PASSWORD=your_key_password_here
 
@@ -110,7 +110,7 @@ gradle.properties
 3. Select platforms: iOS, Android
 4. Download generated icons
 5. Replace files:
-   - iOS: `ios/goshopperai/Images.xcassets/AppIcon.appiconset/`
+   - iOS: `ios/goshopper/Images.xcassets/AppIcon.appiconset/`
    - Android: `android/app/src/main/res/mipmap-*/`
 
 #### Option 2: Use Existing Script
@@ -197,10 +197,10 @@ firebase deploy --only hosting
 
 #### Option 2: GitHub Pages (Free)
 ```powershell
-# Create new repo: goshopperai-legal
+# Create new repo: goshopper-legal
 # Add privacy-policy.html and terms-of-service.html
 # Enable GitHub Pages in repo settings
-# URL: https://username.github.io/goshopperai-legal/privacy-policy.html
+# URL: https://username.github.io/goshopper-legal/privacy-policy.html
 ```
 
 #### Option 3: Vercel (Fast)
@@ -212,7 +212,7 @@ npm install -g vercel
 cd legal
 vercel deploy --prod
 
-# Get URL: https://goshopperai-legal.vercel.app/privacy
+# Get URL: https://goshopper-legal.vercel.app/privacy
 ```
 
 **Required URLs**:

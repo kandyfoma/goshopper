@@ -126,7 +126,7 @@ project(':@react-native-community_blur').projectDir = new File(rootProject.proje
 
 ### 4. Permissions
 
-#### iOS - `ios/goshopperai/Info.plist`:
+#### iOS - `ios/goshopper/Info.plist`:
 ```xml
 <key>NSMotionUsageDescription</key>
 <string>We use device motion for interactive onboarding animations</string>
@@ -277,4 +277,4 @@ Libraries used:
 
 **Version**: 1.0  
 **Last Updated**: December 2025  
-**Maintained by**: GoShopperAI Team
+**Maintained by**: GoShopper Team

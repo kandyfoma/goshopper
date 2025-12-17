@@ -34,8 +34,8 @@ This guide covers setting up the development environment for Invoice Intelligenc
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/kandyfoma/goshopperai.git
-cd goshopperai
+git clone https://github.com/kandyfoma/goshopper.git
+cd goshopper
 ```
 
 ### 2. Install Dependencies
