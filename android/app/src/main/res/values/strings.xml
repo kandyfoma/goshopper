@@ -1,6 +1,11 @@
 <resources>
     <string name="app_name">GoShopper AI</string>
     
+    <!-- Facebook App ID - Replace with your actual Facebook App ID -->
+    <string name="facebook_app_id">1932348127718450</string>
+    <string name="facebook_client_token">3b3f3e5952db740e893818cfb1c28f4c</string>
+    <string name="fb_login_protocol_scheme">fb1932348127718450</string>
+    
     <!-- Quick Action Shortcuts -->
     <string name="shortcut_scan_short">Scanner</string>
     <string name="shortcut_scan_long">Scanner un ticket</string>

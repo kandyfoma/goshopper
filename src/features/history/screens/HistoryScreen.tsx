@@ -31,7 +31,6 @@ import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {spotlightSearchService, offlineService} from '@/shared/services';
 import {useIsOnline} from '@/shared/hooks';
-import {APP_ID} from '@/shared/services/firebase/config';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 

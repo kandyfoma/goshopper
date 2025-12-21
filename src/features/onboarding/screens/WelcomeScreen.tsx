@@ -51,13 +51,12 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: '1',
     icon: 'sparkles',
-    title: 'Bienvenue sur GoShopperAI',
+    title: 'Bienvenue sur Goshopper',
     subtitle: 'Assistant IA',
     description:
       "Votre assistant intelligent pour des achats plus malins.",
     gradientColors: [Colors.primary, Colors.primaryDark],
     iconName: 'sparkles',
-    lottieSource: require('../../../../assets/animations/sparkles.json'),
     accentColor: Colors.primary,
   },
   {
@@ -69,7 +68,6 @@ const SLIDES: OnboardingSlide[] = [
       'Prenez simplement en photo vos tickets de caisse.',
     gradientColors: [Colors.secondary, Colors.secondaryDark],
     iconName: 'camera',
-    lottieSource: require('../../../../assets/animations/scan.json'),
     accentColor: Colors.secondary,
   },
   {
@@ -81,7 +79,6 @@ const SLIDES: OnboardingSlide[] = [
       'Suivez vos dépenses et comparez les prix facilement.',
     gradientColors: [Colors.status.success, Colors.status.successLight],
     iconName: 'trending-up',
-    lottieSource: require('../../../../assets/animations/trending.json'),
     accentColor: Colors.status.success,
   },
 ];
@@ -521,6 +518,20 @@ export function WelcomeScreen() {
     });
   }, [navigation]);
 
+  const handleCommencer = useCallback(async () => {
+    hapticService.success();
+    // Mark onboarding as complete so it won't show again
+    try {
+      await AsyncStorage.setItem('@goshopperai_onboarding_complete', 'true');
+    } catch (error) {
+      console.error('Error saving onboarding state:', error);
+    }
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Main'}],
+    });
+  }, [navigation]);
+
   const handlePause = useCallback(() => {
     hapticService.light();
     setAutoAdvanceEnabled(!autoAdvanceEnabled);
@@ -576,7 +587,7 @@ export function WelcomeScreen() {
             <View style={styles.logoIcon}>
               <Icon name="cart" size="sm" color={Colors.primary} />
             </View>
-            <Text style={styles.logoText}>GoShopperAI</Text>
+            <Text style={styles.logoText}>Goshopper</Text>
           </View>
 
           <View style={styles.headerActions}>
@@ -655,28 +666,43 @@ export function WelcomeScreen() {
         {/* Dots */}
         <DotsIndicator scrollX={scrollX} slidesCount={SLIDES.length} />
 
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={styles.ctaButton}
-          onPress={handleNext}
-          activeOpacity={0.9}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.primaryDark]}
-            style={styles.ctaGradient}
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 1}}>
-            <Text style={styles.ctaButtonText}>
-              {isLastSlide ? 'Commencer maintenant' : 'Continuer'}
-            </Text>
-            <View style={styles.ctaIconContainer}>
-              <Icon
-                name={isLastSlide ? 'arrow-right' : 'chevron-right'}
-                size="sm"
-                color={Colors.white}
-              />
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Passer Button (for non-last slides) */}
+        {!isLastSlide && (
+          <TouchableOpacity
+            style={styles.skipButton}
+            onPress={handleGetStarted}
+            activeOpacity={0.7}>
+            <Text style={styles.skipButtonText}>Passer</Text>
+            <Icon
+              name="arrow-right"
+              size="sm"
+              color={Colors.text.secondary}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Commencer Button (for last slide) */}
+        {isLastSlide && (
+          <TouchableOpacity
+            style={styles.commencerButton}
+            onPress={handleCommencer}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              style={styles.commencerGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}>
+              <Text style={styles.commencerButtonText}>Commencer</Text>
+              <View style={styles.commencerIconContainer}>
+                <Icon
+                  name="arrow-right"
+                  size="sm"
+                  color={Colors.white}
+                />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         {/* Trial Badge with Animated Counter */}
         <View style={styles.trialBadge}>
@@ -982,6 +1008,54 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: BorderRadius.full,
+  },
+
+  // Skip Button
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.lg,
+  },
+  skipButtonText: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.secondary,
+  },
+
+  // Commencer Button (for last slide)
+  commencerButton: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  commencerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg + 2,
+    paddingHorizontal: Spacing['2xl'],
+    gap: Spacing.md,
+  },
+  commencerButtonText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+    letterSpacing: -0.3,
+  },
+  commencerIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // CTA Button

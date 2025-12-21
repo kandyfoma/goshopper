@@ -23,7 +23,7 @@ import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {useAuth, useToast} from '@/shared/contexts';
-import {Icon} from '@/shared/components';
+import {Icon, Button} from '@/shared/components';
 import Logo from '@/shared/components/Logo';
 
 
@@ -339,7 +339,7 @@ export function LoginScreen() {
               <View style={styles.logoWrapper}>
                 <Logo size={80} pulseOnLoad />
               </View>
-              <Text style={styles.appName}>GoShopperAI</Text>
+              <Text style={styles.appName}>Goshopper</Text>
               <Text style={styles.tagline}>
                 Scannez vos reçus, économisez plus
               </Text>
@@ -446,20 +446,14 @@ export function LoginScreen() {
               </TouchableOpacity>
 
               {/* Login Button */}
-              <TouchableOpacity
-                style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+              <Button
+                variant="primary"
+                title="Se connecter"
                 onPress={handleLogin}
                 disabled={isLoading}
-                activeOpacity={0.8}>
-                {loading ? (
-                  <ActivityIndicator color={GOCHUJANG.white} size="small" />
-                ) : (
-                  <>
-                    <Text style={styles.loginButtonText}>Se connecter</Text>
-                    <Icon name="arrow-right" size="sm" color={GOCHUJANG.white} />
-                  </>
-                )}
-              </TouchableOpacity>
+                loading={loading}
+                rightIcon="arrow-right"
+              />
 
               {/* Divider */}
               <View style={styles.divider}>
@@ -475,6 +469,7 @@ export function LoginScreen() {
                   <TouchableOpacity
                     style={[
                       styles.socialButton,
+                      styles.googleButton,
                       styles.singleSocialButton,
                       isLoading && styles.buttonDisabled,
                     ]}
@@ -484,12 +479,12 @@ export function LoginScreen() {
                     {socialLoading === 'google' ? (
                       <ActivityIndicator
                         size="small"
-                        color={GOCHUJANG.textPrimary}
+                        color="#4285F4"
                       />
                     ) : (
                       <>
-                        <Text style={styles.googleIcon}>G</Text>
-                        <Text style={styles.socialButtonText}>
+                        <Icon name="logo-google" size="sm" color="#4285F4" />
+                        <Text style={styles.googleButtonText}>
                           Continuer avec Google
                         </Text>
                       </>
@@ -513,12 +508,8 @@ export function LoginScreen() {
                       <ActivityIndicator size="small" color={GOCHUJANG.white} />
                     ) : (
                       <>
-                        <Icon name="apple" size="sm" color={GOCHUJANG.white} />
-                        <Text
-                          style={[
-                            styles.socialButtonText,
-                            styles.appleButtonText,
-                          ]}>
+                        <Icon name="logo-apple" size="sm" color={GOCHUJANG.white} />
+                        <Text style={styles.appleButtonText}>
                           Continuer avec Apple
                         </Text>
                       </>
@@ -526,7 +517,7 @@ export function LoginScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Facebook Sign-In - All platforms */}
+                {/* Facebook Sign-In - Temporarily disabled
                 <TouchableOpacity
                   style={[
                     styles.socialButton,
@@ -541,17 +532,14 @@ export function LoginScreen() {
                     <ActivityIndicator size="small" color={GOCHUJANG.white} />
                   ) : (
                     <>
-                      <Text style={styles.facebookIcon}>f</Text>
-                      <Text
-                        style={[
-                          styles.socialButtonText,
-                          styles.facebookButtonText,
-                        ]}>
+                      <Icon name="logo-facebook" size="sm" color={GOCHUJANG.white} />
+                      <Text style={styles.facebookButtonText}>
                         Continuer avec Facebook
                       </Text>
                     </>
                   )}
                 </TouchableOpacity>
+                */}
               </View>
 
               {/* Biometric Login Button */}
@@ -563,29 +551,14 @@ export function LoginScreen() {
                     <View style={styles.dividerLine} />
                   </View>
 
-                  <TouchableOpacity
-                    style={[
-                      styles.biometricButton,
-                      isLoading && styles.buttonDisabled,
-                    ]}
+                  <Button
+                    variant="outline"
+                    title={`Connexion avec ${biometricService.getBiometryDisplayName(biometricStatus.biometryType)}`}
                     onPress={handleBiometricLogin}
                     disabled={isLoading || biometricLoading}
-                    activeOpacity={0.7}>
-                    {biometricLoading ? (
-                      <ActivityIndicator size="small" color={GOCHUJANG.primary} />
-                    ) : (
-                      <>
-                        <Icon
-                          name={biometricService.getBiometryIcon(biometricStatus.biometryType)}
-                          size="md"
-                          color={GOCHUJANG.primary}
-                        />
-                        <Text style={styles.biometricButtonText}>
-                          Connexion avec {biometricService.getBiometryDisplayName(biometricStatus.biometryType)}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                    loading={biometricLoading}
+                    leftIcon={biometricService.getBiometryIcon(biometricStatus.biometryType)}
+                  />
                 </>
               )}
             </View>
@@ -833,27 +806,33 @@ const styles = StyleSheet.create({
     borderColor: GOCHUJANG.border,
     borderRadius: 14,
     paddingVertical: 14,
-    gap: 8,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   singleSocialButton: {
     flex: 0,
     width: '100%',
   },
-  googleIcon: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4285F4',
+  googleButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DADCE0',
   },
-  socialButtonText: {
+  googleButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: GOCHUJANG.textPrimary,
+    color: '#3C4043',
   },
   appleButton: {
-    backgroundColor: GOCHUJANG.textPrimary,
-    borderColor: GOCHUJANG.textPrimary,
+    backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   appleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: GOCHUJANG.white,
   },
   facebookButton: {
@@ -861,11 +840,8 @@ const styles = StyleSheet.create({
     borderColor: '#1877F2',
   },
   facebookButtonText: {
-    color: GOCHUJANG.white,
-  },
-  facebookIcon: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
     color: GOCHUJANG.white,
   },
 

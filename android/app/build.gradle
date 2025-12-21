@@ -85,7 +85,7 @@ android {
     }
     signingConfigs {
         debug {
-            storeFile file('debug.keystore')
+            storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
@@ -126,8 +126,21 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:flipper-integration")
 
+    // Facebook SDK
+    implementation 'com.facebook.android:facebook-android-sdk:16.3.0'
+
     // Google Sign-In
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    
+    // Force compatible AndroidX versions to avoid SDK 35 requirement
+    constraints {
+        implementation('androidx.core:core:1.13.1') {
+            because 'Requires SDK 34 instead of 35'
+        }
+        implementation('androidx.core:core-ktx:1.13.1') {
+            because 'Requires SDK 34 instead of 35'
+        }
+    }
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

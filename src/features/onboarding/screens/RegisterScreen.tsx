@@ -24,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon} from '@/shared/components';
+import {Icon, Button} from '@/shared/components';
 import {useAuth} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -262,34 +262,23 @@ export function RegisterScreen() {
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton]}
+            <Button
+              variant="primary"
+              title={showVerification ? 'Vérifier le code' : 'S\'inscrire'}
               onPress={showVerification ? handleVerifyCode : handleRegister}
-              disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <View style={styles.buttonInner}>
-                  <Text style={styles.buttonText}>
-                    {showVerification ? 'Vérifier le code' : 'S\'inscrire'}
-                  </Text>
-                  <Icon name="arrow-right" size="md" color={Colors.white} />
-                </View>
-              )}
-            </TouchableOpacity>
+              disabled={loading}
+              loading={loading}
+              rightIcon="arrow-right"
+            />
 
             {showVerification && (
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton]}
+              <Button
+                variant="outline"
+                title="Renvoyer le code"
                 onPress={handleResendOTP}
-                disabled={loading}>
-                <View style={styles.buttonInner}>
-                  <Icon name="refresh-cw" size="md" color={Colors.primary} />
-                  <Text style={styles.secondaryButtonText}>
-                    Renvoyer le code
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                disabled={loading}
+                leftIcon="refresh-cw"
+              />
             )}
 
             {/* Divider */}
@@ -308,7 +297,7 @@ export function RegisterScreen() {
                 <ActivityIndicator color={Colors.text.primary} />
               ) : (
                 <>
-                  <Text style={styles.googleIcon}>G</Text>
+                  <Icon name="logo-google" size="md" color={Colors.text.primary} />
                   <Text style={styles.socialButtonText}>
                     Continuer avec Google
                   </Text>
@@ -325,7 +314,7 @@ export function RegisterScreen() {
                   <ActivityIndicator color={Colors.white} />
                 ) : (
                   <>
-                    <Icon name="apple" size="md" color={Colors.white} />
+                    <Icon name="logo-apple" size="md" color={Colors.white} />
                     <Text
                       style={[styles.socialButtonText, styles.appleButtonText]}>
                       Continuer avec Apple
@@ -335,6 +324,7 @@ export function RegisterScreen() {
               </TouchableOpacity>
             )}
 
+{/* Facebook Sign-In - Temporarily disabled
             <TouchableOpacity
               style={[styles.button, styles.socialButton, styles.facebookButton]}
               onPress={handleFacebookSignIn}
@@ -343,7 +333,7 @@ export function RegisterScreen() {
                 <ActivityIndicator color={Colors.white} />
               ) : (
                 <>
-                  <Text style={styles.facebookIcon}>f</Text>
+                  <Icon name="logo-facebook" size="md" color={Colors.white} />
                   <Text
                     style={[styles.socialButtonText, styles.facebookButtonText]}>
                     Continuer avec Facebook
@@ -351,6 +341,7 @@ export function RegisterScreen() {
                 </>
               )}
             </TouchableOpacity>
+            */}
           </View>
 
           {/* Footer */}

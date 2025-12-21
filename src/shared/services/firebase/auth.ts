@@ -4,7 +4,7 @@ import firestore from '@react-native-firebase/firestore';
 import firebase from '@react-native-firebase/app';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {appleAuth} from '@invertase/react-native-apple-authentication';
-import {LoginManager, AccessToken} from 'react-native-fbsdk-next';
+import {LoginManager, AccessToken, Settings} from 'react-native-fbsdk-next';
 import {User, UserProfile} from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
 import {safeToDate} from '@/shared/utils/helpers';
@@ -374,8 +374,15 @@ class AuthService {
     try {
       await this.ensureInitialized();
 
-      // Attempt login with permissions
-      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+      // Log out any previous Facebook session first
+      LoginManager.logOut();
+
+      // Attempt login with permissions using web-based login
+      // This forces the use of CustomTabs/WebView instead of Facebook App
+      const result = await LoginManager.logInWithPermissions(
+        ['public_profile', 'email'],
+        'web_only'
+      );
 
       if (result.isCancelled) {
         throw new Error('User cancelled the login process');

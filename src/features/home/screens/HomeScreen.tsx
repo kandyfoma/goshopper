@@ -24,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon} from '@/shared/components';
+import {Icon, Button} from '@/shared/components';
 import {analyticsService, hapticService, widgetDataService} from '@/shared/services';
 import firestore from '@react-native-firebase/firestore';
 import {formatCurrency} from '@/shared/utils/helpers';
@@ -441,7 +441,7 @@ export function HomeScreen() {
                 <Icon name="shopping-bag" size="xl" color={Colors.white} />
               </LinearGradient>
             </View>
-            <Text style={styles.heroTitle}>Bienvenue sur GoShopperAI</Text>
+            <Text style={styles.heroTitle}>Bienvenue sur Goshopper</Text>
             <Text style={styles.heroSubtitle}>
               L'application intelligente qui révolutionne vos achats
             </Text>
@@ -529,30 +529,24 @@ export function HomeScreen() {
 
           {/* CTA Buttons */}
           <View style={styles.ctaContainer}>
-            <TouchableOpacity
-              style={styles.ctaPrimary}
+            <Button
+              variant="primary"
+              title="Créer un compte gratuit"
               onPress={() => {
                 analyticsService.logCustomEvent('guest_register_clicked');
                 navigation.push('Register');
-              }}>
-              <LinearGradient
-                colors={[Colors.card.crimson, Colors.card.red]}
-                style={styles.ctaGradient}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 1}}>
-                <Text style={styles.ctaPrimaryText}>Créer un compte gratuit</Text>
-                <Icon name="arrow-right" size="sm" color={Colors.white} />
-              </LinearGradient>
-            </TouchableOpacity>
+              }}
+              rightIcon="arrow-right"
+            />
 
-            <TouchableOpacity
-              style={styles.ctaSecondary}
+            <Button
+              variant="outline"
+              title="J'ai déjà un compte"
               onPress={() => {
                 analyticsService.logCustomEvent('guest_login_clicked');
                 navigation.push('Login');
-              }}>
-              <Text style={styles.ctaSecondaryText}>J'ai déjà un compte</Text>
-            </TouchableOpacity>
+              }}
+            />
           </View>
 
           {/* Footer */}

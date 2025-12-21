@@ -1,8 +1,8 @@
 import React, {useEffect, useRef} from 'react';
 import {View, StyleSheet, Animated, Easing, ViewStyle, Image} from 'react-native';
 
-// PNG logo for Image component usage
-const logoPng = require('../assets/logo.png');
+// PNG logo for Image component usage - using require for proper bundling
+const logoPng = require('../../../assets/logo.png');
 
 type LogoVariant = 'png';
 

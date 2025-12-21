@@ -8,7 +8,7 @@ import {generateUUID} from '@/shared/utils/helpers';
 import {ocrCorrectionService} from '../ocrCorrectionService';
 
 // Cloud Functions region - must match deployed functions
-const FUNCTIONS_REGION = 'europe-west1';
+const FUNCTIONS_REGION = 'us-central1'; // H5 FIX: Match actual deployed region
 const PROJECT_ID = 'goshopperai';
 
 interface ParseReceiptResponse {
@@ -42,9 +42,62 @@ interface ParseReceiptResponse {
 
 class GeminiService {
   private rateLimitedUntil: Date | null = null;
-  private consecutiveFailures = 0;
-  private readonly CIRCUIT_BREAKER_THRESHOLD = 5;
-  private readonly MAX_CONSECUTIVE_FAILURES = 10;
+  private circuitState: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+  private failureCount = 0;
+  private lastFailureTime: number = 0;
+  private nextAttemptTime: number = 0;
+  private readonly FAILURE_THRESHOLD = 5;
+  private readonly HALF_OPEN_TIMEOUT = 30000; // 30s
+  private readonly OPEN_TIMEOUT = 300000; // 5 minutes
+
+  /**
+   * H5 FIX: Check and update circuit breaker state
+   */
+  private checkCircuitState(): void {
+    const now = Date.now();
+
+    switch (this.circuitState) {
+      case 'OPEN':
+        if (now >= this.nextAttemptTime) {
+          console.log('Circuit breaker moving to HALF_OPEN - testing service');
+          this.circuitState = 'HALF_OPEN';
+        }
+        break;
+
+      case 'HALF_OPEN':
+        // Allow one test request through
+        break;
+
+      case 'CLOSED':
+        // Normal operation
+        break;
+    }
+  }
+
+  /**
+   * Record successful call
+   */
+  private recordSuccess(): void {
+    this.failureCount = 0;
+    this.circuitState = 'CLOSED';
+    console.log('Circuit breaker CLOSED - service recovered');
+  }
+
+  /**
+   * Record failed call
+   */
+  private recordFailure(): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failureCount >= this.FAILURE_THRESHOLD) {
+      this.circuitState = 'OPEN';
+      this.nextAttemptTime = Date.now() + this.OPEN_TIMEOUT;
+      console.error(
+        `Circuit breaker OPEN - service unavailable until ${new Date(this.nextAttemptTime).toLocaleTimeString()}`,
+      );
+    }
+  }
 
   /**
    * Parse a receipt image using Gemini AI via Cloud Function
@@ -53,27 +106,22 @@ class GeminiService {
     imageBase64: string,
     userId: string,
   ): Promise<ReceiptScanResult> {
-    // Circuit breaker check - if too many consecutive failures, stop trying
-    if (this.consecutiveFailures >= this.CIRCUIT_BREAKER_THRESHOLD) {
-      const waitMinutes = Math.min(this.consecutiveFailures, this.MAX_CONSECUTIVE_FAILURES);
-      
-      // Reset circuit breaker after wait time
-      if (this.consecutiveFailures < this.MAX_CONSECUTIVE_FAILURES) {
-        setTimeout(() => {
-          console.log('Circuit breaker reset - retrying service');
-          this.consecutiveFailures = 0;
-        }, waitMinutes * 60 * 1000);
-      }
-      
+    // Check circuit breaker state
+    this.checkCircuitState();
+
+    if (this.circuitState === 'OPEN') {
+      const waitSeconds = Math.ceil((this.nextAttemptTime - Date.now()) / 1000);
       return {
         success: false,
-        error: 'Le service de scan est temporairement indisponible. Réessayez dans quelques minutes.',
+        error: `Service temporairement indisponible. Réessayez dans ${waitSeconds} secondes.`,
       };
     }
 
     // Rate limit check
     if (this.rateLimitedUntil && new Date() < this.rateLimitedUntil) {
-      const waitSeconds = Math.ceil((this.rateLimitedUntil.getTime() - Date.now()) / 1000);
+      const waitSeconds = Math.ceil(
+        (this.rateLimitedUntil.getTime() - Date.now()) / 1000,
+      );
       return {
         success: false,
         error: `Trop de demandes. Veuillez attendre ${waitSeconds} secondes.`,
@@ -120,16 +168,16 @@ class GeminiService {
           const retryAfter = response.headers.get('Retry-After');
           const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 1 min
           this.rateLimitedUntil = new Date(Date.now() + waitTime);
-          
-          this.consecutiveFailures++;
-          
+
+          this.recordFailure();
+
           return {
             success: false,
             error: 'Trop de demandes. Veuillez réessayer dans une minute.',
           };
         }
-        
-        this.consecutiveFailures++;
+
+        this.recordFailure();
         throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
       }
 
@@ -169,8 +217,8 @@ class GeminiService {
         result.receiptId,
       );
 
-      // Success - reset failure counter
-      this.consecutiveFailures = 0;
+      // Success - reset circuit breaker
+      this.recordSuccess();
 
       return {
         success: true,
@@ -182,8 +230,14 @@ class GeminiService {
       console.error('Error message:', error.message);
       console.error('Error details:', JSON.stringify(error, null, 2));
 
-      // Increment failure counter for circuit breaker
-      this.consecutiveFailures++;
+      // Record failure for circuit breaker
+      this.recordFailure();
+
+      // In HALF_OPEN state, one failure reopens circuit
+      if (this.circuitState === 'HALF_OPEN') {
+        this.circuitState = 'OPEN';
+        this.nextAttemptTime = Date.now() + this.OPEN_TIMEOUT;
+      }
 
       // Handle specific error types
       if (error.code === 'functions/resource-exhausted') {

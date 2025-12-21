@@ -36,12 +36,17 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseReceiptV2 = exports.parseReceipt = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const generative_ai_1 = require("@google/generative-ai");
 const config_1 = require("../config");
+const sharp_1 = __importDefault(require("sharp"));
+const sharp_phash_1 = __importDefault(require("sharp-phash"));
 const db = admin.firestore();
 // Gemini AI will be initialized lazily with the secret
 let genAI = null;
@@ -54,6 +59,275 @@ function getGeminiAI() {
         genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
     }
     return genAI;
+}
+/**
+ * Validate image data before processing
+ * V1 FIX: Image validation (format, size, magic bytes)
+ */
+function validateImageData(imageBase64, mimeType) {
+    // 1. Check MIME type
+    const validMimeTypes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+    ];
+    if (!validMimeTypes.includes(mimeType.toLowerCase())) {
+        return {
+            valid: false,
+            error: "Format d'image non supporté. Utilisez JPG, PNG ou WebP.",
+        };
+    }
+    // 2. Validate base64 format
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    if (!base64Regex.test(imageBase64)) {
+        return { valid: false, error: 'Image corrompue. Veuillez réessayer.' };
+    }
+    // 3. Check file size (base64 is ~33% larger than binary)
+    const sizeInBytes = (imageBase64.length * 3) / 4;
+    const MAX_SIZE_MB = 10;
+    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+    if (sizeInBytes > MAX_SIZE_BYTES) {
+        return {
+            valid: false,
+            error: `Image trop grande (max ${MAX_SIZE_MB}MB). Compressez l'image.`,
+        };
+    }
+    const MIN_SIZE_KB = 10;
+    const MIN_SIZE_BYTES = MIN_SIZE_KB * 1024;
+    if (sizeInBytes < MIN_SIZE_BYTES) {
+        return { valid: false, error: 'Image trop petite pour être lisible.' };
+    }
+    // 4. Decode and check actual image header (magic bytes)
+    try {
+        const buffer = Buffer.from(imageBase64, 'base64');
+        // JPEG magic bytes: FF D8 FF
+        // PNG magic bytes: 89 50 4E 47
+        // WEBP magic bytes: 52 49 46 46 (RIFF)
+        const isJPEG = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        const isPNG = buffer[0] === 0x89 &&
+            buffer[1] === 0x50 &&
+            buffer[2] === 0x4e &&
+            buffer[3] === 0x47;
+        const isWEBP = buffer[0] === 0x52 &&
+            buffer[1] === 0x49 &&
+            buffer[2] === 0x46 &&
+            buffer[3] === 0x46;
+        if (!isJPEG && !isPNG && !isWEBP) {
+            return {
+                valid: false,
+                error: 'Fichier invalide. Envoyez une photo de reçu.',
+            };
+        }
+    }
+    catch (decodeError) {
+        return {
+            valid: false,
+            error: 'Image corrompue. Impossible de lire le fichier.',
+        };
+    }
+    return { valid: true };
+}
+/**
+ * Detect if image contains a receipt
+ * V2 FIX: Content detection (receipt vs non-receipt)
+ */
+async function detectReceiptContent(imageBase64, mimeType) {
+    const detectionPrompt = `Analyze this image and determine if it is a receipt, invoice, or bill.
+
+Respond with ONLY this JSON:
+{
+  "isReceipt": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "brief explanation",
+  "hasText": true/false,
+  "textLanguage": "fr/en/other/none"
+}
+
+A receipt must have:
+- Store/vendor name
+- List of items/services
+- Prices
+- Total amount
+- Date (usually)
+
+NOT receipts:
+- Selfies, photos of people/places/things
+- Screenshots of apps
+- Blank/empty images
+- Documents without prices
+- Images with no text`;
+    try {
+        const model = getGeminiAI().getGenerativeModel({
+            model: 'gemini-2.0-flash-exp',
+        });
+        const result = await model.generateContent([
+            detectionPrompt,
+            { inlineData: { mimeType, data: imageBase64 } },
+        ]);
+        const text = result.response.text();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const detection = JSON.parse(jsonMatch[0]);
+            return detection;
+        }
+    }
+    catch (error) {
+        console.error('Receipt detection failed:', error);
+        // On error, be permissive and allow processing
+        return { isReceipt: true, confidence: 0.5, reason: 'Detection unavailable' };
+    }
+    return {
+        isReceipt: false,
+        confidence: 0,
+        reason: 'Could not analyze image',
+    };
+}
+async function checkImageQuality(imageBase64) {
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const image = (0, sharp_1.default)(buffer);
+    const metadata = await image.metadata();
+    const stats = await image.stats();
+    const warnings = [];
+    const suggestions = [];
+    // Check resolution
+    const width = metadata.width || 0;
+    const height = metadata.height || 0;
+    if (width < 800 || height < 600) {
+        warnings.push('Image très petite - le texte peut être illisible');
+        suggestions.push('Rapprochez-vous du reçu ou utilisez un meilleur appareil photo');
+    }
+    // Check brightness (average luminance across all channels)
+    const avgBrightness = stats.channels.reduce((sum, ch) => sum + ch.mean, 0) /
+        stats.channels.length;
+    if (avgBrightness < 50) {
+        warnings.push('Image trop sombre');
+        suggestions.push('Scannez dans un endroit bien éclairé');
+    }
+    else if (avgBrightness > 230) {
+        warnings.push('Image trop claire/surexposée');
+        suggestions.push('Réduisez la luminosité ou évitez la lumière directe');
+    }
+    // Estimate sharpness using Laplacian variance (simple blur detection)
+    const { data, info } = await image.greyscale().raw().toBuffer({
+        resolveWithObject: true,
+    });
+    // Calculate Laplacian variance as blur metric
+    let laplacianSum = 0;
+    const stride = info.width;
+    for (let y = 1; y < info.height - 1; y++) {
+        for (let x = 1; x < info.width - 1; x++) {
+            const idx = y * stride + x;
+            const laplacian = 4 * data[idx] -
+                data[idx - 1] -
+                data[idx + 1] -
+                data[idx - stride] -
+                data[idx + stride];
+            laplacianSum += laplacian * laplacian;
+        }
+    }
+    const sharpness = laplacianSum / ((info.width - 2) * (info.height - 2));
+    if (sharpness < 100) {
+        warnings.push('Image floue');
+        suggestions.push('Tenez votre téléphone stable ou utilisez le flash');
+    }
+    const isAcceptable = warnings.length === 0 ||
+        (width >= 800 && avgBrightness >= 50 && sharpness >= 50);
+    return {
+        isAcceptable,
+        warnings,
+        suggestions,
+        metrics: {
+            width,
+            height,
+            brightness: avgBrightness,
+            sharpness,
+        },
+    };
+}
+/**
+ * Detect duplicate receipts
+ * H2 FIX: Duplicate receipt detection with perceptual hash
+ */
+async function detectDuplicateReceipt(userId, imageBase64, receiptData) {
+    try {
+        // 1. Calculate perceptual hash of image
+        const buffer = Buffer.from(imageBase64, 'base64');
+        const hash = await (0, sharp_phash_1.default)(buffer);
+        // 2. Check exact matches (same hash)
+        const exactMatch = await db
+            .collection(config_1.collections.receipts(userId))
+            .where('imageHash', '==', hash)
+            .limit(1)
+            .get();
+        if (!exactMatch.empty) {
+            return {
+                isDuplicate: true,
+                existingReceiptId: exactMatch.docs[0].id,
+                similarity: 1.0,
+            };
+        }
+        // 3. Check similar receipts (within last 30 days, same store, similar total)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const similarReceipts = await db
+            .collection(config_1.collections.receipts(userId))
+            .where('storeNameNormalized', '==', receiptData.storeNameNormalized)
+            .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo))
+            .get();
+        for (const doc of similarReceipts.docs) {
+            const existing = doc.data();
+            // Compare totals (within 5% tolerance for OCR errors)
+            const totalDiff = Math.abs(existing.total - receiptData.total);
+            const tolerance = receiptData.total * 0.05;
+            if (totalDiff <= tolerance) {
+                // Compare dates (same day or day before/after)
+                const existingDate = existing.date
+                    ? new Date(existing.date)
+                    : existing.createdAt.toDate();
+                const newDate = new Date(receiptData.date);
+                const dayDiff = Math.abs((existingDate.getTime() - newDate.getTime()) / (1000 * 60 * 60 * 24));
+                if (dayDiff <= 1) {
+                    // Likely duplicate - calculate item similarity
+                    const itemSimilarity = calculateItemSimilarity(existing.items, receiptData.items);
+                    if (itemSimilarity > 0.8) {
+                        return {
+                            isDuplicate: true,
+                            existingReceiptId: doc.id,
+                            similarity: itemSimilarity,
+                        };
+                    }
+                }
+            }
+        }
+        return { isDuplicate: false };
+    }
+    catch (error) {
+        console.error('Duplicate detection failed:', error);
+        // On error, don't block the scan
+        return { isDuplicate: false };
+    }
+}
+/**
+ * Calculate similarity between two item lists (0-1)
+ */
+function calculateItemSimilarity(items1, items2) {
+    if (items1.length === 0 || items2.length === 0) {
+        return 0;
+    }
+    let matchCount = 0;
+    const maxLength = Math.max(items1.length, items2.length);
+    for (const item1 of items1) {
+        for (const item2 of items2) {
+            // Compare normalized names and prices
+            if (item1.nameNormalized === item2.nameNormalized &&
+                Math.abs(item1.unitPrice - item2.unitPrice) < 0.01) {
+                matchCount++;
+                break;
+            }
+        }
+    }
+    return matchCount / maxLength;
 }
 // Prompt for receipt parsing - optimized for DRC market
 const PARSING_PROMPT = `You are an expert receipt/invoice OCR and data extraction system. Your task is to CAREFULLY READ and extract ALL visible text and data from the receipt image provided.
@@ -147,94 +421,142 @@ function normalizeStoreName(name) {
 }
 /**
  * Parse receipt image using Gemini AI
+ * V3 FIX: Enhanced error handling with retry logic
  */
 async function parseWithGemini(imageBase64, mimeType) {
-    var _a, _b, _c, _d;
-    const model = getGeminiAI().getGenerativeModel({ model: config_1.config.gemini.model });
-    const result = await model.generateContent([
-        PARSING_PROMPT,
-        {
-            inlineData: {
-                mimeType,
-                data: imageBase64,
-            },
-        },
-    ]);
-    const response = result.response;
-    const text = response.text();
-    // Extract JSON from response (handle markdown code blocks)
-    let jsonStr = text;
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-        jsonStr = jsonMatch[1];
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const MAX_RETRIES = 2;
+    let lastError = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const model = getGeminiAI().getGenerativeModel({
+                model: config_1.config.gemini.model,
+                generationConfig: {
+                    temperature: 0.1, // Low temperature for consistent output
+                    maxOutputTokens: 2048,
+                },
+            });
+            // Set timeout for Gemini API call
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini API timeout')), 45000)); // 45s
+            const resultPromise = model.generateContent([
+                PARSING_PROMPT,
+                {
+                    inlineData: {
+                        mimeType,
+                        data: imageBase64,
+                    },
+                },
+            ]);
+            const result = await Promise.race([resultPromise, timeoutPromise]);
+            const response = result.response;
+            const text = response.text();
+            // Extract JSON from response (handle markdown code blocks)
+            let jsonStr = text;
+            const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[1];
+            }
+            // Clean and validate JSON string
+            jsonStr = jsonStr.trim();
+            // Fix common JSON issues that Gemini might produce
+            jsonStr = jsonStr
+                .replace(/'/g, '"') // Replace single quotes with double quotes
+                .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Quote unquoted property names
+                .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}\]])/g, ':"$1"$2') // Quote unquoted string values
+                .replace(/,\s*}/g, '}') // Remove trailing commas
+                .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+            console.log('Cleaned JSON string:', jsonStr.substring(0, 500));
+            // Parse JSON with error handling
+            let parsed;
+            try {
+                parsed = JSON.parse(jsonStr);
+            }
+            catch (parseError) {
+                console.error('JSON parse error:', parseError);
+                console.error('Raw Gemini response:', text);
+                console.error('Cleaned JSON:', jsonStr);
+                // Try to extract partial data or provide fallback
+                const errorMessage = parseError instanceof Error
+                    ? parseError.message
+                    : String(parseError);
+                throw new Error(`Failed to parse Gemini response as JSON: ${errorMessage}. Raw response: ${text.substring(0, 200)}`);
+            }
+            // Validate parsed data structure
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('Gemini response is not a valid object');
+            }
+            if (!parsed.storeName && !parsed.items) {
+                console.warn('Gemini response missing required fields:', parsed);
+                // Try to create a minimal valid receipt
+                parsed = {
+                    storeName: 'Unknown Store',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'CDF',
+                    items: [],
+                    total: 0,
+                    ...parsed, // Merge any existing valid fields
+                };
+            }
+            const items = (parsed.items || []).map((item) => ({
+                id: generateItemId(),
+                name: item.name || 'Unknown Item',
+                nameNormalized: normalizeProductName(item.name || ''),
+                quantity: item.quantity || 1,
+                unitPrice: item.unitPrice || 0,
+                totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),
+                unit: item.unit,
+                category: item.category || 'Autres',
+                confidence: 0.85, // Default confidence for Gemini parsing
+            }));
+            // Build parsed receipt - use null instead of undefined for optional fields
+            const receipt = {
+                storeName: parsed.storeName || 'Unknown Store',
+                storeNameNormalized: normalizeStoreName(parsed.storeName || ''),
+                storeAddress: parsed.storeAddress || null,
+                storePhone: parsed.storePhone || null,
+                receiptNumber: parsed.receiptNumber || null,
+                date: parsed.date || new Date().toISOString().split('T')[0],
+                currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
+                items,
+                subtotal: (_a = parsed.subtotal) !== null && _a !== void 0 ? _a : null,
+                tax: (_b = parsed.tax) !== null && _b !== void 0 ? _b : null,
+                total: parsed.total ||
+                    items.reduce((sum, item) => sum + item.totalPrice, 0),
+                totalUSD: (_c = parsed.totalUSD) !== null && _c !== void 0 ? _c : null,
+                totalCDF: (_d = parsed.totalCDF) !== null && _d !== void 0 ? _d : null,
+            };
+            return receipt;
+        }
+        catch (error) {
+            lastError = error;
+            // Handle specific Gemini errors
+            if ((_e = error.message) === null || _e === void 0 ? void 0 : _e.includes('API_KEY_INVALID')) {
+                throw new functions.https.HttpsError('internal', 'Configuration erreur. Contactez le support.');
+            }
+            if ((_f = error.message) === null || _f === void 0 ? void 0 : _f.includes('QUOTA_EXCEEDED')) {
+                throw new functions.https.HttpsError('resource-exhausted', 'Service temporairement saturé. Réessayez dans 1 heure.');
+            }
+            if ((_g = error.message) === null || _g === void 0 ? void 0 : _g.includes('CONTENT_POLICY_VIOLATION')) {
+                throw new functions.https.HttpsError('invalid-argument', 'Image inappropriée détectée. Veuillez scanner un reçu valide.');
+            }
+            if ((_h = error.message) === null || _h === void 0 ? void 0 : _h.includes('timeout')) {
+                console.warn(`Gemini timeout on attempt ${attempt + 1}`);
+                if (attempt < MAX_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Exponential backoff
+                    continue;
+                }
+                throw new functions.https.HttpsError('deadline-exceeded', 'Le service met trop de temps à répondre. Réessayez avec une image plus petite.');
+            }
+            // If last retry, throw
+            if (attempt === MAX_RETRIES) {
+                throw lastError;
+            }
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
     }
-    // Clean and validate JSON string
-    jsonStr = jsonStr.trim();
-    // Fix common JSON issues that Gemini might produce
-    jsonStr = jsonStr
-        .replace(/'/g, '"') // Replace single quotes with double quotes
-        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Quote unquoted property names
-        .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}\]])/g, ':"$1"$2') // Quote unquoted string values
-        .replace(/,\s*}/g, '}') // Remove trailing commas
-        .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
-    console.log('Cleaned JSON string:', jsonStr.substring(0, 500));
-    // Parse JSON with error handling
-    let parsed;
-    try {
-        parsed = JSON.parse(jsonStr);
-    }
-    catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Raw Gemini response:', text);
-        console.error('Cleaned JSON:', jsonStr);
-        // Try to extract partial data or provide fallback
-        const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
-        throw new Error(`Failed to parse Gemini response as JSON: ${errorMessage}. Raw response: ${text.substring(0, 200)}`);
-    }
-    // Validate parsed data structure
-    if (!parsed || typeof parsed !== 'object') {
-        throw new Error('Gemini response is not a valid object');
-    }
-    if (!parsed.storeName && !parsed.items) {
-        console.warn('Gemini response missing required fields:', parsed);
-        // Try to create a minimal valid receipt
-        parsed = {
-            storeName: 'Unknown Store',
-            date: new Date().toISOString().split('T')[0],
-            currency: 'CDF',
-            items: [],
-            total: 0,
-            ...parsed, // Merge any existing valid fields
-        };
-    }
-    const items = (parsed.items || []).map((item) => ({
-        id: generateItemId(),
-        name: item.name || 'Unknown Item',
-        nameNormalized: normalizeProductName(item.name || ''),
-        quantity: item.quantity || 1,
-        unitPrice: item.unitPrice || 0,
-        totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),
-        unit: item.unit,
-        category: item.category || 'Autres',
-        confidence: 0.85, // Default confidence for Gemini parsing
-    }));
-    // Build parsed receipt - use null instead of undefined for optional fields
-    const receipt = {
-        storeName: parsed.storeName || 'Unknown Store',
-        storeNameNormalized: normalizeStoreName(parsed.storeName || ''),
-        storeAddress: parsed.storeAddress || null,
-        storePhone: parsed.storePhone || null,
-        receiptNumber: parsed.receiptNumber || null,
-        date: parsed.date || new Date().toISOString().split('T')[0],
-        currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
-        items,
-        subtotal: (_a = parsed.subtotal) !== null && _a !== void 0 ? _a : null,
-        tax: (_b = parsed.tax) !== null && _b !== void 0 ? _b : null,
-        total: parsed.total || items.reduce((sum, item) => sum + item.totalPrice, 0),
-        totalUSD: (_c = parsed.totalUSD) !== null && _c !== void 0 ? _c : null,
-        totalCDF: (_d = parsed.totalCDF) !== null && _d !== void 0 ? _d : null,
-    };
-    return receipt;
+    throw (lastError ||
+        new functions.https.HttpsError('internal', 'Failed to parse receipt after retries'));
 }
 /**
  * Callable function to parse receipt
@@ -258,43 +580,80 @@ exports.parseReceipt = functions
         throw new functions.https.HttpsError('invalid-argument', 'Image data is required');
     }
     try {
-        // Check subscription/trial limits
+        // V1 FIX: Validate image data before processing
+        const validation = validateImageData(imageBase64, mimeType);
+        if (!validation.valid) {
+            throw new functions.https.HttpsError('invalid-argument', validation.error);
+        }
+        // V2 FIX: Detect if image contains a receipt
+        const detection = await detectReceiptContent(imageBase64, mimeType);
+        if (!detection.isReceipt || detection.confidence < 0.7) {
+            throw new functions.https.HttpsError('invalid-argument', `Cette image ne semble pas être un reçu. ${detection.reason || 'Veuillez scanner un reçu valide.'}`);
+        }
+        // H1 FIX: Check image quality
+        const qualityCheck = await checkImageQuality(imageBase64);
+        if (!qualityCheck.isAcceptable) {
+            const warningMsg = qualityCheck.warnings.join('. ') +
+                '. ' +
+                qualityCheck.suggestions.join('. ');
+            console.warn(`Image quality issues: ${warningMsg}`);
+            // Log but don't block - let user proceed with warning
+            // In production, you might want to return this as a warning field
+        }
+        // V5 FIX: Atomic subscription check and increment with transaction
         const subscriptionRef = db.doc(config_1.collections.subscription(userId));
-        const subscriptionDoc = await subscriptionRef.get();
-        let subscription = subscriptionDoc.data();
-        if (!subscription) {
-            // Initialize subscription for new user
-            subscription = {
-                userId,
-                trialScansUsed: 0,
-                trialScansLimit: config_1.config.app.trialScanLimit,
-                isSubscribed: false,
-                status: 'trial',
-                autoRenew: false,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        await db.runTransaction(async (transaction) => {
+            const subscriptionDoc = await transaction.get(subscriptionRef);
+            let subscription = subscriptionDoc.data();
+            if (!subscription) {
+                // Initialize subscription for new user
+                subscription = {
+                    userId,
+                    trialScansUsed: 0,
+                    trialScansLimit: config_1.config.app.trialScanLimit,
+                    isSubscribed: false,
+                    status: 'trial',
+                    autoRenew: false,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+                transaction.set(subscriptionRef, subscription);
+            }
+            // Check if user can scan (skip if limit is -1 for unlimited)
+            const isUnlimited = config_1.config.app.trialScanLimit === -1 ||
+                subscription.trialScansLimit === -1;
+            const canScan = subscription.isSubscribed ||
+                isUnlimited ||
+                subscription.trialScansUsed < subscription.trialScansLimit;
+            if (!canScan) {
+                throw new functions.https.HttpsError('resource-exhausted', `Limite d'essai atteinte (${subscription.trialScansUsed}/${subscription.trialScansLimit}). Abonnez-vous pour continuer.`);
+            }
+            // Atomically increment scan count within transaction
+            transaction.update(subscriptionRef, {
+                trialScansUsed: admin.firestore.FieldValue.increment(1),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
-            await subscriptionRef.set(subscription);
-        }
-        // Check if user can scan (skip if limit is -1 for unlimited)
-        const isUnlimited = config_1.config.app.trialScanLimit === -1 || subscription.trialScansLimit === -1;
-        const canScan = subscription.isSubscribed ||
-            isUnlimited ||
-            subscription.trialScansUsed < subscription.trialScansLimit;
-        if (!canScan) {
-            throw new functions.https.HttpsError('resource-exhausted', 'Trial limit reached. Please subscribe to continue.');
-        }
-        // Parse receipt with Gemini
+            });
+        });
+        // Now parse receipt - scan limit already reserved
         const parsedReceipt = await parseWithGemini(imageBase64, mimeType);
+        // H2 FIX: Check for duplicate receipts
+        const duplicateCheck = await detectDuplicateReceipt(userId, imageBase64, parsedReceipt);
+        if (duplicateCheck.isDuplicate) {
+            throw new functions.https.HttpsError('already-exists', `Ce reçu a déjà été scanné. Scan ID: ${duplicateCheck.existingReceiptId}`);
+        }
         // Get user profile to include city
         const userProfileRef = db.doc(config_1.collections.userDoc(userId));
         const userProfileDoc = await userProfileRef.get();
         const userProfile = userProfileDoc.data();
+        // Calculate perceptual hash for storage
+        const buffer = Buffer.from(imageBase64, 'base64');
+        const imageHash = await (0, sharp_phash_1.default)(buffer);
         // Create receipt document
         const receiptRef = db.collection(config_1.collections.receipts(userId)).doc();
         const now = admin.firestore.FieldValue.serverTimestamp();
         await receiptRef.set({
             ...parsedReceipt,
+            imageHash, // Store hash for duplicate detection
             id: receiptRef.id,
             userId,
             city: (userProfile === null || userProfile === void 0 ? void 0 : userProfile.defaultCity) || null,
@@ -303,11 +662,8 @@ exports.parseReceipt = functions
             updatedAt: now,
             scannedAt: now,
         });
-        // Update scan count
-        await subscriptionRef.update({
-            trialScansUsed: admin.firestore.FieldValue.increment(1),
-            updatedAt: now,
-        });
+        // Scan count already incremented atomically in transaction above
+        // No need to increment again
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         return {
@@ -329,6 +685,70 @@ exports.parseReceipt = functions
         throw new functions.https.HttpsError('internal', `Failed to parse receipt: ${errorMessage}`);
     }
 });
+/**
+ * Merge multi-page receipt with validation
+ * H3 FIX: Multi-page receipt validation and merging
+ */
+async function mergeMultiPageReceipt(parsedResults, images) {
+    // 1. Validate all pages are from same receipt
+    const storeNames = parsedResults
+        .map(r => r.storeNameNormalized)
+        .filter(Boolean);
+    const uniqueStores = new Set(storeNames);
+    if (uniqueStores.size > 1) {
+        throw new Error(`Plusieurs reçus détectés: ${Array.from(uniqueStores).join(', ')}. Scannez un seul reçu à la fois.`);
+    }
+    // 2. Detect duplicate pages using perceptual hashing
+    const hashes = await Promise.all(images.map(async (img) => {
+        const buffer = Buffer.from(img, 'base64');
+        return await (0, sharp_phash_1.default)(buffer);
+    }));
+    const duplicates = hashes.filter((hash, index) => hashes.indexOf(hash) !== index);
+    if (duplicates.length > 0) {
+        throw new Error('Pages dupliquées détectées. Supprimez les images en double.');
+    }
+    // 3. Find page with store header
+    const headerPage = parsedResults.find(p => p.storeName && p.storeName !== 'Unknown Store') ||
+        parsedResults[0];
+    // 4. Find page with total (usually last)
+    const totalPage = parsedResults
+        .slice()
+        .reverse()
+        .find(p => p.total > 0) || parsedResults[parsedResults.length - 1];
+    // 5. Collect all unique items (deduplication by name + price)
+    const itemMap = new Map();
+    for (const page of parsedResults) {
+        for (const item of page.items) {
+            const key = `${item.nameNormalized}-${item.unitPrice}`;
+            if (itemMap.has(key)) {
+                // Same item appears on multiple pages - add quantities
+                const existing = itemMap.get(key);
+                existing.quantity += item.quantity;
+                existing.totalPrice += item.totalPrice;
+            }
+            else {
+                itemMap.set(key, { ...item });
+            }
+        }
+    }
+    const allItems = Array.from(itemMap.values());
+    // 6. Validate total matches item sum
+    const itemsTotal = allItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const declaredTotal = totalPage.total || 0;
+    const tolerance = declaredTotal * 0.1; // 10% tolerance
+    if (Math.abs(itemsTotal - declaredTotal) > tolerance && declaredTotal > 0) {
+        console.warn(`Total mismatch: Items sum to ${itemsTotal} but receipt says ${declaredTotal}`);
+    }
+    return {
+        ...headerPage,
+        items: allItems,
+        subtotal: totalPage.subtotal,
+        tax: totalPage.tax,
+        total: totalPage.total || itemsTotal,
+        totalUSD: totalPage.totalUSD,
+        totalCDF: totalPage.totalCDF,
+    };
+}
 /**
  * V2 version with multi-image support - HTTP endpoint
  */
@@ -394,21 +814,8 @@ exports.parseReceiptV2 = functions
         // }
         // Parse all images and merge results
         const parsedResults = await Promise.all(images.map((img) => parseWithGemini(img, mimeType)));
-        // Merge items from all pages
-        const allItems = parsedResults.flatMap(r => r.items);
-        // Use first page for store info, last page for totals
-        const firstPage = parsedResults[0];
-        const lastPage = parsedResults[parsedResults.length - 1];
-        const mergedReceipt = {
-            ...firstPage,
-            items: allItems,
-            subtotal: lastPage.subtotal || firstPage.subtotal,
-            tax: lastPage.tax || firstPage.tax,
-            total: lastPage.total ||
-                allItems.reduce((sum, item) => sum + item.totalPrice, 0),
-            totalUSD: lastPage.totalUSD || firstPage.totalUSD || undefined,
-            totalCDF: lastPage.totalCDF || firstPage.totalCDF || undefined,
-        };
+        // H3 FIX: Use improved multi-page merging with validation
+        const mergedReceipt = await mergeMultiPageReceipt(parsedResults, images);
         // Get user profile to include city
         const userProfileRef = db.doc(config_1.collections.userDoc(userId));
         const userProfileDoc = await userProfileRef.get();

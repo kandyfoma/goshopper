@@ -124,10 +124,10 @@ export const SUBSCRIPTION_PLANS = {
 
 // Mobile Money Providers
 export const MOBILE_MONEY_PROVIDERS = [
-  {id: 'mpesa', name: 'M-Pesa', icon: 'phone', logo: require('../assets/money-transfer/m-pesa.png')},
-  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF7F00', logo: require('../assets/money-transfer/orange-money.png')},
-  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#C1121F', logo: require('../assets/money-transfer/airtal-money.png')},
-  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#00A86B', logo: require('../assets/money-transfer/afrimoney.png')},
+  {id: 'mpesa', name: 'M-Pesa', icon: 'phone'},
+  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF7F00'},
+  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#C1121F'},
+  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#00A86B'},
 ] as const;
 
 // UI Constants

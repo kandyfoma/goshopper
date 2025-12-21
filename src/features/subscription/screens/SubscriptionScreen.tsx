@@ -54,10 +54,10 @@ interface MobileMoneyOption {
 }
 
 const MOBILE_MONEY_OPTIONS: MobileMoneyOption[] = [
-  {id: 'mpesa', name: 'M-Pesa', icon: 'phone', color: '#4CAF50', logo: require('../../../shared/assets/money-transfer/m-pesa.png')},
-  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF6600', logo: require('../../../shared/assets/money-transfer/orange-money.png')},
-  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#ED1C24', logo: require('../../../shared/assets/money-transfer/airtal-money.png')},
-  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#FFB300', logo: require('../../../shared/assets/money-transfer/afrimoney.png')},
+  {id: 'mpesa', name: 'M-Pesa', icon: 'phone', color: '#4CAF50'},
+  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF6600'},
+  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#ED1C24'},
+  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#FFB300'},
 ];
 
 export function SubscriptionScreen() {

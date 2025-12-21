@@ -8,8 +8,9 @@ module.exports = {
         root: ['.'],
         alias: {
           '@': './src',
+          '@assets': './assets',
         },
-        extensions: ['.ios.js', '.android.js', '.js', '.ts', '.tsx', '.json'],
+        extensions: ['.ios.js', '.android.js', '.js', '.ts', '.tsx', '.json', '.png', '.jpg'],
       },
     ],
     'react-native-reanimated/plugin', // Must be last

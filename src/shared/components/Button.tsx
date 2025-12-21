@@ -25,7 +25,7 @@ import {
   Animations,
 } from '../theme/theme';
 
-type ButtonVariant = 'primary' | 'secondary' | 'accent' | 'ghost' | 'outline';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface ButtonProps {
@@ -89,10 +89,26 @@ const Button: React.FC<ButtonProps> = ({
 
     switch (variant) {
       case 'primary':
+        // Dark blue filled button for submit/primary actions
         return {
           ...baseStyle,
-          backgroundColor: disabled ? Colors.border.medium : Colors.primary,
+          backgroundColor: disabled ? Colors.border.medium : Colors.accent, // Cosmos Blue #003049
           ...Shadows.md,
+        };
+      case 'danger':
+        // Red filled button for cancel/destructive actions
+        return {
+          ...baseStyle,
+          backgroundColor: disabled ? Colors.border.medium : Colors.primary, // Crimson Red #C1121F
+          ...Shadows.md,
+        };
+      case 'outline':
+        // Unfilled with yellow border for other features
+        return {
+          ...baseStyle,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderColor: disabled ? Colors.border.medium : Colors.card.yellow, // Warm beige #F5E6C3
         };
       case 'secondary':
         return {
@@ -101,23 +117,10 @@ const Button: React.FC<ButtonProps> = ({
           borderWidth: 1.5,
           borderColor: disabled ? Colors.border.medium : Colors.primary,
         };
-      case 'accent':
-        return {
-          ...baseStyle,
-          backgroundColor: disabled ? Colors.border.medium : Colors.accent,
-          ...Shadows.accent,
-        };
       case 'ghost':
         return {
           ...baseStyle,
           backgroundColor: 'transparent',
-        };
-      case 'outline':
-        return {
-          ...baseStyle,
-          backgroundColor: 'transparent',
-          borderWidth: 1.5,
-          borderColor: disabled ? Colors.border.medium : Colors.border.dark,
         };
       default:
         return baseStyle;
@@ -133,8 +136,15 @@ const Button: React.FC<ButtonProps> = ({
 
     switch (variant) {
       case 'primary':
-      case 'accent':
+      case 'danger':
+        // White text for filled buttons
         return {...baseStyle, color: Colors.white};
+      case 'outline':
+        // Dark text for outline button
+        return {
+          ...baseStyle,
+          color: disabled ? Colors.text.tertiary : Colors.text.primary,
+        };
       case 'secondary':
         return {
           ...baseStyle,
@@ -144,11 +154,6 @@ const Button: React.FC<ButtonProps> = ({
         return {
           ...baseStyle,
           color: disabled ? Colors.text.tertiary : Colors.primary,
-        };
-      case 'outline':
-        return {
-          ...baseStyle,
-          color: disabled ? Colors.text.tertiary : Colors.text.primary,
         };
       default:
         return baseStyle;
@@ -161,9 +166,9 @@ const Button: React.FC<ButtonProps> = ({
         <ActivityIndicator
           size="small"
           color={
-            variant === 'primary' || variant === 'accent'
+            variant === 'primary' || variant === 'danger'
               ? Colors.white
-              : Colors.primary
+              : Colors.text.primary
           }
         />
       );

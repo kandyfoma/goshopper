@@ -50,7 +50,9 @@ const loadSearchApi = async (): Promise<boolean> => {
   }
 
   try {
-    SearchApi = require('react-native-search-api').default;
+    // Dynamic import to avoid bundling issues
+    const module = await import('react-native-search-api');
+    SearchApi = module.default;
     // Verify the API has the required methods
     if (SearchApi && typeof SearchApi.indexSpotlightItem === 'function') {
       return true;

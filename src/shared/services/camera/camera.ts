@@ -16,6 +16,8 @@ export interface CaptureResult {
   height?: number;
   fileName?: string;
   error?: string;
+  canRetry?: boolean;
+  suggestedAction?: 'close_other_apps' | 'open_settings' | 'check_storage' | 'get_closer';
 }
 
 const DEFAULT_CAMERA_OPTIONS: CameraOptions = {
@@ -25,7 +27,7 @@ const DEFAULT_CAMERA_OPTIONS: CameraOptions = {
   maxHeight: 2500,
   includeBase64: true, // Get base64 directly to avoid saving files
   saveToPhotos: false,
-  cameraType: 'front', // Use front camera for selfie mode
+  cameraType: 'back', // H4 FIX: Use back camera for receipts (not front)
 };
 
 class CameraService {
@@ -99,6 +101,7 @@ class CameraService {
 
   /**
    * Handle image picker response
+   * H4 FIX: Enhanced error handling with recovery suggestions
    */
   private handleImagePickerResponse(
     response: ImagePickerResponse,
@@ -107,21 +110,71 @@ class CameraService {
       return {
         success: false,
         error: 'Capture annulée',
+        canRetry: true,
       };
     }
 
     if (response.errorCode) {
-      return {
-        success: false,
-        error: response.errorMessage || 'Erreur lors de la capture',
-      };
+      // Specific error handling with recovery suggestions
+      switch (response.errorCode) {
+        case 'camera_unavailable':
+          return {
+            success: false,
+            error: 'Caméra non disponible. Fermez les autres applications utilisant la caméra.',
+            canRetry: true,
+            suggestedAction: 'close_other_apps',
+          };
+
+        case 'permission':
+          return {
+            success: false,
+            error: 'Permission caméra refusée. Activez-la dans les paramètres.',
+            canRetry: false,
+            suggestedAction: 'open_settings',
+          };
+
+        case 'others':
+          // Could be hardware failure or low storage
+          return {
+            success: false,
+            error: 'Erreur matérielle. Vérifiez votre espace de stockage.',
+            canRetry: true,
+            suggestedAction: 'check_storage',
+          };
+
+        default:
+          return {
+            success: false,
+            error: response.errorMessage || 'Erreur inconnue',
+            canRetry: true,
+          };
+      }
     }
 
     const asset: Asset | undefined = response.assets?.[0];
     if (!asset || !asset.uri) {
       return {
         success: false,
-        error: 'Aucune image capturée',
+        error: 'Aucune image capturée. Réessayez.',
+        canRetry: true,
+      };
+    }
+
+    // Validate captured image dimensions
+    if (!asset.width || !asset.height) {
+      return {
+        success: false,
+        error: 'Image invalide. Réessayez.',
+        canRetry: true,
+      };
+    }
+
+    if (asset.width < 400 || asset.height < 300) {
+      return {
+        success: false,
+        error: 'Image trop petite. Rapprochez-vous du reçu.',
+        canRetry: true,
+        suggestedAction: 'get_closer',
       };
     }
 
