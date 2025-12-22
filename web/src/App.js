@@ -4,12 +4,13 @@ import emailjs from '@emailjs/browser';
 import './App.css';
 
 // Firebase configuration for admin
+// These values come from environment variables
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAQBCR-KLZLPZNNPdv3XxRwMvE-Bsxaxt4",
-  authDomain: "goshopper-ai.firebaseapp.com",
-  projectId: "goshopper-ai",
-  storageBucket: "goshopper-ai.appspot.com",
-  appId: "1:857623707975:web:ab5e3b35c2a42b3f0f5d30"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
 const APP_ID = 'goshopper';

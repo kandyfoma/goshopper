@@ -432,15 +432,18 @@ export function HistoryScreen() {
               <Text style={styles.statValue}>
                 {formatCurrency(
                   filteredReceipts.reduce((sum, r) => {
-                    // If currency is USD, use total directly
-                    if (r.currency === 'USD') {
-                      return sum + (r.total || 0);
+                    // Use totalUSD field if available, otherwise convert
+                    let usdAmount = 0;
+                    if (r.totalUSD != null) {
+                      usdAmount = r.totalUSD;
+                    } else if (r.currency === 'USD') {
+                      usdAmount = r.total || 0;
+                    } else if (r.totalCDF != null) {
+                      usdAmount = convertCurrency(r.totalCDF, 'CDF', 'USD');
+                    } else if (r.currency === 'CDF') {
+                      usdAmount = convertCurrency(r.total || 0, 'CDF', 'USD');
                     }
-                    // If currency is CDF, convert to USD
-                    if (r.currency === 'CDF') {
-                      return sum + convertCurrency(r.total || 0, 'CDF', 'USD');
-                    }
-                    return sum;
+                    return sum + usdAmount;
                   }, 0),
                   'USD',
                 )}
@@ -452,15 +455,18 @@ export function HistoryScreen() {
               <Text style={styles.statValue}>
                 {formatCurrency(
                   filteredReceipts.reduce((sum, r) => {
-                    // If currency is CDF, use total directly
-                    if (r.currency === 'CDF') {
-                      return sum + (r.total || 0);
+                    // Use totalCDF field if available, otherwise convert
+                    let cdfAmount = 0;
+                    if (r.totalCDF != null) {
+                      cdfAmount = r.totalCDF;
+                    } else if (r.currency === 'CDF') {
+                      cdfAmount = r.total || 0;
+                    } else if (r.totalUSD != null) {
+                      cdfAmount = convertCurrency(r.totalUSD, 'USD', 'CDF');
+                    } else if (r.currency === 'USD') {
+                      cdfAmount = convertCurrency(r.total || 0, 'USD', 'CDF');
                     }
-                    // If currency is USD, convert to CDF
-                    if (r.currency === 'USD') {
-                      return sum + convertCurrency(r.total || 0, 'USD', 'CDF');
-                    }
-                    return sum;
+                    return sum + cdfAmount;
                   }, 0),
                   'CDF',
                 )}

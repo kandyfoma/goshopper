@@ -168,23 +168,27 @@ export function StatsScreen() {
 
       currentMonthReceipts.forEach(doc => {
         const data = doc.data();
-        // Calculate total based on currency
+        // Calculate total based on currency using standardized fields
         let receiptTotal = 0;
         if (userPreferredCurrency === 'CDF') {
-          // For CDF: use totalCDF if available, otherwise convert from USD or use total
+          // For CDF: prioritize totalCDF field
           if (data.totalCDF != null) {
             receiptTotal = Number(data.totalCDF) || 0;
           } else if (data.currency === 'CDF' && data.total != null) {
             receiptTotal = Number(data.total) || 0;
+          } else if (data.totalUSD != null) {
+            receiptTotal = (Number(data.totalUSD) || 0) * exchangeRate;
           } else if (data.currency === 'USD' && data.total != null) {
             receiptTotal = (Number(data.total) || 0) * exchangeRate;
           }
         } else {
-          // For USD: use totalUSD if available, otherwise use total if currency is USD
+          // For USD: prioritize totalUSD field
           if (data.totalUSD != null) {
             receiptTotal = Number(data.totalUSD) || 0;
           } else if (data.currency === 'USD' && data.total != null) {
             receiptTotal = Number(data.total) || 0;
+          } else if (data.totalCDF != null) {
+            receiptTotal = (Number(data.totalCDF) || 0) / exchangeRate;
           } else if (data.currency === 'CDF' && data.total != null) {
             receiptTotal = (Number(data.total) || 0) / exchangeRate;
           }
@@ -343,27 +347,32 @@ export function StatsScreen() {
         const date = safeToDate(data.scannedAt);
         const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
         if (monthlyTotals[monthKey] !== undefined) {
-          // Calculate amount based on currency
+          // Calculate amount based on currency using standardized fields
           let amount = 0;
           if (userPreferredCurrency === 'CDF') {
+            // For CDF: prioritize totalCDF field
             if (data.totalCDF != null) {
               amount = Number(data.totalCDF) || 0;
             } else if (data.currency === 'CDF' && data.total != null) {
               amount = Number(data.total) || 0;
+            } else if (data.totalUSD != null) {
+              amount = (Number(data.totalUSD) || 0) * exchangeRate;
             } else if (data.currency === 'USD' && data.total != null) {
               amount = (Number(data.total) || 0) * exchangeRate;
             }
           } else {
+            // For USD: prioritize totalUSD field
             if (data.totalUSD != null) {
               amount = Number(data.totalUSD) || 0;
             } else if (data.currency === 'USD' && data.total != null) {
               amount = Number(data.total) || 0;
+            } else if (data.totalCDF != null) {
+              amount = (Number(data.totalCDF) || 0) / exchangeRate;
             } else if (data.currency === 'CDF' && data.total != null) {
               amount = (Number(data.total) || 0) / exchangeRate;
             }
           }
           monthlyTotals[monthKey] += amount;
-          }
         }
       });
 

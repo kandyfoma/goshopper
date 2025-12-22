@@ -403,6 +403,7 @@ export function HomeScreen() {
 
         let total = 0;
         let receiptCount = 0;
+        
         receiptsSnapshot.docs.forEach(doc => {
           const data = doc.data();
           
@@ -419,43 +420,35 @@ export function HomeScreen() {
           // Only count if receipt is from this month
           if (receiptDate && receiptDate >= startOfMonth) {
             receiptCount++;
-            console.log('📊 Receipt:', doc.id, 'date:', receiptDate, 'total:', data.total, 'totalUSD:', data.totalUSD, 'totalCDF:', data.totalCDF, 'currency:', data.currency);
             
-            // Calculate total based on currency
+            // Calculate total based on display currency using standardized fields
             let receiptTotal = 0;
             if (displayCurrency === 'CDF') {
-              // For CDF display: use totalCDF if available, otherwise convert from USD or use total
+              // For CDF: prioritize totalCDF field
               if (data.totalCDF != null) {
                 receiptTotal = Number(data.totalCDF) || 0;
               } else if (data.currency === 'CDF' && data.total != null) {
                 receiptTotal = Number(data.total) || 0;
-              } else if (data.currency === 'USD' && data.total != null) {
+              } else if (data.totalUSD != null) {
                 // Convert USD to CDF
+                receiptTotal = (Number(data.totalUSD) || 0) * 2200;
+              } else if (data.currency === 'USD' && data.total != null) {
                 receiptTotal = (Number(data.total) || 0) * 2200;
               }
             } else {
-              // For USD display: use totalUSD if available, otherwise use total if currency is USD
+              // For USD: prioritize totalUSD field
               if (data.totalUSD != null) {
                 receiptTotal = Number(data.totalUSD) || 0;
               } else if (data.currency === 'USD' && data.total != null) {
                 receiptTotal = Number(data.total) || 0;
-              } else if (data.currency === 'CDF' && data.total != null) {
+              } else if (data.totalCDF != null) {
                 // Convert CDF to USD
+                receiptTotal = (Number(data.totalCDF) || 0) / 2200;
+              } else if (data.currency === 'CDF' && data.total != null) {
                 receiptTotal = (Number(data.total) || 0) / 2200;
               }
             }
             
-            // If still no total, sum up items
-            if (receiptTotal === 0 && data.items?.length > 0) {
-              data.items.forEach((item: any) => {
-                const itemPrice = Number(item.unitPrice || item.price || 0);
-                const itemQty = Number(item.quantity || 1);
-                receiptTotal += itemPrice * itemQty;
-              });
-              console.log('📊 Calculated total from items:', receiptTotal);
-            }
-            
-            console.log('📊 Receipt total for this receipt:', receiptTotal);
             total += receiptTotal;
           }
         });
