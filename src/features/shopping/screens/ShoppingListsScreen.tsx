@@ -30,6 +30,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, Spinner, Modal} from '@/shared/components';
+import ModernTabBar from '@/shared/components/ModernTabBar';
 import {formatDate} from '@/shared/utils/helpers';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -253,7 +254,7 @@ export function ShoppingListsScreen() {
             <View style={styles.progressBarContainer}>
               <View style={styles.progressBarBg}>
                 <LinearGradient
-                  colors={[Colors.primary, Colors.primaryDark]}
+                  colors={['#780000', '#FDB913']}
                   style={[styles.progressBarFill, {width: `${progress * 100}%`}]}
                   start={{x: 0, y: 0}}
                   end={{x: 1, y: 0}}
@@ -352,7 +353,7 @@ export function ShoppingListsScreen() {
             onPress={() => setShowNewListModal(true)}
             activeOpacity={0.9}>
             <LinearGradient
-              colors={[Colors.primary, Colors.primaryDark]}
+              colors={['#780000', '#FDB913']}
               style={styles.createFirstButtonGradient}
               start={{x: 0, y: 0}}
               end={{x: 1, y: 1}}>
@@ -417,6 +418,7 @@ export function ShoppingListsScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+      <ModernTabBar />
     </SafeAreaView>
   );
 }
@@ -445,10 +447,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card.cream,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.sm,
@@ -459,10 +461,10 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
   },
   newListButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#780000',
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.md,
@@ -472,9 +474,11 @@ const styles = StyleSheet.create({
   },
   listCard: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius['2xl'],
     padding: Spacing.lg,
     marginBottom: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
     ...Shadows.md,
   },
   listCardCompleted: {
@@ -510,7 +514,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
+    backgroundColor: Colors.card.yellow,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -518,7 +522,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.card.cream,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -606,13 +610,13 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   emptyIconContainer: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.card.yellow,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   emptyTitle: {
     fontSize: Typography.fontSize['2xl'],
@@ -675,9 +679,9 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.card.cream,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
   },
   modalCancelText: {
@@ -687,13 +691,14 @@ const styles = StyleSheet.create({
   },
   modalCreateButton: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#780000',
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.xs,
+    ...Shadows.md,
   },
   modalCreateButtonDisabled: {
     backgroundColor: Colors.border.light,

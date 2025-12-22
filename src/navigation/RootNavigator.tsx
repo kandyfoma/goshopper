@@ -42,7 +42,7 @@ import {AchievementsScreen} from '@/features/achievements';
 import {CitySelectionScreen} from '@/features/onboarding/screens';
 import {FAQScreen, PrivacyPolicyScreen, TermsOfServiceScreen} from '@/features/legal';
 import {ShopsScreen, ShopDetailScreen} from '@/features/shops';
-import {StatsScreen} from '@/features/stats/screens';
+import {HistoryScreen} from '@/features/history/screens';
 import {CityItemsScreen} from '@/features/items/screens';
 import {ItemsScreen} from '@/features/items';
 
@@ -293,8 +293,8 @@ export function RootNavigator() {
       />
       {/* Phase 1.1 Screens */}
       <Stack.Screen
-        name="Stats"
-        component={StatsScreen}
+        name="History"
+        component={HistoryScreen}
         options={{headerShown: false}}
       />
       <Stack.Screen

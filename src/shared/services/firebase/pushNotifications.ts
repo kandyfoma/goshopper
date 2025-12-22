@@ -11,7 +11,7 @@ import {APP_ID} from './config';
 const FCM_TOKEN_KEY = '@goshopperai/fcm_token';
 const NOTIFICATION_PREFS_KEY = '@goshopperai/notification_prefs';
 
-const USERS_COLLECTION = (userId: string) => `apps/${APP_ID}/users/${userId}`;
+const USERS_COLLECTION = (userId: string) => `artifacts/${APP_ID}/users/${userId}`;
 
 const {NotificationChannelModule} = NativeModules;
 

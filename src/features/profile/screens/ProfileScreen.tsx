@@ -201,13 +201,25 @@ export function ProfileScreen() {
           loading: false,
           error: null,
         });
-      } catch (error) {
-        console.error('Failed to fetch user stats:', error);
-        setUserStats(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Erreur de chargement',
-        }));
+      } catch (error: any) {
+        // NOT_FOUND is expected for new users with no data yet
+        const errorCode = error?.code || error?.message || '';
+        if (errorCode.includes('NOT_FOUND') || errorCode.includes('not-found')) {
+          console.log('📊 New user - no stats available yet');
+          setUserStats({
+            totalReceipts: 0,
+            totalSavings: 0,
+            loading: false,
+            error: null,
+          });
+        } else {
+          console.error('Failed to fetch user stats:', error);
+          setUserStats(prev => ({
+            ...prev,
+            loading: false,
+            error: 'Erreur de chargement',
+          }));
+        }
       }
     };
 

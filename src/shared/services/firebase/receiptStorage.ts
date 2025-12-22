@@ -358,7 +358,7 @@ class ReceiptStorageService {
     imageUris: string[],
   ): Promise<string[]> {
     const uploadPromises = imageUris.map(async (uri, index) => {
-      const path = `apps/${APP_ID}/users/${userId}/receipts/${receiptId}/image_${index}.jpg`;
+      const path = `artifacts/${APP_ID}/users/${userId}/receipts/${receiptId}/image_${index}.jpg`;
       const ref = storage().ref(path);
 
       await ref.putFile(uri);

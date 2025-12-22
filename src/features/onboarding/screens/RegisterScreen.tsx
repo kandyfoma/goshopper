@@ -21,6 +21,13 @@ import {smsService} from '@/shared/services/sms';
 import {PhoneService} from '@/shared/services/phone';
 import {countryCodeList, congoCities} from '@/shared/constants/countries';
 import {
+  COUNTRIES_CITIES,
+  POPULAR_CITIES,
+  searchCities,
+  CountryData,
+  CityData,
+} from '@/shared/constants/cities';
+import {
   Colors,
   Typography,
   Spacing,
@@ -60,6 +67,9 @@ export function RegisterScreen() {
   // Modal states
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showCityModal, setShowCityModal] = useState(false);
+  const [selectedLocationCountry, setSelectedLocationCountry] = useState<CountryData | null>(null);
+  const [showCountrySelector, setShowCountrySelector] = useState(true);
+  const [citySearchQuery, setCitySearchQuery] = useState('');
   
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -539,31 +549,162 @@ export function RegisterScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* City Modal */}
+      {/* City Modal with hierarchical selection */}
       <Modal
         visible={showCityModal}
         animationType="slide"
-        presentationStyle="pageSheet">
+        presentationStyle="fullScreen">
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Sélectionnez votre ville</Text>
-            <TouchableOpacity onPress={() => setShowCityModal(false)}>
+            <Text style={styles.modalTitle}>
+              {showCountrySelector
+                ? 'Sélectionnez votre pays'
+                : selectedLocationCountry?.name || 'Sélectionnez votre ville'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowCityModal(false);
+                setShowCountrySelector(true);
+                setCitySearchQuery('');
+                setSelectedLocationCountry(null);
+              }}>
               <Icon name="x" size="md" color={Colors.text.primary} />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalContent}>
-            {congoCities.map((city, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.cityItem}
-                onPress={() => {
-                  setSelectedCity(city);
-                  setShowCityModal(false);
-                }}>
-                <Icon name="map-pin" size="sm" color={Colors.text.secondary} />
-                <Text style={styles.cityItemName}>{city}</Text>
+
+          {/* Search input */}
+          <View style={styles.searchContainer}>
+            <Icon name="search" size="md" color={Colors.text.tertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={
+                showCountrySelector
+                  ? 'Rechercher un pays ou une ville...'
+                  : 'Rechercher une ville...'
+              }
+              placeholderTextColor={Colors.text.tertiary}
+              value={citySearchQuery}
+              onChangeText={setCitySearchQuery}
+              autoCapitalize="words"
+            />
+            {citySearchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setCitySearchQuery('')}>
+                <Icon name="x-circle" size="md" color={Colors.text.tertiary} />
               </TouchableOpacity>
-            ))}
+            )}
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {citySearchQuery.trim() ? (
+              /* Global search results */
+              searchCities(citySearchQuery).length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Icon name="search" size="3xl" color={Colors.text.tertiary} />
+                  <Text style={styles.emptyText}>Aucun résultat</Text>
+                </View>
+              ) : (
+                searchCities(citySearchQuery).map(result => (
+                  <TouchableOpacity
+                    key={`${result.countryCode}-${result.name}`}
+                    style={styles.cityItem}
+                    onPress={() => {
+                      setSelectedCity(result.name);
+                      const country = COUNTRIES_CITIES.find(c => c.code === result.countryCode);
+                      setSelectedLocationCountry(country || null);
+                      setShowCityModal(false);
+                      setShowCountrySelector(true);
+                      setCitySearchQuery('');
+                    }}>
+                    <Text style={styles.countryItemFlag}>
+                      {COUNTRIES_CITIES.find(c => c.code === result.countryCode)?.flag}
+                    </Text>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.cityItemName}>{result.name}</Text>
+                      <Text style={styles.cityCountrySubtext}>{result.country}</Text>
+                    </View>
+                    {selectedCity === result.name && (
+                      <Icon name="check-circle" size="md" color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )
+            ) : showCountrySelector ? (
+              /* Country selection */
+              <>
+                {COUNTRIES_CITIES.filter(c => c.isPopular).map(country => (
+                  <TouchableOpacity
+                    key={country.code}
+                    style={styles.countryItemLarge}
+                    onPress={() => {
+                      setSelectedLocationCountry(country);
+                      setShowCountrySelector(false);
+                      setCitySearchQuery('');
+                    }}>
+                    <Text style={styles.countryFlagLarge}>{country.flag}</Text>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.countryItemName}>{country.name}</Text>
+                      <Text style={styles.countryCityCount}>
+                        {country.cities.length} ville{country.cities.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+                  </TouchableOpacity>
+                ))}
+                <View style={styles.sectionDivider}>
+                  <Text style={styles.sectionTitle}>Tous les Pays</Text>
+                </View>
+                {COUNTRIES_CITIES.filter(c => !c.isPopular).map(country => (
+                  <TouchableOpacity
+                    key={country.code}
+                    style={styles.countryItemLarge}
+                    onPress={() => {
+                      setSelectedLocationCountry(country);
+                      setShowCountrySelector(false);
+                      setCitySearchQuery('');
+                    }}>
+                    <Text style={styles.countryFlagLarge}>{country.flag}</Text>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.countryItemName}>{country.name}</Text>
+                      <Text style={styles.countryCityCount}>
+                        {country.cities.length} ville{country.cities.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : (
+              /* City selection for selected country */
+              <>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => {
+                    setShowCountrySelector(true);
+                    setSelectedLocationCountry(null);
+                    setCitySearchQuery('');
+                  }}>
+                  <Icon name="arrow-left" size="md" color={Colors.primary} />
+                  <Text style={styles.backButtonText}>Changer de pays</Text>
+                </TouchableOpacity>
+                {selectedLocationCountry?.cities.map(city => (
+                  <TouchableOpacity
+                    key={city}
+                    style={styles.cityItem}
+                    onPress={() => {
+                      setSelectedCity(city);
+                      setShowCityModal(false);
+                      setShowCountrySelector(true);
+                      setCitySearchQuery('');
+                    }}>
+                    <Icon name="map-pin" size="sm" color={Colors.text.secondary} />
+                    <Text style={styles.cityItemName}>{city}</Text>
+                    {selectedCity === city && (
+                      <Icon name="check-circle" size="md" color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -856,6 +997,73 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.text.primary,
     marginLeft: Spacing.base,
+    flex: 1,
+  },
+  // Hierarchical city selector styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.base,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.base,
+    gap: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.primary,
+    paddingVertical: Spacing.md,
+  },
+  countryItemLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.base,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+    gap: Spacing.md,
+  },
+  countryFlagLarge: {
+    fontSize: 32,
+  },
+  countryCityCount: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  sectionDivider: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.background.secondary,
+  },
+  sectionTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  cityCountrySubtext: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing['3xl'],
+  },
+  emptyText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.md,
+  },
+  backButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primary,
+    marginLeft: Spacing.sm,
   },
 
   // Guest Footer

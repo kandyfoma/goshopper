@@ -6,9 +6,9 @@ import {APP_ID} from './config';
 import {safeToDate} from '@/shared/utils/helpers';
 
 const SHOPPING_LISTS_COLLECTION = (userId: string) =>
-  `apps/${APP_ID}/users/${userId}/shoppingLists`;
+  `artifacts/${APP_ID}/users/${userId}/shoppingLists`;
 
-const PRICES_COLLECTION = `apps/${APP_ID}/prices`;
+const PRICES_COLLECTION = `artifacts/${APP_ID}/prices`;
 
 export interface ShoppingListItem {
   id: string;
@@ -568,7 +568,7 @@ class ShoppingListService {
   ): Promise<ShoppingList> {
     // Get receipt
     const receiptDoc = await firestore()
-      .doc(`apps/${APP_ID}/users/${userId}/receipts/${receiptId}`)
+      .doc(`artifacts/${APP_ID}/users/${userId}/receipts/${receiptId}`)
       .get();
 
     if (!receiptDoc.exists) {
@@ -597,7 +597,7 @@ class ShoppingListService {
     try {
       // Get recent receipts to find frequently bought items
       const receiptsSnapshot = await firestore()
-        .collection(`apps/${APP_ID}/users/${userId}/receipts`)
+        .collection(`artifacts/${APP_ID}/users/${userId}/receipts`)
         .orderBy('date', 'desc')
         .limit(20)
         .get();

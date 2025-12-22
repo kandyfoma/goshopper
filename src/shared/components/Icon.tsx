@@ -2233,6 +2233,153 @@ const iconPaths: Record<
       </>
     ),
   },
+  users: {
+    outline: (
+      <>
+        <Path
+          d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx="9" cy="7" r="4" />
+        <Path d="M23 21v-2a4 4 0 0 0-3-3.87" strokeLinecap="round" />
+        <Path d="M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'map-pin': {
+    outline: (
+      <>
+        <Path
+          d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx="12" cy="10" r="3" />
+      </>
+    ),
+  },
+  award: {
+    outline: (
+      <>
+        <Circle cx="12" cy="8" r="7" />
+        <Polyline
+          points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'x-circle': {
+    outline: (
+      <>
+        <Circle cx="12" cy="12" r="10" />
+        <Line x1="15" y1="9" x2="9" y2="15" strokeLinecap="round" />
+        <Line x1="9" y1="9" x2="15" y2="15" strokeLinecap="round" />
+      </>
+    ),
+  },
+  'chevron-left': {
+    outline: (
+      <Path
+        d="M15 18l-6-6 6-6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'chevron-right': {
+    outline: (
+      <Path
+        d="M9 18l6-6-6-6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'message-circle': {
+    outline: (
+      <>
+        <Path
+          d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  book: {
+    outline: (
+      <>
+        <Path
+          d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'arrow-left': {
+    outline: (
+      <Path
+        d="M19 12H5M12 19l-7-7 7-7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'arrow-right': {
+    outline: (
+      <Path
+        d="M5 12h14M12 5l7 7-7 7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'refresh-cw': {
+    outline: (
+      <>
+        <Path
+          d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path d="M8 16H3v5" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  'trash-2': {
+    outline: (
+      <>
+        <Path
+          d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  type: {
+    outline: (
+      <Polyline
+        points="4 7 4 4 20 4 20 7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
 };
 
 const Icon: React.FC<IconProps> = ({

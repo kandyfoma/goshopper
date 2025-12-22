@@ -12,6 +12,10 @@ import {
   Animated,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -50,14 +54,14 @@ interface MobileMoneyOption {
   name: string;
   icon: string;
   color: string;
-  logo: any;
+  logo?: any;
 }
 
 const MOBILE_MONEY_OPTIONS: MobileMoneyOption[] = [
-  {id: 'mpesa', name: 'M-Pesa', icon: 'phone', color: '#4CAF50'},
-  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF6600'},
-  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#ED1C24'},
-  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#FFB300'},
+  {id: 'mpesa', name: 'M-Pesa', icon: 'phone', color: '#10B981', logo: require('../../../../assets/money-transfer/m-pesa.png')},
+  {id: 'orange', name: 'Orange Money', icon: 'circle', color: '#FF6600', logo: require('../../../../assets/money-transfer/orange-money.png')},
+  {id: 'airtel', name: 'Airtel Money', icon: 'circle', color: '#ED1C24', logo: require('../../../../assets/money-transfer/airtal-money.png')},
+  {id: 'afrimoney', name: 'AfriMoney', icon: 'heart', color: '#FDB913', logo: require('../../../../assets/money-transfer/afrimoney.png')},
 ];
 
 export function SubscriptionScreen() {
@@ -89,6 +93,7 @@ export function SubscriptionScreen() {
     useState<MobileMoneyProvider | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -115,15 +120,31 @@ export function SubscriptionScreen() {
     // Track screen view
     analyticsService.logScreenView('Subscription', 'SubscriptionScreen');
   }, []);
+
+  // Safety: Reset processing state if stuck (e.g., after 60 seconds)
+  useEffect(() => {
+    if (isProcessing) {
+      const safetyTimer = setTimeout(() => {
+        console.warn('Processing state stuck - auto-resetting');
+        setIsProcessing(false);
+      }, 60000); // 60 seconds
+
+      return () => clearTimeout(safetyTimer);
+    }
+  }, [isProcessing]);
+
   const [email, setEmail] = useState('');
   const [isInDRC, setIsInDRC] = useState<boolean | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const checkUserLocation = async () => {
       if (!user?.uid) {
-        setIsInDRC(true);
-        setIsLoadingLocation(false);
+        if (isMounted) {
+          setIsInDRC(true);
+          setIsLoadingLocation(false);
+        }
         return;
       }
       try {
@@ -135,7 +156,7 @@ export function SubscriptionScreen() {
           .collection('profile')
           .doc('main')
           .get();
-        if (profileDoc.exists) {
+        if (isMounted && profileDoc.exists) {
           const profile = profileDoc.data();
           const isInDRCValue =
             profile?.isInDRC !== undefined
@@ -144,17 +165,25 @@ export function SubscriptionScreen() {
           setIsInDRC(isInDRCValue);
           if (profile?.phoneNumber) {setPhoneNumber(profile.phoneNumber);}
           if (profile?.email) {setEmail(profile.email);}
-        } else {
+        } else if (isMounted) {
           setIsInDRC(true);
         }
       } catch (error) {
         console.error('Error checking user location:', error);
-        setIsInDRC(true);
+        if (isMounted) {
+          setIsInDRC(true);
+        }
       } finally {
-        setIsLoadingLocation(false);
+        if (isMounted) {
+          setIsLoadingLocation(false);
+        }
       }
     };
     checkUserLocation();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user?.uid]);
 
   useEffect(() => {
@@ -187,13 +216,44 @@ export function SubscriptionScreen() {
 
   const pricing = getCurrentPricing();
 
+  // Phone number validation for DRC providers
+  const validatePhoneNumber = (number: string, provider: MobileMoneyProvider | null): string | null => {
+    if (!number || number.length < 9) {
+      return isInDRC ? 'Numéro trop court (9 chiffres requis)' : 'Number too short (9 digits required)';
+    }
+    
+    if (!provider) {
+      return null; // No provider selected, skip provider validation
+    }
+    
+    const firstTwoDigits = number.substring(0, 2);
+    const providerPrefixes = {
+      mpesa: ['81', '82', '89'], // Vodacom
+      airtel: ['97', '99'],
+      orange: ['80', '85', '88', '98'],
+      afrimoney: ['90', '91', '92', '93', '94', '95', '96'] // Africell
+    };
+    
+    const validPrefixes = providerPrefixes[provider];
+    if (validPrefixes && !validPrefixes.includes(firstTwoDigits)) {
+      const providerName = MOBILE_MONEY_OPTIONS.find(opt => opt.id === provider)?.name || provider;
+      return isInDRC 
+        ? `Ce numéro ne correspond pas à ${providerName}`
+        : `This number doesn't match ${providerName}`;
+    }
+    
+    return null;
+  };
+
   const handleMobileMoneyPayment = async () => {
     if (!selectedMobileMoney) {
       Alert.alert('Mobile Money', 'Veuillez sélectionner un opérateur');
       return;
     }
-    if (!phoneNumber || phoneNumber.length < 9) {
-      Alert.alert('Numéro de téléphone', 'Veuillez entrer un numéro valide');
+    
+    const phoneValidationError = validatePhoneNumber(phoneNumber, selectedMobileMoney);
+    if (phoneValidationError) {
+      Alert.alert('Numéro de téléphone', phoneValidationError);
       return;
     }
     const plan = SUBSCRIPTION_PLANS[selectedPlan];
@@ -227,6 +287,12 @@ export function SubscriptionScreen() {
             });
 
             setIsProcessing(true);
+            // Safety timeout to prevent stuck state
+            const timeoutId = setTimeout(() => {
+              setIsProcessing(false);
+              Alert.alert('Timeout', 'La demande a pris trop de temps. Réessayez.');
+            }, 30000); // 30 seconds timeout
+            
             try {
               const result = await functions().httpsCallable(
                 'initiateMokoPayment',
@@ -238,6 +304,7 @@ export function SubscriptionScreen() {
                 phoneNumber,
                 durationMonths: selectedDuration,
               });
+              clearTimeout(timeoutId);
               const {status, message} = result.data as any;
 
               // Track subscription result
@@ -279,6 +346,7 @@ export function SubscriptionScreen() {
               });
               Alert.alert('Erreur', error.message || 'Réessayez');
             } finally {
+              clearTimeout(timeoutId);
               setIsProcessing(false);
             }
           },
@@ -325,6 +393,12 @@ export function SubscriptionScreen() {
             });
 
             setIsProcessing(true);
+            // Safety timeout to prevent stuck state
+            const timeoutId = setTimeout(() => {
+              setIsProcessing(false);
+              Alert.alert('Timeout', 'Request took too long. Please try again.');
+            }, 30000); // 30 seconds timeout
+            
             try {
               await functions().httpsCallable('createPaymentIntent')({
                 planId: selectedPlan,
@@ -332,6 +406,7 @@ export function SubscriptionScreen() {
                 email,
                 durationMonths: selectedDuration,
               });
+              clearTimeout(timeoutId);
 
               // Track subscription result (card payment is more complex, so we track initiation)
               analyticsService.logCustomEvent('subscription_completed', {
@@ -360,6 +435,7 @@ export function SubscriptionScreen() {
               });
               Alert.alert('Error', error.message || 'Try again');
             } finally {
+              clearTimeout(timeoutId);
               setIsProcessing(false);
             }
           },
@@ -393,16 +469,24 @@ export function SubscriptionScreen() {
         translucent
       />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + Spacing.md,
-            paddingBottom: insets.bottom + 40,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingTop: insets.top + Spacing.md,
+                paddingBottom: insets.bottom + 40,
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={!isProcessing}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}>
         {/* Header */}
         <TouchableOpacity
           style={styles.backButton}
@@ -418,7 +502,7 @@ export function SubscriptionScreen() {
           ]}>
           <View style={styles.proIconContainer}>
             <LinearGradient
-              colors={[Colors.primary, Colors.primaryDark]}
+              colors={['#780000', '#FDB913']}
               style={styles.proIconGradient}
               start={{x: 0, y: 0}}
               end={{x: 1, y: 1}}>
@@ -436,11 +520,7 @@ export function SubscriptionScreen() {
         {/* Trial Banner */}
         {isTrialActive && (
           <Animated.View style={[styles.trialCard, {opacity: fadeAnim}]}>
-            <LinearGradient
-              colors={[Colors.card.cream, '#F5E6C3']}
-              style={styles.trialGradient}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}>
+            <View style={styles.trialGradient}>
               <View style={styles.trialIconContainer}>
                 <Icon name="gift" size="lg" color={Colors.status.success} />
               </View>
@@ -453,7 +533,7 @@ export function SubscriptionScreen() {
                   {isInDRC ? 'jours restants' : 'days left'}
                 </Text>
               </View>
-            </LinearGradient>
+            </View>
           </Animated.View>
         )}
 
@@ -484,11 +564,7 @@ export function SubscriptionScreen() {
         {/* Renew Early Banner */}
         {canRenewEarly && !isExpiringSoon && (
           <Animated.View style={[styles.renewCard, {opacity: fadeAnim}]}>
-            <LinearGradient
-              colors={[Colors.card.blue, '#C8D4E8']}
-              style={styles.renewGradient}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}>
+            <View style={styles.renewGradient}>
               <View style={styles.renewIconContainer}>
                 <Icon name="sparkles" size="lg" color={Colors.primary} />
               </View>
@@ -502,7 +578,7 @@ export function SubscriptionScreen() {
                     : 'Extend your subscription now and save!'}
                 </Text>
               </View>
-            </LinearGradient>
+            </View>
           </Animated.View>
         )}
 
@@ -756,18 +832,29 @@ export function SubscriptionScreen() {
                       selectedMobileMoney === opt.id &&
                         styles.mobileMoneyCardSelected,
                     ]}
-                    onPress={() => setSelectedMobileMoney(opt.id)}
+                    onPress={() => {
+                      setSelectedMobileMoney(opt.id);
+                      // Re-validate phone number with new provider
+                      if (phoneNumber) {
+                        const error = validatePhoneNumber(phoneNumber, opt.id);
+                        setPhoneError(error);
+                      }
+                    }}
                     activeOpacity={0.8}>
                     <View
                       style={[
                         styles.mobileMoneyIconContainer,
                         {backgroundColor: `${opt.color}20`},
                       ]}>
-                      <Image 
-                        source={opt.logo}
-                        style={styles.mobileMoneyLogo}
-                        resizeMode="contain"
-                      />
+                      {opt.logo ? (
+                        <Image 
+                          source={opt.logo}
+                          style={styles.mobileMoneyLogo}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Icon name={opt.icon} size="md" color={opt.color} />
+                      )}
                     </View>
                     <Text
                       style={[
@@ -787,7 +874,10 @@ export function SubscriptionScreen() {
                     <Text style={styles.phonePrefix}>+243</Text>
                   </View>
                   <TextInput
-                    style={styles.phoneInput}
+                    style={[
+                      styles.phoneInput,
+                      phoneError && styles.phoneInputError
+                    ]}
                     placeholder="812345678"
                     placeholderTextColor={Colors.text.tertiary}
                     keyboardType="phone-pad"
@@ -807,9 +897,16 @@ export function SubscriptionScreen() {
                       }
                       
                       setPhoneNumber(cleanText);
+                      
+                      // Validate phone number
+                      const error = validatePhoneNumber(cleanText, selectedMobileMoney);
+                      setPhoneError(error);
                     }}
                   />
                 </View>
+                {phoneError && (
+                  <Text style={styles.phoneErrorText}>{phoneError}</Text>
+                )}
               </View>
             </>
           )}
@@ -856,17 +953,17 @@ export function SubscriptionScreen() {
             onPress={handleSubscribe}
             disabled={isProcessing}
             activeOpacity={0.9}>
-            <LinearGradient
-              colors={
-                isProcessing
-                  ? [Colors.border.light, Colors.border.light]
-                  : [Colors.primary, Colors.primaryDark]
-              }
-              style={styles.subscribeButtonGradient}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}>
+            <View
+              style={[
+                styles.subscribeButtonGradient,
+                {
+                  backgroundColor: Colors.white,
+                  borderWidth: 2,
+                  borderColor: isProcessing ? Colors.border.light : Colors.primary,
+                }
+              ]}>
               {isProcessing ? (
-                <Spinner size="small" color={Colors.white} />
+                <Spinner size="small" color={Colors.primary} />
               ) : (
                 <View style={styles.subscribeButtonContent}>
                   <Text style={styles.subscribeButtonText}>
@@ -888,7 +985,7 @@ export function SubscriptionScreen() {
                   )}
                 </View>
               )}
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -929,38 +1026,40 @@ export function SubscriptionScreen() {
           <Text style={styles.quickActionsTitle}>Actions rapides</Text>
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity
-              style={[styles.quickAction, {backgroundColor: Colors.card.cosmos}]}
+              style={[styles.quickAction, {backgroundColor: Colors.white}]}
               onPress={() => navigation.push('Stats')}>
-              <Icon name="stats" size="md" color={Colors.text.inverse} />
-              <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Statistiques</Text>
+              <Icon name="stats" size="md" color={Colors.primary} />
+              <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Statistiques</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
+              style={[styles.quickAction, {backgroundColor: Colors.white}]}
               onPress={() => navigation.push('Shops')}>
-              <Icon name="shopping-bag" size="md" color={Colors.text.primary} />
+              <Icon name="shopping-bag" size="md" color={Colors.primary} />
               <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Mes Magasins</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.quickAction, {backgroundColor: Colors.card.yellow}]}
+              style={[styles.quickAction, {backgroundColor: Colors.white}]}
               onPress={() => navigation.push('AIAssistant')}>
-              <Icon name="help" size="md" color={Colors.text.primary} />
+              <Icon name="help" size="md" color={Colors.primary} />
               <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Assistant IA</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
+              style={[styles.quickAction, {backgroundColor: Colors.white}]}
               onPress={() => navigation.push('Achievements')}>
-              <Icon name="trophy" size="md" color={Colors.text.primary} />
+              <Icon name="trophy" size="md" color={Colors.primary} />
               <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Mes succès</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.quickAction, {backgroundColor: Colors.card.crimson}]}
+              style={[styles.quickAction, {backgroundColor: Colors.white}]}
               onPress={() => navigation.push('Settings')}>
-              <Icon name="settings" size="md" color={Colors.text.inverse} />
-              <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Paramètres</Text>
+              <Icon name="settings" size="md" color={Colors.primary} />
+              <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Paramètres</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -1034,6 +1133,7 @@ const styles = StyleSheet.create({
   trialGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.white,
     padding: Spacing.lg,
   },
   trialIconContainer: {
@@ -1098,6 +1198,7 @@ const styles = StyleSheet.create({
   renewGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.white,
     padding: Spacing.lg,
   },
   renewIconContainer: {
@@ -1143,7 +1244,7 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
   },
   planSelectedIndicator: {
     position: 'absolute',
@@ -1174,11 +1275,13 @@ const styles = StyleSheet.create({
   popularBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card.yellow,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     gap: 4,
+    borderWidth: 1,
+    borderColor: '#FDB913',
   },
   popularBadgeText: {
     fontSize: Typography.fontSize.xs,
@@ -1238,35 +1341,39 @@ const styles = StyleSheet.create({
     width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
     backgroundColor: Colors.white,
     padding: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 2,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 3,
     borderColor: Colors.border.light,
     alignItems: 'center',
     position: 'relative',
-    ...Shadows.sm,
+    ...Shadows.md,
   },
   durationCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
   },
   bestValueCard: {
-    borderColor: Colors.card.yellow,
-    backgroundColor: '#FFFDF5',
+    borderColor: '#FDB913',
+    backgroundColor: Colors.white,
   },
   discountBadge: {
     position: 'absolute',
     top: -10,
     right: -10,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
   bestValueBadge: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
   },
   discountBadgeText: {
-    color: Colors.white,
+    color: Colors.primary,
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1296,12 +1403,14 @@ const styles = StyleSheet.create({
   savingsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card.cream,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.xs,
     gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.status.success,
   },
   savingsText: {
     fontSize: Typography.fontSize.xs,
@@ -1320,14 +1429,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.white,
     padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 2,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 3,
     borderColor: Colors.border.light,
-    ...Shadows.sm,
+    ...Shadows.md,
   },
   paymentTypeButtonSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
   },
   paymentTypeIcon: {
     marginBottom: Spacing.sm,
@@ -1351,28 +1460,28 @@ const styles = StyleSheet.create({
   mobileMoneyCard: {
     width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
     backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: Colors.border.light,
-    ...Shadows.sm,
+    ...Shadows.md,
   },
   mobileMoneyCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.card.cream,
   },
   mobileMoneyIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   mobileMoneyLogo: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
   },
   mobileMoneyIcon: {
     fontSize: 24,
@@ -1408,7 +1517,7 @@ const styles = StyleSheet.create({
   phonePrefixContainer: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
     borderRightWidth: 1,
     borderRightColor: Colors.border.light,
   },
@@ -1424,6 +1533,24 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.text.primary,
+  },
+  phoneInputError: {
+    borderColor: Colors.status.error,
+  },
+  phoneErrorText: {
+    marginTop: Spacing.xs,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.status.error,
+  },
+  phoneInputError: {
+    borderColor: Colors.status.error,
+  },
+  phoneErrorText: {
+    marginTop: Spacing.xs,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.status.error,
   },
   emailInputWrapper: {
     flexDirection: 'row',
@@ -1445,11 +1572,13 @@ const styles = StyleSheet.create({
   cardNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
   },
   cardNoticeText: {
     fontSize: Typography.fontSize.sm,
@@ -1476,15 +1605,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   subscribeButtonText: {
-    color: Colors.white,
+    color: Colors.primary,
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
   },
   subscribeButtonSavings: {
-    color: Colors.white,
+    color: Colors.primary,
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    opacity: 0.9,
+    opacity: 0.7,
     marginTop: 4,
   },
   termsText: {

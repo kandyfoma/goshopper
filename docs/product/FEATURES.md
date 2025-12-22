@@ -428,7 +428,7 @@ Users can choose from tiered subscription plans with different scan limits and f
 | ID    | Criteria                                          | Priority |
 | ----- | ------------------------------------------------- | -------- |
 | SM-1  | New users get 2-month free trial with full access | Must     |
-| SM-2  | Trial users have unlimited scans during trial     | Must     |
+| SM-2  | Trial users have 50 scans during trial     | Must     |
 | SM-3  | Trial expiration warning shown 7 days before end  | Must     |
 | SM-4  | Usage counter shown in app                        | Must     |
 | SM-5  | Paywall shown when trial expires                  | Must     |
@@ -443,7 +443,8 @@ Users can choose from tiered subscription plans with different scan limits and f
 | Aspect                 | Details                                 |
 | ---------------------- | --------------------------------------- |
 | **Duration**           | 2 months from first scan                |
-| **Access Level**       | Full premium features (unlimited scans) |
+| **Access Level**       | Full premium features (limited scans)   |
+| **Scan Limit**         | 50 scans total during trial             |
 | **Expiration Warning** | 7 days before trial ends                |
 | **Post-Trial**         | Must choose paid plan to continue       |
 | **Trial Extension**    | One-time 1-month extension available    |
@@ -452,9 +453,9 @@ Users can choose from tiered subscription plans with different scan limits and f
 
 | Plan         | Price/Month        | Scan Limit | Trial Access  |
 | ------------ | ------------------ | ---------- | ------------- |
-| **Basic**    | $1.99 (8,000 CDF)  | 25 scans   | 2 months free |
-| **Standard** | $2.99 (12,000 CDF) | 100 scans  | 2 months free |
-| **Premium**  | $4.99 (20,000 CDF) | Unlimited  | 2 months free |
+| **Basic**    | $1.99 (8,000 CDF)  | 25 scans   | 50 scans free |
+| **Standard** | $2.99 (12,000 CDF) | 100 scans  | 50 scans free |
+| **Premium**  | $4.99 (20,000 CDF) | Unlimited  | 50 scans free |
 
 ### Trial User Flow
 

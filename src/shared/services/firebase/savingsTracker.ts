@@ -783,7 +783,7 @@ class SavingsTrackerService {
       xpToNext = this.getXPForLevel(newLevel);
     }
 
-    await firestore().doc(`apps/${APP_ID}/users/${userId}`).update({
+    await firestore().doc(`artifacts/${APP_ID}/users/${userId}`).update({
       'stats.xp': newXP,
       'stats.level': newLevel,
       'stats.xpToNextLevel': xpToNext,

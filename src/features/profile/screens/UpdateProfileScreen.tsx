@@ -34,6 +34,12 @@ import {APP_ID} from '@/shared/services/firebase/config';
 import firestore from '@react-native-firebase/firestore';
 import {analyticsService} from '@/shared/services/analytics';
 import {countryCodeList} from '@/shared/constants/countries';
+import {
+  COUNTRIES_CITIES,
+  POPULAR_CITIES,
+  searchCities,
+  CountryData,
+} from '@/shared/constants/cities';
 import {PhoneService} from '@/shared/services/phone';
 const phoneService = new PhoneService();
 
@@ -104,11 +110,10 @@ export function UpdateProfileScreen() {
   const [formData, setFormData] = useState({
     name: '',
     surname: '',
-    age: '',
+    dateOfBirth: '',
     sex: '' as '' | 'male' | 'female' | 'other',
     phoneNumber: '',
     email: '',
-    monthlyBudget: '',
     city: '',
   });
 
@@ -123,11 +128,10 @@ export function UpdateProfileScreen() {
       setFormData({
         name: profile.name || '',
         surname: profile.surname || '',
-        age: profile.age?.toString() || '',
+        dateOfBirth: profile.dateOfBirth || '',
         sex: profile.sex || '',
         phoneNumber: profile.phoneNumber || '',
         email: profile.email || '',
-        monthlyBudget: (profile.defaultMonthlyBudget || profile.monthlyBudget)?.toString() || '',
         city: profile.defaultCity || '',
       });
     }
@@ -152,8 +156,23 @@ export function UpdateProfileScreen() {
       if (formData.surname.trim()) {
         updateData.surname = formData.surname.trim();
       }
-      if (formData.age.trim()) {
-        updateData.age = parseInt(formData.age.trim());
+      if (formData.dateOfBirth.trim()) {
+        // Validate date format and minimum age of 15
+        const dob = new Date(formData.dateOfBirth.trim());
+        const today = new Date();
+        const age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        const dayDiff = today.getDate() - dob.getDate();
+        const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+        
+        if (actualAge < 15) {
+          Alert.alert('Erreur', 'Vous devez avoir au moins 15 ans pour utiliser cette application');
+          setIsLoading(false);
+          return;
+        }
+        
+        updateData.dateOfBirth = formData.dateOfBirth.trim();
+        updateData.age = actualAge; // Store calculated age for backwards compatibility
       }
       if (formData.sex) {
         updateData.sex = formData.sex;
@@ -171,11 +190,6 @@ export function UpdateProfileScreen() {
           setIsLoading(false);
           return;
         }
-      }
-      if (formData.monthlyBudget.trim()) {
-        const budget = parseFloat(formData.monthlyBudget.trim());
-        updateData.defaultMonthlyBudget = budget;
-        updateData.monthlyBudget = budget; // Keep legacy field synced
       }
       if (formData.city.trim()) {
         updateData.defaultCity = formData.city.trim();
@@ -195,10 +209,9 @@ export function UpdateProfileScreen() {
           key => key !== 'updatedAt',
         ),
         has_name: !!updateData.name,
-        has_age: !!updateData.age,
+        has_dateOfBirth: !!updateData.dateOfBirth,
         has_sex: !!updateData.sex,
         has_phone: !!updateData.phoneNumber,
-        has_budget: !!updateData.monthlyBudget,
         has_city: !!updateData.defaultCity,
       });
 
@@ -281,7 +294,7 @@ export function UpdateProfileScreen() {
                     formData.city === city && styles.cityIconContainerSelected,
                   ]}>
                   <Icon
-                    name="map-pin"
+                    name="location"
                     size="sm"
                     color={
                       formData.city === city
@@ -365,20 +378,23 @@ export function UpdateProfileScreen() {
               </View>
             </View>
 
-            {/* Age Input */}
+            {/* Date of Birth Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Âge</Text>
+              <Text style={styles.inputLabel}>Date de naissance</Text>
               <View style={styles.inputWrapper}>
                 <Icon name="calendar" size="sm" color={Colors.text.tertiary} />
                 <TextInput
                   style={styles.input}
-                  value={formData.age}
-                  onChangeText={value => handleInputChange('age', value)}
-                  placeholder="Votre âge"
+                  value={formData.dateOfBirth}
+                  onChangeText={value => handleInputChange('dateOfBirth', value)}
+                  placeholder="AAAA-MM-JJ (ex: 2000-01-31)"
                   placeholderTextColor={Colors.text.tertiary}
                   keyboardType="numeric"
                 />
               </View>
+              <Text style={styles.inputHint}>
+                Vous devez avoir au moins 15 ans
+              </Text>
             </View>
 
             {/* Sex Selection */}
@@ -418,7 +434,7 @@ export function UpdateProfileScreen() {
               <Text style={styles.inputLabel}>Numéro de téléphone</Text>
               <View style={[styles.inputWrapper, styles.inputDisabled]}>
                 <Icon
-                  name="smartphone"
+                  name="phone"
                   size="sm"
                   color={Colors.text.tertiary}
                 />
@@ -466,7 +482,7 @@ export function UpdateProfileScreen() {
                 onPress={() => setShowCityPicker(true)}
                 activeOpacity={0.7}>
                 <View style={styles.selectButtonLeft}>
-                  <Icon name="map-pin" size="sm" color={Colors.text.tertiary} />
+                  <Icon name="location" size="sm" color={Colors.text.tertiary} />
                   <Text
                     style={[
                       styles.selectButtonText,
@@ -481,33 +497,6 @@ export function UpdateProfileScreen() {
                   color={Colors.text.tertiary}
                 />
               </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Financial Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Budget</Text>
-
-            {/* Monthly Budget Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Budget mensuel (FC)</Text>
-              <View style={styles.inputWrapper}>
-                <Icon name="wallet" size="sm" color={Colors.text.tertiary} />
-                <TextInput
-                  style={styles.input}
-                  value={formData.monthlyBudget}
-                  onChangeText={value =>
-                    handleInputChange('monthlyBudget', value)
-                  }
-                  placeholder="Ex: 500000"
-                  placeholderTextColor={Colors.text.tertiary}
-                  keyboardType="numeric"
-                />
-                <Text style={styles.inputSuffix}>FC</Text>
-              </View>
-              <Text style={styles.inputHint}>
-                Ce budget nous aide à vous suggérer des économies personnalisées
-              </Text>
             </View>
           </View>
 

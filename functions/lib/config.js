@@ -59,12 +59,12 @@ exports.config = {
     app: {
         id: 'goshopper',
         region: 'us-central1',
-        trialScanLimit: -1, // Unlimited during trial
+        trialScanLimit: 50, // Limited scans during trial
         trialDurationDays: 60, // 2 months
     },
     // Pricing (USD)
     pricing: {
-        free: { price: 0, scansPerMonth: -1 }, // Unlimited during trial
+        free: { price: 0, scansPerMonth: 50 }, // Limited during trial
         basic: { price: 1.99, scansPerMonth: 25 },
         standard: { price: 2.99, scansPerMonth: 100 },
         premium: { price: 4.99, scansPerMonth: -1 }, // Unlimited

@@ -79,7 +79,9 @@ class SubscriptionService {
 
     // Check if trial is active (time-based)
     if (this.isTrialActive(subscription)) {
-      return true; // Unlimited scans during trial
+      // Check trial scan limit
+      const trialLimit = PLAN_SCAN_LIMITS.free || 50;
+      return (subscription.trialScansUsed || 0) < trialLimit;
     }
 
     // Check active subscription (including cancelled but not expired)

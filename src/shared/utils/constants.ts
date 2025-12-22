@@ -7,7 +7,7 @@ export const APP_VERSION = '1.0.0';
 // Trial Configuration
 export const TRIAL_DURATION_DAYS = 60; // 2 months free trial
 export const TRIAL_EXTENSION_DAYS = 30; // 1 month extension available
-export const TRIAL_SCAN_LIMIT = -1; // Unlimited during trial
+export const TRIAL_SCAN_LIMIT = 50; // Limited scans during trial
 
 // API Limits
 export const RATE_LIMIT_PER_MINUTE = 10;
@@ -16,6 +16,7 @@ export const RATE_LIMIT_PER_DAY_PREMIUM = 500;
 
 // Usage Limits by Plan
 export const PLAN_SCAN_LIMITS = {
+  free: 50, // Trial limit
   basic: 25,
   standard: 100,
   premium: -1, // Unlimited

@@ -286,6 +286,7 @@ export function HomeScreen() {
     isTrialActive,
     trialDaysRemaining,
     trialScansUsed,
+    scansRemaining,
   } = useSubscription();
   const {profile: userProfile} = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
@@ -338,11 +339,12 @@ export function HomeScreen() {
 
   // Fetch monthly spending
   useEffect(() => {
+    let isMounted = true;
     const fetchMonthlySpending = async () => {
       if (!userProfile?.userId) return;
 
       try {
-        setIsLoadingStats(true);
+        if (isMounted) setIsLoadingStats(true);
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -366,16 +368,20 @@ export function HomeScreen() {
           }
         });
 
-        setMonthlySpending(total);
+        if (isMounted) setMonthlySpending(total);
       } catch (error) {
         console.error('Error fetching monthly spending:', error);
-        setMonthlySpending(0);
+        if (isMounted) setMonthlySpending(0);
       } finally {
-        setIsLoadingStats(false);
+        if (isMounted) setIsLoadingStats(false);
       }
     };
 
     fetchMonthlySpending();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [userProfile?.userId, displayCurrency]);
 
   // Fetch items count
@@ -628,9 +634,9 @@ export function HomeScreen() {
               title=""
               value={trialScansUsed || 0}
               subtitle={
-                isPremium
+                scansRemaining === -1
                   ? 'illimités'
-                  : `${5 - (trialScansUsed || 0)} scans restants`
+                  : `${scansRemaining} scans restants`
               }
               color="blue"
               icon="camera"

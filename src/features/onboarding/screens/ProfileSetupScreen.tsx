@@ -26,62 +26,18 @@ import {
 import {Icon, Modal, Button, MainLayout} from '@/shared/components';
 import {PhoneService} from '@/shared/services/phone';
 import {countryCodeList} from '@/shared/constants/countries';
+import {
+  COUNTRIES_CITIES,
+  POPULAR_CITIES,
+  searchCities,
+  CountryData,
+  CityData,
+} from '@/shared/constants/cities';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileSetupRouteProp = RouteProp<RootStackParamList, 'ProfileSetup'>;
-
-// Major DRC cities - deduplicated and sorted
-const DRC_CITIES = [
-  'Kinshasa',
-  'Lubumbashi',
-  'Mbuji-Mayi',
-  'Kisangani',
-  'Kananga',
-  'Bukavu',
-  'Goma',
-  'Tshikapa',
-  'Kolwezi',
-  'Likasi',
-  'Uvira',
-  'Butembo',
-  'Beni',
-  'Bunia',
-  'Isiro',
-  'Mbandaka',
-  'Kikwit',
-  'Matadi',
-  'Boma',
-  'Bandundu',
-  'Gemena',
-  'Kabinda',
-  'Mwene-Ditu',
-  'Kalemie',
-  'Kindu',
-  'Lisala',
-  'Bumba',
-  'Inongo',
-  'Boende',
-  'Lusambo',
-  'Ilebo',
-  'Kisantu',
-  'Mbanza-Ngungu',
-  'Kasangulu',
-  'Tshela',
-].sort();
-
-// Popular cities to show at the top
-const POPULAR_CITIES = [
-  'Kinshasa',
-  'Lubumbashi',
-  'Mbuji-Mayi',
-  'Kisangani',
-  'Kananga',
-  'Goma',
-  'Bukavu',
-  'Kolwezi',
-];
 
 export function ProfileSetupScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -118,12 +74,14 @@ export function ProfileSetupScreen() {
     route.params?.surname || displayNameParts.surname,
   );
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState(countryCodeList[0]); // Default to RDC
+  const [selectedCountry, setSelectedCountry] = useState(countryCodeList[0]); // Default to RDC for phone
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [selectedCity, setSelectedCity] = useState('');
+  const [selectedLocationCountry, setSelectedLocationCountry] = useState<CountryData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [countrySearchQuery, setCountrySearchQuery] = useState('');
   const [showCityPicker, setShowCityPicker] = useState(false);
+  const [showCountrySelector, setShowCountrySelector] = useState(true); // For two-step modal
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
   const [phoneExists, setPhoneExists] = useState(false);
@@ -192,25 +150,18 @@ export function ProfileSetupScreen() {
     };
   }, [phoneNumber, selectedCountry]);
 
-  // Filter cities based on search
-  const filteredCities = DRC_CITIES.filter(city =>
-    city.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  // Filter countries based on search
+  // Filter cities based on search (global search)
+  const searchResults = searchQuery.trim() ? searchCities(searchQuery) : [];
+  
+  // Filter countries based on search (for phone country picker)
   const filteredCountries = countryCodeList.filter(country =>
     country.name.toLowerCase().includes(countrySearchQuery.toLowerCase()) ||
     country.code.includes(countrySearchQuery) ||
     country.shortName.toLowerCase().includes(countrySearchQuery.toLowerCase()),
   );
 
-  // Separate popular and other cities when no search
-  const popularCities = searchQuery 
-    ? [] 
-    : POPULAR_CITIES.filter(city => DRC_CITIES.includes(city));
-  const otherCities = searchQuery
-    ? filteredCities
-    : filteredCities.filter(city => !POPULAR_CITIES.includes(city));
+  // Cities from selected country
+  const countryCities = selectedLocationCountry?.cities || [];
 
   // Validate form
   const validateForm = (): boolean => {
@@ -299,176 +250,273 @@ export function ProfileSetupScreen() {
     }
   };
 
-  // City picker modal
+  // City picker modal with hierarchical country → city selection
   const renderCityPicker = () => {
-    const handleCitySelect = (city: string) => {
+    const handleCitySelect = (city: string, country?: CountryData) => {
       setSelectedCity(city);
+      if (country) {
+        setSelectedLocationCountry(country);
+      }
       setShowCityPicker(false);
+      setShowCountrySelector(true);
       setSearchQuery('');
       setErrors(prev => ({...prev, city: undefined}));
     };
 
-    const renderCityItem = (item: string, showIcon: boolean = true) => (
-      <TouchableOpacity
-        key={item}
-        style={[
-          styles.cityItem,
-          selectedCity === item && styles.cityItemSelected,
-        ]}
-        onPress={() => handleCitySelect(item)}
-        activeOpacity={0.7}>
-        {showIcon && (
-          <View style={[
-            styles.cityIconWrapper,
-            selectedCity === item && styles.cityIconWrapperSelected
-          ]}>
-            <Icon
-              name="map-pin"
-              size="sm"
-              color={selectedCity === item ? Colors.white : Colors.primary}
-            />
-          </View>
-        )}
-        <Text
-          style={[
-            styles.cityText,
-            selectedCity === item && styles.cityTextSelected,
-          ]}>
-          {item}
-        </Text>
-        {selectedCity === item && (
-          <View style={styles.cityCheckIcon}>
-            <Icon name="check-circle" size="md" color={Colors.primary} />
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+    const handleCountrySelect = (country: CountryData) => {
+      setSelectedLocationCountry(country);
+      setShowCountrySelector(false);
+      setSearchQuery('');
+    };
+
+    const handleBackToCountries = () => {
+      setShowCountrySelector(true);
+      setSelectedLocationCountry(null);
+      setSearchQuery('');
+    };
+
+    const popularCountries = COUNTRIES_CITIES.filter(c => c.isPopular);
+    const otherCountries = COUNTRIES_CITIES.filter(c => !c.isPopular);
 
     return (
       <Modal
         visible={showCityPicker}
         variant="fullscreen"
-        title="Sélectionnez votre ville"
+        title={
+          showCountrySelector
+            ? 'Sélectionnez votre pays'
+            : selectedLocationCountry?.name || 'Sélectionnez votre ville'
+        }
         onClose={() => {
           setShowCityPicker(false);
+          setShowCountrySelector(true);
           setSearchQuery('');
+          setSelectedLocationCountry(null);
         }}>
-
-          {/* Search input with improved design */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchIconWrapper}>
-              <Icon name="search" size="md" color={Colors.primary} />
-            </View>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Rechercher une ville..."
-              placeholderTextColor={Colors.text.tertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="words"
-              autoFocus
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity 
-                onPress={() => setSearchQuery('')}
-                style={styles.clearButton}
-                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                <Icon name="x-circle" size="md" color={Colors.text.tertiary} />
-              </TouchableOpacity>
-            )}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchIconWrapper}>
+            <Icon name="search" size="md" color={Colors.primary} />
           </View>
-
-          {/* Results count */}
-          {searchQuery && (
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {filteredCities.length} {filteredCities.length === 1 ? 'ville trouvée' : 'villes trouvées'}
-              </Text>
-            </View>
+          <TextInput
+            style={styles.searchInput}
+            placeholder={
+              showCountrySelector
+                ? 'Rechercher un pays ou une ville...'
+                : 'Rechercher une ville...'
+            }
+            placeholderTextColor={Colors.text.tertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="words"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+              <Icon name="x-circle" size="md" color={Colors.text.tertiary} />
+            </TouchableOpacity>
           )}
+        </View>
 
-          {/* City list with sections */}
-          <ScrollView
-            style={styles.cityScrollView}
-            contentContainerStyle={styles.cityListContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled">
-            
-            {filteredCities.length === 0 ? (
-              // Empty state with better design
+        {searchQuery.trim() && (
+          <View style={styles.resultsHeader}>
+            <Text style={styles.resultsCount}>
+              {searchResults.length} résultat{searchResults.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
+
+        <ScrollView
+          style={styles.cityScrollView}
+          contentContainerStyle={styles.cityListContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          {searchQuery.trim() ? (
+            searchResults.length === 0 ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIconWrapper}>
-                  <Icon name="map-pin" size="3xl" color={Colors.text.tertiary} />
+                  <Icon name="search" size="3xl" color={Colors.text.tertiary} />
                 </View>
-                <Text style={styles.emptyTitle}>Aucune ville trouvée</Text>
+                <Text style={styles.emptyTitle}>Aucun résultat</Text>
                 <Text style={styles.emptyText}>
-                  Essayez avec un autre nom de ville
+                  Essayez avec un autre nom
                 </Text>
-                {searchQuery && (
-                  <TouchableOpacity 
-                    style={styles.clearSearchButton}
-                    onPress={() => setSearchQuery('')}>
-                    <Text style={styles.clearSearchText}>Effacer la recherche</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             ) : (
-              <>
-                {/* Popular cities section */}
-                {!searchQuery && popularCities.length > 0 && (
-                  <View style={styles.citySection}>
-                    <View style={styles.sectionHeader}>
-                      <Icon name="star" size="sm" color={Colors.primary} />
-                      <Text style={styles.sectionTitle}>Villes Populaires</Text>
+              <View style={styles.citySection}>
+                {searchResults.map(result => (
+                  <TouchableOpacity
+                    key={`${result.countryCode}-${result.name}`}
+                    style={[
+                      styles.cityItem,
+                      selectedCity === result.name && styles.cityItemSelected,
+                    ]}
+                    onPress={() => {
+                      const country = COUNTRIES_CITIES.find(c => c.code === result.countryCode);
+                      handleCitySelect(result.name, country);
+                    }}
+                    activeOpacity={0.7}>
+                    <View style={styles.cityIconWrapper}>
+                      <Text style={styles.countryFlag}>{COUNTRIES_CITIES.find(c => c.code === result.countryCode)?.flag}</Text>
                     </View>
-                    <View style={styles.popularCitiesGrid}>
-                      {popularCities.map(city => (
+                    <View style={styles.cityInfoColumn}>
+                      <Text style={[styles.cityText, selectedCity === result.name && styles.cityTextSelected]}>
+                        {result.name}
+                      </Text>
+                      <Text style={styles.cityCountryText}>{result.country}</Text>
+                    </View>
+                    {selectedCity === result.name && (
+                      <Icon name="check-circle" size="md" color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )
+          ) : showCountrySelector ? (
+            <>
+              {popularCountries.length > 0 && (
+                <View style={styles.citySection}>
+                  <View style={styles.sectionHeader}>
+                    <Icon name="star" size="sm" color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Pays Populaires</Text>
+                  </View>
+                  {popularCountries.map(country => (
+                    <TouchableOpacity
+                      key={country.code}
+                      style={styles.countryItem}
+                      onPress={() => handleCountrySelect(country)}
+                      activeOpacity={0.7}>
+                      <Text style={styles.countryFlagLarge}>{country.flag}</Text>
+                      <View style={styles.countryInfo}>
+                        <Text style={styles.countryNameText}>{country.name}</Text>
+                        <Text style={styles.countryCityCount}>
+                          {country.cities.length} ville{country.cities.length !== 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                      <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.citySection}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="globe" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.sectionTitle}>Tous les Pays</Text>
+                </View>
+                {otherCountries.map(country => (
+                  <TouchableOpacity
+                    key={country.code}
+                    style={styles.countryItem}
+                    onPress={() => handleCountrySelect(country)}
+                    activeOpacity={0.7}>
+                    <Text style={styles.countryFlagLarge}>{country.flag}</Text>
+                    <View style={styles.countryInfo}>
+                      <Text style={styles.countryNameText}>{country.name}</Text>
+                      <Text style={styles.countryCityCount}>
+                        {country.cities.length} ville{country.cities.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.backToCountries}
+                onPress={handleBackToCountries}
+                activeOpacity={0.7}>
+                <Icon name="arrow-left" size="md" color={Colors.primary} />
+                <Text style={styles.backToCountriesText}>Changer de pays</Text>
+              </TouchableOpacity>
+
+              {POPULAR_CITIES.some(city => countryCities.includes(city)) && (
+                <View style={styles.citySection}>
+                  <View style={styles.sectionHeader}>
+                    <Icon name="star" size="sm" color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Villes Populaires</Text>
+                  </View>
+                  <View style={styles.popularCitiesGrid}>
+                    {countryCities
+                      .filter(city => POPULAR_CITIES.includes(city))
+                      .map(city => (
                         <TouchableOpacity
                           key={city}
                           style={[
                             styles.popularCityChip,
                             selectedCity === city && styles.popularCityChipSelected,
                           ]}
-                          onPress={() => handleCitySelect(city)}
+                          onPress={() => handleCitySelect(city, selectedLocationCountry || undefined)}
                           activeOpacity={0.7}>
-                          <Icon 
-                            name="map-pin" 
-                            size="xs" 
-                            color={selectedCity === city ? Colors.white : Colors.primary} 
+                          <Icon
+                            name="map-pin"
+                            size="xs"
+                            color={selectedCity === city ? Colors.white : Colors.primary}
                           />
-                          <Text style={[
-                            styles.popularCityText,
-                            selectedCity === city && styles.popularCityTextSelected,
-                          ]}>
+                          <Text
+                            style={[
+                              styles.popularCityText,
+                              selectedCity === city && styles.popularCityTextSelected,
+                            ]}>
                             {city}
                           </Text>
                         </TouchableOpacity>
                       ))}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.citySection}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="map-pin" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.sectionTitle}>Toutes les Villes</Text>
+                </View>
+                {countryCities.map(city => (
+                  <TouchableOpacity
+                    key={city}
+                    style={[
+                      styles.cityItem,
+                      selectedCity === city && styles.cityItemSelected,
+                    ]}
+                    onPress={() => handleCitySelect(city, selectedLocationCountry || undefined)}
+                    activeOpacity={0.7}>
+                    <View
+                      style={[
+                        styles.cityIconWrapper,
+                        selectedCity === city && styles.cityIconWrapperSelected,
+                      ]}>
+                      <Icon
+                        name="map-pin"
+                        size="sm"
+                        color={selectedCity === city ? Colors.white : Colors.primary}
+                      />
                     </View>
-                  </View>
-                )}
-
-                {/* Other cities */}
-                {!searchQuery && otherCities.length > 0 && (
-                  <View style={styles.citySection}>
-                    {otherCities.map(city => renderCityItem(city))}
-                  </View>
-                )}
-
-                {/* Search results */}
-                {searchQuery && filteredCities.length > 0 && (
-                  <View style={styles.citySection}>
-                    {filteredCities.map(city => renderCityItem(city))}
-                  </View>
-                )}
-              </>
-            )}
-          </ScrollView>
+                    <Text
+                      style={[
+                        styles.cityText,
+                        selectedCity === city && styles.cityTextSelected,
+                      ]}>
+                      {city}
+                    </Text>
+                    {selectedCity === city && (
+                      <View style={styles.cityCheckIcon}>
+                        <Icon name="check-circle" size="md" color={Colors.primary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
       </Modal>
     );
   };
 
-  // Country picker modal
+  // Country picker modal (for phone code selection)
   const renderCountryPicker = () => (
     <Modal
       visible={showCountryPicker}
@@ -760,15 +808,6 @@ export function ProfileSetupScreen() {
               {errors.city && (
                 <Text style={styles.errorText}>{errors.city}</Text>
               )}
-            </View>
-
-            {/* Info text */}
-            <View style={styles.infoBox}>
-              <Icon name="info" size="md" color={Colors.primary} />
-              <Text style={styles.infoText}>
-                Votre ville nous aide à vous montrer les prix et offres près de
-                chez vous
-              </Text>
             </View>
 
             {/* Submit Button */}
@@ -1177,6 +1216,58 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.white,
+  },
+  // Country selection styles
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+    marginHorizontal: Spacing.lg,
+  },
+  countryFlagLarge: {
+    fontSize: 32,
+  },
+  countryInfo: {
+    flex: 1,
+  },
+  countryNameText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+    marginBottom: 2,
+  },
+  countryCityCount: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+  },
+  backToCountries: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    marginBottom: Spacing.base,
+    marginHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  backToCountriesText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+  },
+  cityInfoColumn: {
+    flex: 1,
+  },
+  cityCountryText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
   },
 });
 

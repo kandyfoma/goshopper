@@ -53,9 +53,13 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       let canScan = false;
 
       if (isTrialActive) {
-        // Trial users have unlimited scans
-        scansRemaining = -1; // -1 represents unlimited
-        canScan = true;
+        // Trial users have limited scans
+        const trialLimit = PLAN_SCAN_LIMITS.free || 50;
+        scansRemaining = Math.max(
+          0,
+          trialLimit - (subscription.trialScansUsed || 0),
+        );
+        canScan = scansRemaining > 0;
       } else if (
         subscription.isSubscribed &&
         subscription.status === 'active'

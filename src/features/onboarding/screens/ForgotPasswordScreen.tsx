@@ -138,19 +138,31 @@ const ForgotPasswordScreen: React.FC = () => {
             {/* Phone Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Numéro de téléphone</Text>
-              <View style={[styles.inputWrapper, !!error && styles.inputError]}>
-                <Icon name="phone" size="sm" color={Colors.text.secondary} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="+243 123 456 789"
-                  placeholderTextColor={Colors.text.tertiary}
-                  value={phoneNumber}
-                  onChangeText={handlePhoneChange}
-                  keyboardType="phone-pad"
-                  autoCapitalize="none"
+              <View style={styles.phoneRow}>
+                {/* Country Selector */}
+                <TouchableOpacity
+                  style={styles.countrySelector}
+                  onPress={() => setShowCountryModal(true)}>
+                  <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
+                  <Text style={styles.countryCode}>{selectedCountry.code}</Text>
+                  <Icon name="chevron-down" size="sm" color={Colors.text.secondary} />
+                </TouchableOpacity>
+
+                {/* Phone Input */}
+                <View style={[styles.phoneInputWrapper, !!error && styles.inputError]}>
+                  <Icon name="phone" size="sm" color={Colors.text.secondary} />
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="88 123 4567"
+                    placeholderTextColor={Colors.text.tertiary}
+                    value={phoneNumber}
+                    onChangeText={handlePhoneChange}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
                   autoCorrect={false}
                   editable={!loading}
                 />
+              </View>
               </View>
               {error && <Text style={styles.errorText}>{error}</Text>}
             </View>
@@ -186,6 +198,40 @@ const ForgotPasswordScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Country Selection Modal */}
+      <Modal
+        visible={showCountryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCountryModal(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sélectionner un pays</Text>
+              <TouchableOpacity onPress={() => setShowCountryModal(false)}>
+                <Icon name="x" size="md" color={Colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={countryCodeList}
+              keyExtractor={(item) => item.code}
+              renderItem={({item}) => (
+                <TouchableOpacity
+                  style={styles.countryItem}
+                  onPress={() => {
+                    setSelectedCountry(item);
+                    setShowCountryModal(false);
+                  }}>
+                  <Text style={styles.countryFlag}>{item.flag}</Text>
+                  <Text style={styles.countryName}>{item.name}</Text>
+                  <Text style={styles.countryCode}>{item.code}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -255,6 +301,48 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
+  phoneRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  countrySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+    minHeight: 52,
+    borderWidth: 1.5,
+    borderColor: '#FDB913',
+    gap: Spacing.xs,
+  },
+  countryFlag: {
+    fontSize: 24,
+  },
+  countryCode: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+  },
+  phoneInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.base,
+    minHeight: 52,
+    borderWidth: 1.5,
+    borderColor: '#FDB913',
+    gap: Spacing.md,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.primary,
+    paddingVertical: Spacing.sm,
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,6 +390,45 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
+  },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    paddingTop: Spacing.xl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.base,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.base,
+    gap: Spacing.md,
+  },
+  countryName: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.primary,
   },
 
   // Guest Footer

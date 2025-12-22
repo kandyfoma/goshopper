@@ -31,7 +31,8 @@ export interface UserProfile {
   profileCompleted?: boolean;
   // Additional profile fields
   name?: string;
-  age?: number;
+  age?: number; // Deprecated - kept for backwards compatibility
+  dateOfBirth?: string; // ISO date string (YYYY-MM-DD)
   sex?: 'male' | 'female' | 'other';
   monthlyBudget?: number; // Legacy - keep for backwards compatibility
   defaultMonthlyBudget?: number; // New: template budget for auto-copy

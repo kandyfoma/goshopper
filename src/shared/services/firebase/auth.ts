@@ -626,7 +626,7 @@ class AuthService {
     await subscriptionRef.set({
       userId,
       trialScansUsed: 0,
-      trialScansLimit: -1, // Unlimited scans during trial
+      trialScansLimit: 50, // Limited scans during trial
       trialStartDate,
       trialEndDate,
       trialExtended: false,

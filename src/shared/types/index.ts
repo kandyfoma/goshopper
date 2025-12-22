@@ -27,7 +27,7 @@ export type RootStackParamList = {
   Settings: undefined;
   CitySelection: undefined;
   UpdateProfile: undefined;
-  Stats: undefined;
+  History: undefined;
   // Phase 1.1 Screens
   Notifications: undefined;
   PriceAlerts: undefined;

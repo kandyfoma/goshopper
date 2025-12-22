@@ -352,7 +352,7 @@ export function BudgetSettingsScreen() {
           variant="primary"
           size="lg"
           loading={isLoading}
-          disabled={isLoading}
+          disabled={isLoading || !budgetAmount.trim() || !defaultBudget.trim()}
           style={{marginBottom: Spacing.xl, marginTop: Spacing.lg}}
         />
         </View>

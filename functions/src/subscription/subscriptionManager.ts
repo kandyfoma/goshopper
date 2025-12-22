@@ -141,7 +141,7 @@ export const getSubscriptionStatus = functions
         const initialSubscription: Partial<Subscription> = {
           userId,
           trialScansUsed: 0,
-          trialScansLimit: -1, // Unlimited during trial
+          trialScansLimit: 50, // Limited scans during trial
           trialStartDate: now,
           trialEndDate: trialEndDate,
           trialExtended: false,
@@ -203,8 +203,10 @@ export const getSubscriptionStatus = functions
       let scansRemaining = 0;
 
       if (trialActive) {
-        canScan = true;
-        scansRemaining = -1; // Unlimited during trial
+        const trialLimit = PLAN_SCAN_LIMITS.free || 50;
+        const trialUsed = subscription.trialScansUsed || 0;
+        scansRemaining = Math.max(0, trialLimit - trialUsed);
+        canScan = scansRemaining > 0;
       } else if (
         subscription.isSubscribed &&
         subscription.status === 'active'

@@ -605,7 +605,7 @@ class NaturalLanguageService {
 
     // Search in prices collection
     const pricesSnapshot = await firestore()
-      .collection(`apps/${APP_ID}/prices`)
+      .collection(`artifacts/${APP_ID}/prices`)
       .where('productNameNormalized', '>=', normalizedName)
       .where('productNameNormalized', '<=', normalizedName + '\uf8ff')
       .limit(20)
