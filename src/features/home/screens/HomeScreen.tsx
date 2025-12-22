@@ -27,7 +27,7 @@ import {
 import {Icon, Button} from '@/shared/components';
 import {analyticsService, hapticService, widgetDataService} from '@/shared/services';
 import firestore from '@react-native-firebase/firestore';
-import {formatCurrency} from '@/shared/utils/helpers';
+import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {APP_ID} from '@/shared/services/firebase/config';
 import {getCurrentMonthBudget} from '@/shared/services/firebase/budgetService';
 import {Recommendations} from '@/features/recommendations';
@@ -362,114 +362,98 @@ export function HomeScreen() {
     analyticsService.logScreenView('Home', 'HomeScreen');
   }, []);
 
-  // Fetch monthly spending
+  // Fetch monthly spending with real-time listener
   useEffect(() => {
-    let isMounted = true;
-    const fetchMonthlySpending = async () => {
-      if (!userProfile?.userId) return;
+    if (!userProfile?.userId) {
+      setIsLoadingStats(false);
+      return;
+    }
 
-      try {
-        if (isMounted) setIsLoadingStats(true);
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    console.log('📊 Home: Setting up real-time listener for receipts');
+    setIsLoadingStats(true);
 
-        console.log('📊 Fetching monthly spending for userId:', userProfile.userId);
-        console.log('📊 Start of month:', startOfMonth);
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // First try with scannedAt, then fallback to getting all receipts
-        let receiptsSnapshot;
-        try {
-          receiptsSnapshot = await firestore()
-            .collection('artifacts')
-            .doc(APP_ID)
-            .collection('users')
-            .doc(userProfile.userId)
-            .collection('receipts')
-            .where('scannedAt', '>=', firestore.Timestamp.fromDate(startOfMonth))
-            .get();
-        } catch (indexError) {
-          console.log('📊 Index error, fetching all receipts and filtering client-side');
-          // Fallback: get all receipts and filter client-side
-          receiptsSnapshot = await firestore()
-            .collection('artifacts')
-            .doc(APP_ID)
-            .collection('users')
-            .doc(userProfile.userId)
-            .collection('receipts')
-            .get();
-        }
-
-        console.log('📊 Found receipts:', receiptsSnapshot.size);
-
-        let total = 0;
-        let receiptCount = 0;
-        
-        receiptsSnapshot.docs.forEach(doc => {
-          const data = doc.data();
+    // Subscribe to receipts collection for real-time updates
+    const unsubscribe = firestore()
+      .collection('artifacts')
+      .doc(APP_ID)
+      .collection('users')
+      .doc(userProfile.userId)
+      .collection('receipts')
+      .onSnapshot(
+        (snapshot) => {
+          console.log('📊 Home: Receipts updated, recalculating spending');
           
-          // Check if receipt is from this month
-          let receiptDate = null;
-          if (data.scannedAt?.toDate) {
-            receiptDate = data.scannedAt.toDate();
-          } else if (data.date?.toDate) {
-            receiptDate = data.date.toDate();
-          } else if (data.createdAt?.toDate) {
-            receiptDate = data.createdAt.toDate();
-          }
+          let total = 0;
+          let receiptCount = 0;
           
-          // Only count if receipt is from this month
-          if (receiptDate && receiptDate >= startOfMonth) {
-            receiptCount++;
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
             
-            // Calculate total based on display currency using standardized fields
-            let receiptTotal = 0;
-            if (displayCurrency === 'CDF') {
-              // For CDF: prioritize totalCDF field
-              if (data.totalCDF != null) {
-                receiptTotal = Number(data.totalCDF) || 0;
-              } else if (data.currency === 'CDF' && data.total != null) {
-                receiptTotal = Number(data.total) || 0;
-              } else if (data.totalUSD != null) {
-                // Convert USD to CDF
-                receiptTotal = (Number(data.totalUSD) || 0) * 2200;
-              } else if (data.currency === 'USD' && data.total != null) {
-                receiptTotal = (Number(data.total) || 0) * 2200;
-              }
-            } else {
-              // For USD: prioritize totalUSD field
-              if (data.totalUSD != null) {
-                receiptTotal = Number(data.totalUSD) || 0;
-              } else if (data.currency === 'USD' && data.total != null) {
-                receiptTotal = Number(data.total) || 0;
-              } else if (data.totalCDF != null) {
-                // Convert CDF to USD
-                receiptTotal = (Number(data.totalCDF) || 0) / 2200;
-              } else if (data.currency === 'CDF' && data.total != null) {
-                receiptTotal = (Number(data.total) || 0) / 2200;
-              }
+            // Try multiple date fields for compatibility with old receipts
+            let receiptDate = safeToDate(data.scannedAt);
+            
+            // If scannedAt is invalid (1970), try other date fields
+            if (receiptDate.getFullYear() === 1970) {
+              receiptDate = safeToDate(data.createdAt) || safeToDate(data.date) || new Date();
             }
             
-            total += receiptTotal;
-          }
-        });
+            // Only count if receipt is from this month
+            if (receiptDate >= startOfMonth) {
+              receiptCount++;
+              
+              // Calculate total based on display currency using standardized fields
+              let receiptTotal = 0;
+              if (displayCurrency === 'CDF') {
+                // For CDF: prioritize totalCDF field
+                if (data.totalCDF != null) {
+                  receiptTotal = Number(data.totalCDF) || 0;
+                } else if (data.currency === 'CDF' && data.total != null) {
+                  receiptTotal = Number(data.total) || 0;
+                } else if (data.totalUSD != null) {
+                  // Convert USD to CDF
+                  receiptTotal = (Number(data.totalUSD) || 0) * 2200;
+                } else if (data.currency === 'USD' && data.total != null) {
+                  receiptTotal = (Number(data.total) || 0) * 2200;
+                }
+              } else {
+                // For USD: prioritize totalUSD field
+                if (data.totalUSD != null) {
+                  receiptTotal = Number(data.totalUSD) || 0;
+                } else if (data.currency === 'USD' && data.total != null) {
+                  receiptTotal = Number(data.total) || 0;
+                } else if (data.totalCDF != null) {
+                  // Convert CDF to USD
+                  receiptTotal = (Number(data.totalCDF) || 0) / 2200;
+                } else if (data.currency === 'CDF' && data.total != null) {
+                  receiptTotal = (Number(data.total) || 0) / 2200;
+                }
+              }
+              
+              total += receiptTotal;
+            }
+          });
 
-        console.log('📊 Total receipts this month:', receiptCount);
-        console.log('📊 Total spending:', total, displayCurrency);
-        // Ensure total is a valid number
-        const validTotal = Number.isFinite(total) ? total : 0;
-        if (isMounted) setMonthlySpending(validTotal);
-      } catch (error) {
-        console.error('Error fetching monthly spending:', error);
-        if (isMounted) setMonthlySpending(0);
-      } finally {
-        if (isMounted) setIsLoadingStats(false);
-      }
-    };
+          console.log('📊 Home: Total receipts this month:', receiptCount);
+          console.log('📊 Home: Total spending:', total, displayCurrency);
+          
+          // Ensure total is a valid number
+          const validTotal = Number.isFinite(total) ? total : 0;
+          setMonthlySpending(validTotal);
+          setIsLoadingStats(false);
+        },
+        (error) => {
+          console.error('Error in receipts listener:', error);
+          setMonthlySpending(0);
+          setIsLoadingStats(false);
+        }
+      );
 
-    fetchMonthlySpending();
-    
     return () => {
-      isMounted = false;
+      console.log('📊 Home: Cleaning up receipts listener');
+      unsubscribe();
     };
   }, [userProfile?.userId, displayCurrency]);
 

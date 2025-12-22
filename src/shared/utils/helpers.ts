@@ -229,14 +229,17 @@ export function safeToDate(value: any): Date {
     try {
       const seconds = value._seconds || value.seconds || 0;
       const nanoseconds = value._nanoseconds || value.nanoseconds || 0;
-      return new Date(seconds * 1000 + nanoseconds / 1000000);
+      // Only convert if seconds is valid (not 0 or undefined)
+      if (seconds > 0) {
+        return new Date(seconds * 1000 + nanoseconds / 1000000);
+      }
     } catch (error) {
       return new Date();
     }
   }
 
   // Firestore Timestamp-like object with seconds/nanoseconds
-  if (typeof value.seconds === 'number') {
+  if (typeof value.seconds === 'number' && value.seconds > 0) {
     try {
       return new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1000000);
     } catch (error) {

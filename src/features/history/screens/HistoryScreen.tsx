@@ -30,6 +30,7 @@ import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {spotlightSearchService, offlineService} from '@/shared/services';
+import {receiptStorageService} from '@/shared/services/firebase';
 import {useIsOnline} from '@/shared/hooks';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -258,14 +259,8 @@ export function HistoryScreen() {
       if (!user?.uid) return;
 
       try {
-        await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('receipts')
-          .doc(receiptId)
-          .delete();
+        // Use receiptStorage.deleteReceipt to properly update shop stats
+        await receiptStorageService.deleteReceipt(user.uid, receiptId);
 
         // Remove from local state
         setReceipts(prev => prev.filter(r => r.id !== receiptId));

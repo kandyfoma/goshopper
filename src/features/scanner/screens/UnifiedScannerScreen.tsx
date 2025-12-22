@@ -37,6 +37,9 @@ import {
 } from '@/shared/theme/theme';
 import {Icon, ScanProgressIndicator} from '@/shared/components';
 import functions from '@react-native-firebase/functions';
+import firestore from '@react-native-firebase/firestore';
+import {APP_ID} from '@/shared/services/firebase/config';
+import {Receipt} from '@/shared/types';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
@@ -64,6 +67,61 @@ const LOADING_MESSAGES = [
   {icon: 'sparkles', text: 'Presque fini...', subtext: 'Eza pene na kosila...'},
   {icon: 'gift', text: 'Finalisation...', subtext: 'Eza kosila...'},
 ];
+
+// Helper function to check for duplicate receipts using processed data
+async function checkProcessedReceiptDuplicate(
+  receipt: any,
+  userId: string
+): Promise<{isDuplicate: boolean; existingReceipt?: any}> {
+  try {
+    // Get recent receipts from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const receiptsSnapshot = await firestore()
+      .collection(`artifacts/${APP_ID}/users/${userId}/receipts`)
+      .where('scannedAt', '>=', firestore.Timestamp.fromDate(thirtyDaysAgo))
+      .get();
+
+    // Check for exact matches
+    for (const doc of receiptsSnapshot.docs) {
+      const existingReceipt = doc.data();
+      
+      // Match criteria: same store, same date, same total, or same receipt number
+      const sameStore = existingReceipt.storeName?.toLowerCase() === receipt.storeName?.toLowerCase();
+      const sameTotal = Math.abs((existingReceipt.total || 0) - (receipt.total || 0)) < 0.01;
+      const sameReceiptNumber = receipt.receiptNumber && 
+                                 existingReceipt.receiptNumber === receipt.receiptNumber;
+      
+      // Check date similarity (same day)
+      let sameDate = false;
+      if (existingReceipt.scannedAt && receipt.date) {
+        const existingDate = existingReceipt.scannedAt.toDate();
+        const newDate = new Date(receipt.date);
+        sameDate = 
+          existingDate.getFullYear() === newDate.getFullYear() &&
+          existingDate.getMonth() === newDate.getMonth() &&
+          existingDate.getDate() === newDate.getDate();
+      }
+
+      // If any strong match found, consider it a duplicate
+      if (sameReceiptNumber || (sameStore && sameDate && sameTotal)) {
+        return {
+          isDuplicate: true,
+          existingReceipt: {
+            ...existingReceipt,
+            date: existingReceipt.scannedAt?.toDate(),
+          },
+        };
+      }
+    }
+
+    return {isDuplicate: false};
+  } catch (error) {
+    console.error('Duplicate check error:', error);
+    return {isDuplicate: false};
+  }
+}
 
 export function UnifiedScannerScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -500,6 +558,38 @@ export function UnifiedScannerScreen() {
           // Step 5: Finalization
           setProcessingStep(4);
           await new Promise<void>(r => setTimeout(r, 400));
+          
+          // Check for duplicates using processed receipt data
+          if (user?.uid && response.receipt) {
+            const duplicateCheck = await checkProcessedReceiptDuplicate(
+              response.receipt,
+              user.uid
+            );
+            
+            if (duplicateCheck.isDuplicate) {
+              const shouldProceed = await new Promise<boolean>(resolve => {
+                Alert.alert(
+                  'Reçu déjà scanné',
+                  `Ce reçu a déjà été scanné:\n\n` +
+                  `Magasin: ${duplicateCheck.existingReceipt?.storeName}\n` +
+                  `Date: ${duplicateCheck.existingReceipt?.date ? new Date(duplicateCheck.existingReceipt.date).toLocaleDateString('fr-FR') : 'N/A'}\n` +
+                  `Montant: ${duplicateCheck.existingReceipt?.total} ${duplicateCheck.existingReceipt?.currency}\n\n` +
+                  `Voulez-vous quand même l'enregistrer ?`,
+                  [
+                    {text: 'Annuler', style: 'cancel', onPress: () => resolve(false)},
+                    {text: 'Enregistrer quand même', style: 'destructive', onPress: () => resolve(true)},
+                  ]
+                );
+              });
+
+              if (!shouldProceed) {
+                // User cancelled - don't save or record scan
+                setState('idle');
+                setPhotos([]);
+                return;
+              }
+            }
+          }
           
           // Save the receipt to Firestore
           const savedReceiptId = await receiptStorageService.saveReceipt(

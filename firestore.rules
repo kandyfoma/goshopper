@@ -19,123 +19,14 @@ service cloud.firestore {
         get(/databases/$(database)/documents/artifacts/goshopper/users/$(request.auth.uid)/subscription/status).data.isSubscribed == true;
     }
     
-    // GoShopper artifact data
-    match /artifacts/goshopperai {
-      
-      // User data - owner can read, owner can create on signup
-      match /users/{userId} {
-        // Allow user to create their own profile document on first signup
-        allow create: if isOwner(userId);
-        allow read, update, delete: if isOwner(userId);
-        
-        // Shopping times and patterns tracking
-        match /shoppingTimes/{timeId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        match /shopFrequency/{shopId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // User profile (deprecated - now using users/{userId} directly)
-        match /profile/{document=**} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // User's receipts - allow owner to read AND write
-        match /receipts/{receiptId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // User's shops (aggregated from receipts)
-        match /shops/{shopId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // User's items (aggregated from receipts) - NEW
-        match /items/{itemId} {
-          allow read: if isOwner(userId);
-          // Only Cloud Functions can write item data
-          allow write: if false;
-        }
-        
-        // Subscription status - allow user to create initial subscription
-        match /subscription/{document=**} {
-          allow read: if isOwner(userId);
-          // Allow creating initial subscription, updates only via Cloud Functions
-          allow create: if isOwner(userId) && request.resource.data.status == 'trial';
-          allow update, delete: if false;
-        }
-        
-        // Payment records
-        match /payments/{paymentId} {
-          allow read: if isOwner(userId);
-          // Only Cloud Functions can write payment data
-          allow write: if false;
-        }
-        
-        // Shopping Lists - NEW
-        match /shoppingLists/{listId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // Price Alerts - NEW
-        match /priceAlerts/{alertId} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // Notifications - NEW
-        match /notifications/{notificationId} {
-          allow read: if isOwner(userId);
-          // Only Cloud Functions can write notifications
-          allow write: if false;
-        }
-        
-        // Monthly Budgets - NEW
-        match /budgets/{monthKey} {
-          allow read, write: if isOwner(userId);
-        }
-        
-        // User Recommendations (ML/AI recommendations)
-        match /recommendations/{recommendationId} {
-          allow read, write: if isOwner(userId);
-        }
-      }
-      
-      // Public price data - anyone authenticated can read
-      match /public/prices/{document=**} {
-        allow read: if isAuthenticated();
-        // Only Cloud Functions can write price data
-        allow write: if false;
-      }
-      
-      // Public store data - anyone authenticated can read
-      match /public/stores/{document=**} {
-        allow read: if isAuthenticated();
-        allow write: if false;
-      }
-      
-      // Alternative public data structure
-      match /public/data/stores/{storeId} {
-        allow read: if isAuthenticated();
-        allow write: if false;
-      }
-      
-      // Global app settings (exchange rates, etc.) - anyone authenticated can read
-      match /public/data/settings/{document=**} {
-        allow read: if isAuthenticated();
-        // Only admins can write (handled by Cloud Functions or Admin SDK)
-        allow write: if false;
-      }
-    }
-    
     // Subscriptions collection - NEW PATH
     match /artifacts/goshopper/subscriptions/{userId} {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       // Allow creating initial subscription
       allow create: if isAuthenticated() && request.auth.uid == userId && request.resource.data.status == 'trial';
-      // Only Cloud Functions can update subscription
-      allow update, delete: if false;
+      // Allow user to update their own subscription (for scan tracking)
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false;
     }
     
     // GoShopper user data (goshopper APP_ID)
@@ -149,7 +40,15 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
       
+      match /shoppingDays/{dayId} {
+        allow read, write: if isOwner(userId);
+      }
+      
       match /shopFrequency/{shopId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /shoppingPatterns/{patternId} {
         allow read, write: if isOwner(userId);
       }
       
@@ -170,8 +69,7 @@ service cloud.firestore {
       
       // User's items (aggregated from receipts)
       match /items/{itemId} {
-        allow read: if isOwner(userId);
-        allow write: if false;
+        allow read, write: if isOwner(userId);
       }
       
       // Subscription status

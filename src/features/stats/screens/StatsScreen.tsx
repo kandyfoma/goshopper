@@ -10,7 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import Svg, {Circle, G, Path, Line, Text as SvgText} from 'react-native-svg';
 import firestore from '@react-native-firebase/firestore';
@@ -143,9 +143,28 @@ export function StatsScreen() {
       // Filter for current month receipts in memory
       const currentMonthReceipts = receiptsSnapshot.docs.filter(doc => {
         const data = doc.data();
-        const scannedAt = safeToDate(data.scannedAt);
-        return scannedAt && scannedAt >= startOfMonth;
+        
+        // Try multiple date fields for compatibility with old receipts
+        let receiptDate = safeToDate(data.scannedAt);
+        
+        // If scannedAt is invalid (1970), try other date fields
+        if (receiptDate.getFullYear() === 1970) {
+          receiptDate = safeToDate(data.createdAt) || safeToDate(data.date) || new Date();
+        }
+        
+        const isCurrentMonth = receiptDate >= startOfMonth;
+        
+        if (!isCurrentMonth) {
+          console.log('📊 Filtered out receipt:', data.storeName, 'Date:', receiptDate.toISOString());
+        }
+        
+        return isCurrentMonth;
       });
+
+      console.log('📊 Total receipts in database:', receiptsSnapshot.size);
+      console.log('📊 Receipts from current month:', currentMonthReceipts.length);
+      console.log('📊 Start of month filter:', startOfMonth.toISOString());
+      console.log('📊 Current date:', now.toISOString());
 
       // Determine primary currency from receipts
       const currencyCount: Record<string, number> = {};
@@ -198,43 +217,31 @@ export function StatsScreen() {
         // Calculate real savings from receipt data
         // Note: Savings calculation removed as it's not displayed in UI
 
-        // Calculate category totals from items
-        // Convert to user's preferred currency for consistency
-        (data.items || []).forEach((item: any) => {
-          const category = item.category || 'Autre';
-          const itemTotal = item.totalPrice || 0;
+        // Calculate category totals from items using the SAME conversion as receipt total
+        // This ensures category breakdown matches the monthly total exactly
+        if (receiptTotal > 0 && data.items && data.items.length > 0) {
+          // Calculate the receipt's item sum to get the conversion ratio
+          let receiptItemSum = 0;
+          data.items.forEach((item: any) => {
+            receiptItemSum += item.totalPrice || 0;
+          });
 
-          // Determine the receipt's actual currency for proper conversion
-          // Use totalUSD/totalCDF existence to determine what currency the items are in
-          let itemCurrency = data.currency || 'USD';
-          
-          // If receipt has both totalUSD and totalCDF, items are in the original currency
-          // Otherwise, infer from which total field exists
-          if (data.totalUSD != null && data.totalCDF != null) {
-            itemCurrency = data.currency || 'USD';
-          } else if (data.totalUSD != null && data.totalCDF == null) {
-            itemCurrency = 'USD';
-          } else if (data.totalCDF != null && data.totalUSD == null) {
-            itemCurrency = 'CDF';
+          // If items sum to something, distribute the receipt total proportionally
+          if (receiptItemSum > 0) {
+            data.items.forEach((item: any) => {
+              const category = item.category || 'Autre';
+              const itemTotal = item.totalPrice || 0;
+              
+              console.log('📊 Item:', item.name, 'Category:', category, 'Price:', itemTotal);
+              
+              // Calculate this item's share of the receipt total (in user's currency)
+              const itemShare = (itemTotal / receiptItemSum) * receiptTotal;
+              
+              categoryTotals[category] = (categoryTotals[category] || 0) + itemShare;
+              categoryRawTotal += itemShare;
+            });
           }
-
-          // Convert item total to user's preferred currency
-          let convertedItemTotal = itemTotal;
-          if (userPreferredCurrency === 'CDF' && itemCurrency === 'USD') {
-            // Convert USD to CDF using configurable exchange rate
-            convertedItemTotal = itemTotal * exchangeRate;
-          } else if (
-            userPreferredCurrency === 'USD' &&
-            itemCurrency === 'CDF'
-          ) {
-            // Convert CDF to USD using configurable exchange rate
-            convertedItemTotal = itemTotal / exchangeRate;
-          }
-
-          categoryTotals[category] =
-            (categoryTotals[category] || 0) + convertedItemTotal;
-          categoryRawTotal += convertedItemTotal;
-        });
+        }
       });
 
       // Convert to category array with percentages
@@ -298,6 +305,10 @@ export function StatsScreen() {
           icon: categoryIcons[name as keyof typeof categoryIcons] || 'grid',
         }))
         .sort((a, b) => b.amount - a.amount);
+
+      console.log('📊 Categories found:', Object.keys(categoryTotals));
+      console.log('📊 Category totals:', categoryTotals);
+      console.log('📊 Categories array length:', categoriesArray.length);
 
       setTotalSpending(totalSpent);
       setCategories(categoriesArray);
@@ -412,9 +423,50 @@ export function StatsScreen() {
     }
   }, [user?.uid, profile?.preferredCurrency]);
 
+  // Set up real-time listener for receipts collection
   useEffect(() => {
+    if (!user?.uid) {
+      setIsLoading(false);
+      return;
+    }
+
+    console.log('📊 Stats: Setting up real-time listener for receipts');
+
+    // Subscribe to receipts collection for real-time updates
+    const unsubscribe = firestore()
+      .collection('artifacts')
+      .doc(APP_ID)
+      .collection('users')
+      .doc(user.uid)
+      .collection('receipts')
+      .onSnapshot(
+        (snapshot) => {
+          console.log('📊 Stats: Receipts updated, reloading stats data');
+          loadStatsData();
+        },
+        (error) => {
+          console.error('📊 Stats: Error in receipts listener:', error);
+        }
+      );
+
+    // Initial load
     loadStatsData();
-  }, [loadStatsData]);
+
+    return () => {
+      console.log('📊 Stats: Cleaning up receipts listener');
+      unsubscribe();
+    };
+  }, [user?.uid, loadStatsData]);
+
+  // Reload data when screen comes into focus (e.g., navigating back from History)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📊 Stats: Screen focused, refreshing data');
+      if (user?.uid) {
+        loadStatsData();
+      }
+    }, [user?.uid, loadStatsData])
+  );
 
   const maxMonthlyAmount = Math.max(
     ...monthlyData.map(d => d.amount),

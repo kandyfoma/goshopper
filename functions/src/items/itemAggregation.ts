@@ -93,6 +93,50 @@ function getCanonicalName(name: string): string {
 }
 
 /**
+ * Validate if an item name is good enough to save
+ * Filters out OCR mistakes, garbage text, and low-quality names
+ */
+function isValidItemName(name: string, normalizedName: string): boolean {
+  // Skip placeholder names
+  if (
+    !name ||
+    name.toLowerCase().includes('unavailable name') ||
+    name.toLowerCase() === 'unavailable' ||
+    name.toLowerCase() === 'unavailable name'
+  ) {
+    return false;
+  }
+
+  // Skip if normalized name is too short (likely OCR garbage)
+  if (normalizedName.length < 3) {
+    return false;
+  }
+
+  // Count alphabetic characters
+  const alphaCount = (normalizedName.match(/[a-z]/g) || []).length;
+  const digitCount = (normalizedName.match(/[0-9]/g) || []).length;
+  const totalLength = normalizedName.replace(/\s/g, '').length;
+
+  // Skip if mostly numbers (e.g., "123", "4g00", "t5c")
+  if (totalLength > 0 && digitCount / totalLength > 0.6) {
+    return false;
+  }
+
+  // Skip if too few alphabetic characters (e.g., "g", "t5", "l0")
+  if (alphaCount < 2) {
+    return false;
+  }
+
+  // Skip single character words (e.g., "b", "s", "l")
+  const words = normalizedName.split(/\s+/);
+  if (words.length === 1 && words[0].length <= 2) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Aggregate items when a receipt is created or updated
  * Firestore trigger: artifacts/{config.app.id}/users/{userId}/receipts/{receiptId}
  */
@@ -135,17 +179,14 @@ export const aggregateItemsOnReceipt = functions
           continue;
         }
 
-        // Skip items with placeholder names - they can't be reused in community DB
-        const isPlaceholderName = item.name.toLowerCase().includes('unavailable name') || 
-                                   item.name.toLowerCase() === 'unavailable' ||
-                                   item.name.toLowerCase() === 'unavailable name';
-        
-        if (isPlaceholderName) {
-          console.log(`Skipping placeholder item from aggregation: ${item.name}`);
+        const itemNameNormalized = getCanonicalName(item.name);
+
+        // Validate item name quality - skip low-quality/mistake names
+        if (!isValidItemName(item.name, itemNameNormalized)) {
+          console.log(`Skipping low-quality item name: "${item.name}" (normalized: "${itemNameNormalized}")`);
           continue;
         }
 
-        const itemNameNormalized = getCanonicalName(item.name);
         const itemRef = db.collection(itemsCollectionPath).doc(itemNameNormalized);
         const itemDoc = await itemRef.get();
 
@@ -192,8 +233,14 @@ export const aggregateItemsOnReceipt = functions
             ([, a], [, b]) => b - a,
           )[0][0] as 'USD' | 'CDF';
 
+          // Choose the best display name: prefer longer, more complete names
+          // This prevents "Yog" from overwriting "Yogurt" and vice versa
+          const existingName = existingData.name || '';
+          const newName = item.name || '';
+          const bestName = newName.length > existingName.length ? newName : existingName;
+
           batch.update(itemRef, {
-            name: item.name, // Update display name (keep latest)
+            name: bestName, // Use longest/most complete name
             prices: updatedPrices,
             minPrice,
             maxPrice,
@@ -553,6 +600,14 @@ export const getCityItems = functions
           }
 
           const cityItem = itemsMap.get(itemName)!;
+
+          // Update display name to use the longest/most complete version
+          // This ensures "Yogurt" is preferred over "Yog" across all users
+          const existingName = cityItem.name || '';
+          const newName = itemData.name || '';
+          if (newName.length > existingName.length) {
+            cityItem.name = newName;
+          }
 
           // Merge prices from this user (filter out invalid prices)
           const validPrices = itemData.prices.filter(p => p && typeof p.price === 'number');

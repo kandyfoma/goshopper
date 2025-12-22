@@ -216,12 +216,8 @@ export function ReceiptDetailScreen() {
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                // Fallback to main screen if no back stack
-                navigation.navigate('Main');
-              }
+              // Navigate to History page
+              navigation.navigate('History');
             }}
             activeOpacity={0.8}>
             <Icon name="arrow-left" size="sm" color={Colors.white} />
@@ -245,12 +241,8 @@ export function ReceiptDetailScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              // Fallback to main screen if no back stack
-              navigation.navigate('Main');
-            }
+            // Navigate to History page after viewing receipt details
+            navigation.navigate('History');
           }}>
           <Icon name="arrow-left" size="md" color={Colors.primary} />
         </TouchableOpacity>

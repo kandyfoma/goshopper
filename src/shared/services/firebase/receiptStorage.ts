@@ -6,6 +6,7 @@ import storage from '@react-native-firebase/storage';
 import {Receipt} from '@/shared/types';
 import {APP_ID, COLLECTIONS} from './config';
 import {authService} from './auth';
+import {convertCurrency} from '@/shared/utils/helpers';
 
 const RECEIPTS_COLLECTION = (userId: string) =>
   `artifacts/${APP_ID}/users/${userId}/receipts`;
@@ -93,6 +94,15 @@ class ReceiptStorageService {
    * Receipt is saved first (critical), shop update happens in background (non-critical)
    */
   async saveReceipt(receipt: Receipt, userId: string): Promise<string> {
+    // Ensure both USD and CDF amounts are set
+    if (receipt.currency === 'USD' && !receipt.totalCDF) {
+      receipt.totalUSD = receipt.total;
+      receipt.totalCDF = convertCurrency(receipt.total, 'USD', 'CDF');
+    } else if (receipt.currency === 'CDF' && !receipt.totalUSD) {
+      receipt.totalCDF = receipt.total;
+      receipt.totalUSD = convertCurrency(receipt.total, 'CDF', 'USD');
+    }
+
     // Save receipt FIRST (most important) - no batch to prevent data loss
     const receiptRef = firestore()
       .collection(RECEIPTS_COLLECTION(userId))
@@ -306,7 +316,12 @@ class ReceiptStorageService {
   }
 
   /**
-   * Delete a receipt and update shop stats
+   * Delete a receipt and clean up all related data
+   * - Deletes receipt document
+   * - Updates shop stats (decrements count/total)
+   * - Deletes shop if it's the only receipt
+   * - Removes receipt images from storage
+   * - Updates aggregated items (removes prices from this receipt)
    */
   async deleteReceipt(userId: string, receiptId: string): Promise<void> {
     const receipt = await this.getReceipt(userId, receiptId);
@@ -314,15 +329,18 @@ class ReceiptStorageService {
       return;
     }
 
+    console.log('🗑️ Deleting receipt:', receiptId);
+
     const batch = firestore().batch();
 
-    // Delete receipt
+    // 1. Delete receipt document
     const receiptRef = firestore()
       .collection(RECEIPTS_COLLECTION(userId))
       .doc(receiptId);
     batch.delete(receiptRef);
+    console.log('🗑️ Marked receipt for deletion');
 
-    // Update shop stats
+    // 2. Update or delete shop
     const shopId = receipt.storeNameNormalized;
     if (shopId) {
       const shopRef = firestore()
@@ -331,22 +349,160 @@ class ReceiptStorageService {
 
       const shopDoc = await shopRef.get();
       if (shopDoc.exists) {
-        const newCount = (shopDoc.data()?.receiptCount || 1) - 1;
+        const currentCount = shopDoc.data()?.receiptCount || 1;
+        const newCount = currentCount - 1;
 
         if (newCount <= 0) {
-          // Delete shop if no more receipts
+          // This is the only receipt from this shop - delete the shop
           batch.delete(shopRef);
+          console.log('🗑️ Deleting shop (no more receipts):', shopId);
         } else {
+          // Update shop stats
           batch.update(shopRef, {
             receiptCount: firestore.FieldValue.increment(-1),
             totalSpent: firestore.FieldValue.increment(-receipt.total),
             updatedAt: firestore.FieldValue.serverTimestamp(),
           });
+          console.log('🗑️ Updated shop stats:', shopId, 'new count:', newCount);
         }
       }
     }
 
+    // Commit batch operations
     await batch.commit();
+    console.log('🗑️ Batch committed');
+
+    // 3. Delete receipt images from storage (non-blocking)
+    this.deleteReceiptImages(userId, receiptId, receipt).catch(error => {
+      console.warn('🗑️ Failed to delete receipt images (non-critical):', error.message);
+    });
+
+    // 4. Update aggregated items - remove prices from this receipt (non-blocking)
+    this.updateAggregatedItemsAfterDelete(userId, receiptId, receipt).catch(error => {
+      console.warn('🗑️ Failed to update aggregated items (non-critical):', error.message);
+    });
+
+    console.log('🗑️ Receipt deletion complete');
+  }
+
+  /**
+   * Delete receipt images from storage
+   */
+  private async deleteReceiptImages(
+    userId: string,
+    receiptId: string,
+    receipt: Receipt
+  ): Promise<void> {
+    try {
+      const imagesToDelete: string[] = [];
+      
+      // Add single image URL
+      if (receipt.imageUrl) {
+        imagesToDelete.push(receipt.imageUrl);
+      }
+      
+      // Add multiple image URLs
+      if (receipt.imageUrls && receipt.imageUrls.length > 0) {
+        imagesToDelete.push(...receipt.imageUrls);
+      }
+      
+      // Add thumbnail URL
+      if (receipt.thumbnailUrl) {
+        imagesToDelete.push(receipt.thumbnailUrl);
+      }
+
+      // Delete all images
+      for (const imageUrl of imagesToDelete) {
+        try {
+          const ref = storage().refFromURL(imageUrl);
+          await ref.delete();
+          console.log('🗑️ Deleted image:', imageUrl);
+        } catch (error: any) {
+          // Ignore errors for individual images (might already be deleted)
+          if (error.code !== 'storage/object-not-found') {
+            console.warn('🗑️ Could not delete image:', imageUrl, error.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('🗑️ Error deleting receipt images:', error);
+    }
+  }
+
+  /**
+   * Update aggregated items after receipt deletion
+   * Removes price entries from this receipt and recalculates item stats
+   */
+  private async updateAggregatedItemsAfterDelete(
+    userId: string,
+    receiptId: string,
+    receipt: Receipt
+  ): Promise<void> {
+    try {
+      const itemsRef = firestore()
+        .collection(`artifacts/${APP_ID}/users/${userId}/items`);
+
+      const itemsSnapshot = await itemsRef.get();
+
+      if (itemsSnapshot.empty) {
+        console.log('🗑️ No aggregated items to update');
+        return;
+      }
+
+      const batch = firestore().batch();
+      let itemsUpdated = 0;
+
+      for (const itemDoc of itemsSnapshot.docs) {
+        const itemData = itemDoc.data();
+        const prices = itemData.prices || [];
+
+        // Filter out prices from this receipt
+        const updatedPrices = prices.filter(
+          (price: any) => price.receiptId !== receiptId
+        );
+
+        if (updatedPrices.length !== prices.length) {
+          if (updatedPrices.length === 0) {
+            // No prices left - delete the item
+            batch.delete(itemDoc.ref);
+            itemsUpdated++;
+            console.log('🗑️ Deleting item (no more prices):', itemDoc.id);
+          } else {
+            // Recalculate statistics
+            const priceValues = updatedPrices.map((p: any) => p.price);
+            const minPrice = Math.min(...priceValues);
+            const maxPrice = Math.max(...priceValues);
+            const avgPrice =
+              priceValues.reduce((sum: number, p: number) => sum + p, 0) /
+              priceValues.length;
+            const storeCount = new Set(
+              updatedPrices.map((p: any) => p.storeName)
+            ).size;
+            const lastPurchaseDate = updatedPrices[0]?.date || new Date();
+
+            batch.update(itemDoc.ref, {
+              prices: updatedPrices,
+              minPrice,
+              maxPrice,
+              avgPrice,
+              storeCount,
+              totalPurchases: updatedPrices.length,
+              lastPurchaseDate,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+            itemsUpdated++;
+            console.log('🗑️ Updated item stats:', itemDoc.id);
+          }
+        }
+      }
+
+      if (itemsUpdated > 0) {
+        await batch.commit();
+        console.log('🗑️ Updated', itemsUpdated, 'aggregated items');
+      }
+    } catch (error) {
+      console.error('🗑️ Error updating aggregated items:', error);
+    }
   }
 
   /**
