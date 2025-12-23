@@ -151,15 +151,19 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
 
     const data = await response.json();
     
-    console.log('🚀 Railway Payment Hub Response:', data);
+    console.log('🚀 Railway Payment Hub Response:', JSON.stringify(data, null, 2));
+    console.log('🔑 Transaction ID for polling:', data.transaction_id || data.reference);
     
     if (!response.ok) {
       throw new Error(data.error || 'Échec de l\'initiation du paiement');
     }
 
+    // Use reference as the transaction ID (this is what Railway generates and saves to Supabase)
+    const txId = data.transaction_id || data.reference;
+    
     return {
       success: true,
-      transaction_id: data.transaction_id,
+      transaction_id: txId,
       message: data.message || 'Payment initiated successfully',
       instructions: data.instructions || 'Please check your phone and enter your PIN to complete the payment.'
     };
@@ -175,30 +179,76 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
  */
 export const subscribeToPaymentStatus = (
   transactionId: string,
-  onStatusChange: (status: PaymentStatus, details?: any) => void
+  onStatusChange: (status: PaymentStatus, details?: any) => void,
+  onProgressUpdate?: (message: string, pollCount: number) => void
 ): (() => void) => {
   let pollInterval: ReturnType<typeof setInterval> | null = null;
   let isResolved = false;
+  let pollCount = 0;
+  const maxPolls = 120; // 10 minutes max (120 * 5 seconds)
+
+  // Progress messages based on elapsed time - more granular updates
+  const getProgressMessage = (count: number): string => {
+    const seconds = count * 5;
+    if (seconds < 10) return '📱 Vérifiez votre téléphone...';
+    if (seconds < 20) return '🔐 Entrez votre code PIN...';
+    if (seconds < 35) return '⏳ En attente de confirmation...';
+    if (seconds < 50) return '🔄 Traitement en cours...';
+    if (seconds < 70) return '📡 Communication avec l\'opérateur...';
+    if (seconds < 90) return '✅ Validation du paiement...';
+    if (seconds < 120) return '🔍 Vérification finale...';
+    const minutes = Math.floor(seconds / 60);
+    return `⏱️ Attente prolongée (${minutes}min)...`;
+  };
 
   // Poll Railway's status endpoint every 5 seconds
   console.log('🔄 Starting polling for transaction:', transactionId);
   
-  pollInterval = setInterval(async () => {
-    if (isResolved) return;
-    
-    try {
-      const result = await getPaymentStatus(transactionId);
-      console.log('📊 Poll result:', result);
+  // Initial delay to give Railway/FreshPay time to process
+  const startPolling = () => {
+    pollInterval = setInterval(async () => {
+      if (isResolved) return;
       
-      if (result && result.status !== 'PENDING') {
-        isResolved = true;
-        onStatusChange(result.status, result.details);
-        if (pollInterval) clearInterval(pollInterval);
+      pollCount++;
+      
+      // Update progress message
+      if (onProgressUpdate) {
+        onProgressUpdate(getProgressMessage(pollCount), pollCount);
       }
-    } catch (error) {
-      console.error('Polling error:', error);
-    }
-  }, 5000);
+      
+      // Stop polling after max attempts
+      if (pollCount >= maxPolls) {
+        console.log('⏱️ Polling timeout reached');
+        isResolved = true;
+        onStatusChange('FAILED', { error: 'Timeout - paiement non confirmé' });
+        if (pollInterval) clearInterval(pollInterval);
+        return;
+      }
+      
+      try {
+        const result = await getPaymentStatus(transactionId);
+        
+        // Only log every 6 polls (30 seconds) or when we get a result
+        if (result || pollCount % 6 === 0) {
+          console.log(`📊 Poll ${pollCount}: ${result ? result.status : 'Waiting...'}`);
+        }
+        
+        if (result && result.status !== 'PENDING') {
+          isResolved = true;
+          onStatusChange(result.status, result.details);
+          if (pollInterval) clearInterval(pollInterval);
+        }
+      } catch (error) {
+        // Only log significant errors, not expected waits
+        if (pollCount % 12 === 0) {
+          console.log(`⏳ Still waiting for confirmation (${pollCount * 5}s)...`);
+        }
+      }
+    }, 5000);
+  };
+  
+  // Start polling after 2 seconds
+  setTimeout(startPolling, 2000);
 
   // Return cleanup function
   return () => {
@@ -216,21 +266,23 @@ export const getPaymentStatus = async (transactionId: string): Promise<{
   details: any;
 } | null> => {
   try {
-    const response = await fetch(`${PAYMENT_STATUS_URL}/${transactionId}`);
+    const url = `${PAYMENT_STATUS_URL}/${transactionId}`;
+    const response = await fetch(url);
     
     if (!response.ok) {
-      console.error('Error fetching payment status:', response.status);
+      // 404 is expected while waiting for webhook, don't spam logs
       return null;
     }
 
     const data = await response.json();
+    console.log('✅ Payment status found:', data.status, 'for txId:', transactionId);
     
     return {
       status: data.status as PaymentStatus,
       details: data
     };
   } catch (error) {
-    console.error('Error in getPaymentStatus:', error);
+    // Suppress logging for network errors during polling
     return null;
   }
 };

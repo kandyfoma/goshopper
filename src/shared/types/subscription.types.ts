@@ -10,7 +10,7 @@ export type SubscriptionStatus =
   | 'cancelled'
   | 'pending'
   | 'expiring_soon';
-export type SubscriptionDuration = 1 | 3 | 6 | 12; // Months
+export type SubscriptionDuration = 1 | 3 | 6; // Months
 export type MobileMoneyProvider = 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
 export type PaymentMethodType = 'mobile_money' | 'card';
 export type PaymentProviderType = 'moko_afrika' | 'stripe';
@@ -133,14 +133,6 @@ export const SUBSCRIPTION_DURATIONS: DurationPricing[] = [
     label: '6 Months',
     labelFr: '6 Mois',
     discountPercent: 20,
-    badge: 'Save 20%',
-    badgeFr: '-20%',
-  },
-  {
-    months: 12,
-    label: '1 Year',
-    labelFr: '1 An',
-    discountPercent: 30,
     badge: 'Best Value',
     badgeFr: 'Meilleur prix',
   },
@@ -152,11 +144,11 @@ export const PLAN_PRICING: PlanPricing[] = [
     name: 'Essai Gratuit',
     priceUSD: 0,
     priceCDF: 0,
-    duration: '2 mois',
-    scanLimit: -1,
+    duration: '1 mois',
+    scanLimit: 15,
     features: [
-      '2 mois gratuits',
-      "Scans illimités pendant l'essai",
+      '1 mois gratuit',
+      "15 scans pendant l'essai",
       'Toutes les fonctionnalités premium',
     ],
   },

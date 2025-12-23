@@ -5,7 +5,7 @@ export const APP_NAME = 'GoShopper';
 export const APP_VERSION = '1.0.0';
 
 // Trial Configuration
-export const TRIAL_DURATION_DAYS = 60; // 2 months free trial
+export const TRIAL_DURATION_DAYS = 30; // 1 month free trial
 export const TRIAL_EXTENSION_DAYS = 30; // 1 month extension available
 export const TRIAL_SCAN_LIMIT = 50; // Limited scans during trial
 
@@ -44,13 +44,12 @@ export const SUBSCRIPTION_DURATIONS = {
   1: {label: '1 Month', labelFr: '1 Mois', discount: 0},
   3: {label: '3 Months', labelFr: '3 Mois', discount: 10},
   6: {label: '6 Months', labelFr: '6 Mois', discount: 20},
-  12: {label: '1 Year', labelFr: '1 An', discount: 30},
 } as const;
 
 // Calculate discounted price
 export const calculateDiscountedPrice = (
   basePrice: number,
-  months: 1 | 3 | 6 | 12,
+  months: 1 | 3 | 6,
 ): {total: number; monthly: number; savings: number} => {
   const duration = SUBSCRIPTION_DURATIONS[months];
   const originalTotal = basePrice * months;
@@ -86,11 +85,11 @@ export const SUBSCRIPTION_PLANS = {
     name: 'Essai Gratuit',
     price: 0,
     priceCDF: 0,
-    scanLimit: -1, // Unlimited during trial
-    trialDays: 60,
+    scanLimit: 15, // 15 scans during trial
+    trialDays: 30,
     features: [
-      '2 mois gratuits',
-      "Scans illimités pendant l'essai",
+      '1 mois gratuit',
+      "15 scans pendant l'essai",
       'Toutes les fonctionnalités premium',
     ],
   },

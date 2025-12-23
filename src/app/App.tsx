@@ -16,7 +16,8 @@ import {SubscriptionProvider} from '@/shared/contexts/SubscriptionContext';
 import {ThemeProvider} from '@/shared/contexts/ThemeContext';
 import {ToastProvider} from '@/shared/contexts/ToastContext';
 import {ScanProcessingProvider} from '@/shared/contexts/ScanProcessingContext';
-import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal} from '@/shared/components';
+import {PaymentProcessingProvider} from '@/shared/contexts/PaymentProcessingContext';
+import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner} from '@/shared/components';
 import {initializeFirebase} from '@/shared/services/firebase/config';
 import {analyticsService} from '@/shared/services';
 import {pushNotificationService} from '@/shared/services/firebase';
@@ -39,17 +40,20 @@ function NetworkAwareApp(): React.JSX.Element {
               <SubscriptionProvider>
                 <ToastProvider>
                   <ScanProcessingProvider>
-                    <NavigationContainer>
-                      <OfflineBanner />
-                      <GlobalScanProgressBanner />
-                      <StatusBar
-                        barStyle="dark-content"
-                        backgroundColor="#FFFFFF"
-                        translucent={false}
-                      />
-                      <RootNavigator />
-                      <GlobalScanResultModal />
-                    </NavigationContainer>
+                    <PaymentProcessingProvider>
+                      <NavigationContainer>
+                        <OfflineBanner />
+                        <GlobalScanProgressBanner />
+                        <GlobalPaymentProgressBanner />
+                        <StatusBar
+                          barStyle="dark-content"
+                          backgroundColor="#FFFFFF"
+                          translucent={false}
+                        />
+                        <RootNavigator />
+                        <GlobalScanResultModal />
+                      </NavigationContainer>
+                    </PaymentProcessingProvider>
                   </ScanProcessingProvider>
                 </ToastProvider>
               </SubscriptionProvider>

@@ -1,5 +1,5 @@
-// Subscription Screen - Modern Redesign with Clean UX
-import React, {useState, useEffect, useRef} from 'react';
+// Subscription Screen - Simplified Clean Design
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Animated,
-  Dimensions,
   Image,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -30,11 +28,8 @@ import {
   Typography,
   Spacing,
   BorderRadius,
-  Shadows,
 } from '@/shared/theme/theme';
 import {Icon, Spinner} from '@/shared/components';
-
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 type PlanId = 'freemium' | 'free' | 'basic' | 'standard' | 'premium';
 
@@ -129,26 +124,6 @@ export function SubscriptionScreen() {
   const [selectedDuration, setSelectedDuration] =
     useState<SubscriptionDuration>(1);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
-
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 100,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
 
   useEffect(() => {
     analyticsService.logScreenView('Subscription', 'SubscriptionScreen');
@@ -259,31 +234,17 @@ export function SubscriptionScreen() {
 
         {/* Trial Banner */}
         {isTrialActive && (
-          <Animated.View
-            style={[
-              styles.trialBanner,
-              {opacity: fadeAnim, transform: [{scale: scaleAnim}]},
-            ]}>
-            <View style={styles.trialIconContainer}>
-              <Icon name="gift" size="lg" color={Colors.white} />
-            </View>
-            <View style={styles.trialInfo}>
-              <Text style={styles.trialTitle}>Essai gratuit actif</Text>
-              <Text style={styles.trialDays}>
-                {trialDaysRemaining} jours restants
-              </Text>
-            </View>
-          </Animated.View>
+          <View style={styles.trialBanner}>
+            <Icon name="gift" size="md" color={Colors.status.success} />
+            <Text style={styles.trialTitle}>
+              Essai: {trialDaysRemaining}j restants
+            </Text>
+          </View>
         )}
 
-        {/* Plan Selection - Horizontal Cards */}
+        {/* Plan Selection */}
         <Text style={styles.sectionTitle}>Choisir un plan</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.plansScrollContent}
-          decelerationRate="fast"
-          snapToInterval={SCREEN_WIDTH * 0.75 + Spacing.md}>
+        <View style={styles.plansRow}>
           {plans.map(([id, plan]) => {
             const planId = id as PlanId;
             const isSelected = selectedPlan === planId;
@@ -291,100 +252,41 @@ export function SubscriptionScreen() {
             const isPopular = planId === 'standard';
 
             return (
-              <Animated.View
+              <TouchableOpacity
                 key={planId}
                 style={[
                   styles.planCard,
                   isSelected && styles.planCardSelected,
-                  {opacity: fadeAnim, transform: [{scale: scaleAnim}]},
-                ]}>
+                ]}
+                onPress={() => setSelectedPlan(planId)}
+                activeOpacity={0.8}>
                 {isPopular && (
                   <View style={styles.popularTag}>
-                    <Icon name="star" size="xs" color={Colors.white} />
-                    <Text style={styles.popularText}>Populaire</Text>
+                    <Text style={styles.popularText}>★</Text>
                   </View>
                 )}
-
-                <TouchableOpacity
-                  onPress={() => setSelectedPlan(planId)}
-                  activeOpacity={0.9}
-                  style={styles.planCardInner}>
-                  <View style={[
-                    styles.planIconContainer,
-                    isSelected && styles.planIconContainerSelected,
-                  ]}>
-                    <Icon
-                      name={
-                        planId === 'basic'
-                          ? 'zap'
-                          : planId === 'standard'
-                          ? 'crown'
-                          : 'diamond'
-                      }
-                      size="xl"
-                      color={isSelected ? Colors.white : Colors.primary}
-                    />
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.planName,
-                      isSelected && styles.planNameSelected,
-                    ]}>
-                    {plan.name}
-                  </Text>
-
-                  <View style={styles.planPriceRow}>
-                    <Text
-                      style={[
-                        styles.planPrice,
-                        isSelected && styles.planPriceSelected,
-                      ]}>
-                      {formatCurrency(plan.price)}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.planPeriod,
-                        isSelected && styles.planPeriodSelected,
-                      ]}>
-                      /mois
-                    </Text>
-                  </View>
-
-                  <View style={styles.planFeatures}>
-                    {PLAN_FEATURES[planId].slice(0, 3).map((feature, idx) => (
-                      <View key={idx} style={styles.planFeatureRow}>
-                        <Icon
-                          name={feature.icon}
-                          size="sm"
-                          color={
-                            isSelected
-                              ? 'rgba(255,255,255,0.8)'
-                              : Colors.text.tertiary
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.planFeatureText,
-                            isSelected && styles.planFeatureTextSelected,
-                          ]}>
-                          {feature.highlight}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {isCurrent && (
-                    <View style={styles.currentPlanBadge}>
-                      <Icon name="check" size="xs" color={Colors.white} />
-                      <Text style={styles.currentPlanText}>Plan actuel</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
+                <Text style={[
+                  styles.planName,
+                  isSelected && styles.planNameSelected,
+                ]}>
+                  {plan.name}
+                </Text>
+                <Text style={[
+                  styles.planPrice,
+                  isSelected && styles.planPriceSelected,
+                ]}>
+                  {formatCurrency(plan.price)}/mois
+                </Text>
+                <Text style={styles.planScans}>
+                  {planId === 'basic' ? '25' : planId === 'standard' ? '100' : '1000'} scans
+                </Text>
+                {isCurrent && (
+                  <Text style={styles.currentPlanText}>✓ Actuel</Text>
+                )}
+              </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
 
         {/* Duration Selection */}
         <Text style={styles.sectionTitle}>Durée</Text>
@@ -406,25 +308,17 @@ export function SubscriptionScreen() {
                 ]}
                 onPress={() => setSelectedDuration(duration.months)}
                 activeOpacity={0.8}>
-                {duration.discountPercent > 0 && (
-                  <View style={styles.durationDiscount}>
-                    <Text style={styles.durationDiscountText}>
-                      -{duration.discountPercent}%
-                    </Text>
-                  </View>
-                )}
-                <Text
-                  style={[
-                    styles.durationText,
-                    isSelected && styles.durationTextSelected,
-                  ]}>
+                <Text style={[
+                  styles.durationText,
+                  isSelected && styles.durationTextSelected,
+                ]}>
                   {duration.labelFr}
+                  {duration.discountPercent > 0 && ` (-${duration.discountPercent}%)`}
                 </Text>
-                <Text
-                  style={[
-                    styles.durationPrice,
-                    isSelected && styles.durationPriceSelected,
-                  ]}>
+                <Text style={[
+                  styles.durationPrice,
+                  isSelected && styles.durationPriceSelected,
+                ]}>
                   {formatCurrency(durationPricing.total)}
                 </Text>
               </TouchableOpacity>
@@ -432,88 +326,46 @@ export function SubscriptionScreen() {
           })}
         </View>
 
-        {/* Separator */}
-        <View style={styles.sectionSeparator} />
-
-        {/* Payment Methods Preview */}
-        <Text style={styles.sectionTitle}>Moyens de paiement</Text>
-        <View style={styles.paymentMethodsRow}>
+        {/* Payment Methods - Compact */}
+        <View style={styles.paymentRow}>
           {MOBILE_MONEY_OPTIONS.map(option => (
-            <View key={option.id} style={styles.paymentMethodItem}>
-              {option.logo && (
-                <Image
-                  source={option.logo}
-                  style={styles.paymentMethodLogo}
-                  resizeMode="contain"
-                />
-              )}
-            </View>
+            <Image
+              key={option.id}
+              source={option.logo}
+              style={styles.paymentLogo}
+              resizeMode="contain"
+            />
           ))}
         </View>
-        <Text style={styles.paymentMethodHint}>
-          Détection automatique du réseau lors du paiement
+
+        {/* Features - Simple List */}
+        <Text style={styles.sectionTitle}>
+          {SUBSCRIPTION_PLANS[selectedPlan]?.name} inclut:
         </Text>
-
-        {/* Separator */}
-        <View style={styles.sectionSeparator} />
-
-        {/* Features included */}
-        <View style={styles.featuresCard}>
-          <View style={styles.featuresHeader}>
-            <Icon name="check-circle" size="md" color={Colors.status.success} />
-            <Text style={styles.featuresTitle}>
-              Inclus dans {SUBSCRIPTION_PLANS[selectedPlan]?.name}
+        <View style={styles.featuresList}>
+          {PLAN_FEATURES[selectedPlan].map((feature, idx) => (
+            <Text key={idx} style={styles.featureText}>
+              ✓ {feature.highlight}
             </Text>
-          </View>
-          <View style={styles.featuresGrid}>
-            {PLAN_FEATURES[selectedPlan].map((feature, idx) => (
-              <View key={idx} style={styles.featureItem}>
-                <View style={styles.featureIconContainer}>
-                  <Icon name={feature.icon} size="sm" color={Colors.primary} />
-                </View>
-                <Text style={styles.featureText}>{feature.highlight}</Text>
-              </View>
-            ))}
-          </View>
+          ))}
         </View>
       </ScrollView>
 
       {/* Fixed Bottom CTA */}
-      <Animated.View
-        style={[
-          styles.bottomCTA,
-          {
-            paddingBottom: insets.bottom + Spacing.md,
-            opacity: fadeAnim,
-          },
-        ]}>
-        <View style={styles.ctaSummary}>
-          <Text style={styles.ctaPlan}>
-            {SUBSCRIPTION_PLANS[selectedPlan]?.name}
-          </Text>
-          <Text style={styles.ctaDuration}>
-            {
-              SUBSCRIPTION_DURATIONS.find(d => d.months === selectedDuration)
-                ?.labelFr
-            }
-          </Text>
-        </View>
-        <View style={styles.ctaPricing}>
+      <View style={[styles.bottomCTA, {paddingBottom: insets.bottom + Spacing.sm}]}>
+        <View style={styles.ctaInfo}>
           <Text style={styles.ctaTotal}>{formatCurrency(pricing.total)}</Text>
           {pricing.savings > 0 && (
-            <Text style={styles.ctaSavings}>
-              Économie: {formatCurrency(pricing.savings)}
-            </Text>
+            <Text style={styles.ctaSavings}>-{formatCurrency(pricing.savings)}</Text>
           )}
         </View>
         <TouchableOpacity
           style={styles.ctaButton}
           onPress={handleSubscribe}
           activeOpacity={0.9}>
-          <Text style={styles.ctaButtonText}>Continuer</Text>
-          <Icon name="arrow-right" size="sm" color={Colors.white} />
+          <Text style={styles.ctaButtonText}>Payer</Text>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -527,7 +379,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -540,237 +392,143 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.sm,
   },
   headerTitle: {
-    fontSize: Typography.fontSize['2xl'],
+    fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
   headerSpacer: {
-    width: 40,
+    width: 36,
   },
 
-  // Trial Banner
+  // Trial Banner - Simplified
   trialBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    marginBottom: Spacing.xl,
-    borderWidth: 2,
-    borderColor: Colors.status.success,
-    ...Shadows.sm,
-  },
-  trialIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  trialInfo: {
-    flex: 1,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   trialTitle: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  trialDays: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.medium,
     color: Colors.status.success,
   },
 
   // Section Title
   sectionTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
   },
 
-  // Plan Cards
-  plansScrollContent: {
-    paddingRight: Spacing.lg,
-    paddingBottom: Spacing.md,
+  // Plan Cards - Side by side
+  plansRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   planCard: {
-    width: SCREEN_WIDTH * 0.75,
+    flex: 1,
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius['2xl'],
-    marginRight: Spacing.md,
-    borderWidth: 2,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    borderWidth: 1,
     borderColor: Colors.border.light,
-    overflow: 'hidden',
-    ...Shadows.md,
   },
   planCardSelected: {
-    backgroundColor: Colors.white,
     borderColor: Colors.primary,
-    borderWidth: 3,
-  },
-  planCardInner: {
-    padding: Spacing.lg,
-    alignItems: 'center',
+    borderWidth: 2,
+    backgroundColor: Colors.card.cream,
   },
   popularTag: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
+    top: -6,
+    right: -6,
     backgroundColor: Colors.card.yellow,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderBottomLeftRadius: BorderRadius.lg,
-    gap: 4,
-    zIndex: 1,
-  },
-  popularText: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  planIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.background.primary,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.md,
   },
-  planIconContainerSelected: {
-    backgroundColor: Colors.card.cream,
+  popularText: {
+    fontSize: 10,
+    color: Colors.text.primary,
   },
   planName: {
-    fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
-    marginBottom: Spacing.xs,
   },
   planNameSelected: {
     color: Colors.primary,
   },
-  planPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.md,
-  },
   planPrice: {
-    fontSize: Typography.fontSize['3xl'],
+    fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.text.secondary,
   },
   planPriceSelected: {
     color: Colors.primary,
   },
-  planPeriod: {
-    fontSize: Typography.fontSize.md,
+  planScans: {
+    fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
-    marginLeft: 4,
-  },
-  planPeriodSelected: {
-    color: Colors.text.secondary,
-  },
-  planFeatures: {
-    width: '100%',
-    gap: Spacing.sm,
-  },
-  planFeatureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  planFeatureText: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
-  },
-  planFeatureTextSelected: {
-    color: Colors.primary,
-  },
-  currentPlanBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card.cream,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    marginTop: Spacing.md,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.status.success,
   },
   currentPlanText: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.bold,
+    fontFamily: Typography.fontFamily.medium,
     color: Colors.status.success,
+    marginTop: 2,
   },
 
-  // Duration Selection
+  // Duration Selection - Compact
   durationContainer: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
   },
   durationPill: {
     flex: 1,
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.border.light,
-    position: 'relative',
-    ...Shadows.sm,
   },
   durationPillSelected: {
     borderColor: Colors.primary,
+    borderWidth: 2,
     backgroundColor: Colors.card.cream,
   },
-  durationDiscount: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: Colors.card.yellow,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.status.success,
-  },
-  durationDiscountText: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.status.success,
-  },
   durationText: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
     color: Colors.text.secondary,
-    marginBottom: 2,
   },
   durationTextSelected: {
     color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   durationPrice: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
@@ -778,112 +536,47 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  // Payment Methods
-  paymentMethodsRow: {
+  // Payment Methods - Compact row
+  paymentRow: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  paymentMethodItem: {
-    width: 72,
-    height: 72,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.sm,
-  },
-  paymentMethodLogo: {
-    width: 56,
-    height: 56,
-  },
-  paymentMethodHint: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
-    marginBottom: Spacing.xl,
-  },
-  sectionSeparator: {
-    height: 1,
-    backgroundColor: Colors.border.light,
-    marginVertical: Spacing.xl,
-  },
-
-  // Features Card
-  featuresCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius['2xl'],
-    padding: Spacing.lg,
-    ...Shadows.sm,
-  },
-  featuresHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  featuresTitle: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+  paymentLogo: {
+    width: 40,
+    height: 40,
   },
-  featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '48%',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  featureIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.background.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  // Features - Simple list
+  featuresList: {
+    marginBottom: Spacing.md,
   },
   featureText: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
-    flex: 1,
+    paddingVertical: 2,
   },
 
-  // Bottom CTA
+  // Bottom CTA - Compact
   bottomCTA: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius['2xl'],
-    borderTopRightRadius: BorderRadius['2xl'],
-    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.light,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Shadows.lg,
+    justifyContent: 'space-between',
   },
-  ctaSummary: {
-    flex: 1,
-  },
-  ctaPlan: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  ctaDuration: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
-  },
-  ctaPricing: {
-    alignItems: 'flex-end',
-    marginRight: Spacing.md,
+  ctaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   ctaTotal: {
     fontSize: Typography.fontSize.xl,
@@ -896,13 +589,10 @@ const styles = StyleSheet.create({
     color: Colors.status.success,
   },
   ctaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
   },
   ctaButtonText: {
     fontSize: Typography.fontSize.md,

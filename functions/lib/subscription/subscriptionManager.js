@@ -46,7 +46,7 @@ const db = admin.firestore();
 // Default exchange rate fallback (updated Dec 2025)
 const DEFAULT_EXCHANGE_RATE = 2700; // 1 USD = 2,700 CDF
 // Trial configuration
-const TRIAL_DURATION_DAYS = 60; // 2 months
+const TRIAL_DURATION_DAYS = 30; // 1 month
 const TRIAL_EXTENSION_DAYS = 30; // 1 month extension
 const GRACE_PERIOD_DAYS = 7; // 7 days to use remaining scans after expiration
 const PLAN_SCAN_LIMITS = {
@@ -79,7 +79,6 @@ const DURATION_DISCOUNTS = {
     1: 0, // No discount for monthly
     3: 10, // 10% discount for 3 months
     6: 20, // 20% discount for 6 months
-    12: 30, // 30% discount for 1 year
 };
 // Base monthly prices per plan (USD)
 const BASE_PRICES = {
@@ -150,7 +149,7 @@ exports.getSubscriptionStatus = functions
             const initialSubscription = {
                 userId,
                 trialScansUsed: 0,
-                trialScansLimit: 50, // Limited scans during trial
+                trialScansLimit: 15, // Limited scans during trial
                 trialStartDate: now,
                 trialEndDate: trialEndDate,
                 trialExtended: false,
@@ -172,7 +171,7 @@ exports.getSubscriptionStatus = functions
             return {
                 ...initialSubscription,
                 canScan: true,
-                scansRemaining: 50, // Trial limit
+                scansRemaining: 15, // Trial limit
                 isTrialActive: true,
                 trialDaysRemaining: TRIAL_DURATION_DAYS,
             };
@@ -237,7 +236,7 @@ exports.getSubscriptionStatus = functions
         let canScan = false;
         let scansRemaining = 0;
         if (trialActive) {
-            const trialLimit = PLAN_SCAN_LIMITS.free || 50;
+            const trialLimit = subscription.trialScansLimit || 15;
             const trialUsed = subscription.trialScansUsed || 0;
             scansRemaining = Math.max(0, trialLimit - trialUsed);
             canScan = scansRemaining > 0;
@@ -736,19 +735,15 @@ exports.getSubscriptionPricing = functions
     if (!validPlans.includes(planId)) {
         throw new functions.https.HttpsError('invalid-argument', 'Invalid plan');
     }
-    const durations = [1, 3, 6, 12];
+    const durations = [1, 3, 6];
     const pricing = durations.map(duration => ({
         duration,
         label: duration === 1
             ? '1 Month'
-            : duration === 12
-                ? '1 Year'
-                : `${duration} Months`,
+            : `${duration} Months`,
         labelFr: duration === 1
             ? '1 Mois'
-            : duration === 12
-                ? '1 An'
-                : `${duration} Mois`,
+            : `${duration} Mois`,
         ...calculateSubscriptionPrice(planId, duration),
     }));
     return {

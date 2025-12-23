@@ -76,3 +76,6 @@ export {OfflineBanner, OfflineIndicator} from './OfflineBanner';
 // Global Scan Processing Components
 export {GlobalScanProgressBanner} from './GlobalScanProgressBanner';
 export {GlobalScanResultModal} from './GlobalScanResultModal';
+
+// Global Payment Processing Components
+export {GlobalPaymentProgressBanner} from './GlobalPaymentProgressBanner';

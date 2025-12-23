@@ -71,7 +71,7 @@ export interface Subscription {
     | 'expiring_soon'
     | 'grace'
     | 'freemium';
-  durationMonths?: 1 | 3 | 6 | 12;
+  durationMonths?: 1 | 3 | 6;
   gracePeriodEnd?: Date;
 
   // Billing

@@ -14,17 +14,15 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import functions from '@react-native-firebase/functions';
-import {pushNotificationService} from '@/shared/services/firebase';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth, useUser} from '@/shared/contexts';
+import {useAuth, useUser, useToast} from '@/shared/contexts';
+import {usePaymentProcessing} from '@/shared/contexts/PaymentProcessingContext';
 import {
   mokoPaymentService,
   MobileMoneyProvider,
-  PaymentStatus,
 } from '@/shared/services/payment';
 import {
   Colors,
@@ -44,6 +42,8 @@ export function MokoPaymentScreen() {
   const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const {profile} = useUser();
+  const {showToast} = useToast();
+  const {startPayment} = usePaymentProcessing();
 
   const {amount, planId, planName} = route.params;
 
@@ -52,12 +52,7 @@ export function MokoPaymentScreen() {
   const [useRegisteredPhone, setUseRegisteredPhone] = useState(true);
   const [provider, setProvider] = useState<MobileMoneyProvider | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transactionId, setTransactionId] = useState<string | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('PENDING');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [waitingForPin, setWaitingForPin] = useState(false);
-  const [statusCheckCount, setStatusCheckCount] = useState(0);
 
   // Pre-fill phone number from profile on mount
   useEffect(() => {
@@ -99,104 +94,6 @@ export function MokoPaymentScreen() {
     }
   }, [phoneNumber]);
 
-  // Subscribe to payment status updates
-  useEffect(() => {
-    if (!transactionId) return;
-
-    console.log('🔔 Subscribing to payment status for:', transactionId);
-    setWaitingForPin(true);
-    
-    const unsubscribe = mokoPaymentService.subscribeToPaymentStatus(
-      transactionId,
-      async (status, details) => {
-        console.log('💳 Payment status update:', status, details);
-        setPaymentStatus(status);
-        setStatusCheckCount(prev => prev + 1);
-
-        if (status === 'SUCCESS') {
-          setWaitingForPin(false);
-          setIsProcessing(true);
-          
-          try {
-            console.log('✅ Payment successful, activating subscription via Firebase...');
-            
-            // Call Firebase function to activate subscription
-            const activateSubscription = functions().httpsCallable('activateSubscriptionFromRailway');
-            const result = await activateSubscription({
-              planId: planId,
-              transactionId: transactionId,
-              amount: amount,
-              phoneNumber: phoneNumber,
-              currency: 'USD',
-            });
-            
-            console.log('🎉 Subscription activation result:', result.data);
-            setIsProcessing(false);
-            
-            // Show success notification
-            Alert.alert(
-              'Paiement Réussi! 🎉',
-              `Votre abonnement ${planName} a été activé avec succès.\n\nMerci pour votre confiance!`,
-              [
-                {
-                  text: 'Voir Mon Abonnement',
-                  onPress: () => navigation.navigate('Subscription')
-                }
-              ]
-            );
-
-            // Send push notification
-            await pushNotificationService.triggerAchievementNotification(
-              `Abonnement ${planName} Activé! 🎉`
-            );
-            
-          } catch (error: any) {
-            console.error('Error activating subscription:', error);
-            setIsProcessing(false);
-            
-            // Payment succeeded but subscription activation failed
-            Alert.alert(
-              'Paiement Réussi',
-              'Votre paiement a été traité avec succès, mais l\'activation de l\'abonnement a échoué. Veuillez contacter le support avec votre numéro de transaction: ' + transactionId,
-              [
-                {
-                  text: 'OK',
-                  onPress: () => navigation.navigate('Subscription')
-                }
-              ]
-            );
-          }
-        } else if (status === 'FAILED') {
-          setWaitingForPin(false);
-          Alert.alert(
-            'Paiement Échoué ❌',
-            'Le paiement n\'a pas pu être traité.\n\nCauses possibles:\n• Solde insuffisant\n• Code PIN incorrect\n• Transaction annulée',
-            [
-              {
-                text: 'Réessayer',
-                onPress: () => {
-                  setTransactionId(null);
-                  setPaymentStatus('PENDING');
-                  setIsProcessing(false);
-                  setPaymentInitiated(false);
-                  setStatusCheckCount(0);
-                  setVisible(true); // Show modal again for retry
-                }
-              },
-              {
-                text: 'Annuler',
-                style: 'cancel',
-                onPress: () => navigation.goBack()
-              }
-            ]
-          );
-        }
-      }
-    );
-
-    return unsubscribe;
-  }, [transactionId, planId, planName]);
-
   const handlePayment = async () => {
     if (!user?.uid) {
       Alert.alert('Erreur', 'Vous devez être connecté pour effectuer un paiement');
@@ -228,22 +125,27 @@ export function MokoPaymentScreen() {
       });
 
       console.log('✅ Payment initiated successfully:', response);
-      setTransactionId(response.transaction_id);
-      setPaymentInitiated(true);
-      setWaitingForPin(true);
       
-      // Don't close modal - show waiting state instead
-      // Show "check phone" notification with better UX
-      Alert.alert(
-        '📱 Demande de Paiement Envoyée!',
-        `Un code de paiement de $${amount} USD a été envoyé à ${phoneNumber}.\n\n⏳ Vous avez 2 minutes pour entrer votre code PIN sur votre téléphone.`,
-        [
-          {
-            text: 'J\'ai Entré Mon PIN',
-            style: 'default'
-          }
-        ]
-      );
+      // Start the payment processing context (handles polling + subscription activation)
+      startPayment({
+        transactionId: response.transaction_id,
+        amount: amount,
+        phoneNumber: phoneNumber,
+        planId: planId,
+        planName: planName,
+      });
+      
+      // Show toast
+      showToast(`Entrez votre code PIN sur ${phoneNumber}`, 'info', 4000);
+      
+      // Close modal and navigate to dashboard
+      setVisible(false);
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Dashboard' } }],
+        });
+      }, 300);
       
     } catch (error: any) {
       console.error('❌ Payment initiation failed:', error);
@@ -295,7 +197,7 @@ export function MokoPaymentScreen() {
             <View style={styles.headerTop}>
               <View style={styles.headerContent}>
                 <Text style={styles.headerTitle}>Paiement Mobile Money</Text>
-                <Text style={styles.headerSubtitle}>{planName}</Text>
+                <Text style={styles.headerSubtitle}>{planName} - ${amount.toFixed(2)} USD</Text>
               </View>
               <TouchableOpacity
                 style={styles.closeButton}
@@ -311,30 +213,18 @@ export function MokoPaymentScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}>
             
-            {/* Payment Summary */}
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Montant à payer</Text>
-                <Text style={styles.summaryAmount}>${amount.toFixed(2)} USD</Text>
-              </View>
-            </View>
-
             {/* Phone Number Selection */}
             {profile?.phoneNumber && (
               <View style={styles.phoneSelectionContainer}>
                 <TouchableOpacity
+                  activeOpacity={0.7}
                   style={[
                     styles.phoneOptionButton,
                     useRegisteredPhone && styles.phoneOptionButtonActive
                   ]}
                   onPress={() => setUseRegisteredPhone(true)}
-                  disabled={isProcessing || !!transactionId}>
+                  disabled={isProcessing}>
                   <View style={styles.phoneOptionContent}>
-                    <Icon 
-                      name={useRegisteredPhone ? 'check-circle' : 'circle'} 
-                      size="md" 
-                      color={useRegisteredPhone ? Colors.primary : Colors.text.tertiary} 
-                    />
                     <View style={styles.phoneOptionText}>
                       <Text style={[
                         styles.phoneOptionLabel,
@@ -348,18 +238,14 @@ export function MokoPaymentScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  activeOpacity={0.7}
                   style={[
                     styles.phoneOptionButton,
                     !useRegisteredPhone && styles.phoneOptionButtonActive
                   ]}
                   onPress={() => setUseRegisteredPhone(false)}
-                  disabled={isProcessing || !!transactionId}>
+                  disabled={isProcessing}>
                   <View style={styles.phoneOptionContent}>
-                    <Icon 
-                      name={!useRegisteredPhone ? 'check-circle' : 'circle'} 
-                      size="md" 
-                      color={!useRegisteredPhone ? Colors.primary : Colors.text.tertiary} 
-                    />
                     <Text style={[
                       styles.phoneOptionLabel,
                       !useRegisteredPhone && styles.phoneOptionLabelActive
@@ -388,7 +274,7 @@ export function MokoPaymentScreen() {
                     placeholderTextColor={Colors.text.tertiary}
                     keyboardType="phone-pad"
                     maxLength={12}
-                    editable={!isProcessing && !transactionId}
+                    editable={!isProcessing}
                   />
                 </View>
                 <Text style={styles.inputHint}>
@@ -397,57 +283,8 @@ export function MokoPaymentScreen() {
               </View>
             )}
 
-            {/* Show provider detection even when using registered phone */}
-            {useRegisteredPhone && profile?.phoneNumber && provider && (
-              <View style={styles.providerDetectedCard}>
-                <Icon name="check-circle" size="sm" color={Colors.status.success} />
-                <Text style={styles.providerDetectedText}>
-                  Opérateur détecté: {getProviderDisplayName()}
-                </Text>
-              </View>
-            )}
-
-            {/* Payment Status */}
-            {transactionId && (
-              <View style={styles.statusCard}>
-                {paymentStatus === 'PENDING' && (
-                  <View style={styles.statusContent}>
-                    <View style={styles.statusIconContainer}>
-                      <Icon name="clock" size="xl" color={Colors.status.warning} />
-                    </View>
-                    <Text style={styles.statusTitle}>En attente...</Text>
-                    <Text style={styles.statusText}>
-                      Vérifiez votre téléphone et entrez votre code PIN
-                    </Text>
-                  </View>
-                )}
-                {paymentStatus === 'SUCCESS' && (
-                  <View style={styles.statusContent}>
-                    <View style={styles.statusIconContainer}>
-                      <Icon name="check-circle" size="xl" color={Colors.status.success} />
-                    </View>
-                    <Text style={styles.statusTitle}>Paiement réussi! 🎉</Text>
-                    <Text style={styles.statusText}>
-                      Votre abonnement a été activé
-                    </Text>
-                  </View>
-                )}
-                {paymentStatus === 'FAILED' && (
-                  <View style={styles.statusContent}>
-                    <View style={styles.statusIconContainer}>
-                      <Icon name="x-circle" size="xl" color={Colors.status.error} />
-                    </View>
-                    <Text style={styles.statusTitle}>Paiement échoué</Text>
-                    <Text style={styles.statusText}>
-                      Veuillez réessayer
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
             {/* Instructions */}
-            {provider && !transactionId && (
+            {provider && (
               <View style={styles.instructionsCard}>
                 <Text style={styles.instructionsTitle}>
                   Instructions de paiement
@@ -463,54 +300,24 @@ export function MokoPaymentScreen() {
           </ScrollView>
 
           {/* Payment Button */}
-          {!transactionId && (
-            <View style={styles.buttonContainer}>
-              <Button
-                title={
-                  provider
-                    ? `Valide ✓ ${getProviderDisplayName()}`
-                    : 'Entrez votre numéro'
-                }
-                onPress={handlePayment}
-                disabled={!provider || isProcessing}
-                loading={isProcessing}
-                variant="primary"
-                size="lg"
-                fullWidth
-              />
-              <Text style={styles.securityText}>
-                🔒 Paiement sécurisé via FreshPay PayDRC
-              </Text>
-            </View>
-          )}
-
-          {/* Waiting for PIN State */}
-          {waitingForPin && transactionId && (
-            <View style={styles.waitingContainer}>
-              <View style={styles.waitingCard}>
-                <Text style={styles.waitingEmoji}>📱</Text>
-                <Text style={styles.waitingTitle}>En attente de confirmation</Text>
-                <Text style={styles.waitingText}>
-                  Veuillez entrer votre code PIN sur votre téléphone pour confirmer le paiement de ${amount.toFixed(2)} USD
-                </Text>
-                <View style={styles.waitingDots}>
-                  <Text style={styles.waitingDotsText}>⏳ Vérification en cours...</Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setTransactionId(null);
-                    setPaymentStatus('PENDING');
-                    setIsProcessing(false);
-                    setPaymentInitiated(false);
-                    setWaitingForPin(false);
-                    setStatusCheckCount(0);
-                  }}>
-                  <Text style={styles.cancelButtonText}>Annuler</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          <View style={styles.buttonContainer}>
+            <Button
+              title={
+                provider
+                  ? `Valide ✓ ${getProviderDisplayName()}`
+                  : 'Entrez votre numéro'
+              }
+              onPress={handlePayment}
+              disabled={!provider || isProcessing}
+              loading={isProcessing}
+              variant="primary"
+              size="lg"
+              fullWidth
+            />
+            <Text style={styles.securityText}>
+              🔒 Paiement sécurisé via FreshPay PayDRC
+            </Text>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </RNModal>
@@ -651,10 +458,12 @@ const styles = StyleSheet.create({
 
   // Phone Selection
   phoneSelectionContainer: {
+    flexDirection: 'row',
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
   },
   phoneOptionButton: {
+    flex: 1,
     backgroundColor: Colors.background.primary,
     borderWidth: 1.5,
     borderColor: Colors.border.light,
@@ -662,7 +471,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   phoneOptionButtonActive: {
-    borderColor: Colors.primary,
+    borderColor: '#003049',
     backgroundColor: '#F0F9FF',
   },
   phoneOptionContent: {
@@ -680,7 +489,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   phoneOptionLabelActive: {
-    color: Colors.primary,
+    color: '#780000',
     fontFamily: Typography.fontFamily.semiBold,
   },
   phoneOptionNumber: {
@@ -713,7 +522,7 @@ const styles = StyleSheet.create({
   instructionsTitle: {
     fontSize: Typography.fontSize.base,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.white,
     marginBottom: Spacing.md,
   },
   instructionRow: {
@@ -722,7 +531,7 @@ const styles = StyleSheet.create({
   },
   instructionBullet: {
     fontSize: Typography.fontSize.base,
-    color: Colors.primary,
+    color: Colors.white,
     marginRight: Spacing.sm,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -730,7 +539,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.white,
     lineHeight: 20,
   },
 
