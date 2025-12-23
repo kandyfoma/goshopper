@@ -29,6 +29,7 @@ import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription} from '@/shared/contexts';
 import {hasFeatureAccess, showUpgradePrompt} from '@/shared/utils/featureAccess';
 import {analyticsService} from '@/shared/services/analytics';
+import {cacheManager, CacheTTL} from '@/shared/services/caching';
 import {RootStackParamList} from '@/shared/types';
 
 // City/Community item data (Tier 3: Community Prices - Anonymous)
@@ -64,6 +65,7 @@ export function CityItemsScreen() {
   const [filteredItems, setFilteredItems] = useState<CityItemData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -145,11 +147,27 @@ export function CityItemsScreen() {
       return;
     }
 
-    console.log('📡 Calling getCityItems for city:', userProfile.defaultCity);
+    const city = userProfile.defaultCity;
+    const cacheKey = `city-items-${city}`;
+
+    // Try cache first
+    try {
+      const cachedData = await cacheManager.get<CityItemData[]>(cacheKey, 'receipts');
+      if (cachedData && cachedData.length > 0) {
+        console.log('✅ Loaded city items from cache:', cachedData.length);
+        setItems(cachedData);
+        setIsLoading(false);
+        return;
+      }
+    } catch (cacheError) {
+      console.log('⚠️ Cache read failed:', cacheError);
+    }
+
+    console.log('📡 Calling getCityItems for city:', city);
     try {
       const functionsInstance = firebase.app().functions('europe-west1');
       const result = await functionsInstance.httpsCallable('getCityItems')({
-        city: userProfile.defaultCity,
+        city,
       });
 
       console.log('✅ getCityItems result:', result);
@@ -167,6 +185,18 @@ export function CityItemsScreen() {
           ); // Sort by total purchases
           console.log('📦 Setting items:', itemsArray.length);
           setItems(itemsArray);
+
+          // Cache the data
+          try {
+            await cacheManager.set(cacheKey, itemsArray, {
+              namespace: 'receipts',
+              ttl: CacheTTL.DAY, // Cache for 24 hours
+              priority: 'high',
+            });
+            console.log('💾 Cached city items for city:', city);
+          } catch (cacheError) {
+            console.log('⚠️ Failed to cache city items:', cacheError);
+          }
         } else {
           console.log('ℹ️ No items available for this city yet');
           setItems([]);
@@ -266,37 +296,43 @@ export function CityItemsScreen() {
   };
 
   const filterItems = () => {
-    let filtered: CityItemData[];
+    setIsSearching(true);
     
-    if (!searchQuery.trim()) {
-      filtered = items;
-    } else {
-      // Simple, direct search
-      filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+    // Use setTimeout to allow UI to update with loading state
+    setTimeout(() => {
+      let filtered: CityItemData[];
       
-      // Log search for analytics
-      analyticsService.logCustomEvent('city_items_search', {
-        query: searchQuery,
-        results_count: filtered.length,
-      });
-    }
-    
-    // Apply sorting
-    const sorted = [...filtered];
-    switch (sortBy) {
-      case 'name':
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'price':
-        sorted.sort((a, b) => a.minPrice - b.minPrice);
-        break;
-      case 'popular':
-      default:
-        sorted.sort((a, b) => b.prices.length - a.prices.length);
-        break;
-    }
-    
-    setFilteredItems(sorted);
+      if (!searchQuery.trim()) {
+        filtered = items;
+      } else {
+        // Simple, direct search
+        filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+        
+        // Log search for analytics
+        analyticsService.logCustomEvent('city_items_search', {
+          query: searchQuery,
+          results_count: filtered.length,
+        });
+      }
+      
+      // Apply sorting
+      const sorted = [...filtered];
+      switch (sortBy) {
+        case 'name':
+          sorted.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        case 'price':
+          sorted.sort((a, b) => a.minPrice - b.minPrice);
+          break;
+        case 'popular':
+        default:
+          sorted.sort((a, b) => b.prices.length - a.prices.length);
+          break;
+      }
+      
+      setFilteredItems(sorted);
+      setIsSearching(false);
+    }, 0);
   };
 
   const renderItem = ({item, index}: {item: CityItemData; index: number}) => {
@@ -633,25 +669,32 @@ export function CityItemsScreen() {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconWrapper}>
-              <Icon
-                name={searchQuery ? 'search' : 'users'}
-                size="xl"
-                color={Colors.text.tertiary}
-              />
+          isSearching ? (
+            <View style={styles.emptyContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Recherche...</Text>
             </View>
-            <Text style={styles.emptyTitle}>
-              {searchQuery
-                ? 'Aucun article trouvé'
-                : 'Aucun article communautaire'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {searchQuery
-                ? 'Essayez un autre terme de recherche'
-                : "Les articles de votre communauté apparaîtront ici une fois que d'autres utilisateurs auront scanné leurs reçus."}
-            </Text>
-          </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconWrapper}>
+                <Icon
+                  name={searchQuery ? 'search' : 'users'}
+                  size="xl"
+                  color={Colors.text.tertiary}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {searchQuery
+                  ? 'Aucun article trouvé'
+                  : 'Aucun article communautaire'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {searchQuery
+                  ? 'Essayez un autre terme de recherche'
+                  : "Les articles de votre communauté apparaîtront ici une fois que d'autres utilisateurs auront scanné leurs reçus."}
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>

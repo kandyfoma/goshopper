@@ -480,3 +480,90 @@ async function activateSubscription(
 
   console.log(`Subscription activated for user ${userId}, plan: ${planId}`);
 }
+
+/**
+ * Activate subscription from Railway Payment Hub
+ * Called by GoShopper after Supabase confirms payment success
+ */
+export const activateSubscriptionFromRailway = functions.https.onCall(
+  async (data, context) => {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'User must be authenticated'
+      );
+    }
+
+    const userId = context.auth.uid;
+    const {planId, transactionId, amount, phoneNumber, currency = 'USD'} = data;
+
+    if (!planId || !transactionId || !amount || !phoneNumber) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Missing required fields: planId, transactionId, amount, phoneNumber'
+      );
+    }
+
+    // Validate plan ID
+    if (!['basic', 'premium'].includes(planId)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Invalid plan ID. Must be "basic" or "premium"'
+      );
+    }
+
+    try {
+      console.log(`🎯 Activating subscription for user ${userId}, plan: ${planId}, transaction: ${transactionId}`);
+
+      const now = new Date();
+      
+      // Create payment record
+      const paymentRecord: PaymentRecord = {
+        userId,
+        planId,
+        amount,
+        currency,
+        phoneNumber,
+        provider: 'freshpay',
+        transactionId,
+        mokoReference: transactionId,
+        status: 'completed',
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Store payment record in Firestore (convert to Timestamps for storage)
+      const paymentRef = db.collection('payments').doc(transactionId);
+      await paymentRef.set({
+        ...paymentRecord,
+        completedAt: admin.firestore.Timestamp.fromDate(now),
+        createdAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: admin.firestore.Timestamp.fromDate(now),
+      });
+
+      // Activate subscription
+      await activateSubscription(userId, planId as 'basic' | 'premium', paymentRecord);
+
+      // Send success notification
+      await sendPaymentSuccessNotification(userId, planId, amount, currency);
+
+      console.log(`✅ Subscription activated successfully for user ${userId}`);
+
+      return {
+        success: true,
+        message: 'Subscription activated successfully',
+        planId,
+        transactionId,
+      };
+    } catch (error: any) {
+      console.error('Subscription activation error:', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        error.message || 'Failed to activate subscription'
+      );
+    }
+  }
+);
+

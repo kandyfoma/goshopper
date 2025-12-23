@@ -76,6 +76,14 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
           trialLimit - (subscription.trialScansUsed || 0),
         );
         canScan = scansRemaining > 0;
+      } else if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
+        // Freemium tier - auto-assigned when no active subscription
+        const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
+        scansRemaining = Math.max(
+          0,
+          freemiumLimit - (subscription.monthlyScansUsed || 0),
+        );
+        canScan = scansRemaining > 0;
       } else if (subscription.status === 'grace') {
         // Grace period - keep using remaining scans from expired plan
         const planLimit =

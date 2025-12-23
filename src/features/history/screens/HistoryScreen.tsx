@@ -45,6 +45,7 @@ export function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'price'>('date');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -277,41 +278,47 @@ export function HistoryScreen() {
   }, []);
 
   useEffect(() => {
-    let filtered = filterReceiptsByTab(receipts, tabs[activeTab].value);
+    setIsSearching(true);
     
-    if (searchQuery.trim() !== '') {
-      // Normalize function: lowercase + remove accents
-      const normalize = (str: string) => 
-        str.toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .trim();
+    // Use setTimeout to allow UI to update with loading state
+    setTimeout(() => {
+      let filtered = filterReceiptsByTab(receipts, tabs[activeTab].value);
       
-      const query = normalize(searchQuery);
-      filtered = filtered.filter(r => {
-        const storeName = normalize(r.storeName || '');
-        const storeAddress = normalize(r.storeAddress || '');
+      if (searchQuery.trim() !== '') {
+        // Normalize function: lowercase + remove accents
+        const normalize = (str: string) => 
+          str.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
         
-        // Check if query is in store name or address
-        if (storeName.includes(query) || storeAddress.includes(query)) {
-          return true;
-        }
-        
-        // Check if any word starts with query
-        const storeWords = storeName.split(/\s+/);
-        for (const word of storeWords) {
-          if (word.startsWith(query) || query.startsWith(word)) {
+        const query = normalize(searchQuery);
+        filtered = filtered.filter(r => {
+          const storeName = normalize(r.storeName || '');
+          const storeAddress = normalize(r.storeAddress || '');
+          
+          // Check if query is in store name or address
+          if (storeName.includes(query) || storeAddress.includes(query)) {
             return true;
           }
-        }
-        
-        return false;
-      });
-    }
-    
-    // Apply sorting
-    filtered = sortReceipts(filtered, sortBy);
-    setFilteredReceipts(filtered);
+          
+          // Check if any word starts with query
+          const storeWords = storeName.split(/\s+/);
+          for (const word of storeWords) {
+            if (word.startsWith(query) || query.startsWith(word)) {
+              return true;
+            }
+          }
+          
+          return false;
+        });
+      }
+      
+      // Apply sorting
+      filtered = sortReceipts(filtered, sortBy);
+      setFilteredReceipts(filtered);
+      setIsSearching(false);
+    }, 0);
   }, [searchQuery, receipts, activeTab, tabs, filterReceiptsByTab, sortReceipts, sortBy]);
 
   const handleReceiptPress = (receiptId: string, receipt: Receipt) => {
@@ -453,19 +460,30 @@ export function HistoryScreen() {
     );
   };
 
-  const renderEmptyState = () => (
-    <EmptyState
-      icon="receipt"
-      title={searchQuery ? 'Aucun résultat' : 'Pas encore de factures'}
-      description={
-        searchQuery
-          ? "Essayez avec d'autres termes de recherche"
-          : 'Scannez votre première facture pour commencer à suivre vos dépenses'
-      }
-      actionLabel={!searchQuery ? 'Scanner une facture' : undefined}
-      onAction={!searchQuery ? () => navigation.navigate('Scanner') : undefined}
-    />
-  );
+  const renderEmptyState = () => {
+    if (isSearching) {
+      return (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Recherche...</Text>
+        </View>
+      );
+    }
+    
+    return (
+      <EmptyState
+        icon="receipt"
+        title={searchQuery ? 'Aucun résultat' : 'Pas encore de factures'}
+        description={
+          searchQuery
+            ? "Essayez avec d'autres termes de recherche"
+            : 'Scannez votre première facture pour commencer à suivre vos dépenses'
+        }
+        actionLabel={!searchQuery ? 'Scanner une facture' : undefined}
+        onAction={!searchQuery ? () => navigation.navigate('Scanner') : undefined}
+      />
+    );
+  };
 
   if (isLoading) {
     return (

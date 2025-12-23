@@ -1,4 +1,4 @@
-// Shopping List Detail Screen - Single list view with full CRUD
+// Shopping List Detail Screen - Modern list view with full CRUD
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
@@ -11,10 +11,11 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
+import {useNavigation, useRoute, RouteProp, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {firebase} from '@react-native-firebase/functions';
 import {RootStackParamList} from '@/shared/types';
@@ -31,7 +32,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, SwipeToDelete} from '@/shared/components';
+import {Icon, Spinner, Modal, SwipeToDelete, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 
 type RouteParams = RouteProp<RootStackParamList, 'ShoppingListDetail'>;
@@ -65,6 +66,7 @@ export function ShoppingListDetailScreen() {
 
   const [list, setList] = useState<ShoppingList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [editedListName, setEditedListName] = useState('');
@@ -79,9 +81,8 @@ export function ShoppingListDetailScreen() {
   const [selectedItemForAdd, setSelectedItemForAdd] = useState<CommunityItemData | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  // FAB animation
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -90,32 +91,41 @@ export function ShoppingListDetailScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-  // Load list
-  useEffect(() => {
-    if (user?.uid && listId) {
-      loadList();
-    }
-  }, [user?.uid, listId]);
+  // Load list on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.uid && listId) {
+        loadList();
+      }
+    }, [user?.uid, listId])
+  );
 
-  // Entrance animation
+  // FAB pulse animation
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 60,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.08,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
 
-  const loadList = async () => {
+  const loadList = async (showRefresh = false) => {
     if (!user?.uid || !listId) return;
+
+    if (showRefresh) {
+      setIsRefreshing(true);
+    }
 
     try {
       const loadedList = await shoppingListService.getList(user.uid, listId);
@@ -126,7 +136,12 @@ export function ShoppingListDetailScreen() {
       navigation.goBack();
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    loadList(true);
   };
 
   // Search community items
@@ -341,22 +356,17 @@ export function ShoppingListDetailScreen() {
     index: number;
   }) => {
     return (
-      <Animated.View
-        style={[
-          {
-            opacity: fadeAnim,
-            transform: [{translateY: slideAnim}],
-          },
-        ]}>
+      <SlideIn delay={index * 30} direction="up" distance={20}>
         <SwipeToDelete
           onDelete={() => handleRemoveItem(item.id)}
           deleteLabel="Supprimer"
           style={{marginBottom: Spacing.sm}}>
-          <Animated.View
+          <View
             style={[
               styles.itemCard,
               item.isChecked && styles.itemCardChecked,
             ]}>
+            {/* Modern checkbox */}
             <TouchableOpacity
               style={[
                 styles.checkBox,
@@ -378,6 +388,7 @@ export function ShoppingListDetailScreen() {
                 {item.name}
               </Text>
               <View style={styles.itemDetails}>
+                {/* Quantity controls */}
                 <View style={styles.quantityControls}>
                   <TouchableOpacity
                     style={styles.quantityButton}
@@ -393,6 +404,8 @@ export function ShoppingListDetailScreen() {
                     <Icon name="plus" size="xs" color={Colors.primary} />
                   </TouchableOpacity>
                 </View>
+
+                {/* Price badges */}
                 {item.bestPrice && item.bestStore && (
                   <View style={styles.priceBadge}>
                     <Icon name="tag" size="xs" color={Colors.status.success} />
@@ -413,6 +426,7 @@ export function ShoppingListDetailScreen() {
               {/* Savings indicator */}
               {item.bestPrice && item.estimatedPrice && item.estimatedPrice > item.bestPrice && (
                 <View style={styles.savingsBadge}>
+                  <Icon name="trending-down" size="xs" color={Colors.status.success} />
                   <Text style={styles.savingsText}>
                     Économie: ${(item.estimatedPrice - item.bestPrice).toFixed(2)}
                   </Text>
@@ -420,19 +434,20 @@ export function ShoppingListDetailScreen() {
               )}
             </View>
 
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => handleToggleItem(item.id)}
-              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+            {/* Status indicator */}
+            <View style={[
+              styles.statusIndicator,
+              item.isChecked && styles.statusIndicatorChecked,
+            ]}>
               <Icon
                 name={item.isChecked ? 'check-circle' : 'circle'}
                 size="md"
-                color={item.isChecked ? Colors.status.success : Colors.text.tertiary}
+                color={item.isChecked ? Colors.status.success : Colors.border.medium}
               />
-            </TouchableOpacity>
-          </Animated.View>
+            </View>
+          </View>
         </SwipeToDelete>
-      </Animated.View>
+      </SlideIn>
     );
   };
 
@@ -451,48 +466,97 @@ export function ShoppingListDetailScreen() {
     return null;
   }
 
+  // Calculate progress
+  const checkedCount = list.items.filter(i => i.isChecked).length;
+  const progress = list.items.length > 0 ? checkedCount / list.items.length : 0;
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onLongPress={() => {
-            setEditedListName(list.name);
-            setShowEditNameModal(true);
-          }}
-          activeOpacity={0.8}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{list.name}</Text>
-        </TouchableOpacity>
-        <View style={styles.headerActions}>
+      {/* Modern Header */}
+      <FadeIn duration={300}>
+        <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.headerTitleContainer}
+            onLongPress={() => {
+              setEditedListName(list.name);
+              setShowEditNameModal(true);
+            }}
+            activeOpacity={0.8}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{list.name}</Text>
+            <Text style={styles.headerSubtitle}>
+              {checkedCount}/{list.items.length} articles
+            </Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={() => setShowAddItemModal(true)}>
-            <Icon name="plus" size="sm" color={Colors.primary} />
+            onPress={() => {
+              setEditedListName(list.name);
+              setShowEditNameModal(true);
+            }}>
+            <Icon name="edit-2" size="sm" color={Colors.primary} />
           </TouchableOpacity>
         </View>
-      </View>
+      </FadeIn>
+
+      {/* Progress bar under header */}
+      {list.items.length > 0 && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBarBg}>
+            <Animated.View 
+              style={[
+                styles.progressBarFill, 
+                {
+                  width: `${progress * 100}%`,
+                  backgroundColor: progress === 1 ? Colors.status.success : Colors.primary,
+                }
+              ]} 
+            />
+          </View>
+        </View>
+      )}
 
       {/* Items List */}
       {list.items.length === 0 ? (
-        <View style={styles.emptyList}>
-          <View style={styles.emptyIconContainer}>
-            <Icon
-              name="shopping-cart"
-              size="3xl"
-              color={Colors.text.tertiary}
-            />
+        <FadeIn delay={200} duration={400}>
+          <View style={styles.emptyList}>
+            <LinearGradient
+              colors={['#FDF0D5', '#F5E6C3']}
+              style={styles.emptyIllustration}>
+              <View style={styles.emptyIconOuter}>
+                <LinearGradient
+                  colors={['#C1121F', '#780000']}
+                  style={styles.emptyIconInner}>
+                  <Icon name="shopping-bag" size="xl" color={Colors.white} />
+                </LinearGradient>
+              </View>
+            </LinearGradient>
+            <Text style={styles.emptyText}>Liste vide</Text>
+            <Text style={styles.emptySubtext}>
+              Ajoutez des articles à votre liste
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyAddButton}
+              onPress={() => setShowAddItemModal(true)}
+              activeOpacity={0.8}>
+              <LinearGradient
+                colors={['#C1121F', '#780000']}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}
+                style={styles.emptyAddButtonGradient}>
+                <Icon name="plus" size="sm" color={Colors.white} />
+                <Text style={styles.emptyAddButtonText}>Ajouter un article</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyText}>Liste vide</Text>
-          <Text style={styles.emptySubtext}>
-            Ajoutez des articles à votre liste
-          </Text>
-        </View>
+        </FadeIn>
       ) : (
         <>
           <FlatList
@@ -501,6 +565,14 @@ export function ShoppingListDetailScreen() {
             keyExtractor={item => item.id}
             contentContainerStyle={styles.itemsList}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
           />
 
           {/* Total Price Summary */}
@@ -560,18 +632,26 @@ export function ShoppingListDetailScreen() {
       )}
 
       {/* Floating Add Button */}
-      <TouchableOpacity
-        style={[styles.floatingButton, {bottom: insets.bottom + Spacing.lg}]}
-        onPress={() => setShowAddItemModal(true)}
-        activeOpacity={0.9}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.primaryDark]}
-          style={styles.floatingButtonGradient}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}>
-          <Icon name="plus" size="md" color={Colors.white} />
-        </LinearGradient>
-      </TouchableOpacity>
+      <Animated.View 
+        style={[
+          styles.floatingButton, 
+          {
+            bottom: insets.bottom + Spacing.lg,
+            transform: [{scale: fabScale}],
+          }
+        ]}>
+        <TouchableOpacity
+          onPress={() => setShowAddItemModal(true)}
+          activeOpacity={0.9}>
+          <LinearGradient
+            colors={['#C1121F', '#780000']}
+            style={styles.floatingButtonGradient}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}>
+            <Icon name="plus" size="lg" color={Colors.white} />
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Add Item Modal with Search */}
       <Modal
@@ -793,57 +873,101 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     color: Colors.text.secondary,
   },
+  
+  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
     backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
+    gap: Spacing.md,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.card.cream,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Shadows.sm,
+  },
+  headerTitleContainer: {
+    flex: 1,
   },
   headerTitle: {
-    flex: 1,
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
-    marginHorizontal: Spacing.md,
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.cream,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  
+  // Progress
+  progressContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  progressBarBg: {
+    height: 4,
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
   },
   headerActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  
+  // Empty state
   emptyList: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing['2xl'],
   },
-  emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
+  emptyIllustration: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  emptyIconOuter: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyIconInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: Typography.fontSize.xl,
@@ -855,6 +979,25 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
     marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
+  },
+  emptyAddButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  emptyAddButtonGradient: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  emptyAddButtonText: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
   },
   itemsList: {
     padding: Spacing.lg,
@@ -957,25 +1100,26 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   savingsBadge: {
-    backgroundColor: Colors.card.cream,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#22C55E20',
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
     marginTop: Spacing.xs,
     alignSelf: 'flex-start',
+    gap: 4,
   },
   savingsText: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.status.success,
   },
-  removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
+  statusIndicator: {
+    padding: Spacing.xs,
+  },
+  statusIndicatorChecked: {
+    opacity: 0.8,
   },
   totalSummaryCard: {
     marginHorizontal: Spacing.lg,
@@ -1034,15 +1178,16 @@ const styles = StyleSheet.create({
   floatingButton: {
     position: 'absolute',
     right: Spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.full,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     overflow: 'hidden',
-    ...Shadows.lg,
+    ...Shadows.xl,
   },
   floatingButtonGradient: {
-    width: '100%',
-    height: '100%',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },

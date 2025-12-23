@@ -209,7 +209,7 @@ export const getSubscriptionStatus = functions
               status: 'freemium',
               planId: 'freemium',
               monthlyScansUsed: 0,
-              gracePeriodEnd: null,
+              gracePeriodEnd: admin.firestore.FieldValue.delete(),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
@@ -217,7 +217,7 @@ export const getSubscriptionStatus = functions
             subscription.status = 'freemium';
             subscription.planId = 'freemium';
             subscription.monthlyScansUsed = 0;
-            subscription.gracePeriodEnd = null;
+            subscription.gracePeriodEnd = undefined;
           }
         }
       }

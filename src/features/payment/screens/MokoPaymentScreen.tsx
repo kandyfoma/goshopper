@@ -14,6 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import functions from '@react-native-firebase/functions';
+import {pushNotificationService} from '@/shared/services/firebase';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -53,6 +55,9 @@ export function MokoPaymentScreen() {
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('PENDING');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [waitingForPin, setWaitingForPin] = useState(false);
+  const [statusCheckCount, setStatusCheckCount] = useState(0);
 
   // Pre-fill phone number from profile on mount
   useEffect(() => {
@@ -98,26 +103,74 @@ export function MokoPaymentScreen() {
   useEffect(() => {
     if (!transactionId) return;
 
+    console.log('🔔 Subscribing to payment status for:', transactionId);
+    setWaitingForPin(true);
+    
     const unsubscribe = mokoPaymentService.subscribeToPaymentStatus(
       transactionId,
-      (status, details) => {
+      async (status, details) => {
+        console.log('💳 Payment status update:', status, details);
         setPaymentStatus(status);
+        setStatusCheckCount(prev => prev + 1);
 
         if (status === 'SUCCESS') {
-          Alert.alert(
-            'Paiement Réussi! 🎉',
-            'Votre abonnement a été activé avec succès.',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.navigate('Subscription')
-              }
-            ]
-          );
+          setWaitingForPin(false);
+          setIsProcessing(true);
+          
+          try {
+            console.log('✅ Payment successful, activating subscription via Firebase...');
+            
+            // Call Firebase function to activate subscription
+            const activateSubscription = functions().httpsCallable('activateSubscriptionFromRailway');
+            const result = await activateSubscription({
+              planId: planId,
+              transactionId: transactionId,
+              amount: amount,
+              phoneNumber: phoneNumber,
+              currency: 'USD',
+            });
+            
+            console.log('🎉 Subscription activation result:', result.data);
+            setIsProcessing(false);
+            
+            // Show success notification
+            Alert.alert(
+              'Paiement Réussi! 🎉',
+              `Votre abonnement ${planName} a été activé avec succès.\n\nMerci pour votre confiance!`,
+              [
+                {
+                  text: 'Voir Mon Abonnement',
+                  onPress: () => navigation.navigate('Subscription')
+                }
+              ]
+            );
+
+            // Send push notification
+            await pushNotificationService.triggerAchievementNotification(
+              `Abonnement ${planName} Activé! 🎉`
+            );
+            
+          } catch (error: any) {
+            console.error('Error activating subscription:', error);
+            setIsProcessing(false);
+            
+            // Payment succeeded but subscription activation failed
+            Alert.alert(
+              'Paiement Réussi',
+              'Votre paiement a été traité avec succès, mais l\'activation de l\'abonnement a échoué. Veuillez contacter le support avec votre numéro de transaction: ' + transactionId,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => navigation.navigate('Subscription')
+                }
+              ]
+            );
+          }
         } else if (status === 'FAILED') {
+          setWaitingForPin(false);
           Alert.alert(
-            'Paiement Échoué',
-            'Le paiement n\'a pas pu être traité. Veuillez réessayer.',
+            'Paiement Échoué ❌',
+            'Le paiement n\'a pas pu être traité.\n\nCauses possibles:\n• Solde insuffisant\n• Code PIN incorrect\n• Transaction annulée',
             [
               {
                 text: 'Réessayer',
@@ -125,7 +178,15 @@ export function MokoPaymentScreen() {
                   setTransactionId(null);
                   setPaymentStatus('PENDING');
                   setIsProcessing(false);
+                  setPaymentInitiated(false);
+                  setStatusCheckCount(0);
+                  setVisible(true); // Show modal again for retry
                 }
+              },
+              {
+                text: 'Annuler',
+                style: 'cancel',
+                onPress: () => navigation.goBack()
               }
             ]
           );
@@ -134,7 +195,7 @@ export function MokoPaymentScreen() {
     );
 
     return unsubscribe;
-  }, [transactionId]);
+  }, [transactionId, planId, planName]);
 
   const handlePayment = async () => {
     if (!user?.uid) {
@@ -152,30 +213,46 @@ export function MokoPaymentScreen() {
     setIsProcessing(true);
 
     try {
+      console.log('💳 Initiating payment:', { amount, phoneNumber, userId: user.uid });
+      
       const response = await mokoPaymentService.initiatePayment({
         amount: amount,
         phoneNumber: phoneNumber,
         userId: user.uid,
         currency: 'USD',
         userInfo: {
-          firstname: profile?.firstName || 'GoShopper',
-          lastname: profile?.surname || 'User',
-          email: user.email || 'user@goshopper.ai'
+          firstname: profile?.firstName || 'Africanite',
+          lastname: profile?.surname || 'Service',
+          email: user.email || 'foma.kandy@gmail.com'
         }
       });
 
+      console.log('✅ Payment initiated successfully:', response);
       setTransactionId(response.transaction_id);
-
+      setPaymentInitiated(true);
+      setWaitingForPin(true);
+      
+      // Don't close modal - show waiting state instead
+      // Show "check phone" notification with better UX
       Alert.alert(
-        'Paiement Initié',
-        response.instructions || 'Vérifiez votre téléphone et entrez votre code PIN.',
-        [{text: 'OK'}]
+        '📱 Demande de Paiement Envoyée!',
+        `Un code de paiement de $${amount} USD a été envoyé à ${phoneNumber}.\n\n⏳ Vous avez 2 minutes pour entrer votre code PIN sur votre téléphone.`,
+        [
+          {
+            text: 'J\'ai Entré Mon PIN',
+            style: 'default'
+          }
+        ]
       );
+      
     } catch (error: any) {
+      console.error('❌ Payment initiation failed:', error);
       setIsProcessing(false);
+      
       Alert.alert(
         'Erreur de Paiement',
-        error.message || 'Une erreur est survenue lors de l\'initiation du paiement'
+        error.message || 'Une erreur est survenue lors de l\'initiation du paiement',
+        [{ text: 'OK' }]
       );
     }
   };
@@ -404,6 +481,34 @@ export function MokoPaymentScreen() {
               <Text style={styles.securityText}>
                 🔒 Paiement sécurisé via FreshPay PayDRC
               </Text>
+            </View>
+          )}
+
+          {/* Waiting for PIN State */}
+          {waitingForPin && transactionId && (
+            <View style={styles.waitingContainer}>
+              <View style={styles.waitingCard}>
+                <Text style={styles.waitingEmoji}>📱</Text>
+                <Text style={styles.waitingTitle}>En attente de confirmation</Text>
+                <Text style={styles.waitingText}>
+                  Veuillez entrer votre code PIN sur votre téléphone pour confirmer le paiement de ${amount.toFixed(2)} USD
+                </Text>
+                <View style={styles.waitingDots}>
+                  <Text style={styles.waitingDotsText}>⏳ Vérification en cours...</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setTransactionId(null);
+                    setPaymentStatus('PENDING');
+                    setIsProcessing(false);
+                    setPaymentInitiated(false);
+                    setWaitingForPin(false);
+                    setStatusCheckCount(0);
+                  }}>
+                  <Text style={styles.cancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
@@ -670,5 +775,58 @@ const styles = StyleSheet.create({
     color: Colors.text.tertiary,
     textAlign: 'center',
     marginTop: Spacing.sm,
+  },
+
+  // Waiting for PIN
+  waitingContainer: {
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.light,
+  },
+  waitingCard: {
+    backgroundColor: Colors.card.blue,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  waitingEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  waitingTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  waitingText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
+  },
+  waitingDots: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  waitingDotsText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.primary,
+  },
+  cancelButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  cancelButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.status.error,
   },
 });

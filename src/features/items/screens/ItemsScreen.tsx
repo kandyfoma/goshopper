@@ -60,6 +60,7 @@ export function ItemsScreen() {
   const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
@@ -328,20 +329,28 @@ export function ItemsScreen() {
   };
 
   const filterItems = () => {
-    if (!searchQuery.trim()) {
-      setFilteredItems(items);
-      return;
-    }
+    setIsSearching(true);
+    
+    // Use setTimeout to allow UI to update with loading state
+    setTimeout(() => {
+      if (!searchQuery.trim()) {
+        setFilteredItems(items);
+        setIsSearching(false);
+        return;
+      }
 
-    // Simple, direct search
-    const filtered = items.filter(item => simpleSearch(item.name, searchQuery));
-    setFilteredItems(filtered);
+      // Simple, direct search
+      const filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+      setFilteredItems(filtered);
 
-    // Log search for analytics
-    analyticsService.logCustomEvent('item_search', {
-      query: searchQuery,
-      results_count: filtered.length,
-    });
+      // Log search for analytics
+      analyticsService.logCustomEvent('item_search', {
+        query: searchQuery,
+        results_count: filtered.length,
+      });
+      
+      setIsSearching(false);
+    }, 0);
   };
 
   const renderItem = ({item, index}: {item: ItemData; index: number}) => {
@@ -593,25 +602,32 @@ export function ItemsScreen() {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconWrapper}>
-              <Icon
-                name={searchQuery ? 'search' : 'shopping-bag'}
-                size="xl"
-                color={Colors.text.tertiary}
-              />
+          isSearching ? (
+            <View style={styles.emptyContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Recherche...</Text>
             </View>
-            <Text style={styles.emptyTitle}>
-              {searchQuery
-                ? 'Aucun article trouvé'
-                : 'Aucun article disponible'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {searchQuery
-                ? 'Essayez un autre terme de recherche'
-                : 'Scannez des factures pour voir vos articles ici'}
-            </Text>
-          </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconWrapper}>
+                <Icon
+                  name={searchQuery ? 'search' : 'shopping-bag'}
+                  size="xl"
+                  color={Colors.text.tertiary}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {searchQuery
+                  ? 'Aucun article trouvé'
+                  : 'Aucun article disponible'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {searchQuery
+                  ? 'Essayez un autre terme de recherche'
+                  : 'Scannez des factures pour voir vos articles ici'}
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>

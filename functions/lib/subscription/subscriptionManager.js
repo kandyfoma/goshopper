@@ -48,10 +48,12 @@ const DEFAULT_EXCHANGE_RATE = 2700; // 1 USD = 2,700 CDF
 // Trial configuration
 const TRIAL_DURATION_DAYS = 60; // 2 months
 const TRIAL_EXTENSION_DAYS = 30; // 1 month extension
+const GRACE_PERIOD_DAYS = 7; // 7 days to use remaining scans after expiration
 const PLAN_SCAN_LIMITS = {
+    freemium: 3,
     basic: 25,
     standard: 100,
-    premium: -1, // Unlimited
+    premium: 1000, // Fair use limit
 };
 // Get current exchange rate from global settings
 async function getExchangeRate() {
@@ -81,6 +83,7 @@ const DURATION_DISCOUNTS = {
 };
 // Base monthly prices per plan (USD)
 const BASE_PRICES = {
+    freemium: 0,
     basic: 1.99,
     standard: 2.99,
     premium: 4.99,
@@ -169,7 +172,7 @@ exports.getSubscriptionStatus = functions
             return {
                 ...initialSubscription,
                 canScan: true,
-                scansRemaining: -1, // Unlimited
+                scansRemaining: 50, // Trial limit
                 isTrialActive: true,
                 trialDaysRemaining: TRIAL_DURATION_DAYS,
             };
@@ -180,21 +183,56 @@ exports.getSubscriptionStatus = functions
             const endDate = subscription.subscriptionEndDate instanceof admin.firestore.Timestamp
                 ? subscription.subscriptionEndDate.toDate()
                 : new Date(subscription.subscriptionEndDate);
-            if (endDate < new Date()) {
-                // Subscription expired
-                await subscriptionRef.update({
-                    isSubscribed: false,
-                    status: 'expired',
-                    monthlyScansUsed: 0,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-                subscription.isSubscribed = false;
-                subscription.status = 'expired';
-                subscription.monthlyScansUsed = 0;
+            const now = new Date();
+            if (endDate < now) {
+                // Calculate grace period end date
+                const gracePeriodEnd = (0, date_fns_1.addDays)(endDate, GRACE_PERIOD_DAYS);
+                if (now < gracePeriodEnd) {
+                    // Within grace period - keep remaining scans
+                    if (subscription.status !== 'grace') {
+                        await subscriptionRef.update({
+                            isSubscribed: false,
+                            status: 'grace',
+                            gracePeriodEnd: admin.firestore.Timestamp.fromDate(gracePeriodEnd),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        });
+                        subscription.isSubscribed = false;
+                        subscription.status = 'grace';
+                        subscription.gracePeriodEnd = gracePeriodEnd;
+                    }
+                }
+                else {
+                    // Grace period over - move to freemium and reset scans
+                    await subscriptionRef.update({
+                        isSubscribed: false,
+                        status: 'freemium',
+                        planId: 'freemium',
+                        monthlyScansUsed: 0,
+                        gracePeriodEnd: admin.firestore.FieldValue.delete(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    subscription.isSubscribed = false;
+                    subscription.status = 'freemium';
+                    subscription.planId = 'freemium';
+                    subscription.monthlyScansUsed = 0;
+                    subscription.gracePeriodEnd = undefined;
+                }
             }
         }
-        // Calculate scan availability
+        // Check if trial expired - move to freemium
         const trialActive = isTrialActive(subscription);
+        if (!trialActive && !subscription.isSubscribed && subscription.status === 'trial') {
+            await subscriptionRef.update({
+                status: 'freemium',
+                planId: 'freemium',
+                monthlyScansUsed: 0,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            subscription.status = 'freemium';
+            subscription.planId = 'freemium';
+            subscription.monthlyScansUsed = 0;
+        }
+        // Calculate scan availability
         const trialDaysRemaining = getTrialDaysRemaining(subscription);
         let canScan = false;
         let scansRemaining = 0;
@@ -204,18 +242,26 @@ exports.getSubscriptionStatus = functions
             scansRemaining = Math.max(0, trialLimit - trialUsed);
             canScan = scansRemaining > 0;
         }
+        else if (subscription.status === 'grace') {
+            // Grace period - keep using remaining scans from expired plan
+            const planLimit = PLAN_SCAN_LIMITS[subscription.planId || 'basic'] || 25;
+            const monthlyUsed = subscription.monthlyScansUsed || 0;
+            scansRemaining = Math.max(0, planLimit - monthlyUsed);
+            canScan = scansRemaining > 0;
+        }
         else if (subscription.isSubscribed &&
             subscription.status === 'active') {
             const planLimit = PLAN_SCAN_LIMITS[subscription.planId || 'basic'] || 25;
-            if (planLimit === -1) {
-                canScan = true;
-                scansRemaining = -1; // Unlimited for premium
-            }
-            else {
-                const monthlyUsed = subscription.monthlyScansUsed || 0;
-                scansRemaining = Math.max(0, planLimit - monthlyUsed);
-                canScan = scansRemaining > 0;
-            }
+            const monthlyUsed = subscription.monthlyScansUsed || 0;
+            scansRemaining = Math.max(0, planLimit - monthlyUsed);
+            canScan = scansRemaining > 0;
+        }
+        else if (subscription.status === 'freemium' || !subscription.isSubscribed) {
+            // Freemium users get 3 scans per month
+            const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
+            const monthlyUsed = subscription.monthlyScansUsed || 0;
+            scansRemaining = Math.max(0, freemiumLimit - monthlyUsed);
+            canScan = scansRemaining > 0;
         }
         return {
             ...subscription,
@@ -277,15 +323,11 @@ exports.recordScanUsage = functions
                     throw new functions.https.HttpsError('resource-exhausted', 'Subscription has expired. Please renew to continue.');
                 }
             }
-            // Premium users have unlimited scans
-            if (subscription.planId === 'premium') {
-                return { success: true, canScan: true, scansRemaining: -1 };
-            }
-            // Basic and Standard users have monthly limits
+            // All plans (including Premium) have monthly limits now
             const planLimit = PLAN_SCAN_LIMITS[subscription.planId || 'basic'] || 25;
             const currentUsage = subscription.monthlyScansUsed || 0;
             if (currentUsage >= planLimit) {
-                throw new functions.https.HttpsError('resource-exhausted', 'Monthly scan limit reached. Upgrade to Premium for unlimited scans.');
+                throw new functions.https.HttpsError('resource-exhausted', 'Monthly scan limit reached. Please contact support for higher limits.');
             }
             // Increment scan count
             transaction.update(subscriptionRef, {
@@ -409,8 +451,36 @@ exports.upgradeSubscription = functions
         }
         const subscriptionRef = db.doc(config_1.collections.subscription(userId));
         const now = new Date();
-        // Calculate subscription end date based on duration (using date-fns for safety)
-        const endDate = (0, date_fns_1.addMonths)(now, duration);
+        // Check for existing subscription
+        const existingSubscription = await subscriptionRef.get();
+        const existingData = existingSubscription.exists
+            ? existingSubscription.data()
+            : null;
+        // Calculate subscription end date
+        let endDate;
+        let subscriptionStartDate = now;
+        if ((existingData === null || existingData === void 0 ? void 0 : existingData.isSubscribed) &&
+            (existingData === null || existingData === void 0 ? void 0 : existingData.subscriptionEndDate) &&
+            existingData.status === 'active') {
+            // User is upgrading with active subscription
+            // Preserve remaining time by extending from current end date
+            const currentEndDate = existingData.subscriptionEndDate instanceof admin.firestore.Timestamp
+                ? existingData.subscriptionEndDate.toDate()
+                : new Date(existingData.subscriptionEndDate);
+            if (currentEndDate > now) {
+                // Add new duration to existing end date (user keeps remaining time)
+                endDate = (0, date_fns_1.addMonths)(currentEndDate, duration);
+                console.log(`Upgrading with active subscription. Extended from ${currentEndDate.toISOString()} to ${endDate.toISOString()}`);
+            }
+            else {
+                // Old subscription expired, start fresh
+                endDate = (0, date_fns_1.addMonths)(now, duration);
+            }
+        }
+        else {
+            // No active subscription, start fresh
+            endDate = (0, date_fns_1.addMonths)(now, duration);
+        }
         // Reset billing period start (monthly billing cycle for scan reset)
         const billingPeriodStart = new Date(now);
         const billingPeriodEnd = (0, date_fns_1.addMonths)(now, 1);
@@ -422,10 +492,10 @@ exports.upgradeSubscription = functions
             planId,
             status: 'active',
             durationMonths: duration,
-            monthlyScansUsed: 0, // Reset monthly usage
+            monthlyScansUsed: 0, // Reset monthly usage on upgrade
             currentBillingPeriodStart: admin.firestore.Timestamp.fromDate(billingPeriodStart),
             currentBillingPeriodEnd: admin.firestore.Timestamp.fromDate(billingPeriodEnd),
-            subscriptionStartDate: admin.firestore.Timestamp.fromDate(now),
+            subscriptionStartDate: admin.firestore.Timestamp.fromDate(subscriptionStartDate),
             subscriptionEndDate: admin.firestore.Timestamp.fromDate(endDate),
             lastPaymentDate: admin.firestore.Timestamp.fromDate(now),
             lastPaymentAmount: pricing.total,
@@ -514,8 +584,7 @@ exports.downgradeSubscription = functions
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
             // If user has exceeded new plan's limit, cap their usage
-            if (newScanLimit !== -1 &&
-                currentMonthlyScans > newScanLimit) {
+            if (currentMonthlyScans > newScanLimit) {
                 updates.monthlyScansUsed = newScanLimit;
             }
             await subscriptionRef.update(updates);

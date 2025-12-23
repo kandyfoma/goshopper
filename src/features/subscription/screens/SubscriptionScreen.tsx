@@ -222,8 +222,9 @@ export function SubscriptionScreen() {
     );
   }
 
+  // Filter out 'free' and 'freemium' - freemium is auto-assigned monthly
   const plans = Object.entries(SUBSCRIPTION_PLANS).filter(
-    ([id]) => id !== 'free',
+    ([id]) => id !== 'free' && id !== 'freemium',
   ) as [PlanId, typeof SUBSCRIPTION_PLANS['basic']][];
 
   return (

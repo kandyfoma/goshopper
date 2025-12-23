@@ -4,19 +4,39 @@
  */
 
 import 'react-native-url-polyfill/auto';
-import {createClient} from '@supabase/supabase-js';
-import Config from 'react-native-config';
+import {createClient, SupabaseClient} from '@supabase/supabase-js';
 
-// Payment Hub Configuration
-const PAYMENT_API_URL = 'https://web-production-a4586.up.railway.app/initiate-payment';
-const SUPABASE_URL = Config.SUPABASE_URL || 'https://oacrwvfivsybkvndooyx.supabase.co';
-const SUPABASE_ANON_KEY = Config.SUPABASE_ANON_KEY || '';
-
-if (!SUPABASE_ANON_KEY) {
-  console.error('⚠️ SUPABASE_ANON_KEY is not set in environment variables');
+// Try to import Config safely
+let Config: any = {};
+try {
+  Config = require('react-native-config').default || {};
+} catch (e) {
+  console.warn('⚠️ react-native-config not available, using defaults');
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Payment Hub Configuration - Use Railway endpoint from README
+const PAYMENT_API_URL = 'https://web-production-a4586.up.railway.app/initiate-payment';
+
+// Supabase configuration - try env vars first, fallback to public keys
+// Note: Supabase anon key is a PUBLIC key (safe to expose) - it only allows what RLS policies permit
+const SUPABASE_URL = Config.SUPABASE_URL || 'https://oacrwvfivsybkvndooyx.supabase.co';
+const SUPABASE_ANON_KEY = Config.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hY3J3dmZpdnN5Ymt2bmRvb3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ4OTI3NzEsImV4cCI6MjA1MDQ2ODc3MX0.sb_publishable_wj3fQLQJ808R5CG5FG8FYw_5J11Ps4g';
+
+console.log('🔑 Supabase URL:', SUPABASE_URL ? '✅ Loaded' : '❌ Missing');
+console.log('🔑 Supabase Key:', SUPABASE_ANON_KEY ? '✅ Loaded' : '❌ Missing');
+
+// Create supabase client only if we have the keys
+let supabase: SupabaseClient | null = null;
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('✅ Supabase client created successfully');
+  } catch (e) {
+    console.warn('⚠️ Failed to create Supabase client:', e);
+  }
+} else {
+  console.warn('⚠️ Supabase credentials not configured - payment status polling will not work');
+}
 
 export type MobileMoneyProvider = 'mpesa' | 'airtel' | 'orange' | 'afrimoney';
 export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
@@ -139,25 +159,28 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
     // Clean phone number
     const cleanedPhone = request.phoneNumber.replace(/[\s\-+]/g, '');
     
-    // Call Payment Hub
+    // Call Railway Payment Hub (as per README)
     const response = await fetch(PAYMENT_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        app_name: 'GoShopper AI',
+        app_name: 'GoShopper',
         user_id: request.userId,
         amount: request.amount,
         phone_number: cleanedPhone,
         currency: request.currency || 'USD',
-        firstname: request.userInfo?.firstname || 'GoShopper',
-        lastname: request.userInfo?.lastname || 'User',
-        email: request.userInfo?.email || 'user@goshopper.ai'
+        // Optional fields (will use defaults from README if not provided):
+        firstname: 'Africanite',
+        lastname: 'Service',
+        email: 'foma.kandy@gmail.com'
       })
     });
 
     const data = await response.json();
+    
+    console.log('🚀 Railway Payment Hub Response:', data);
     
     if (!response.ok) {
       throw new Error(data.error || 'Échec de l\'initiation du paiement');
@@ -166,8 +189,8 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
     return {
       success: true,
       transaction_id: data.transaction_id,
-      message: data.message,
-      instructions: data.instructions
+      message: data.message || 'Payment initiated successfully',
+      instructions: data.instructions || 'Please check your phone and enter your PIN to complete the payment.'
     };
   } catch (error: any) {
     console.error('Payment initiation failed:', error);
@@ -177,41 +200,88 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
 
 /**
  * Subscribe to payment status updates via Supabase real-time
+ * Uses both real-time subscription AND polling for reliability
  */
 export const subscribeToPaymentStatus = (
   transactionId: string,
   onStatusChange: (status: PaymentStatus, details?: any) => void
 ): (() => void) => {
-  const channel = supabase
-    .channel(`transaction-${transactionId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'transactions',
-        filter: `id=eq.${transactionId}`
-      },
-      (payload) => {
-        console.log('Payment status update:', payload.new);
-        onStatusChange(payload.new.status, payload.new);
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let isResolved = false;
+
+  // Always start polling as a reliable fallback
+  console.log('🔄 Starting polling for transaction:', transactionId);
+  pollInterval = setInterval(async () => {
+    if (isResolved) return;
+    
+    try {
+      const status = await getPaymentStatus(transactionId);
+      console.log('📊 Poll result:', status);
+      
+      if (status && status.status !== 'PENDING') {
+        isResolved = true;
+        onStatusChange(status.status, status.details);
+        if (pollInterval) clearInterval(pollInterval);
       }
-    )
-    .subscribe();
+    } catch (error) {
+      console.error('Polling error:', error);
+    }
+  }, 5000);
+
+  // Also try real-time if Supabase is available
+  let channel: any = null;
+  if (supabase) {
+    console.log('✅ Setting up real-time subscription for:', transactionId);
+    
+    channel = supabase
+      .channel(`transaction-${transactionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transactions',
+          filter: `id=eq.${transactionId}`
+        },
+        (payload) => {
+          if (isResolved) return;
+          
+          console.log('📨 Real-time payment status update:', payload.new);
+          isResolved = true;
+          onStatusChange(payload.new.status, payload.new);
+          if (pollInterval) clearInterval(pollInterval);
+        }
+      )
+      .subscribe((status: string) => {
+        console.log('📡 Supabase subscription status:', status);
+      });
+  } else {
+    console.warn('⚠️ Supabase client not available for real-time');
+  }
 
   // Return cleanup function
   return () => {
-    supabase.removeChannel(channel);
+    isResolved = true;
+    if (pollInterval) clearInterval(pollInterval);
+    if (channel && supabase) {
+      supabase.removeChannel(channel);
+    }
   };
 };
 
 /**
- * Get payment status from Supabase
+ * Get payment status from Supabase (fallback method)
  */
 export const getPaymentStatus = async (transactionId: string): Promise<{
   status: PaymentStatus;
   details: any;
 } | null> => {
+  if (!supabase) {
+    console.log('⚠️ Supabase client not available, cannot check status');
+    // For now, return null - in a real implementation, you might call a REST API
+    return null;
+  }
+
   try {
     const {data, error} = await supabase
       .from('transactions')
@@ -223,7 +293,7 @@ export const getPaymentStatus = async (transactionId: string): Promise<{
       console.error('Error fetching payment status:', error);
       return null;
     }
-    
+
     return {
       status: data.status,
       details: data

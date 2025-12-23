@@ -16,6 +16,7 @@ export const RATE_LIMIT_PER_DAY_PREMIUM = 500;
 
 // Usage Limits by Plan
 export const PLAN_SCAN_LIMITS = {
+  freemium: 3, // Free tier - auto-assigned monthly
   free: 50, // Trial limit
   basic: 25,
   standard: 100,

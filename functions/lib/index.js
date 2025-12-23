@@ -37,8 +37,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.processNLQuery = exports.checkSubscriptionExpiration = exports.sendAdminBroadcast = exports.sendSyncCompleteNotification = exports.sendAchievementNotification = exports.sendWeeklySavingsTips = exports.getUserAlerts = exports.createPriceAlert = exports.scheduledAlertCheck = exports.checkPriceAlerts = exports.checkIdentifierAvailability = exports.completeRegistration = exports.verifyCode = exports.sendVerificationCode = exports.getSmartPriceComparison = exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = exports.sendManualExpirationWarning = exports.checkExpirationWarnings = exports.manuallyRenewSubscription = exports.processAutoRenewals = exports.getUserStats = exports.extendTrial = exports.checkExpiredSubscriptions = exports.cancelSubscription = exports.getSubscriptionPricing = exports.renewSubscription = exports.downgradeSubscription = exports.upgradeSubscription = exports.recordScanUsage = exports.getSubscriptionStatus = exports.listDeadLetterEvents = exports.getWebhookStats = exports.retryWebhookEvent = exports.processWebhookRetries = exports.retryRefund = exports.listUserRefunds = exports.getRefundStatus = exports.requestRefund = exports.stripeWebhook = exports.confirmCardPayment = exports.createCardPaymentIntent = exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = exports.quickExtractReceipt = exports.parseReceiptMulti = exports.parseReceiptV2 = exports.parseReceipt = void 0;
-exports.calculateUserMLFeatures = exports.updateUserBehaviorProfile = exports.testAppleNotification = exports.appleNotifications = exports.manualCleanupUserData = exports.cleanupOldUserData = exports.searchMasterProducts = exports.addProductMapping = exports.initializeMasterProducts = exports.cleanupDeletedReceiptItems = exports.getCityItems = exports.rebuildItemsAggregation = exports.aggregateItemsOnReceipt = exports.getSpendingSuggestions = void 0;
+exports.checkSubscriptionExpiration = exports.sendAdminBroadcast = exports.sendSyncCompleteNotification = exports.sendAchievementNotification = exports.sendWeeklySavingsTips = exports.getUserAlerts = exports.createPriceAlert = exports.scheduledAlertCheck = exports.checkPriceAlerts = exports.checkIdentifierAvailability = exports.completeRegistration = exports.verifyCode = exports.sendVerificationCode = exports.getSmartPriceComparison = exports.getPriceHistory = exports.getPriceComparison = exports.savePriceData = exports.sendManualExpirationWarning = exports.checkExpirationWarnings = exports.manuallyRenewSubscription = exports.processAutoRenewals = exports.getUserStats = exports.extendTrial = exports.checkExpiredSubscriptions = exports.cancelSubscription = exports.getSubscriptionPricing = exports.renewSubscription = exports.downgradeSubscription = exports.upgradeSubscription = exports.recordScanUsage = exports.getSubscriptionStatus = exports.listDeadLetterEvents = exports.getWebhookStats = exports.retryWebhookEvent = exports.processWebhookRetries = exports.retryRefund = exports.listUserRefunds = exports.getRefundStatus = exports.requestRefund = exports.stripeWebhook = exports.confirmCardPayment = exports.createCardPaymentIntent = exports.activateSubscriptionFromRailway = exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = exports.quickExtractReceipt = exports.parseReceiptMulti = exports.parseReceiptV2 = exports.parseReceipt = void 0;
+exports.calculateUserMLFeatures = exports.updateUserBehaviorProfile = exports.testAppleNotification = exports.appleNotifications = exports.manualCleanupUserData = exports.cleanupOldUserData = exports.searchMasterProducts = exports.addProductMapping = exports.initializeMasterProducts = exports.cleanupDeletedReceiptItems = exports.getCityItems = exports.rebuildItemsAggregation = exports.aggregateItemsOnReceipt = exports.getSpendingSuggestions = exports.processNLQuery = exports.sendManualFeatureUnlockNotification = exports.onSubscriptionPlanChange = exports.sendManualMonthlySummary = exports.sendMonthlySummaries = exports.removePriceAlert = exports.setPriceAlert = exports.onCityItemPriceUpdate = exports.sendManualPaymentNotification = exports.sendManualScanLimitWarning = exports.resetScanLimitWarnings = exports.onReceiptCreated = exports.sendManualGracePeriodReminder = exports.checkGracePeriodReminders = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -64,6 +64,7 @@ var mokoAfrika_1 = require("./payments/mokoAfrika");
 Object.defineProperty(exports, "initiateMokoPayment", { enumerable: true, get: function () { return mokoAfrika_1.initiateMokoPayment; } });
 Object.defineProperty(exports, "verifyMokoPayment", { enumerable: true, get: function () { return mokoAfrika_1.verifyMokoPayment; } });
 Object.defineProperty(exports, "mokoPaymentWebhook", { enumerable: true, get: function () { return mokoAfrika_1.mokoPaymentWebhook; } });
+Object.defineProperty(exports, "activateSubscriptionFromRailway", { enumerable: true, get: function () { return mokoAfrika_1.activateSubscriptionFromRailway; } });
 var stripe_1 = require("./payments/stripe");
 Object.defineProperty(exports, "createCardPaymentIntent", { enumerable: true, get: function () { return stripe_1.createCardPaymentIntent; } });
 Object.defineProperty(exports, "confirmCardPayment", { enumerable: true, get: function () { return stripe_1.confirmCardPayment; } });
@@ -122,6 +123,26 @@ Object.defineProperty(exports, "sendAchievementNotification", { enumerable: true
 Object.defineProperty(exports, "sendSyncCompleteNotification", { enumerable: true, get: function () { return notifications_1.sendSyncCompleteNotification; } });
 Object.defineProperty(exports, "sendAdminBroadcast", { enumerable: true, get: function () { return notifications_1.sendAdminBroadcast; } });
 Object.defineProperty(exports, "checkSubscriptionExpiration", { enumerable: true, get: function () { return notifications_1.checkSubscriptionExpiration; } });
+// New notification systems
+var gracePeriodNotifications_1 = require("./notifications/gracePeriodNotifications");
+Object.defineProperty(exports, "checkGracePeriodReminders", { enumerable: true, get: function () { return gracePeriodNotifications_1.checkGracePeriodReminders; } });
+Object.defineProperty(exports, "sendManualGracePeriodReminder", { enumerable: true, get: function () { return gracePeriodNotifications_1.sendManualGracePeriodReminder; } });
+var scanLimitNotifications_1 = require("./notifications/scanLimitNotifications");
+Object.defineProperty(exports, "onReceiptCreated", { enumerable: true, get: function () { return scanLimitNotifications_1.onReceiptCreated; } });
+Object.defineProperty(exports, "resetScanLimitWarnings", { enumerable: true, get: function () { return scanLimitNotifications_1.resetScanLimitWarnings; } });
+Object.defineProperty(exports, "sendManualScanLimitWarning", { enumerable: true, get: function () { return scanLimitNotifications_1.sendManualScanLimitWarning; } });
+var paymentNotifications_1 = require("./notifications/paymentNotifications");
+Object.defineProperty(exports, "sendManualPaymentNotification", { enumerable: true, get: function () { return paymentNotifications_1.sendManualPaymentNotification; } });
+var priceAlertNotifications_1 = require("./notifications/priceAlertNotifications");
+Object.defineProperty(exports, "onCityItemPriceUpdate", { enumerable: true, get: function () { return priceAlertNotifications_1.onCityItemPriceUpdate; } });
+Object.defineProperty(exports, "setPriceAlert", { enumerable: true, get: function () { return priceAlertNotifications_1.setPriceAlert; } });
+Object.defineProperty(exports, "removePriceAlert", { enumerable: true, get: function () { return priceAlertNotifications_1.removePriceAlert; } });
+var monthlySummaryNotifications_1 = require("./notifications/monthlySummaryNotifications");
+Object.defineProperty(exports, "sendMonthlySummaries", { enumerable: true, get: function () { return monthlySummaryNotifications_1.sendMonthlySummaries; } });
+Object.defineProperty(exports, "sendManualMonthlySummary", { enumerable: true, get: function () { return monthlySummaryNotifications_1.sendManualMonthlySummary; } });
+var featureUnlockNotifications_1 = require("./notifications/featureUnlockNotifications");
+Object.defineProperty(exports, "onSubscriptionPlanChange", { enumerable: true, get: function () { return featureUnlockNotifications_1.onSubscriptionPlanChange; } });
+Object.defineProperty(exports, "sendManualFeatureUnlockNotification", { enumerable: true, get: function () { return featureUnlockNotifications_1.sendManualFeatureUnlockNotification; } });
 // Phase 1.2 - Natural Language Query functions
 var naturalLanguage_1 = require("./assistant/naturalLanguage");
 Object.defineProperty(exports, "processNLQuery", { enumerable: true, get: function () { return naturalLanguage_1.processNLQuery; } });

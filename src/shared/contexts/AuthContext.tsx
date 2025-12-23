@@ -10,6 +10,7 @@ import React, {
 import {User, AuthState} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {analyticsService} from '@/shared/services';
+import {cachePreloader} from '@/shared/services/caching';
 
 interface AuthContextType extends AuthState {
   signInWithGoogle: () => Promise<void>;
@@ -43,6 +44,13 @@ export function AuthProvider({children}: AuthProviderProps) {
         // Track user authentication state
         if (user) {
           analyticsService.setUserId(user.uid);
+          // Preload critical data for better performance
+          cachePreloader.preloadCriticalData(user.uid).catch(error => {
+            console.warn('Cache preload failed:', error);
+          });
+        } else {
+          // Reset cache on logout
+          cachePreloader.reset();
         }
 
         setState({

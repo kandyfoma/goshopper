@@ -10,3 +10,4 @@ export {
 
 export {cacheAnalytics, type CacheHealthReport} from './CacheAnalytics';
 export {cacheInitializer} from './CacheInitializer';
+export {cachePreloader} from './CachePreloader';

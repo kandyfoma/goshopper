@@ -35,10 +35,133 @@ class SubscriptionService {
       }
 
       const data = doc.data()!;
-      return this.mapSubscription(data);
+      let subscription = this.mapSubscription(data);
+
+      // Check if trial has expired and user has no active subscription
+      // If so, auto-assign freemium tier
+      subscription = await this.checkAndAssignFreemium(subscription, user.uid);
+
+      return subscription;
     } catch (error) {
       console.error('Error getting subscription status:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Check if trial has expired and auto-assign freemium tier
+   * Freemium tier resets monthly based on user's join date (trialStartDate)
+   */
+  private async checkAndAssignFreemium(subscription: Subscription, userId: string): Promise<Subscription> {
+    const now = new Date();
+    
+    // If trial is still active, no need to assign freemium
+    if (this.isTrialActive(subscription)) {
+      return subscription;
+    }
+    
+    // If user has an active paid subscription, no need for freemium
+    if (subscription.isSubscribed && subscription.status === 'active') {
+      return subscription;
+    }
+    
+    // If already on freemium, check if monthly reset is needed
+    if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
+      await this.checkAndResetFreemiumMonthly(subscription, userId);
+      // Re-fetch after potential reset
+      const doc = await firestore()
+        .doc(COLLECTIONS.subscription(userId))
+        .get();
+      return this.mapSubscription(doc.data()!);
+    }
+    
+    // Trial has expired and no active subscription - assign freemium
+    if (subscription.status === 'trial' && subscription.trialEndDate) {
+      const trialEnd = new Date(subscription.trialEndDate);
+      if (now > trialEnd) {
+        console.log('📦 Trial expired, auto-assigning freemium tier for user:', userId);
+        
+        // Calculate billing period based on join date (trialStartDate)
+        const joinDate = subscription.trialStartDate || subscription.createdAt || new Date();
+        const { billingStart, billingEnd } = this.calculateFreemiumBillingPeriod(new Date(joinDate));
+        
+        await firestore()
+          .doc(COLLECTIONS.subscription(userId))
+          .update({
+            status: 'freemium',
+            planId: 'freemium',
+            isSubscribed: false,
+            monthlyScansUsed: 0,
+            currentBillingPeriodStart: billingStart,
+            currentBillingPeriodEnd: billingEnd,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        
+        // Return updated subscription
+        return {
+          ...subscription,
+          status: 'freemium',
+          planId: 'freemium',
+          isSubscribed: false,
+          monthlyScansUsed: 0,
+          currentBillingPeriodStart: billingStart,
+          currentBillingPeriodEnd: billingEnd,
+        };
+      }
+    }
+    
+    return subscription;
+  }
+  
+  /**
+   * Calculate billing period based on user's join date
+   * The billing period resets on the same day of the month as the join date
+   */
+  private calculateFreemiumBillingPeriod(joinDate: Date): { billingStart: Date; billingEnd: Date } {
+    const now = new Date();
+    const joinDay = joinDate.getDate();
+    
+    // Find the current billing period start
+    let billingStart = new Date(now.getFullYear(), now.getMonth(), joinDay);
+    
+    // If we've passed the join day this month, billing started this month
+    // If we haven't reached the join day yet, billing started last month
+    if (now.getDate() < joinDay) {
+      billingStart.setMonth(billingStart.getMonth() - 1);
+    }
+    
+    // Billing end is one month after billing start
+    const billingEnd = new Date(billingStart);
+    billingEnd.setMonth(billingEnd.getMonth() + 1);
+    
+    return { billingStart, billingEnd };
+  }
+  
+  /**
+   * Check if freemium monthly reset is needed
+   */
+  private async checkAndResetFreemiumMonthly(subscription: Subscription, userId: string): Promise<void> {
+    const now = new Date();
+    const billingEnd = subscription.currentBillingPeriodEnd;
+    
+    if (billingEnd && new Date(billingEnd) < now) {
+      // Calculate new billing period based on join date
+      const joinDate = subscription.trialStartDate || subscription.createdAt || new Date();
+      const { billingStart, billingEnd: newBillingEnd } = this.calculateFreemiumBillingPeriod(new Date(joinDate));
+      
+      console.log('📅 Resetting freemium monthly usage - new billing period:', {
+        start: billingStart.toISOString(),
+        end: newBillingEnd.toISOString(),
+      });
+      
+      await firestore()
+        .doc(COLLECTIONS.subscription(userId))
+        .update({
+          monthlyScansUsed: 0,
+          currentBillingPeriodStart: billingStart,
+          currentBillingPeriodEnd: newBillingEnd,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
     }
   }
 
@@ -84,6 +207,12 @@ class SubscriptionService {
       return (subscription.trialScansUsed || 0) < trialLimit;
     }
 
+    // Check freemium tier (auto-assigned when trial expires)
+    if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
+      const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
+      return (subscription.monthlyScansUsed || 0) < freemiumLimit;
+    }
+
     // Check active subscription (including cancelled but not expired)
     if (subscription.isSubscribed && (subscription.status === 'active' || subscription.status === 'cancelled')) {
       // Check if subscription hasn't expired
@@ -123,6 +252,12 @@ class SubscriptionService {
     // Trial users have unlimited scans
     if (this.isTrialActive(subscription)) {
       return Infinity;
+    }
+
+    // Check freemium tier
+    if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
+      const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
+      return Math.max(0, freemiumLimit - (subscription.monthlyScansUsed || 0));
     }
 
     // Check active subscription (including cancelled but not expired)
@@ -239,6 +374,30 @@ class SubscriptionService {
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
       console.log('📸 Trial scan recorded successfully, new count:', currentUsage + 1, '/', trialLimit);
+      return;
+    }
+
+    // Freemium users have 3 scans/month
+    if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
+      const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
+      const currentUsage = subscription.monthlyScansUsed || 0;
+
+      console.log('📸 Freemium user - current usage:', currentUsage, '/', freemiumLimit);
+
+      if (currentUsage >= freemiumLimit) {
+        throw new Error(
+          `Limite de scans gratuits atteinte (${freemiumLimit} scans/mois). Passez à un abonnement pour plus de scans.`,
+        );
+      }
+
+      console.log('📸 Incrementing freemium scan count for user:', user.uid);
+      await firestore()
+        .doc(COLLECTIONS.subscription(user.uid))
+        .update({
+          monthlyScansUsed: firestore.FieldValue.increment(1),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      console.log('📸 Freemium scan recorded successfully, new count:', currentUsage + 1, '/', freemiumLimit);
       return;
     }
 

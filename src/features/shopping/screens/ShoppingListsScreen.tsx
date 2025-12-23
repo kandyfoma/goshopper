@@ -1,5 +1,5 @@
-// Shopping Lists Screen - Overview of all shopping lists (Samsung Notes style)
-import React, {useState, useEffect, useRef} from 'react';
+// Shopping Lists Screen - Modern, intuitive shopping list management
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,19 @@ import {
   FlatList,
   TouchableOpacity,
   SafeAreaView,
-  ActivityIndicator,
   Animated,
   Alert,
   TextInput,
+  RefreshControl,
+  Dimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import LinearGradient from 'react-native-linear-gradient';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth, useSubscription} from '@/shared/contexts';
-import {canCreateShoppingList, showUpgradePrompt} from '@/shared/utils/featureAccess';
+import {canCreateShoppingList} from '@/shared/utils/featureAccess';
 import {
   shoppingListService,
   ShoppingList,
@@ -29,11 +31,30 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal} from '@/shared/components';
-import ModernTabBar from '@/shared/components/ModernTabBar';
+import {Icon, Spinner, Modal, FadeIn, SlideIn} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
+
+// Modern card color schemes for visual variety
+const CARD_COLORS = [
+  { bg: '#FDF0D5', accent: '#780000', icon: '#C1121F' },  // Cream/Gochujang
+  { bg: '#E8F4FF', accent: '#003049', icon: '#669BBC' },  // Blue Marble
+  { bg: '#FFF5E6', accent: '#D97706', icon: '#F59E0B' },  // Warm Orange
+  { bg: '#F0FDF4', accent: '#166534', icon: '#22C55E' },  // Fresh Green
+  { bg: '#FDF2F8', accent: '#9D174D', icon: '#EC4899' },  // Rose Pink
+];
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+// Quick suggestions for list names
+const LIST_SUGGESTIONS = [
+  '🛒 Courses de la semaine',
+  '🎉 Fête / Événement',
+  '🏠 Produits ménagers',
+  '🍳 Recette spéciale',
+  '👶 Bébé / Enfants',
+];
 
 export function ShoppingListsScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -43,14 +64,15 @@ export function ShoppingListsScreen() {
 
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showNewListModal, setShowNewListModal] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingListId, setEditingListId] = useState<string | null>(null);
 
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  // FAB animation
+  const fabScale = useRef(new Animated.Value(1)).current;
+  const fabRotate = useRef(new Animated.Value(0)).current;
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -59,45 +81,60 @@ export function ShoppingListsScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-  // Load lists
-  useEffect(() => {
-    if (user?.uid) {
-      loadLists();
-    }
-  }, [user?.uid]);
+  // Load lists on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.uid) {
+        loadLists();
+      }
+    }, [user?.uid])
+  );
 
-  // Entrance animation
+  // FAB pulse animation
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 60,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
 
-  const loadLists = async () => {
+  const loadLists = async (showRefresh = false) => {
     if (!user?.uid) return;
 
+    if (showRefresh) {
+      setIsRefreshing(true);
+    }
+
     try {
-      const loadedLists = await shoppingListService.getLists(user.uid, false); // Get all lists including completed
+      const loadedLists = await shoppingListService.getLists(user.uid, false);
       setLists(loadedLists);
     } catch (error) {
       console.error('Load lists error:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  const handleCreateList = async () => {
-    if (!user?.uid || !newListName.trim()) return;
+  const handleRefresh = () => {
+    loadLists(true);
+  };
+
+  const handleCreateList = async (name?: string) => {
+    const listName = name || newListName;
+    if (!user?.uid || !listName.trim()) return;
 
     // Check if user can create more lists (freemium: 1 list only)
     const listCheck = canCreateShoppingList(subscription, lists.length);
@@ -117,7 +154,7 @@ export function ShoppingListsScreen() {
     try {
       const list = await shoppingListService.createList(
         user.uid,
-        newListName.trim(),
+        listName.trim(),
       );
       setLists(prev => [list, ...prev]);
       setShowNewListModal(false);
@@ -131,6 +168,23 @@ export function ShoppingListsScreen() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleOpenNewListModal = () => {
+    // Animate FAB
+    Animated.sequence([
+      Animated.timing(fabRotate, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fabRotate, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setShowNewListModal(true);
   };
 
   const handleDeleteList = (listId: string, listName: string) => {
@@ -190,121 +244,149 @@ export function ShoppingListsScreen() {
     const itemsCount = item.items.length;
     const checkedCount = item.items.filter(i => i.isChecked).length;
     const progress = itemsCount > 0 ? checkedCount / itemsCount : 0;
+    const colorScheme = CARD_COLORS[index % CARD_COLORS.length];
 
     return (
-      <Animated.View
-        style={[
-          {
-            opacity: fadeAnim,
-            transform: [{translateY: slideAnim}],
-          },
-        ]}>
+      <SlideIn delay={index * 50} direction="up" distance={30}>
         <TouchableOpacity
-          style={[styles.listCard, !item.isActive && styles.listCardCompleted]}
+          style={[
+            styles.listCard,
+            {backgroundColor: colorScheme.bg},
+            !item.isActive && styles.listCardCompleted,
+          ]}
           onPress={() => navigation.navigate('ShoppingListDetail', {listId: item.id})}
           onLongPress={() => setEditingListId(item.id)}
-          activeOpacity={0.7}>
-          <View style={styles.listHeader}>
-            {isEditing ? (
-              <View style={styles.editNameContainer}>
-                <TextInput
-                  style={styles.editNameInput}
-                  value={item.name}
-                  onChangeText={(text) => {
-                    setLists(prev =>
-                      prev.map(l => (l.id === item.id ? {...l, name: text} : l)),
-                    );
-                  }}
-                  onBlur={() => handleEditListName(item.id, item.name)}
-                  onSubmitEditing={() => handleEditListName(item.id, item.name)}
-                  autoFocus
-                />
-              </View>
-            ) : (
-              <View style={styles.listInfo}>
-                <Text style={styles.listName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.listDate}>
-                  {formatDate(item.updatedAt)}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.listActions}>
-              {!item.isActive && (
-                <View style={styles.completedBadge}>
-                  <Icon name="check-circle" size="sm" color={Colors.status.success} />
-                </View>
-              )}
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleDeleteList(item.id, item.name)}
-                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                <Icon name="trash" size="sm" color={Colors.text.tertiary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.listStats}>
-            <View style={styles.statItem}>
-              <Icon name="shopping-bag" size="sm" color={Colors.primary} />
-              <Text style={styles.statText}>
-                {checkedCount}/{itemsCount} articles
-              </Text>
-            </View>
-
-            {item.potentialSavings > 0 && (
-              <View style={styles.statItem}>
-                <Icon name="trending-down" size="sm" color={Colors.status.success} />
-                <Text style={styles.statText}>
-                  ${item.potentialSavings.toFixed(2)} économies
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Progress bar */}
-          {itemsCount > 0 && (
-            <View style={styles.progressBarContainer}>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, {width: `${progress * 100}%`}]} />
-              </View>
-              <Text style={styles.progressText}>
-                {Math.round(progress * 100)}%
-              </Text>
-            </View>
-          )}
-
-          {/* Preview first few items */}
-          {item.items.length > 0 && (
-            <View style={styles.previewContainer}>
-              {item.items.slice(0, 3).map((listItem, idx) => (
-                <View key={listItem.id} style={styles.previewItem}>
-                  <Icon
-                    name={listItem.isChecked ? 'check-square' : 'square'}
-                    size="xs"
-                    color={listItem.isChecked ? Colors.status.success : Colors.text.tertiary}
+          activeOpacity={0.8}>
+          {/* Accent bar */}
+          <View style={[styles.cardAccent, {backgroundColor: colorScheme.accent}]} />
+          
+          <View style={styles.cardContent}>
+            <View style={styles.listHeader}>
+              {/* Left: Icon + Info */}
+              <View style={styles.listHeaderLeft}>
+                <View style={[styles.listIconContainer, {backgroundColor: colorScheme.accent}]}>
+                  <Icon 
+                    name={item.isActive ? 'shopping-cart' : 'check-circle'} 
+                    size="md" 
+                    color={Colors.white} 
                   />
-                  <Text
-                    style={[
-                      styles.previewText,
-                      listItem.isChecked && styles.previewTextChecked,
-                    ]}
-                    numberOfLines={1}>
-                    {listItem.name}
+                </View>
+                
+                {isEditing ? (
+                  <View style={styles.editNameContainer}>
+                    <TextInput
+                      style={[styles.editNameInput, {borderColor: colorScheme.accent}]}
+                      value={item.name}
+                      onChangeText={(text) => {
+                        setLists(prev =>
+                          prev.map(l => (l.id === item.id ? {...l, name: text} : l)),
+                        );
+                      }}
+                      onBlur={() => handleEditListName(item.id, item.name)}
+                      onSubmitEditing={() => handleEditListName(item.id, item.name)}
+                      autoFocus
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.listInfo}>
+                    <Text style={[styles.listName, {color: colorScheme.accent}]} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.listDate}>
+                      {formatDate(item.updatedAt)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Right: Actions */}
+              <View style={styles.listActions}>
+                {!item.isActive && (
+                  <View style={styles.completedBadge}>
+                    <Icon name="check" size="xs" color={Colors.status.success} />
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.actionButton, {backgroundColor: `${colorScheme.accent}15`}]}
+                  onPress={() => handleDeleteList(item.id, item.name)}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                  <Icon name="trash-2" size="sm" color={colorScheme.accent} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Stats row */}
+            <View style={styles.listStats}>
+              <View style={[styles.statBadge, {backgroundColor: `${colorScheme.accent}15`}]}>
+                <Icon name="package" size="xs" color={colorScheme.icon} />
+                <Text style={[styles.statText, {color: colorScheme.accent}]}>
+                  {checkedCount}/{itemsCount}
+                </Text>
+              </View>
+
+              {item.potentialSavings > 0 && (
+                <View style={[styles.statBadge, {backgroundColor: '#22C55E20'}]}>
+                  <Icon name="trending-down" size="xs" color={Colors.status.success} />
+                  <Text style={[styles.statText, {color: Colors.status.success}]}>
+                    ${item.potentialSavings.toFixed(2)}
                   </Text>
                 </View>
-              ))}
-              {item.items.length > 3 && (
-                <Text style={styles.moreItems}>
-                  +{item.items.length - 3} autres...
-                </Text>
               )}
             </View>
-          )}
+
+            {/* Modern progress bar */}
+            {itemsCount > 0 && (
+              <View style={styles.progressSection}>
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBarBg}>
+                    <Animated.View 
+                      style={[
+                        styles.progressBarFill, 
+                        {
+                          width: `${progress * 100}%`,
+                          backgroundColor: progress === 1 ? Colors.status.success : colorScheme.accent,
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={[styles.progressText, {color: colorScheme.accent}]}>
+                    {Math.round(progress * 100)}%
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Preview items with modern chips */}
+            {item.items.length > 0 && (
+              <View style={styles.previewContainer}>
+                {item.items.slice(0, 4).map((listItem, idx) => (
+                  <View 
+                    key={listItem.id} 
+                    style={[
+                      styles.previewChip,
+                      listItem.isChecked && styles.previewChipChecked,
+                      {borderColor: colorScheme.accent},
+                    ]}>
+                    <Text
+                      style={[
+                        styles.previewText,
+                        listItem.isChecked && styles.previewTextChecked,
+                      ]}
+                      numberOfLines={1}>
+                      {listItem.name}
+                    </Text>
+                  </View>
+                ))}
+                {item.items.length > 4 && (
+                  <View style={[styles.moreChip, {backgroundColor: colorScheme.accent}]}>
+                    <Text style={styles.moreChipText}>+{item.items.length - 4}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
-      </Animated.View>
+      </SlideIn>
     );
   };
 
@@ -323,49 +405,71 @@ export function ShoppingListsScreen() {
     );
   }
 
+  const fabRotateInterpolate = fabRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '135deg'],
+  });
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-          <Icon name="chevron-left" size="md" color={Colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes Listes</Text>
-        <TouchableOpacity
-          style={styles.newListButton}
-          onPress={() => setShowNewListModal(true)}>
-          <Icon name="plus" size="sm" color={Colors.white} />
-        </TouchableOpacity>
-      </View>
+      {/* Modern Header */}
+      <FadeIn duration={400}>
+        <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+          </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Mes Listes</Text>
+            <Text style={styles.headerSubtitle}>
+              {lists.length} liste{lists.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          
+          <View style={styles.headerRight} />
+        </View>
+      </FadeIn>
 
       {/* Lists */}
       {lists.length === 0 ? (
-        <Animated.View
-          style={[
-            styles.emptyContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{translateY: slideAnim}],
-            },
-          ]}>
-          <View style={styles.emptyIconContainer}>
-            <Icon name="clipboard" size="3xl" color={Colors.text.tertiary} />
+        <FadeIn delay={200} duration={500}>
+          <View style={styles.emptyContainer}>
+            {/* Gradient illustration */}
+            <LinearGradient
+              colors={['#FDF0D5', '#F5E6C3']}
+              style={styles.emptyIllustration}>
+              <View style={styles.emptyIconOuter}>
+                <LinearGradient
+                  colors={['#C1121F', '#780000']}
+                  style={styles.emptyIconInner}>
+                  <Icon name="clipboard-list" size="xl" color={Colors.white} />
+                </LinearGradient>
+              </View>
+            </LinearGradient>
+            
+            <Text style={styles.emptyTitle}>Aucune liste</Text>
+            <Text style={styles.emptyText}>
+              Organisez vos courses avec des listes personnalisées
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.createFirstButton}
+              onPress={handleOpenNewListModal}
+              activeOpacity={0.8}>
+              <LinearGradient
+                colors={['#C1121F', '#780000']}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}
+                style={styles.createFirstButtonGradient}>
+                <Icon name="plus" size="md" color={Colors.white} />
+                <Text style={styles.createFirstButtonText}>Créer ma première liste</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyTitle}>Aucune liste</Text>
-          <Text style={styles.emptyText}>
-            Créez votre première liste de courses
-          </Text>
-          <TouchableOpacity
-            style={styles.createFirstButton}
-            onPress={() => setShowNewListModal(true)}
-            activeOpacity={0.8}>
-            <Icon name="plus" size="md" color={Colors.white} />
-            <Text style={styles.createFirstButtonText}>Créer une liste</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        </FadeIn>
       ) : (
         <FlatList
           data={lists}
@@ -373,37 +477,93 @@ export function ShoppingListsScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.primary}
+              colors={[Colors.primary]}
+            />
+          }
         />
+      )}
+
+      {/* Floating Action Button */}
+      {lists.length > 0 && (
+        <Animated.View 
+          style={[
+            styles.fabContainer,
+            {
+              transform: [
+                {scale: fabScale},
+              ],
+            },
+          ]}>
+          <TouchableOpacity
+            onPress={handleOpenNewListModal}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={['#C1121F', '#780000']}
+              style={styles.fab}>
+              <Animated.View style={{transform: [{rotate: fabRotateInterpolate}]}}>
+                <Icon name="plus" size="lg" color={Colors.white} />
+              </Animated.View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
       )}
 
       {/* New List Modal */}
       <Modal
         visible={showNewListModal}
-        variant="centered"
-        size="small"
+        variant="bottom-sheet"
+        size="medium"
         title="Nouvelle Liste"
         onClose={() => {
           setShowNewListModal(false);
           setNewListName('');
         }}>
         <View style={styles.modalContent}>
+          {/* Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Nom de la liste</Text>
             <View style={styles.inputWrapper}>
-              <Icon name="list" size="sm" color={Colors.text.tertiary} />
+              <Icon name="edit-3" size="sm" color={Colors.primary} />
               <TextInput
                 style={styles.modalInput}
                 value={newListName}
                 onChangeText={setNewListName}
-                placeholder="Ex: Courses de la semaine..."
+                placeholder="Donnez un nom à votre liste..."
                 placeholderTextColor={Colors.text.tertiary}
                 autoFocus
                 returnKeyType="done"
-                onSubmitEditing={handleCreateList}
+                onSubmitEditing={() => handleCreateList()}
               />
+              {newListName.length > 0 && (
+                <TouchableOpacity onPress={() => setNewListName('')}>
+                  <Icon name="x" size="sm" color={Colors.text.tertiary} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
+          {/* Quick suggestions */}
+          <View style={styles.suggestionsContainer}>
+            <Text style={styles.suggestionsLabel}>Suggestions rapides</Text>
+            <View style={styles.suggestionsGrid}>
+              {LIST_SUGGESTIONS.map((suggestion, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.suggestionChip}
+                  onPress={() => handleCreateList(suggestion)}
+                  activeOpacity={0.7}>
+                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Actions */}
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={styles.modalCancelButton}
@@ -419,15 +579,19 @@ export function ShoppingListsScreen() {
                 styles.modalCreateButton,
                 !newListName.trim() && styles.modalCreateButtonDisabled,
               ]}
-              onPress={handleCreateList}
+              onPress={() => handleCreateList()}
               disabled={!newListName.trim() || isCreating}>
               {isCreating ? (
                 <Spinner size="small" color={Colors.white} />
               ) : (
-                <>
+                <LinearGradient
+                  colors={newListName.trim() ? ['#C1121F', '#780000'] : ['#D1D5DB', '#9CA3AF']}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 0}}
+                  style={styles.createButtonGradient}>
                   <Icon name="plus" size="sm" color={Colors.white} />
                   <Text style={styles.modalCreateText}>Créer</Text>
-                </>
+                </LinearGradient>
               )}
             </TouchableOpacity>
           </View>
@@ -453,12 +617,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     color: Colors.text.secondary,
   },
+  
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
   backButton: {
     width: 44,
@@ -469,41 +637,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadows.sm,
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
-  newListButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: '#780000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.md,
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
   },
+  headerRight: {
+    width: 44,
+  },
+  
+  // List container
   listContainer: {
     padding: Spacing.lg,
+    paddingBottom: 100,
   },
+  
+  // Modern Card
   listCard: {
-    backgroundColor: Colors.white,
     borderRadius: BorderRadius['2xl'],
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    borderWidth: 2,
-    borderColor: Colors.border.light,
-    ...Shadows.md,
+    marginBottom: Spacing.lg,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
   listCardCompleted: {
-    opacity: 0.7,
-    backgroundColor: Colors.card.cream,
+    opacity: 0.75,
+  },
+  cardAccent: {
+    height: 4,
+    width: '100%',
+  },
+  cardContent: {
+    padding: Spacing.lg,
   },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: Spacing.md,
+  },
+  listHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: Spacing.md,
+  },
+  listIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.md,
   },
   listInfo: {
     flex: 1,
@@ -511,7 +705,6 @@ const styles = StyleSheet.create({
   listName: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
     marginBottom: 4,
   },
   listDate: {
@@ -525,113 +718,148 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   completedBadge: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.yellow,
+    backgroundColor: '#22C55E20',
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   editNameContainer: {
     flex: 1,
-    marginRight: Spacing.md,
   },
   editNameInput: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
-    backgroundColor: Colors.card.blue,
+    backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
+    borderWidth: 2,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
+  
+  // Stats
   listStats: {
     flexDirection: 'row',
-    gap: Spacing.lg,
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
+    flexWrap: 'wrap',
   },
-  statItem: {
+  statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    gap: 6,
   },
   statText: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  
+  // Progress
+  progressSection: {
+    marginBottom: Spacing.md,
   },
   progressBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.md,
   },
   progressBarBg: {
     flex: 1,
-    height: 8,
-    backgroundColor: Colors.card.blue,
+    height: 6,
+    backgroundColor: 'rgba(0,0,0,0.08)',
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
   },
   progressText: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
-    minWidth: 35,
+    minWidth: 32,
     textAlign: 'right',
   },
+  
+  // Preview chips
   previewContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.xs,
   },
-  previewItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  previewChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderWidth: 1,
+    maxWidth: '45%',
+  },
+  previewChipChecked: {
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderColor: Colors.status.success,
   },
   previewText: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
     color: Colors.text.secondary,
-    flex: 1,
   },
   previewTextChecked: {
     textDecorationLine: 'line-through',
     color: Colors.text.tertiary,
   },
-  moreItems: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.tertiary,
-    fontStyle: 'italic',
-    marginTop: Spacing.xs,
+  moreChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
   },
+  moreChipText: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
+  },
+  
+  // Empty state
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing['2xl'],
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.yellow,
+  emptyIllustration: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xl,
+  },
+  emptyIconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyIconInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyTitle: {
     fontSize: Typography.fontSize['2xl'],
@@ -645,27 +873,47 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
   },
   createFirstButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  createFirstButtonGradient: {
     flexDirection: 'row',
     paddingHorizontal: Spacing['2xl'],
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    ...Shadows.md,
   },
   createFirstButtonText: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.white,
   },
+  
+  // FAB
+  fabContainer: {
+    position: 'absolute',
+    bottom: Spacing.xl,
+    right: Spacing.lg,
+    ...Shadows.xl,
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  // Modal
   modalContent: {
     padding: Spacing.lg,
   },
   inputContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   inputLabel: {
     fontSize: Typography.fontSize.sm,
@@ -676,10 +924,12 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card.blue,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
   },
   modalInput: {
     flex: 1,
@@ -688,9 +938,40 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     color: Colors.text.primary,
   },
+  
+  // Suggestions
+  suggestionsContainer: {
+    marginBottom: Spacing.lg,
+  },
+  suggestionsLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+  },
+  suggestionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  suggestionChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.card.yellow,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+  },
+  suggestionText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  
+  // Modal actions
   modalActions: {
     flexDirection: 'row',
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
     gap: Spacing.md,
   },
   modalCancelButton: {
@@ -699,6 +980,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.xl,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border.light,
   },
   modalCancelText: {
     fontSize: Typography.fontSize.md,
@@ -707,17 +990,18 @@ const styles = StyleSheet.create({
   },
   modalCreateButton: {
     flex: 1,
-    backgroundColor: '#780000',
-    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.xl,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    ...Shadows.md,
+    overflow: 'hidden',
   },
   modalCreateButtonDisabled: {
-    backgroundColor: Colors.border.light,
+    opacity: 0.6,
+  },
+  createButtonGradient: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   modalCreateText: {
     fontSize: Typography.fontSize.md,

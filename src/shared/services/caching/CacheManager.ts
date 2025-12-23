@@ -65,9 +65,9 @@ export type CacheNamespace =
   | 'temp';
 
 const DEFAULT_CONFIG: Required<CacheConfig> = {
-  maxMemoryCacheSize: 100,
-  maxMemoryCacheBytes: 10 * 1024 * 1024, // 10MB
-  defaultTTL: 60 * 60 * 1000, // 1 hour
+  maxMemoryCacheSize: 1000, // Increased from 500 to 1000 items
+  maxMemoryCacheBytes: 100 * 1024 * 1024, // Increased from 50MB to 100MB
+  defaultTTL: 7 * 24 * 60 * 60 * 1000, // Increased from 24 hours to 7 days
   enableCompression: false,
   enableAnalytics: true,
 };

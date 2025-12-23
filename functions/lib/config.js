@@ -64,10 +64,11 @@ exports.config = {
     },
     // Pricing (USD)
     pricing: {
+        freemium: { price: 0, scansPerMonth: 3 }, // Freemium tier
         free: { price: 0, scansPerMonth: 50 }, // Limited during trial
         basic: { price: 1.99, scansPerMonth: 25 },
         standard: { price: 2.99, scansPerMonth: 100 },
-        premium: { price: 4.99, scansPerMonth: -1 }, // Unlimited
+        premium: { price: 4.99, scansPerMonth: 1000 }, // Fair use limit
     },
 };
 // Firestore collection paths

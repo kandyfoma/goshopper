@@ -26,6 +26,7 @@ export {
   initiateMokoPayment,
   verifyMokoPayment,
   mokoPaymentWebhook,
+  activateSubscriptionFromRailway,
 } from './payments/mokoAfrika';
 export {
   createCardPaymentIntent,

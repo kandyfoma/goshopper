@@ -61,7 +61,7 @@ export interface Subscription {
 
   // Subscription details
   isSubscribed: boolean;
-  planId?: 'free' | 'basic' | 'standard' | 'premium';
+  planId?: 'freemium' | 'free' | 'basic' | 'standard' | 'premium';
   status:
     | 'trial'
     | 'active'
@@ -69,8 +69,10 @@ export interface Subscription {
     | 'cancelled'
     | 'pending'
     | 'expiring_soon'
-    | 'grace';
+    | 'grace'
+    | 'freemium';
   durationMonths?: 1 | 3 | 6 | 12;
+  gracePeriodEnd?: Date;
 
   // Billing
   subscriptionStartDate?: Date;

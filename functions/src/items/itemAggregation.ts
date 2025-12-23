@@ -816,7 +816,19 @@ export const aggregateItemsOnReceipt = functions
         }
 
         // ===== UPDATE MASTER CITY ITEMS TABLE (if city is set) =====
-        if (cityItemRef && cityItemDoc) {
+        // CRITICAL: Never save items with price 0, null, undefined, or NaN to cityItems
+        const priceValue = newPrice.price;
+        const isValidPrice = priceValue !== null && 
+                             priceValue !== undefined && 
+                             !isNaN(priceValue) && 
+                             isFinite(priceValue) && 
+                             priceValue > 0;
+
+        if (!isValidPrice && cityItemRef) {
+          console.log(`Skipping cityItem save for "${itemNameNormalized}": invalid price ${priceValue}`);
+        }
+
+        if (cityItemRef && cityItemDoc && isValidPrice) {
           // Price entry includes userId for tracking which users have this item
           const cityPrice: ItemPrice & { userId: string } = {
             ...newPrice,
@@ -842,7 +854,19 @@ export const aggregateItemsOnReceipt = functions
               updatedCityPrices = [cityPrice, ...(cityData.prices as any)].slice(0, 100);
             }
 
-            // Recalculate city statistics
+            // Filter out any existing invalid prices (0, null, undefined, NaN)
+            updatedCityPrices = updatedCityPrices.filter(p => {
+              const price = p.price;
+              return price !== null && price !== undefined && !isNaN(price) && isFinite(price) && price > 0;
+            });
+
+            // Skip if no valid prices remain after filtering
+            if (updatedCityPrices.length === 0) {
+              console.log(`Skipping cityItem update for "${itemNameNormalized}": no valid prices after filtering`);
+              continue;
+            }
+
+            // Recalculate city statistics (now using only valid prices)
             const cityPriceValues = updatedCityPrices.map(p => p.price);
             const minPrice = Math.min(...cityPriceValues);
             const maxPrice = Math.max(...cityPriceValues);
@@ -1250,13 +1274,27 @@ export const getCityItems = functions
         return new Date();
       };
 
+      // Helper function to sanitize numbers (NaN causes JSON encoding errors)
+      const safeNumber = (value: any, defaultValue: number = 0): number => {
+        if (value === null || value === undefined) return defaultValue;
+        const num = Number(value);
+        return isNaN(num) || !isFinite(num) ? defaultValue : num;
+      };
+
       const cityItems = cityItemsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           ...data,
+          // Sanitize numeric fields
+          totalPurchases: safeNumber(data.totalPurchases, 0),
+          averagePrice: safeNumber(data.averagePrice, 0),
+          minPrice: safeNumber(data.minPrice, 0),
+          maxPrice: safeNumber(data.maxPrice, 0),
           lastPurchaseDate: safeToDate(data.lastPurchaseDate),
           prices: (data.prices || []).map((p: any) => ({
             ...p,
+            price: safeNumber(p.price, 0),
+            quantity: safeNumber(p.quantity, 1),
             date: safeToDate(p.date),
           })),
         };

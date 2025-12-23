@@ -41,12 +41,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = void 0;
+exports.activateSubscriptionFromRailway = exports.mokoPaymentWebhook = exports.verifyMokoPayment = exports.initiateMokoPayment = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
 const crypto = __importStar(require("crypto"));
 const config_1 = require("../config");
+const paymentNotifications_1 = require("../notifications/paymentNotifications");
 const db = admin.firestore();
 /**
  * Generate signature for Moko Afrika API
@@ -319,6 +320,12 @@ exports.mokoPaymentWebhook = functions
         // If completed, activate subscription
         if (newStatus === 'completed') {
             await activateSubscription(userId, payment.planId, payment);
+            // Send payment success notification
+            await (0, paymentNotifications_1.sendPaymentSuccessNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', transaction_id);
+        }
+        else if (newStatus === 'failed') {
+            // Send payment failed notification
+            await (0, paymentNotifications_1.sendPaymentFailedNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', status);
         }
         res.status(200).json({ success: true, status: newStatus });
     }
@@ -333,8 +340,37 @@ exports.mokoPaymentWebhook = functions
 async function activateSubscription(userId, planId, payment) {
     const subscriptionRef = db.doc(config_1.collections.subscription(userId));
     const now = new Date();
-    const endDate = new Date(now);
-    endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
+    // Check for existing active subscription
+    const existingSubscription = await subscriptionRef.get();
+    const existingData = existingSubscription.exists
+        ? existingSubscription.data()
+        : null;
+    // Calculate subscription end date
+    let endDate;
+    if ((existingData === null || existingData === void 0 ? void 0 : existingData.isSubscribed) &&
+        (existingData === null || existingData === void 0 ? void 0 : existingData.subscriptionEndDate) &&
+        existingData.status === 'active') {
+        // User has active subscription - extend from current end date
+        const currentEndDate = existingData.subscriptionEndDate instanceof admin.firestore.Timestamp
+            ? existingData.subscriptionEndDate.toDate()
+            : new Date(existingData.subscriptionEndDate);
+        if (currentEndDate > now) {
+            // Add 1 month to existing end date (user keeps remaining time)
+            endDate = new Date(currentEndDate);
+            endDate.setMonth(endDate.getMonth() + 1);
+            console.log(`Extending subscription from ${currentEndDate.toISOString()} to ${endDate.toISOString()}`);
+        }
+        else {
+            // Old subscription expired, start fresh
+            endDate = new Date(now);
+            endDate.setMonth(endDate.getMonth() + 1);
+        }
+    }
+    else {
+        // No active subscription, start fresh
+        endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + 1);
+    }
     await subscriptionRef.set({
         userId,
         isSubscribed: true,
@@ -351,6 +387,7 @@ async function activateSubscription(userId, planId, payment) {
         transactionId: payment.transactionId,
         customerPhone: payment.phoneNumber,
         autoRenew: true,
+        monthlyScansUsed: 0, // Reset monthly usage on new payment
         // Preserve trial info
         trialScansUsed: admin.firestore.FieldValue.increment(0),
         trialScansLimit: config_1.config.app.trialScanLimit,
@@ -358,4 +395,65 @@ async function activateSubscription(userId, planId, payment) {
     }, { merge: true });
     console.log(`Subscription activated for user ${userId}, plan: ${planId}`);
 }
+/**
+ * Activate subscription from Railway Payment Hub
+ * Called by GoShopper after Supabase confirms payment success
+ */
+exports.activateSubscriptionFromRailway = functions.https.onCall(async (data, context) => {
+    // Verify user is authenticated
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const userId = context.auth.uid;
+    const { planId, transactionId, amount, phoneNumber, currency = 'USD' } = data;
+    if (!planId || !transactionId || !amount || !phoneNumber) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: planId, transactionId, amount, phoneNumber');
+    }
+    // Validate plan ID
+    if (!['basic', 'premium'].includes(planId)) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid plan ID. Must be "basic" or "premium"');
+    }
+    try {
+        console.log(`🎯 Activating subscription for user ${userId}, plan: ${planId}, transaction: ${transactionId}`);
+        const now = new Date();
+        // Create payment record
+        const paymentRecord = {
+            userId,
+            planId,
+            amount,
+            currency,
+            phoneNumber,
+            provider: 'freshpay',
+            transactionId,
+            mokoReference: transactionId,
+            status: 'completed',
+            completedAt: now,
+            createdAt: now,
+            updatedAt: now,
+        };
+        // Store payment record in Firestore (convert to Timestamps for storage)
+        const paymentRef = db.collection('payments').doc(transactionId);
+        await paymentRef.set({
+            ...paymentRecord,
+            completedAt: admin.firestore.Timestamp.fromDate(now),
+            createdAt: admin.firestore.Timestamp.fromDate(now),
+            updatedAt: admin.firestore.Timestamp.fromDate(now),
+        });
+        // Activate subscription
+        await activateSubscription(userId, planId, paymentRecord);
+        // Send success notification
+        await (0, paymentNotifications_1.sendPaymentSuccessNotification)(userId, planId, amount, currency);
+        console.log(`✅ Subscription activated successfully for user ${userId}`);
+        return {
+            success: true,
+            message: 'Subscription activated successfully',
+            planId,
+            transactionId,
+        };
+    }
+    catch (error) {
+        console.error('Subscription activation error:', error);
+        throw new functions.https.HttpsError('internal', error.message || 'Failed to activate subscription');
+    }
+});
 //# sourceMappingURL=mokoAfrika.js.map
