@@ -28,7 +28,6 @@ import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
-import {intelligentSearchService} from '@/shared/services/intelligentSearchService';
 import {APP_ID} from '@/shared/services/firebase/config';
 
 // User's personal item data (Tier 2: User Aggregated Items)
@@ -239,36 +238,96 @@ export function ItemsScreen() {
     }
   };
 
+  // Simple, reliable search function
+  const simpleSearch = (itemName: string, query: string): boolean => {
+    // Normalize both strings: lowercase, remove accents
+    const normalize = (str: string) => 
+      str.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .trim();
+    
+    const normalizedItem = normalize(itemName);
+    const normalizedQuery = normalize(query);
+    
+    // 1. Direct contains match
+    if (normalizedItem.includes(normalizedQuery)) {
+      return true;
+    }
+    
+    // 2. Query contains item (for short item names)
+    if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
+      return true;
+    }
+    
+    // 3. Word-by-word match (any word matches)
+    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
+    const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
+    
+    for (const qWord of queryWords) {
+      for (const iWord of itemWords) {
+        // Word contains match
+        if (iWord.includes(qWord) || qWord.includes(iWord)) {
+          return true;
+        }
+        // Start-of-word match (e.g., "tom" matches "tomate")
+        if (iWord.startsWith(qWord) || qWord.startsWith(iWord)) {
+          return true;
+        }
+      }
+    }
+    
+    // 4. Fuzzy match - allow 1-2 character differences for words >= 4 chars
+    if (normalizedQuery.length >= 4) {
+      for (const iWord of itemWords) {
+        if (iWord.length >= 4) {
+          const distance = levenshteinDistance(normalizedQuery, iWord);
+          const maxDistance = Math.floor(Math.max(normalizedQuery.length, iWord.length) * 0.3);
+          if (distance <= maxDistance) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
+  };
+  
+  // Levenshtein distance for fuzzy matching
+  const levenshteinDistance = (str1: string, str2: string): number => {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+    return dp[m][n];
+  };
+
   const filterItems = () => {
     if (!searchQuery.trim()) {
       setFilteredItems(items);
       return;
     }
 
-    // Use intelligent search with multilingual, fuzzy, phonetic matching
-    const searchResults = intelligentSearchService.searchItems(items, searchQuery, {
-      minScore: 0.35, // Lower threshold for more inclusive results
-      maxResults: 100,
-    });
-    const filtered = searchResults.map(result => result.item);
-
+    // Simple, direct search
+    const filtered = items.filter(item => simpleSearch(item.name, searchQuery));
     setFilteredItems(filtered);
 
-    // Track item search with match types and confidence
-    const matchTypeCounts = searchResults.reduce((acc, result) => {
-      acc[result.matchType] = (acc[result.matchType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const avgConfidence = searchResults.length > 0
-      ? searchResults.reduce((sum, r) => sum + r.confidence, 0) / searchResults.length
-      : 0;
-
+    // Log search for analytics
     analyticsService.logCustomEvent('item_search', {
       query: searchQuery,
       results_count: filtered.length,
-      match_types: matchTypeCounts,
-      avg_confidence: avgConfidence,
     });
   };
 

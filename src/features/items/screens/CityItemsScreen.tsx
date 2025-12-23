@@ -28,7 +28,6 @@ import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
-import {intelligentSearchService} from '@/shared/services/intelligentSearchService';
 import {RootStackParamList} from '@/shared/types';
 
 // City/Community item data (Tier 3: Community Prices - Anonymous)
@@ -64,6 +63,8 @@ export function CityItemsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
 
@@ -93,7 +94,7 @@ export function CityItemsScreen() {
 
   useEffect(() => {
     filterItems();
-  }, [items, searchQuery]);
+  }, [items, searchQuery, sortBy]);
 
   const toggleSearch = () => {
     if (isSearchOpen) {
@@ -176,37 +177,114 @@ export function CityItemsScreen() {
     }
   };
 
-  const filterItems = () => {
-    if (!searchQuery.trim()) {
-      setFilteredItems(items);
-      return;
+  // Simple, reliable search function
+  const simpleSearch = (itemName: string, query: string): boolean => {
+    // Normalize both strings: lowercase, remove accents
+    const normalize = (str: string) => 
+      str.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .trim();
+    
+    const normalizedItem = normalize(itemName);
+    const normalizedQuery = normalize(query);
+    
+    // 1. Direct contains match
+    if (normalizedItem.includes(normalizedQuery)) {
+      return true;
     }
+    
+    // 2. Query contains item (for short item names)
+    if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
+      return true;
+    }
+    
+    // 3. Word-by-word match (any word matches)
+    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
+    const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
+    
+    for (const qWord of queryWords) {
+      for (const iWord of itemWords) {
+        // Word contains match
+        if (iWord.includes(qWord) || qWord.includes(iWord)) {
+          return true;
+        }
+        // Start-of-word match (e.g., "tom" matches "tomate")
+        if (iWord.startsWith(qWord) || qWord.startsWith(iWord)) {
+          return true;
+        }
+      }
+    }
+    
+    // 4. Fuzzy match - allow 1-2 character differences for words >= 4 chars
+    if (normalizedQuery.length >= 4) {
+      for (const iWord of itemWords) {
+        if (iWord.length >= 4) {
+          const distance = levenshteinDistance(normalizedQuery, iWord);
+          const maxDistance = Math.floor(Math.max(normalizedQuery.length, iWord.length) * 0.3);
+          if (distance <= maxDistance) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
+  };
+  
+  // Levenshtein distance for fuzzy matching
+  const levenshteinDistance = (str1: string, str2: string): number => {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+    return dp[m][n];
+  };
 
-    // Use intelligent search with multilingual, fuzzy, phonetic matching
-    const searchResults = intelligentSearchService.searchItems(items, searchQuery, {
-      minScore: 0.35, // Lower threshold for more inclusive results
-      maxResults: 100,
-    });
-    const filtered = searchResults.map(result => result.item);
-
-    setFilteredItems(filtered);
-
-    // Track item search with match types and confidence
-    const matchTypeCounts = searchResults.reduce((acc, result) => {
-      acc[result.matchType] = (acc[result.matchType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const avgConfidence = searchResults.length > 0
-      ? searchResults.reduce((sum, r) => sum + r.confidence, 0) / searchResults.length
-      : 0;
-
-    analyticsService.logCustomEvent('city_item_search', {
-      query: searchQuery,
-      results_count: filtered.length,
-      match_types: matchTypeCounts,
-      avg_confidence: avgConfidence,
-    });
+  const filterItems = () => {
+    let filtered: CityItemData[];
+    
+    if (!searchQuery.trim()) {
+      filtered = items;
+    } else {
+      // Simple, direct search
+      filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+      
+      // Log search for analytics
+      analyticsService.logCustomEvent('city_items_search', {
+        query: searchQuery,
+        results_count: filtered.length,
+      });
+    }
+    
+    // Apply sorting
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case 'name':
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'price':
+        sorted.sort((a, b) => a.minPrice - b.minPrice);
+        break;
+      case 'popular':
+      default:
+        sorted.sort((a, b) => b.prices.length - a.prices.length);
+        break;
+    }
+    
+    setFilteredItems(sorted);
   };
 
   const renderItem = ({item, index}: {item: CityItemData; index: number}) => {
@@ -410,17 +488,72 @@ export function CityItemsScreen() {
                 {items.length} produits communautaires
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={toggleSearch}
-              activeOpacity={0.7}>
-              <Icon
-                name={isSearchOpen ? 'x' : 'search'}
-                size="sm"
-                color={Colors.primary}
-              />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setShowSortMenu(!showSortMenu)}
+                activeOpacity={0.7}>
+                <Icon name="filter" size="sm" color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={toggleSearch}
+                activeOpacity={0.7}>
+                <Icon
+                  name={isSearchOpen ? 'x' : 'search'}
+                  size="sm"
+                  color={Colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
+          
+          {/* Sort Menu */}
+          {showSortMenu && (
+            <View style={styles.sortMenuHeader}>
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'popular' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('popular');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="trending-up" size="sm" color={sortBy === 'popular' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'popular' && styles.sortOptionTextActive]}>
+                  Populaire
+                </Text>
+                {sortBy === 'popular' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('name');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="type" size="sm" color={sortBy === 'name' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
+                  Nom
+                </Text>
+                {sortBy === 'name' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'price' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('price');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="dollar-sign" size="sm" color={sortBy === 'price' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'price' && styles.sortOptionTextActive]}>
+                  Prix
+                </Text>
+                {sortBy === 'price' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </FadeIn>
 
@@ -524,6 +657,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+    position: 'relative',
+    zIndex: 1000,
     ...Shadows.sm,
   },
   headerContent: {
@@ -549,6 +684,52 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.text.tertiary,
     marginLeft: 36, // Align with title after icon
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  sortMenuHeader: {
+    position: 'absolute',
+    top: 90,
+    right: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    minWidth: 180,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+    ...Shadows.lg,
+    zIndex: 9999,
+    elevation: 10,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  sortOptionActive: {
+    backgroundColor: Colors.card.cream,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.secondary,
+  },
+  sortOptionTextActive: {
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primary,
   },
   searchButton: {
     width: 44,

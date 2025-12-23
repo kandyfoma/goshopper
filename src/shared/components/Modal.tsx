@@ -133,7 +133,7 @@ export const Modal: React.FC<ModalProps> = ({
   const getCenteredSize = (): ViewStyle => {
     switch (size) {
       case 'small':
-        return {maxHeight: '40%', minHeight: 200};
+        return {minHeight: 180};
       case 'large':
         return {maxHeight: '80%', minHeight: 400};
       case 'fullscreen':
@@ -191,12 +191,17 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   const contentContainerStyle = getContentStyle();
+  
+  // Container style based on variant
+  const containerStyle = variant === 'bottom-sheet' 
+    ? { flex: 1, justifyContent: 'flex-end' as const }
+    : { flex: 1, justifyContent: 'center' as const };
 
   return (
     <RNModal {...modalConfig} {...modalProps}>
       {renderOverlay()}
 
-      <View style={styles.container}>
+      <View style={[styles.container, containerStyle]}>
         <View style={[contentContainerStyle, contentStyle]}>
           {renderHandle()}
           {renderHeader()}
@@ -215,7 +220,7 @@ export const Modal: React.FC<ModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -223,7 +228,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.light,
@@ -249,8 +254,12 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.normal,
   },
   closeButton: {
-    padding: Spacing.xs,
-    marginTop: Spacing.xs,
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.cream,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   handle: {
     width: 40,
@@ -262,7 +271,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   body: {
-    flex: 1,
+    flexShrink: 1,
   },
 });
 

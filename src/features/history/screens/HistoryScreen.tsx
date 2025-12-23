@@ -46,12 +46,16 @@ export function HistoryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'price'>('date');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
+  const searchAnimation = useRef(new Animated.Value(0)).current;
 
   // Tab configuration (useMemo to prevent recreation on every render)
   const tabs = React.useMemo(() => [
     { icon: 'list', label: 'Tous', value: 'all' },
     { icon: 'calendar', label: 'Ce mois', value: 'month' },
-    { icon: 'archive', label: 'Cette année', value: 'year' },
   ], []);
 
   // Redirect if not authenticated
@@ -210,6 +214,26 @@ export function HistoryScreen() {
     }
   };
 
+  const toggleSearch = () => {
+    if (isSearchOpen) {
+      // Closing search
+      setSearchQuery('');
+      Animated.timing(searchAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => setIsSearchOpen(false));
+    } else {
+      // Opening search
+      setIsSearchOpen(true);
+      Animated.timing(searchAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => searchInputRef.current?.focus());
+    }
+  };
+
   const filterReceiptsByTab = useCallback((receipts: Receipt[], tabValue: string) => {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -222,14 +246,27 @@ export function HistoryScreen() {
           return receiptDate.getMonth() === currentMonth && 
                  receiptDate.getFullYear() === currentYear;
         });
-      case 'year':
-        return receipts.filter(receipt => {
-          const receiptDate = safeToDate(receipt.date);
-          return receiptDate.getFullYear() === currentYear;
-        });
       case 'all':
       default:
         return receipts;
+    }
+  }, []);
+
+  // Sort receipts
+  const sortReceipts = useCallback((receiptsToSort: Receipt[], sortBy: 'date' | 'name' | 'price') => {
+    const sorted = [...receiptsToSort];
+    switch (sortBy) {
+      case 'name':
+        return sorted.sort((a, b) => 
+          (a.storeName || '').localeCompare(b.storeName || '')
+        );
+      case 'price':
+        return sorted.sort((a, b) => (b.total || 0) - (a.total || 0));
+      case 'date':
+      default:
+        return sorted.sort((a, b) => 
+          b.scannedAt.getTime() - a.scannedAt.getTime()
+        );
     }
   }, []);
 
@@ -243,16 +280,39 @@ export function HistoryScreen() {
     let filtered = filterReceiptsByTab(receipts, tabs[activeTab].value);
     
     if (searchQuery.trim() !== '') {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        r =>
-          r.storeName.toLowerCase().includes(query) ||
-          r.storeAddress?.toLowerCase().includes(query),
-      );
+      // Normalize function: lowercase + remove accents
+      const normalize = (str: string) => 
+        str.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+      
+      const query = normalize(searchQuery);
+      filtered = filtered.filter(r => {
+        const storeName = normalize(r.storeName || '');
+        const storeAddress = normalize(r.storeAddress || '');
+        
+        // Check if query is in store name or address
+        if (storeName.includes(query) || storeAddress.includes(query)) {
+          return true;
+        }
+        
+        // Check if any word starts with query
+        const storeWords = storeName.split(/\s+/);
+        for (const word of storeWords) {
+          if (word.startsWith(query) || query.startsWith(word)) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
     }
     
+    // Apply sorting
+    filtered = sortReceipts(filtered, sortBy);
     setFilteredReceipts(filtered);
-  }, [searchQuery, receipts, activeTab, tabs, filterReceiptsByTab]);
+  }, [searchQuery, receipts, activeTab, tabs, filterReceiptsByTab, sortReceipts, sortBy]);
 
   const handleReceiptPress = (receiptId: string, receipt: Receipt) => {
     analyticsService.logCustomEvent('receipt_viewed', {receipt_id: receiptId});
@@ -325,15 +385,18 @@ export function HistoryScreen() {
             </View>
 
             <View style={styles.receiptInfo}>
-              <Text style={styles.storeName}>{item.storeName}</Text>
-              <Text style={styles.storeAddress} numberOfLines={1}>
-                {item.storeAddress || 'Adresse non spécifiée'}
-              </Text>
-              <View style={styles.dateRow}>
-                <Icon name="calendar" size="xs" color={Colors.text.tertiary} />
-                <Text style={styles.receiptDate}>
-                  {formatDate(item.date)}
-                </Text>
+              <Text style={styles.storeName} numberOfLines={1}>{item.storeName}</Text>
+              <View style={styles.metaRow}>
+                <View style={styles.itemCountBadge}>
+                  <Icon name="package" size="xs" color={Colors.primary} />
+                  <Text style={styles.itemCountText}>{item.items?.length || 0}</Text>
+                </View>
+                <View style={styles.dateRow}>
+                  <Icon name="calendar" size="xs" color={Colors.text.tertiary} />
+                  <Text style={styles.receiptDate}>
+                    {formatDate(item.date)}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -420,17 +483,101 @@ export function HistoryScreen() {
       {/* Header */}
       <FadeIn>
         <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>Historique</Text>
-          <Text style={styles.headerSubtitle}>Vos factures scannées</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Historique</Text>
+            <Text style={styles.headerSubtitle}>Vos factures scannées</Text>
+          </View>
+          
+          <View style={styles.headerActions}>
+            {/* Sort Button in Header */}
+            <TouchableOpacity 
+              style={styles.headerSortButton}
+              onPress={() => setShowSortMenu(!showSortMenu)}
+              activeOpacity={0.7}
+            >
+              <Icon name="filter" size="sm" color={Colors.primary} />
+            </TouchableOpacity>
+            
+            {/* Search Button */}
+            <TouchableOpacity 
+              style={styles.headerSortButton}
+              onPress={toggleSearch}
+              activeOpacity={0.7}
+            >
+              <Icon name={isSearchOpen ? 'x' : 'search'} size="sm" color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Sort Menu */}
+          {showSortMenu && (
+            <View style={styles.sortMenuHeader}>
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'date' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('date');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="calendar" size="sm" color={sortBy === 'date' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'date' && styles.sortOptionTextActive]}>
+                  Date
+                </Text>
+                {sortBy === 'date' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('name');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="store" size="sm" color={sortBy === 'name' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
+                  Nom
+                </Text>
+                {sortBy === 'name' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'price' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('price');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="dollar-sign" size="sm" color={sortBy === 'price' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'price' && styles.sortOptionTextActive]}>
+                  Prix
+                </Text>
+                {sortBy === 'price' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </FadeIn>
 
-      {/* Search Bar */}
-      <FadeIn delay={100}>
-        <View style={styles.searchContainer}>
+      {/* Animated Search Bar */}
+      {isSearchOpen && (
+        <Animated.View
+          style={[
+            styles.searchContainer,
+            {
+              opacity: searchAnimation,
+              transform: [
+                {
+                  translateY: searchAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}>
           <View style={styles.searchBar}>
             <Icon name="search" size="sm" color={Colors.text.tertiary} />
             <TextInput
+              ref={searchInputRef}
               style={styles.searchInput}
               placeholder="Rechercher un magasin..."
               placeholderTextColor={Colors.text.tertiary}
@@ -439,12 +586,12 @@ export function HistoryScreen() {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Icon name="x" size="sm" color={Colors.text.tertiary} />
+                <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
               </TouchableOpacity>
             )}
           </View>
-        </View>
-      </FadeIn>
+        </Animated.View>
+      )}
 
       {/* Tab Bar */}
       <SlideIn direction="right" delay={200}>
@@ -544,33 +691,69 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background.primary,
   },
   headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
+    position: 'relative',
+    zIndex: 9998,
+  },
+  headerLeft: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: Typography.fontSize['2xl'],
+    fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.sm,
     color: Colors.text.tertiary,
-    marginTop: Spacing.xs,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  headerSortButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+    marginTop: 4,
+  },
+  sortMenuHeader: {
+    position: 'absolute',
+    top: 60,
+    right: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    minWidth: 180,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+    ...Shadows.lg,
+    zIndex: 9999,
+    elevation: 10,
   },
   searchContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.white,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
     height: 48,
     gap: Spacing.sm,
-    ...Shadows.sm,
   },
   searchInput: {
     flex: 1,
@@ -625,14 +808,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     alignItems: 'center',
-    ...Shadows.sm,
+    ...Shadows.md,
   },
   receiptIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.base,
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.lg,
     backgroundColor: Colors.card.cream,
     justifyContent: 'center',
     alignItems: 'center',
@@ -641,12 +824,32 @@ const styles = StyleSheet.create({
   receiptInfo: {
     flex: 1,
     justifyContent: 'center',
+    gap: Spacing.xs,
   },
   storeName: {
     fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    marginBottom: 2,
+    marginBottom: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  itemCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.cream,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  itemCountText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primary,
   },
   storeAddress: {
     fontSize: Typography.fontSize.sm,
@@ -670,15 +873,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   totalAmount: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.accent,
+    color: Colors.primary,
     marginBottom: 2,
   },
   totalAmountSecondary: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.medium,
-    color: Colors.text.secondary,
+    color: Colors.text.tertiary,
   },
   statusBadge: {
     paddingVertical: 3,
@@ -699,5 +902,26 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     fontSize: Typography.fontSize.base,
     color: Colors.text.secondary,
+  },
+  
+  // Sort Styles
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  sortOptionActive: {
+    backgroundColor: Colors.card.cream,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.secondary,
+  },
+  sortOptionTextActive: {
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primary,
   },
 });

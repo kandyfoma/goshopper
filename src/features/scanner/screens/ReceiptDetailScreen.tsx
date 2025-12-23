@@ -64,7 +64,6 @@ export function ReceiptDetailScreen() {
   const tabs = [
     { icon: 'shopping-bag', label: 'Articles', value: 'items' },
     { icon: 'file-text', label: 'Résumé', value: 'summary' },
-    { icon: 'share-2', label: 'Partager', value: 'share' },
   ];
 
   useEffect(() => {
@@ -311,13 +310,6 @@ export function ReceiptDetailScreen() {
             onTabPress={(index) => {
               setActiveTab(index);
               hapticService.light();
-              
-              // Handle share tab press immediately
-              if (tabs[index].value === 'share') {
-                handleShare();
-                // Reset to items tab after share
-                setTimeout(() => setActiveTab(0), 500);
-              }
             }}
           />
         </View>

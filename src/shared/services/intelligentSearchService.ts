@@ -655,15 +655,25 @@ class IntelligentSearchService {
       const itemName = item.name || item.displayName || '';
       if (!itemName) continue;
 
-      const { score, matchType, confidence } = this.calculateMatchScore(query, itemName);
+      // First: Calculate score for query -> item name (normal direction)
+      const forwardMatch = this.calculateMatchScore(query, itemName);
+      
+      // Second: Calculate score for item name -> query (reverse direction)
+      // This handles cases where user types normalized form (e.g., "tomatoes")
+      // and item has local name (e.g., "tomate")
+      const reverseMatch = this.calculateMatchScore(itemName, query);
+      
+      // Take the better score of the two directions
+      const bestScore = Math.max(forwardMatch.score, reverseMatch.score);
+      const bestMatch = forwardMatch.score >= reverseMatch.score ? forwardMatch : reverseMatch;
 
-      if (score >= minScore) {
+      if (bestScore >= minScore) {
         results.push({
           item,
-          score,
-          matchType,
+          score: bestScore,
+          matchType: bestMatch.matchType,
           matchedText: itemName,
-          confidence
+          confidence: bestMatch.confidence
         });
       }
     }

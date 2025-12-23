@@ -63,30 +63,51 @@ export const shareService = {
     try {
       const storeName = receipt.storeName || 'Magasin inconnu';
       const date = receipt.scannedAt 
-        ? new Date(receipt.scannedAt).toLocaleDateString('fr-FR')
+        ? new Date(receipt.scannedAt).toLocaleDateString('fr-FR', { 
+            day: '2-digit', 
+            month: 'long', 
+            year: 'numeric' 
+          })
         : 'Date inconnue';
-      const total = receipt.totalUSD 
-        ? `$${receipt.totalUSD.toFixed(2)}`
-        : receipt.totalCDF 
-          ? `${receipt.totalCDF.toFixed(0)} CDF`
-          : 'Total inconnu';
+      
+      // Format both currencies if available
+      const primaryTotal = receipt.currency === 'USD'
+        ? `$${receipt.total.toFixed(2)}`
+        : `${receipt.total.toLocaleString('fr-FR')} CDF`;
+      
+      const secondaryTotal = receipt.currency === 'USD' && receipt.totalCDF
+        ? ` (≈ ${receipt.totalCDF.toLocaleString('fr-FR')} CDF)`
+        : receipt.currency === 'CDF' && receipt.totalUSD
+          ? ` (≈ $${receipt.totalUSD.toFixed(2)})`
+          : '';
+      
       const itemCount = receipt.items?.length || 0;
+      const city = receipt.city ? `\n📍 ${receipt.city}` : '';
 
-      const message = `🛒 Mon ticket de caisse - GoShopperAI
+      // Format top items with better currency display
+      const itemsList = receipt.items?.slice(0, 5).map(item => {
+        const price = item.unitPrice 
+          ? receipt.currency === 'USD'
+            ? `$${item.unitPrice.toFixed(2)}`
+            : `${item.unitPrice.toLocaleString('fr-FR')} CDF`
+          : '-';
+        const qty = item.quantity > 1 ? `${item.quantity}x ` : '';
+        return `  • ${qty}${item.name} - ${price}`;
+      }).join('\n') || '';
 
-📍 ${storeName}
+      const message = `━━━━━━━━━━━━━━━━━━━━
+🧾 REÇU DE CAISSE
+━━━━━━━━━━━━━━━━━━━━\n
+🏪 ${storeName}${city}
 📅 ${date}
-💰 Total: ${total}
-📦 ${itemCount} article${itemCount > 1 ? 's' : ''}
 
-${receipt.items?.slice(0, 5).map(item => 
-  `• ${item.name}: ${item.unitPrice ? `$${item.unitPrice.toFixed(2)}` : '-'}`
-).join('\n') || ''}
-${itemCount > 5 ? `\n... et ${itemCount - 5} autres articles` : ''}
+💳 TOTAL: ${primaryTotal}${secondaryTotal}
+📦 ${itemCount} article${itemCount > 1 ? 's' : ''}\n
+${itemsList ? '━━━ ARTICLES ━━━\n' + itemsList : ''}${itemCount > 5 ? `\n  ... et ${itemCount - 5} autre${itemCount - 5 > 1 ? 's' : ''}` : ''}\n
+━━━━━━━━━━━━━━━━━━━━
+📱 Analysé avec GoShopperAI\n💡 Gérez vos dépenses intelligemment`;
 
-Analysé avec GoShopperAI 📱`;
-
-      return await this.shareText(message, `Ticket - ${storeName}`);
+      return await this.shareText(message, `Reçu - ${storeName}`);
     } catch (error) {
       console.error('Error sharing receipt:', error);
       return false;

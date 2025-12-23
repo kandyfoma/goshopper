@@ -15,7 +15,6 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import LinearGradient from 'react-native-linear-gradient';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
 import {
@@ -253,12 +252,7 @@ export function ShoppingListsScreen() {
           {itemsCount > 0 && (
             <View style={styles.progressBarContainer}>
               <View style={styles.progressBarBg}>
-                <LinearGradient
-                  colors={['#780000', '#FDB913']}
-                  style={[styles.progressBarFill, {width: `${progress * 100}%`}]}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 0}}
-                />
+                <View style={[styles.progressBarFill, {width: `${progress * 100}%`}]} />
               </View>
               <Text style={styles.progressText}>
                 {Math.round(progress * 100)}%
@@ -351,15 +345,9 @@ export function ShoppingListsScreen() {
           <TouchableOpacity
             style={styles.createFirstButton}
             onPress={() => setShowNewListModal(true)}
-            activeOpacity={0.9}>
-            <LinearGradient
-              colors={['#780000', '#FDB913']}
-              style={styles.createFirstButtonGradient}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}>
-              <Icon name="plus" size="md" color={Colors.white} />
-              <Text style={styles.createFirstButtonText}>Créer une liste</Text>
-            </LinearGradient>
+            activeOpacity={0.8}>
+            <Icon name="plus" size="md" color={Colors.white} />
+            <Text style={styles.createFirstButtonText}>Créer une liste</Text>
           </TouchableOpacity>
         </Animated.View>
       ) : (
@@ -375,47 +363,58 @@ export function ShoppingListsScreen() {
       {/* New List Modal */}
       <Modal
         visible={showNewListModal}
-        variant="bottom-sheet"
+        variant="centered"
+        size="small"
         title="Nouvelle Liste"
-        onClose={() => setShowNewListModal(false)}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Nom de la liste</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="list" size="sm" color={Colors.text.tertiary} />
-            <TextInput
-              style={styles.modalInput}
-              value={newListName}
-              onChangeText={setNewListName}
-              placeholder="Ex: Courses de la semaine..."
-              placeholderTextColor={Colors.text.tertiary}
-              autoFocus
-            />
+        onClose={() => {
+          setShowNewListModal(false);
+          setNewListName('');
+        }}>
+        <View style={styles.modalContent}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Nom de la liste</Text>
+            <View style={styles.inputWrapper}>
+              <Icon name="list" size="sm" color={Colors.text.tertiary} />
+              <TextInput
+                style={styles.modalInput}
+                value={newListName}
+                onChangeText={setNewListName}
+                placeholder="Ex: Courses de la semaine..."
+                placeholderTextColor={Colors.text.tertiary}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleCreateList}
+              />
+            </View>
           </View>
-        </View>
 
-        <View style={styles.modalActions}>
-          <TouchableOpacity
-            style={styles.modalCancelButton}
-            onPress={() => setShowNewListModal(false)}>
-            <Text style={styles.modalCancelText}>Annuler</Text>
-          </TouchableOpacity>
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => {
+                setShowNewListModal(false);
+                setNewListName('');
+              }}>
+              <Text style={styles.modalCancelText}>Annuler</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.modalCreateButton,
-              !newListName.trim() && styles.modalCreateButtonDisabled,
-            ]}
-            onPress={handleCreateList}
-            disabled={!newListName.trim() || isCreating}>
-            {isCreating ? (
-              <Spinner size="small" color={Colors.white} />
-            ) : (
-              <>
-                <Icon name="plus" size="sm" color={Colors.white} />
-                <Text style={styles.modalCreateText}>Créer</Text>
-              </>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modalCreateButton,
+                !newListName.trim() && styles.modalCreateButtonDisabled,
+              ]}
+              onPress={handleCreateList}
+              disabled={!newListName.trim() || isCreating}>
+              {isCreating ? (
+                <Spinner size="small" color={Colors.white} />
+              ) : (
+                <>
+                  <Icon name="plus" size="sm" color={Colors.white} />
+                  <Text style={styles.modalCreateText}>Créer</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -569,6 +568,7 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: '100%',
     borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
   },
   progressText: {
     fontSize: Typography.fontSize.xs,
@@ -631,24 +631,25 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   createFirstButton: {
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    ...Shadows.md,
-  },
-  createFirstButtonGradient: {
     flexDirection: 'row',
     paddingHorizontal: Spacing['2xl'],
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.md,
   },
   createFirstButtonText: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.white,
   },
+  modalContent: {
+    padding: Spacing.lg,
+  },
   inputContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   inputLabel: {
     fontSize: Typography.fontSize.sm,
