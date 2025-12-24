@@ -197,4 +197,4 @@ export const PLAN_PRICING: PlanPricing[] = [
   },
 ];
 
-export const TRIAL_SCAN_LIMIT = 5;
+export const TRIAL_SCAN_LIMIT = 10;

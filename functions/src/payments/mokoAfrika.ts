@@ -418,6 +418,30 @@ async function activateSubscription(
 
   // Calculate subscription end date
   let endDate: Date;
+  
+  // Calculate bonus scans from remaining trial/previous plan
+  let bonusScans = 0;
+  
+  if (existingData) {
+    // Calculate remaining scans from trial
+    if (existingData.status === 'trial' || !existingData.isSubscribed) {
+      const trialLimit = existingData.trialScansLimit || config.app.trialScanLimit;
+      const trialUsed = existingData.trialScansUsed || 0;
+      const trialRemaining = Math.max(0, trialLimit - trialUsed);
+      bonusScans += trialRemaining;
+      console.log(`Carrying over ${trialRemaining} remaining trial scans`);
+    }
+    
+    // Calculate remaining scans from previous subscription
+    if (existingData.isSubscribed && existingData.status === 'active') {
+      const prevPlanLimit = existingData.planId === 'premium' ? 1000 : 
+                           existingData.planId === 'standard' ? 100 : 25;
+      const monthlyUsed = existingData.monthlyScansUsed || 0;
+      const monthlyRemaining = Math.max(0, prevPlanLimit - monthlyUsed);
+      bonusScans += monthlyRemaining;
+      console.log(`Carrying over ${monthlyRemaining} remaining monthly scans from ${existingData.planId} plan`);
+    }
+  }
 
   if (
     existingData?.isSubscribed &&
@@ -448,6 +472,12 @@ async function activateSubscription(
     endDate.setMonth(endDate.getMonth() + 1);
   }
 
+  // Calculate starting scans: negative monthlyScansUsed means bonus scans
+  // E.g., if user has 3 remaining and buys basic (25), they get 28 total
+  // We set monthlyScansUsed to -bonusScans, so 25 - (-3) = 28 available
+  const startingScansUsed = bonusScans > 0 ? -bonusScans : 0;
+  console.log(`New subscription starts with ${bonusScans} bonus scans (monthlyScansUsed: ${startingScansUsed})`);
+
   await subscriptionRef.set(
     {
       userId,
@@ -469,7 +499,8 @@ async function activateSubscription(
       transactionId: payment.transactionId,
       customerPhone: payment.phoneNumber,
       autoRenew: true,
-      monthlyScansUsed: 0, // Reset monthly usage on new payment
+      monthlyScansUsed: startingScansUsed, // Negative value = bonus scans carried over
+      bonusScansCarriedOver: bonusScans, // Track for transparency
       // Preserve trial info
       trialScansUsed: admin.firestore.FieldValue.increment(0),
       trialScansLimit: config.app.trialScanLimit,
@@ -478,7 +509,7 @@ async function activateSubscription(
     {merge: true},
   );
 
-  console.log(`Subscription activated for user ${userId}, plan: ${planId}`);
+  console.log(`Subscription activated for user ${userId}, plan: ${planId}, bonus scans: ${bonusScans}`);
 }
 
 /**

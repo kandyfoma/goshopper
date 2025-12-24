@@ -185,22 +185,25 @@ export function ShoppingListScreen() {
     }
   }, [userProfile?.defaultCity]);
   
-  // Debounced search
+  // Debounced search - triggered by newItemName changes
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     
-    searchTimeoutRef.current = setTimeout(() => {
-      searchCommunityItems(searchQuery);
-    }, 300);
+    // Only search if modal is open and we're not selecting from results
+    if (showAddItemModal && !selectedItemForAdd) {
+      searchTimeoutRef.current = setTimeout(() => {
+        searchCommunityItems(newItemName);
+      }, 300);
+    }
     
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, searchCommunityItems]);
+  }, [newItemName, searchCommunityItems, showAddItemModal, selectedItemForAdd]);
 
   const handleCreateList = useCallback(async () => {
     if (!user?.uid || !newListName.trim()) {return;}
@@ -844,20 +847,26 @@ export function ShoppingListScreen() {
       <Modal
         visible={showAddItemModal}
         variant="bottom-sheet"
+        size="large"
         title="Ajouter Article"
+        contentStyle={styles.addItemModalContent}
         onClose={() => {
           setShowAddItemModal(false);
-          setSearchQuery('');
+          setNewItemName('');
+          setNewItemQuantity('1');
           setSearchResults([]);
           setSelectedItemForAdd(null);
         }}>
-        {/* Search input row with quantity dropdown */}
+        {/* Search input row with quantity dropdown - same line */}
         <View style={styles.addItemRow}>
           <View style={styles.searchInputContainer}>
             <Input
-              label="Nom de l'article"
+              label="Rechercher un article"
               value={newItemName}
-              onChangeText={setNewItemName}
+              onChangeText={(text) => {
+                setNewItemName(text);
+                setSelectedItemForAdd(null); // Reset selection when typing
+              }}
               placeholder="Ex: Sucre, Riz, Huile..."
               leftIcon="search"
             />
@@ -865,7 +874,6 @@ export function ShoppingListScreen() {
           
           {/* Quantity Dropdown */}
           <View style={styles.quantityDropdownContainer}>
-            <Text style={styles.quantityDropdownLabel}>Qté</Text>
             <View style={styles.quantityDropdown}>
               <TouchableOpacity
                 style={styles.quantityDropdownButton}
@@ -888,25 +896,35 @@ export function ShoppingListScreen() {
           </View>
         </View>
         
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <ScrollView style={styles.searchResultsContainer} nestedScrollEnabled>
-            <Text style={styles.searchResultsTitle}>Résultats ({searchResults.length})</Text>
-            {searchResults.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.searchResultItem}
-                onPress={() => handleSelectSearchResult(item)}>
-                <View style={styles.searchResultInfo}>
-                  <Text style={styles.searchResultName}>{item.name}</Text>
-                  <Text style={styles.searchResultStats}>
-                    {item.storeCount} magasins • {formatCurrency(item.minPrice, item.currency)} - {formatCurrency(item.maxPrice, item.currency)}
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {/* Search Results - Show while typing */}
+        {searchResults.length > 0 && !selectedItemForAdd && (
+          <View style={styles.searchResultsContainer}>
+            <Text style={styles.searchResultsTitle}>Articles trouvés ({searchResults.length})</Text>
+            <ScrollView style={styles.searchResultsScroll} nestedScrollEnabled showsVerticalScrollIndicator>
+              {searchResults.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.searchResultItem}
+                  onPress={() => handleSelectSearchResult(item)}>
+                  <View style={styles.searchResultInfo}>
+                    <Text style={styles.searchResultName}>{item.name}</Text>
+                    <Text style={styles.searchResultStats}>
+                      {item.storeCount} magasins • {formatCurrency(item.minPrice, item.currency)} - {formatCurrency(item.maxPrice, item.currency)}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+        
+        {/* Loading indicator while searching */}
+        {isSearching && (
+          <View style={styles.searchingIndicator}>
+            <Spinner size="small" color={Colors.primary} />
+            <Text style={styles.searchingText}>Recherche en cours...</Text>
+          </View>
         )}
         
         {/* Selected Item Price Comparison */}
@@ -1356,13 +1374,33 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
   },
+  // Add Item Modal
+  addItemModalContent: {
+    minHeight: 450,
+    maxHeight: '90%',
+  },
   // Search Results
   searchResultsContainer: {
-    maxHeight: 250,
     backgroundColor: Colors.card.blue,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
+    maxHeight: 300,
+  },
+  searchResultsScroll: {
+    maxHeight: 240,
+  },
+  searchingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  searchingText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   searchResultsTitle: {
     fontSize: Typography.fontSize.sm,
@@ -1682,7 +1720,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   quantityDropdownContainer: {
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   quantityDropdownLabel: {
     fontSize: Typography.fontSize.sm,

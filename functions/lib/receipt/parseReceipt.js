@@ -431,6 +431,10 @@ function normalizeProductName(name) {
  * Normalize store name
  */
 function normalizeStoreName(name) {
+    // Handle null/undefined/empty cases
+    if (!name || name === 'null' || name === 'undefined' || name === 'Unknown Store') {
+        return '';
+    }
     const knownStores = {
         shoprite: 'shoprite',
         carrefour: 'carrefour',
@@ -443,6 +447,8 @@ function normalizeStoreName(name) {
         citymarket: 'city_market',
         'kin marche': 'kin_marche',
         'super u': 'super_u',
+        'hyper psaro': 'hyper_psaro',
+        psaro: 'hyper_psaro',
     };
     const normalized = name.toLowerCase().trim();
     for (const [key, value] of Object.entries(knownStores)) {
@@ -457,7 +463,7 @@ function normalizeStoreName(name) {
  * V3 FIX: Enhanced error handling with retry logic
  */
 async function parseWithGemini(imageBase64, mimeType) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d;
     const MAX_RETRIES = 2;
     let lastError = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -498,6 +504,11 @@ async function parseWithGemini(imageBase64, mimeType) {
                 .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}\]])/g, ':"$1"$2') // Quote unquoted string values
                 .replace(/,\s*}/g, '}') // Remove trailing commas
                 .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+            // Fix thousand separators in numbers (e.g., "3 768" -> "3768", "1,500" -> "1500")
+            // This handles space, comma, or period as thousand separators for large numbers
+            jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2');
+            // Handle multiple thousand separators (e.g., "1 234 567" -> "1234567")
+            jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2$3');
             console.log('Cleaned JSON string:', jsonStr.substring(0, 500));
             // Parse JSON with error handling
             let parsed;
@@ -530,18 +541,42 @@ async function parseWithGemini(imageBase64, mimeType) {
                     ...parsed, // Merge any existing valid fields
                 };
             }
-            const items = (parsed.items || []).map((item) => ({
-                id: generateItemId(),
-                name: item.name || 'Unknown Item',
-                nameNormalized: normalizeProductName(item.name || ''),
-                quantity: item.quantity || 1,
-                unitPrice: item.unitPrice || 0,
-                totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),
-                unit: item.unit,
-                category: item.category || 'Autres',
-                confidence: 0.85, // Default confidence for Gemini parsing
-            }));
-            // Build parsed receipt - use null instead of undefined for optional fields
+            /**
+             * Parse numeric value that might contain thousand separators
+             * Handles formats: "3 768", "3,768", "3.768", 3768
+             */
+            const parseNumericValue = (value) => {
+                if (typeof value === 'number') {
+                    return value;
+                }
+                if (typeof value === 'string') {
+                    // Remove thousand separators (space, comma as thousand sep)
+                    // But preserve decimal point
+                    const cleaned = value
+                        .replace(/\s/g, '') // Remove spaces
+                        .replace(/,(?=\d{3})/g, ''); // Remove comma if followed by 3 digits (thousand sep)
+                    const parsed = parseFloat(cleaned);
+                    return isNaN(parsed) ? 0 : parsed;
+                }
+                return 0;
+            };
+            const items = (parsed.items || []).map((item) => {
+                const quantity = parseNumericValue(item.quantity) || 1;
+                const unitPrice = parseNumericValue(item.unitPrice);
+                const totalPrice = parseNumericValue(item.totalPrice) || quantity * unitPrice;
+                return {
+                    id: generateItemId(),
+                    name: item.name || 'Unknown Item',
+                    nameNormalized: normalizeProductName(item.name || ''),
+                    quantity,
+                    unitPrice,
+                    totalPrice,
+                    unit: item.unit,
+                    category: item.category || 'Autres',
+                    confidence: 0.85, // Default confidence for Gemini parsing
+                };
+            });
+            // Build parsed receipt - exclude undefined fields for Firestore compatibility
             const receipt = {
                 storeName: parsed.storeName || 'Unknown Store',
                 storeNameNormalized: normalizeStoreName(parsed.storeName || ''),
@@ -551,28 +586,41 @@ async function parseWithGemini(imageBase64, mimeType) {
                 date: parsed.date || new Date().toISOString().split('T')[0],
                 currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
                 items,
-                subtotal: (_a = parsed.subtotal) !== null && _a !== void 0 ? _a : null,
-                tax: (_b = parsed.tax) !== null && _b !== void 0 ? _b : null,
-                total: parsed.total ||
+                total: parseNumericValue(parsed.total) ||
                     items.reduce((sum, item) => sum + item.totalPrice, 0),
-                totalUSD: (_c = parsed.totalUSD) !== null && _c !== void 0 ? _c : null,
-                totalCDF: (_d = parsed.totalCDF) !== null && _d !== void 0 ? _d : null,
             };
+            // Only add optional numeric fields if they have valid values
+            const subtotalValue = parseNumericValue(parsed.subtotal);
+            if (subtotalValue > 0) {
+                receipt.subtotal = subtotalValue;
+            }
+            const taxValue = parseNumericValue(parsed.tax);
+            if (taxValue > 0) {
+                receipt.tax = taxValue;
+            }
+            const totalUSDValue = parseNumericValue(parsed.totalUSD);
+            if (totalUSDValue > 0) {
+                receipt.totalUSD = totalUSDValue;
+            }
+            const totalCDFValue = parseNumericValue(parsed.totalCDF);
+            if (totalCDFValue > 0) {
+                receipt.totalCDF = totalCDFValue;
+            }
             return receipt;
         }
         catch (error) {
             lastError = error;
             // Handle specific Gemini errors
-            if ((_e = error.message) === null || _e === void 0 ? void 0 : _e.includes('API_KEY_INVALID')) {
+            if ((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes('API_KEY_INVALID')) {
                 throw new functions.https.HttpsError('internal', 'Configuration erreur. Contactez le support.');
             }
-            if ((_f = error.message) === null || _f === void 0 ? void 0 : _f.includes('QUOTA_EXCEEDED')) {
+            if ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('QUOTA_EXCEEDED')) {
                 throw new functions.https.HttpsError('resource-exhausted', 'Service temporairement saturé. Réessayez dans 1 heure.');
             }
-            if ((_g = error.message) === null || _g === void 0 ? void 0 : _g.includes('CONTENT_POLICY_VIOLATION')) {
+            if ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('CONTENT_POLICY_VIOLATION')) {
                 throw new functions.https.HttpsError('invalid-argument', 'Image inappropriée détectée. Veuillez scanner un reçu valide.');
             }
-            if ((_h = error.message) === null || _h === void 0 ? void 0 : _h.includes('timeout')) {
+            if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('timeout')) {
                 console.warn(`Gemini timeout on attempt ${attempt + 1}`);
                 if (attempt < MAX_RETRIES) {
                     await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Exponential backoff
@@ -623,15 +671,18 @@ exports.parseReceipt = functions
         if (!detection.isReceipt || detection.confidence < 0.7) {
             throw new functions.https.HttpsError('invalid-argument', `Cette image ne semble pas être un reçu. ${detection.reason || 'Veuillez scanner un reçu valide.'}`);
         }
-        // H1 FIX: Check image quality
+        // H1 FIX: Check image quality - only reject VERY poor quality images
+        // Be lenient here - let Gemini try to parse, and validate results after
         const qualityCheck = await checkImageQuality(imageBase64);
         if (!qualityCheck.isAcceptable) {
-            const warningMsg = qualityCheck.warnings.join('. ') +
-                '. ' +
-                qualityCheck.suggestions.join('. ');
-            console.warn(`Image quality issues: ${warningMsg}`);
-            // Log but don't block - let user proceed with warning
-            // In production, you might want to return this as a warning field
+            // Only reject extremely poor quality (sharpness < 20 or brightness < 20)
+            // These are truly unreadable - pitch black or motion blur
+            if (qualityCheck.metrics.sharpness < 20 || qualityCheck.metrics.brightness < 20) {
+                const warningMsg = qualityCheck.suggestions.join(' ');
+                throw new functions.https.HttpsError('invalid-argument', `La qualité de l'image est insuffisante. ${warningMsg}`);
+            }
+            // Log warnings but let Gemini try - it's often better at reading blurry text than expected
+            console.warn(`Image quality issues (proceeding anyway): ${qualityCheck.warnings.join('. ')}. Metrics: sharpness=${qualityCheck.metrics.sharpness}, brightness=${qualityCheck.metrics.brightness}`);
         }
         // V5 FIX: Atomic subscription check and increment with transaction
         const subscriptionRef = db.doc(config_1.collections.subscription(userId));
@@ -669,6 +720,23 @@ exports.parseReceipt = functions
         });
         // Now parse receipt - scan limit already reserved
         const parsedReceipt = await parseWithGemini(imageBase64, mimeType);
+        // QUALITY CHECK: Validate that the receipt was actually readable
+        const hasStoreName = parsedReceipt.storeName && parsedReceipt.storeName !== 'Unknown Store';
+        const hasItems = parsedReceipt.items && parsedReceipt.items.length > 0;
+        const hasTotal = parsedReceipt.total > 0;
+        const hasValidItems = parsedReceipt.items.some(item => item.name && item.name !== 'Unknown Item' && item.name !== 'Unavailable name' && item.unitPrice > 0);
+        // If receipt is unreadable, reject it
+        if (!hasItems || (!hasValidItems && !hasTotal)) {
+            throw new functions.https.HttpsError('invalid-argument', 'La qualité de l\'image est insuffisante pour lire le reçu. Veuillez reprendre la photo avec un meilleur éclairage et en vous rapprochant du reçu.');
+        }
+        // If store name is unknown but we have items, warn but continue
+        if (!hasStoreName && hasItems) {
+            console.warn('Receipt parsed but store name could not be determined');
+        }
+        // If no items have valid prices, reject
+        if (parsedReceipt.items.every(item => item.unitPrice === 0)) {
+            throw new functions.https.HttpsError('invalid-argument', 'Impossible de lire les prix sur ce reçu. L\'image est peut-être floue ou trop sombre. Veuillez reprendre la photo.');
+        }
         // H2 FIX: Check for duplicate receipts
         const duplicateCheck = await detectDuplicateReceipt(userId, imageBase64, parsedReceipt);
         if (duplicateCheck.isDuplicate) {
@@ -724,10 +792,12 @@ exports.parseReceipt = functions
  */
 async function mergeMultiPageReceipt(parsedResults, images) {
     // 1. Validate all pages are from same receipt
+    // Filter out empty/null/unknown store names - middle pages of long receipts may not have visible store name
     const storeNames = parsedResults
         .map(r => r.storeNameNormalized)
-        .filter(Boolean);
+        .filter(name => name && name !== '' && name !== 'null' && name !== 'unknown_store');
     const uniqueStores = new Set(storeNames);
+    // Only reject if we have 2+ DIFFERENT actual store names (not when some pages have no store)
     if (uniqueStores.size > 1) {
         throw new Error(`Plusieurs reçus détectés: ${Array.from(uniqueStores).join(', ')}. Scannez un seul reçu à la fois.`);
     }

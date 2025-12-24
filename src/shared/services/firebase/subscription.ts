@@ -23,9 +23,12 @@ class SubscriptionService {
     }
 
     try {
+      // Force fetch from server to get latest data (bypass cache)
       const doc = await firestore()
         .doc(COLLECTIONS.subscription(user.uid))
-        .get();
+        .get({source: 'server'});
+
+      console.log('📊 getStatus - fetched from server for user:', user.uid);
 
       if (!doc.exists) {
         // Initialize subscription for new user
@@ -35,6 +38,12 @@ class SubscriptionService {
       }
 
       const data = doc.data()!;
+      console.log('📊 getStatus - raw data:', {
+        status: data.status,
+        isSubscribed: data.isSubscribed,
+        planId: data.planId,
+      });
+      
       let subscription = this.mapSubscription(data);
 
       // Check if trial has expired and user has no active subscription
@@ -488,12 +497,24 @@ class SubscriptionService {
       return () => {};
     }
 
+    console.log('📊 Setting up subscription listener for user:', user.uid);
+    
     return firestore()
       .doc(COLLECTIONS.subscription(user.uid))
       .onSnapshot(
+        {includeMetadataChanges: true}, // Include metadata to detect cache vs server
         doc => {
+          const fromCache = doc.metadata.fromCache;
+          console.log(`📊 Subscription snapshot received (fromCache: ${fromCache})`);
+          
           if (doc.exists) {
-            callback(this.mapSubscription(doc.data()!));
+            const data = doc.data()!;
+            console.log('📊 Raw subscription data from Firestore:', {
+              status: data.status,
+              isSubscribed: data.isSubscribed,
+              planId: data.planId,
+            });
+            callback(this.mapSubscription(data));
           } else {
             console.warn('⚠️ Subscription document does not exist for user:', user.uid);
             console.warn('⚠️ User should complete onboarding or subscription needs to be created');

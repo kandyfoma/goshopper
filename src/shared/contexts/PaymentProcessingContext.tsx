@@ -12,6 +12,7 @@ import React, {
 import {mokoPaymentService, PaymentStatus} from '@/shared/services/payment';
 import firebase from '@react-native-firebase/app';
 import '@react-native-firebase/functions';
+import {subscriptionService} from '@/shared/services/firebase';
 
 export type PaymentProcessingStatus = 'idle' | 'pending' | 'success' | 'failed';
 
@@ -168,6 +169,15 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
               phoneNumber: state.phoneNumber,
               currency: 'USD',
             });
+            
+            // Force refresh subscription status from Firestore
+            // This ensures the UI updates immediately after activation
+            console.log('🔄 Refreshing subscription status after activation...');
+            try {
+              await subscriptionService.getStatus(); // This will trigger Firestore listener
+            } catch (refreshError) {
+              console.warn('Failed to refresh subscription, but activation succeeded:', refreshError);
+            }
             
             setSuccess(`Abonnement ${state.planName} activé!`);
           } catch (error: any) {

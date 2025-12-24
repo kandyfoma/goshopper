@@ -717,6 +717,49 @@ const iconPaths: Record<
       </>
     ),
   },
+  package: {
+    outline: (
+      <>
+        <Line
+          x1="16.5"
+          y1="9.4"
+          x2="7.5"
+          y2="4.21"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="3.27 6.96 12 12.01 20.73 6.96"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Line
+          x1="12"
+          y1="22.08"
+          x2="12"
+          y2="12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  'edit-2': {
+    outline: (
+      <>
+        <Path
+          d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   'trending-down': {
     outline: (
       <>

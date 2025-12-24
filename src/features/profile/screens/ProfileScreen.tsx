@@ -154,17 +154,18 @@ export function ProfileScreen() {
   const trialRemaining = Math.max(0, TRIAL_SCAN_LIMIT - trialScansUsed);
   const isPremium = subscription?.isSubscribed;
 
-  // Debug logging for scan count
+  // Debug logging for subscription status
   useEffect(() => {
-    console.log('📊 Profile - Scan count:', {
-      trialScansUsed,
-      userStatsTotalReceipts: userStats.totalReceipts,
-      subscription: subscription ? {
-        status: subscription.status,
-        trialScansUsed: subscription.trialScansUsed,
-      } : null,
+    console.log('📊 Profile - Full subscription data:', {
+      planId: subscription?.planId,
+      status: subscription?.status,
+      isSubscribed: subscription?.isSubscribed,
+      trialScansUsed: subscription?.trialScansUsed,
+      monthlyScansUsed: subscription?.monthlyScansUsed,
+      subscriptionEndDate: subscription?.subscriptionEndDate?.toString?.() || subscription?.subscriptionEndDate,
+      currentPlanName: currentPlan?.name,
     });
-  }, [trialScansUsed, userStats.totalReceipts, subscription]);
+  }, [subscription, currentPlan]);
 
   // Redirect to login if not authenticated
   useEffect(() => {

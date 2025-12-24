@@ -120,12 +120,14 @@ export const Modal: React.FC<ModalProps> = ({
         };
       case 'bottom-sheet':
       default:
+        // For bottom sheet, use size to determine max height
+        const bottomSheetMaxHeight = size === 'large' ? '90%' : size === 'fullscreen' ? '95%' : '80%';
         return {
           ...baseStyle,
           marginTop: 'auto',
           marginBottom: insets.bottom,
           marginHorizontal: Spacing.sm,
-          maxHeight: '80%',
+          maxHeight: bottomSheetMaxHeight,
         };
     }
   };

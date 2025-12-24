@@ -67,7 +67,7 @@ export const config = {
   app: {
     id: 'goshopper',
     region: 'us-central1',
-    trialScanLimit: 50, // Limited scans during trial
+    trialScanLimit: 10, // Limited scans during trial
     trialDurationDays: 60, // 2 months
   },
 

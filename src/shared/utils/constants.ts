@@ -17,7 +17,7 @@ export const RATE_LIMIT_PER_DAY_PREMIUM = 500;
 // Usage Limits by Plan
 export const PLAN_SCAN_LIMITS = {
   freemium: 3, // Free tier - auto-assigned monthly
-  free: 50, // Trial limit
+  free: 10, // Trial limit
   basic: 25,
   standard: 100,
   premium: -1, // Unlimited
@@ -85,11 +85,11 @@ export const SUBSCRIPTION_PLANS = {
     name: 'Essai Gratuit',
     price: 0,
     priceCDF: 0,
-    scanLimit: 15, // 15 scans during trial
+    scanLimit: 10, // 10 scans during trial
     trialDays: 30,
     features: [
       '1 mois gratuit',
-      "15 scans pendant l'essai",
+      "10 scans pendant l'essai",
       'Toutes les fonctionnalités premium',
     ],
   },

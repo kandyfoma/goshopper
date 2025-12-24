@@ -51,15 +51,15 @@ export const getFunctionsInstance = () => {
 // App ID for artifact paths
 export const APP_ID = 'goshopper';
 
-// Collection paths
+// Collection paths - MUST match Cloud Functions paths in functions/src/config.ts
 export const COLLECTIONS = {
   users: (userId: string) => `artifacts/${APP_ID}/users/${userId}`,
   userProfile: (userId: string) => `artifacts/${APP_ID}/users/${userId}`,
   receipts: (userId: string) => `artifacts/${APP_ID}/users/${userId}/receipts`,
   subscription: (userId: string) =>
-    `artifacts/${APP_ID}/subscriptions/${userId}`,
+    `artifacts/${APP_ID}/users/${userId}/subscription/status`,
   subscriptionStatus: (userId: string) =>
-    `artifacts/${APP_ID}/subscriptions/${userId}`,
+    `artifacts/${APP_ID}/users/${userId}/subscription/status`,
   prices: `artifacts/${APP_ID}/prices`,
   stores: `artifacts/${APP_ID}/stores`,
 } as const;

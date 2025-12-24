@@ -217,23 +217,36 @@ class ShoppingListService {
       throw new Error('List not found');
     }
 
+    // Build item object, excluding undefined values (Firestore doesn't accept undefined)
     const newItem: ShoppingListItem = {
       id: `item_${Date.now()}`,
       name: item.name || '',
       nameNormalized: this.normalizeProductName(item.name || ''),
       quantity: item.quantity || 1,
-      unit: item.unit,
-      category: item.category,
       isChecked: false,
       addedAt: new Date(),
     };
-
-    // Get price data for item
-    const priceData = await this.getItemPriceData(newItem.nameNormalized);
-    if (priceData) {
-      newItem.bestPrice = priceData.bestPrice;
-      newItem.bestStore = priceData.bestStore;
-      newItem.estimatedPrice = priceData.averagePrice;
+    
+    // Only add optional fields if they have values
+    if (item.unit) {
+      newItem.unit = item.unit;
+    }
+    if (item.category) {
+      newItem.category = item.category;
+    }
+    
+    // Use user-selected price/store if provided, otherwise get from price data
+    if (item.bestPrice !== undefined && item.bestStore) {
+      newItem.bestPrice = item.bestPrice;
+      newItem.bestStore = item.bestStore;
+    } else {
+      // Get price data for item
+      const priceData = await this.getItemPriceData(newItem.nameNormalized);
+      if (priceData) {
+        newItem.bestPrice = priceData.bestPrice;
+        newItem.bestStore = priceData.bestStore;
+        newItem.estimatedPrice = priceData.averagePrice;
+      }
     }
 
     const updatedItems = [...list.items, newItem];
@@ -294,11 +307,18 @@ class ShoppingListService {
 
     const updatedItems = list.items.map(item => {
       if (item.id === itemId) {
-        return {
+        const newIsChecked = !item.isChecked;
+        const updatedItem: typeof item = {
           ...item,
-          isChecked: !item.isChecked,
-          checkedAt: !item.isChecked ? new Date() : undefined,
+          isChecked: newIsChecked,
         };
+        // Only set checkedAt if checking the item, remove it if unchecking
+        if (newIsChecked) {
+          updatedItem.checkedAt = new Date();
+        } else {
+          delete updatedItem.checkedAt;
+        }
+        return updatedItem;
       }
       return item;
     });
@@ -498,16 +518,28 @@ class ShoppingListService {
     const potentialSavings = totalEstimated - multiStoreTotal;
 
     // Update list with optimization data
+    const updateData: any = {
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    };
+    
+    // Only add fields if they have valid values (not undefined)
+    if (totalEstimated !== undefined && !isNaN(totalEstimated)) {
+      updateData.totalEstimated = totalEstimated;
+    }
+    if (multiStoreTotal !== undefined && !isNaN(multiStoreTotal)) {
+      updateData.totalOptimized = multiStoreTotal;
+    }
+    if (potentialSavings !== undefined && !isNaN(potentialSavings)) {
+      updateData.potentialSavings = Math.max(0, potentialSavings);
+    }
+    if (multiStoreRecommendations && multiStoreRecommendations.length > 0) {
+      updateData.optimizedStores = multiStoreRecommendations;
+    }
+    
     await firestore()
       .collection(SHOPPING_LISTS_COLLECTION(userId))
       .doc(listId)
-      .update({
-        totalEstimated,
-        totalOptimized: multiStoreTotal,
-        potentialSavings: Math.max(0, potentialSavings),
-        optimizedStores: multiStoreRecommendations,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      .update(updateData);
 
     return {
       singleStoreStrategy: {

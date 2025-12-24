@@ -149,21 +149,31 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
   // Subscribe to subscription changes
   useEffect(() => {
     if (!isAuthenticated || !user) {
-      setState({
-        subscription: null,
-        isLoading: false,
-        canScan: false,
-        scansRemaining: 0,
-        isTrialActive: false,
-        trialDaysRemaining: 0,
-        isExpiringSoon: false,
-        daysUntilExpiration: 0,
-        error: null,
-      });
-      return;
+      // Don't immediately clear state - wait a bit in case auth is just refreshing
+      const timeout = setTimeout(() => {
+        setState({
+          subscription: null,
+          isLoading: false,
+          canScan: false,
+          scansRemaining: 0,
+          isTrialActive: false,
+          trialDaysRemaining: 0,
+          isExpiringSoon: false,
+          daysUntilExpiration: 0,
+          error: null,
+        });
+      }, 500); // Wait 500ms before clearing state
+      
+      return () => clearTimeout(timeout);
     }
 
+    console.log('📊 Subscribing to subscription status for user:', user.uid);
     const unsubscribe = subscriptionService.subscribeToStatus(subscription => {
+      console.log('📊 Subscription updated:', {
+        status: subscription.status,
+        isSubscribed: subscription.isSubscribed,
+        planId: subscription.planId,
+      });
       setState(calculateState(subscription));
     });
 

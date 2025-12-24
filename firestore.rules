@@ -118,6 +118,13 @@ service cloud.firestore {
       allow write: if false;
     }
     
+    // Prices collection (aggregated price data for shopping optimization)
+    // Read-only for authenticated users
+    match /artifacts/goshopper/prices/{priceId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
     // MASTER CITY ITEMS TABLE (community price database)
     // This is read-only for users - only Cloud Functions can write
     // Data persists even when users delete their receipts
