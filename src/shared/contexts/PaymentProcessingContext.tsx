@@ -10,7 +10,8 @@ import React, {
   useEffect,
 } from 'react';
 import {mokoPaymentService, PaymentStatus} from '@/shared/services/payment';
-import functions from '@react-native-firebase/functions';
+import firebase from '@react-native-firebase/app';
+import '@react-native-firebase/functions';
 
 export type PaymentProcessingStatus = 'idle' | 'pending' | 'success' | 'failed';
 
@@ -149,7 +150,17 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
             console.log('✅ Payment successful, activating subscription...');
             updateStatus('pending', 'Activation de l\'abonnement...');
             
-            const activateSubscription = functions().httpsCallable('activateSubscriptionFromRailway');
+            console.log('📞 Calling activateSubscriptionFromRailway with:', {
+              planId: state.planId,
+              transactionId: state.transactionId,
+              amount: state.amount,
+              phoneNumber: state.phoneNumber,
+            });
+            
+            // Call the function in europe-west1 region
+            const functionsInstance = firebase.app().functions('europe-west1');
+            const activateSubscription = functionsInstance.httpsCallable('activateSubscriptionFromRailway');
+            
             await activateSubscription({
               planId: state.planId,
               transactionId: state.transactionId,

@@ -267,21 +267,24 @@ export const getPaymentStatus = async (transactionId: string): Promise<{
 } | null> => {
   try {
     const url = `${PAYMENT_STATUS_URL}/${transactionId}`;
+    console.log('🔍 Polling payment status:', transactionId);
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.log('⏳ Status not found yet (404), txId:', transactionId);
       // 404 is expected while waiting for webhook, don't spam logs
       return null;
     }
 
     const data = await response.json();
-    console.log('✅ Payment status found:', data.status, 'for txId:', transactionId);
+    console.log('✅ Payment status found:', data.status, 'for txId:', transactionId, 'Full data:', JSON.stringify(data));
     
     return {
       status: data.status as PaymentStatus,
       details: data
     };
   } catch (error) {
+    console.error('❌ Error fetching payment status:', error);
     // Suppress logging for network errors during polling
     return null;
   }

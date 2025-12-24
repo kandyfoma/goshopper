@@ -121,28 +121,28 @@ export function GlobalScanProgressBanner() {
     outputRange: [-100, 100],
   });
   
-  // Use warm cream/beige gradient like tab bar, error stays red
+  // Light blue gradient for processing, red for error
   const gradientColors = isError 
     ? ['#DC3545', '#C82333'] 
-    : ['#FDF0D5', '#F5E6C3']; // Match tab bar colors
+    : ['#669BBC', '#5A8BA8']; // Light blue
   
   const iconName = isError ? 'alert-circle' : 'camera';
-  const iconColor = isError ? Colors.white : '#780000'; // Keep camera red
-  const title = isError ? 'Erreur d\'analyse' : 'Analyse en cours...';
-  const titleColor = isError ? Colors.white : '#003049'; // Dark blue for contrast
-  const messageColor = isError ? 'rgba(255, 255, 255, 0.7)' : '#669BBC'; // Cosmos blue
+  const iconColor = Colors.white;
+  const title = isError ? 'Erreur d\'analyse' : 'Analyse en cours';
+  const titleColor = Colors.white;
+  const messageColor = 'rgba(255, 255, 255, 0.9)';
   
   // Dynamic message based on progress
   const getProgressMessage = () => {
     if (isError) return state.message || 'Veuillez réessayer';
     
     const progress = state.progress;
-    if (progress <= 20) return 'Préparation de l\'analyse...';
-    if (progress <= 40) return 'Compression et optimisation...';
-    if (progress <= 60) return 'Extraction des données...';
-    if (progress <= 80) return 'Vérification des informations...';
+    if (progress <= 20) return 'Préparation...';
+    if (progress <= 40) return 'Compression...';
+    if (progress <= 60) return 'Extraction...';
+    if (progress <= 80) return 'Vérification...';
     if (progress <= 95) return 'Finalisation...';
-    return 'Presque terminé !';
+    return 'Presque terminé';
   };
   
   return (
@@ -166,10 +166,10 @@ export function GlobalScanProgressBanner() {
               styles.iconContainer, 
               {
                 transform: [{scale: pulseAnim}],
-                backgroundColor: isError ? 'rgba(255, 255, 255, 0.2)' : 'rgba(120, 0, 0, 0.1)',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
               }
             ]}>
-            <Icon name={iconName} size="sm" color={iconColor} />
+            <Icon name={iconName} size="xs" color={iconColor} />
           </Animated.View>
           
           {/* Text */}
@@ -177,7 +177,7 @@ export function GlobalScanProgressBanner() {
             <Text style={[styles.title, {color: titleColor}]}>
               {title}
             </Text>
-            <Text style={[styles.message, {color: messageColor}]} numberOfLines={2}>
+            <Text style={[styles.message, {color: messageColor}]} numberOfLines={1}>
               {getProgressMessage()}
             </Text>
           </View>
@@ -185,11 +185,11 @@ export function GlobalScanProgressBanner() {
           {/* Progress percentage or dismiss button */}
           {isError ? (
             <TouchableOpacity style={styles.dismissButton} onPress={dismiss}>
-              <Icon name="x" size="sm" color={Colors.white} />
+              <Icon name="x" size="xs" color={Colors.white} />
             </TouchableOpacity>
           ) : (
-            <View style={[styles.progressBadge, {backgroundColor: 'rgba(120, 0, 0, 0.15)'}]}>
-              <Text style={[styles.progressText, {color: '#780000'}]}>{Math.round(state.progress)}%</Text>
+            <View style={[styles.progressBadge, {backgroundColor: 'rgba(255, 255, 255, 0.2)'}]}>
+              <Text style={[styles.progressText, {color: Colors.white}]}>{Math.round(state.progress)}%</Text>
             </View>
           )}
         </View>
@@ -197,27 +197,10 @@ export function GlobalScanProgressBanner() {
         {/* Progress bar (only show when processing) */}
         {isProcessing && (
           <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBarBg, {backgroundColor: 'rgba(102, 155, 188, 0.2)'}]} />
+            <View style={[styles.progressBarBg, {backgroundColor: 'rgba(255, 255, 255, 0.3)'}]} />
             <Animated.View 
-              style={[styles.progressBar, {width: progressWidth}]} 
-            >
-              <LinearGradient
-                colors={['#780000', '#C1121F']} // Red gradient for progress
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}
-                style={StyleSheet.absoluteFill}
-              >
-                {/* Shimmer effect overlay */}
-                <Animated.View
-                  style={[
-                    styles.shimmerOverlay,
-                    {
-                      transform: [{translateX: shimmerTranslate}],
-                    },
-                  ]}
-                />
-              </LinearGradient>
-            </Animated.View>
+              style={[styles.progressBar, {width: progressWidth, backgroundColor: '#003049'}]} 
+            />
           </View>
         )}
       </LinearGradient>
@@ -231,25 +214,25 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     zIndex: 9999,
-    ...Shadows.lg,
+    ...Shadows.md,
   },
   gradientBackground: {
-    paddingVertical: Spacing.sm,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -257,35 +240,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.semiBold,
   },
   message: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: 11,
     fontFamily: Typography.fontFamily.regular,
-    marginTop: 2,
   },
   progressBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
     borderRadius: 100,
   },
   progressText: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: 11,
     fontFamily: Typography.fontFamily.semiBold,
   },
   dismissButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressBarContainer: {
     height: 3,
-    borderRadius: 8,
-    marginTop: Spacing.sm,
+    borderRadius: 2,
+    marginTop: Spacing.xs,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -293,21 +275,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '100%',
     height: '100%',
-    borderRadius: 8,
+    borderRadius: 2,
   },
   progressBar: {
     height: '100%',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  shimmerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: -50,
-    right: -50,
-    height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 8,
-    width: 50,
+    borderRadius: 2,
   },
 });

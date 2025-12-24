@@ -31,7 +31,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, Spinner, Modal, FadeIn, SlideIn, Input, Button} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -419,7 +419,7 @@ export function ShoppingListsScreen() {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+            <Icon name="chevron-left" size="md" color={Colors.text.primary} />
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
@@ -525,27 +525,16 @@ export function ShoppingListsScreen() {
         }}>
         <View style={styles.modalContent}>
           {/* Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Nom de la liste</Text>
-            <View style={styles.inputWrapper}>
-              <Icon name="edit-3" size="sm" color={Colors.primary} />
-              <TextInput
-                style={styles.modalInput}
-                value={newListName}
-                onChangeText={setNewListName}
-                placeholder="Donnez un nom à votre liste..."
-                placeholderTextColor={Colors.text.tertiary}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={() => handleCreateList()}
-              />
-              {newListName.length > 0 && (
-                <TouchableOpacity onPress={() => setNewListName('')}>
-                  <Icon name="x" size="sm" color={Colors.text.tertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+          <Input
+            label="Nom de la liste"
+            value={newListName}
+            onChangeText={setNewListName}
+            placeholder="Donnez un nom à votre liste..."
+            leftIcon="edit-3"
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => handleCreateList()}
+          />
 
           {/* Quick suggestions */}
           <View style={styles.suggestionsContainer}>
@@ -564,36 +553,16 @@ export function ShoppingListsScreen() {
           </View>
 
           {/* Actions */}
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={() => {
-                setShowNewListModal(false);
-                setNewListName('');
-              }}>
-              <Text style={styles.modalCancelText}>Annuler</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.modalCreateButton,
-                !newListName.trim() && styles.modalCreateButtonDisabled,
-              ]}
+          <View style={styles.addItemButtonContainer}>
+            <Button
+              title="Créer"
               onPress={() => handleCreateList()}
-              disabled={!newListName.trim() || isCreating}>
-              {isCreating ? (
-                <Spinner size="small" color={Colors.white} />
-              ) : (
-                <LinearGradient
-                  colors={newListName.trim() ? ['#C1121F', '#780000'] : ['#D1D5DB', '#9CA3AF']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 0}}
-                  style={styles.createButtonGradient}>
-                  <Icon name="plus" size="sm" color={Colors.white} />
-                  <Text style={styles.modalCreateText}>Créer</Text>
-                </LinearGradient>
-              )}
-            </TouchableOpacity>
+              disabled={!newListName.trim() || isCreating}
+              loading={isCreating}
+              icon={<Icon name="plus" size="sm" color={Colors.white} />}
+              iconPosition="left"
+              fullWidth
+            />
           </View>
         </View>
       </Modal>
@@ -632,10 +601,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.sm,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerCenter: {
     flex: 1,
@@ -1007,5 +980,8 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.white,
+  },
+  addItemButtonContainer: {
+    marginTop: Spacing.lg,
   },
 });

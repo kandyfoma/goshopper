@@ -32,7 +32,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, SwipeToDelete, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, Spinner, Modal, SwipeToDelete, FadeIn, SlideIn, Input, Button} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 
 type RouteParams = RouteProp<RootStackParamList, 'ShoppingListDetail'>;
@@ -479,7 +479,7 @@ export function ShoppingListDetailScreen() {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+            <Icon name="chevron-left" size="md" color={Colors.text.primary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -664,20 +664,40 @@ export function ShoppingListDetailScreen() {
           setSearchResults([]);
           setSelectedItemForAdd(null);
         }}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Rechercher dans la communauté</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="search" size="sm" color={Colors.text.tertiary} />
-            <TextInput
-              style={styles.modalInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Rechercher un article..."
-              placeholderTextColor={Colors.text.tertiary}
+        {/* Search input row with quantity dropdown */}
+        <View style={styles.addItemRow}>
+          <View style={styles.searchInputContainer}>
+            <Input
+              label="Nom de l'article"
+              value={newItemName}
+              onChangeText={setNewItemName}
+              placeholder="Ex: Sucre, Riz, Huile..."
+              leftIcon="search"
             />
-            {isSearching && (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            )}
+          </View>
+          
+          {/* Quantity Dropdown */}
+          <View style={styles.quantityDropdownContainer}>
+            <Text style={styles.quantityDropdownLabel}>Qté</Text>
+            <View style={styles.quantityDropdown}>
+              <TouchableOpacity
+                style={styles.quantityDropdownButton}
+                onPress={() =>
+                  setNewItemQuantity(
+                    String(Math.max(1, parseInt(newItemQuantity) - 1)),
+                  )
+                }>
+                <Icon name="minus" size="xs" color={Colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.quantityDropdownValue}>{newItemQuantity}</Text>
+              <TouchableOpacity
+                style={styles.quantityDropdownButton}
+                onPress={() =>
+                  setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
+                }>
+                <Icon name="plus" size="xs" color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -731,78 +751,17 @@ export function ShoppingListDetailScreen() {
           </View>
         )}
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Nom de l'article</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="tag" size="sm" color={Colors.text.tertiary} />
-            <TextInput
-              style={styles.modalInput}
-              value={newItemName}
-              onChangeText={setNewItemName}
-              placeholder="Ex: Sucre, Riz, Huile..."
-              placeholderTextColor={Colors.text.tertiary}
-            />
-          </View>
-        </View>
-
-        <View style={styles.quantitySection}>
-          <Text style={styles.inputLabel}>Quantité</Text>
-          <View style={styles.quantityContainer}>
-            <TouchableOpacity
-              style={styles.quantityButtonModal}
-              onPress={() =>
-                setNewItemQuantity(
-                  String(Math.max(1, parseInt(newItemQuantity) - 1)),
-                )
-              }>
-              <Icon name="minus" size="sm" color={Colors.primary} />
-            </TouchableOpacity>
-            <View style={styles.quantityInputContainer}>
-              <TextInput
-                style={styles.quantityInput}
-                value={newItemQuantity}
-                onChangeText={setNewItemQuantity}
-                keyboardType="number-pad"
-              />
-            </View>
-            <TouchableOpacity
-              style={styles.quantityButtonModal}
-              onPress={() =>
-                setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
-              }>
-              <Icon name="plus" size="sm" color={Colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.modalActions}>
-          <TouchableOpacity
-            style={styles.modalCancelButton}
-            onPress={() => {
-              setShowAddItemModal(false);
-              setSearchQuery('');
-              setSearchResults([]);
-              setSelectedItemForAdd(null);
-            }}>
-            <Text style={styles.modalCancelText}>Annuler</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.modalCreateButton,
-              !newItemName.trim() && styles.modalCreateButtonDisabled,
-            ]}
+        {/* Add Button */}
+        <View style={styles.addItemButtonContainer}>
+          <Button
+            title="Ajouter"
             onPress={handleAddItem}
-            disabled={!newItemName.trim() || isCreating}>
-            {isCreating ? (
-              <Spinner size="small" color={Colors.white} />
-            ) : (
-              <>
-                <Icon name="plus" size="sm" color={Colors.white} />
-                <Text style={styles.modalCreateText}>Ajouter</Text>
-              </>
-            )}
-          </TouchableOpacity>
+            disabled={!newItemName.trim() || isCreating}
+            loading={isCreating}
+            icon={<Icon name="plus" size="sm" color={Colors.white} />}
+            iconPosition="left"
+            fullWidth
+          />
         </View>
       </Modal>
 
@@ -814,43 +773,24 @@ export function ShoppingListDetailScreen() {
           setShowEditNameModal(false);
           setEditedListName('');
         }}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Nom de la liste</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="edit-2" size="sm" color={Colors.text.tertiary} />
-            <TextInput
-              style={styles.modalInput}
-              value={editedListName}
-              onChangeText={setEditedListName}
-              placeholder="Ex: Courses de la semaine..."
-              placeholderTextColor={Colors.text.tertiary}
-              autoFocus
-            />
-          </View>
-        </View>
+        <Input
+          label="Nom de la liste"
+          value={editedListName}
+          onChangeText={setEditedListName}
+          placeholder="Ex: Courses de la semaine..."
+          leftIcon="edit-2"
+          autoFocus
+        />
 
-        <View style={styles.modalActions}>
-          <TouchableOpacity
-            style={styles.modalCancelButton}
-            onPress={() => {
-              setShowEditNameModal(false);
-              setEditedListName('');
-            }}>
-            <Text style={styles.modalCancelText}>Annuler</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.modalCreateButton,
-              !editedListName.trim() && styles.modalCreateButtonDisabled,
-            ]}
+        <View style={styles.addItemButtonContainer}>
+          <Button
+            title="Enregistrer"
             onPress={handleUpdateListName}
-            disabled={!editedListName.trim()}>
-            <>
-              <Icon name="check" size="sm" color={Colors.white} />
-              <Text style={styles.modalCreateText}>Enregistrer</Text>
-            </>
-          </TouchableOpacity>
+            disabled={!editedListName.trim()}
+            icon={<Icon name="check" size="sm" color={Colors.white} />}
+            iconPosition="left"
+            fullWidth
+          />
         </View>
       </Modal>
     </View>
@@ -887,10 +827,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.sm,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerTitleContainer: {
     flex: 1,
@@ -910,10 +854,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.cream,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.sm,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   
   // Progress
@@ -1374,5 +1322,50 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.white,
+  },
+  // New styles for simplified Add Item Modal
+  addItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  searchInputContainer: {
+    flex: 1,
+  },
+  quantityDropdownContainer: {
+    alignItems: 'center',
+  },
+  quantityDropdownLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+  },
+  quantityDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.base,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    height: 48,
+    paddingHorizontal: Spacing.xs,
+  },
+  quantityDropdownButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityDropdownValue: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  addItemButtonContainer: {
+    marginTop: Spacing.lg,
   },
 });

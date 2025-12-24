@@ -1285,11 +1285,14 @@ export const getCityItems = functions
         const data = doc.data();
         return {
           ...data,
-          // Sanitize numeric fields
+          // Sanitize ALL numeric fields (including avgPrice which may have NaN)
           totalPurchases: safeNumber(data.totalPurchases, 0),
-          averagePrice: safeNumber(data.averagePrice, 0),
+          averagePrice: safeNumber(data.averagePrice || data.avgPrice, 0),
+          avgPrice: safeNumber(data.avgPrice, 0),
           minPrice: safeNumber(data.minPrice, 0),
           maxPrice: safeNumber(data.maxPrice, 0),
+          userCount: safeNumber(data.userCount, 0),
+          storeCount: safeNumber(data.storeCount, 0),
           lastPurchaseDate: safeToDate(data.lastPurchaseDate),
           prices: (data.prices || []).map((p: any) => ({
             ...p,

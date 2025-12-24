@@ -399,9 +399,15 @@ async function activateSubscription(userId, planId, payment) {
  * Activate subscription from Railway Payment Hub
  * Called by GoShopper after Supabase confirms payment success
  */
-exports.activateSubscriptionFromRailway = functions.https.onCall(async (data, context) => {
+exports.activateSubscriptionFromRailway = functions
+    .region('europe-west1')
+    .https.onCall(async (data, context) => {
+    // Log request details for debugging
+    console.log('📱 activateSubscriptionFromRailway called');
+    console.log('🔐 Auth context:', context.auth ? `User: ${context.auth.uid}` : 'NOT AUTHENTICATED');
     // Verify user is authenticated
     if (!context.auth) {
+        console.error('❌ No auth context provided');
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const userId = context.auth.uid;

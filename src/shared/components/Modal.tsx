@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   header: {
     paddingHorizontal: Spacing.lg,
@@ -272,6 +272,8 @@ const styles = StyleSheet.create({
   },
   body: {
     flexShrink: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
 });
 

@@ -485,10 +485,17 @@ async function activateSubscription(
  * Activate subscription from Railway Payment Hub
  * Called by GoShopper after Supabase confirms payment success
  */
-export const activateSubscriptionFromRailway = functions.https.onCall(
+export const activateSubscriptionFromRailway = functions
+  .region('europe-west1')
+  .https.onCall(
   async (data, context) => {
+    // Log request details for debugging
+    console.log('📱 activateSubscriptionFromRailway called');
+    console.log('🔐 Auth context:', context.auth ? `User: ${context.auth.uid}` : 'NOT AUTHENTICATED');
+    
     // Verify user is authenticated
     if (!context.auth) {
+      console.error('❌ No auth context provided');
       throw new functions.https.HttpsError(
         'unauthenticated',
         'User must be authenticated'

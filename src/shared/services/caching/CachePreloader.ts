@@ -7,6 +7,9 @@
 import {cacheManager, CacheTTL, CachePriority} from './CacheManager';
 import firestore from '@react-native-firebase/firestore';
 
+// Correct base path for GoShopper user data
+const USER_BASE_PATH = 'artifacts/goshopper/users';
+
 class CachePreloader {
   private isPreloading = false;
   private preloadComplete = false;
@@ -44,7 +47,10 @@ class CachePreloader {
    */
   private async preloadUserProfile(userId: string): Promise<void> {
     try {
-      const userDoc = await firestore().collection('users').doc(userId).get();
+      const userDoc = await firestore()
+        .collection(USER_BASE_PATH)
+        .doc(userId)
+        .get();
       
       if (userDoc.exists) {
         await cacheManager.set(
@@ -71,7 +77,7 @@ class CachePreloader {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const receiptsSnapshot = await firestore()
-        .collection('users')
+        .collection(USER_BASE_PATH)
         .doc(userId)
         .collection('receipts')
         .where('createdAt', '>=', thirtyDaysAgo)
@@ -106,7 +112,7 @@ class CachePreloader {
   private async preloadShoppingLists(userId: string): Promise<void> {
     try {
       const listsSnapshot = await firestore()
-        .collection('users')
+        .collection(USER_BASE_PATH)
         .doc(userId)
         .collection('shoppingLists')
         .orderBy('updatedAt', 'desc')
@@ -139,10 +145,21 @@ class CachePreloader {
    */
   private async preloadSubscription(userId: string): Promise<void> {
     try {
-      const subscriptionDoc = await firestore()
-        .collection('subscriptions')
+      // Try the new subscriptions path first
+      let subscriptionDoc = await firestore()
+        .collection('artifacts/goshopper/subscriptions')
         .doc(userId)
         .get();
+
+      // Fallback to the user's subscription subcollection
+      if (!subscriptionDoc.exists) {
+        subscriptionDoc = await firestore()
+          .collection(USER_BASE_PATH)
+          .doc(userId)
+          .collection('subscription')
+          .doc(userId)
+          .get();
+      }
 
       if (subscriptionDoc.exists) {
         await cacheManager.set(

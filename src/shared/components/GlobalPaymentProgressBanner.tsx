@@ -100,7 +100,7 @@ export function GlobalPaymentProgressBanner() {
   const getGradientColors = () => {
     if (isSuccess) return ['#28A745', '#218838']; // Green
     if (isFailed) return ['#DC3545', '#C82333']; // Red
-    return ['#FDF0D5', '#F5E6C3']; // Cream (processing)
+    return ['#669BBC', '#5A8BA8']; // Light blue (processing)
   };
   
   const getIcon = () => {
@@ -110,24 +110,21 @@ export function GlobalPaymentProgressBanner() {
   };
   
   const getIconColor = () => {
-    if (isSuccess || isFailed) return Colors.white;
-    return '#003049'; // Dark blue for contrast
+    return Colors.white; // Always white for all states
   };
   
   const getTitle = () => {
-    if (isSuccess) return 'Paiement réussi!';
+    if (isSuccess) return 'Paiement réussi';
     if (isFailed) return 'Paiement échoué';
-    return 'Paiement en attente';
+    return 'Paiement en cours';
   };
   
   const getTitleColor = () => {
-    if (isSuccess || isFailed) return Colors.white;
-    return '#003049'; // Dark blue
+    return Colors.white; // Always white
   };
   
   const getMessageColor = () => {
-    if (isSuccess || isFailed) return 'rgba(255, 255, 255, 0.85)';
-    return '#669BBC'; // Cosmos blue
+    return 'rgba(255, 255, 255, 0.9)'; // White with slight transparency
   };
   
   const getMessage = () => {
@@ -158,12 +155,10 @@ export function GlobalPaymentProgressBanner() {
               styles.iconContainer, 
               {
                 transform: [{scale: pulseAnim}],
-                backgroundColor: isSuccess || isFailed 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(0, 48, 73, 0.1)',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
               }
             ]}>
-            <Icon name={getIcon()} size="sm" color={getIconColor()} />
+            <Icon name={getIcon()} size="xs" color={getIconColor()} />
           </Animated.View>
           
           {/* Text */}
@@ -171,20 +166,19 @@ export function GlobalPaymentProgressBanner() {
             <Text style={[styles.title, {color: getTitleColor()}]}>
               {getTitle()}
             </Text>
-            <Text style={[styles.message, {color: getMessageColor()}]} numberOfLines={2}>
+            <Text style={[styles.message, {color: getMessageColor()}]} numberOfLines={1}>
               {getMessage()}
             </Text>
           </View>
           
           {/* Dismiss button or phone number indicator */}
           {isPending ? (
-            <View style={[styles.phoneBadge, {backgroundColor: 'rgba(0, 48, 73, 0.1)'}]}>
-              <Icon name="phone" size="xs" color="#003049" />
+            <View style={[styles.phoneBadge, {backgroundColor: 'rgba(255, 255, 255, 0.2)'}]}>
               <Text style={styles.phoneText}>{state.phoneNumber?.slice(-4)}</Text>
             </View>
           ) : (
             <TouchableOpacity style={styles.dismissButton} onPress={dismiss}>
-              <Icon name="x" size="sm" color={Colors.white} />
+              <Icon name="x" size="xs" color={Colors.white} />
             </TouchableOpacity>
           )}
         </View>
@@ -192,7 +186,7 @@ export function GlobalPaymentProgressBanner() {
         {/* Progress bar (only show when pending) */}
         {isPending && (
           <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBarBg, {backgroundColor: 'rgba(102, 155, 188, 0.2)'}]} />
+            <View style={[styles.progressBarBg, {backgroundColor: 'rgba(255, 255, 255, 0.3)'}]} />
             <View style={styles.progressBarIndeterminate}>
               <Animated.View
                 style={[
@@ -216,26 +210,25 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     zIndex: 9999,
-    ...Shadows.lg,
+    ...Shadows.md,
   },
   gradientBackground: {
-    paddingVertical: Spacing.sm,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
+    gap: Spacing.xs,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -243,38 +236,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.bold,
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   message: {
-    fontSize: Typography.fontSize.sm,
-    marginTop: 2,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
   },
   phoneBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 100,
   },
   phoneText: {
-    fontSize: Typography.fontSize.xs,
-    color: '#003049',
-    fontWeight: Typography.fontWeight.semiBold,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
   dismissButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressBarContainer: {
-    marginTop: Spacing.sm,
-    marginHorizontal: Spacing.sm,
-    height: 4,
+    marginTop: Spacing.xs,
+    height: 3,
     borderRadius: 2,
     overflow: 'hidden',
   },
