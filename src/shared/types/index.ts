@@ -25,6 +25,7 @@ export type RootStackParamList = {
   PriceComparison: {receiptId: string};
   Subscription: undefined;
   SubscriptionDetails: undefined;
+  SubscriptionDuration: {planId: 'basic' | 'standard' | 'premium'};
   MokoPayment: {amount: number; planId: string; planName: string};
   Settings: undefined;
   CitySelection: undefined;
