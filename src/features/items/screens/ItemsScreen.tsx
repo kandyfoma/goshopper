@@ -26,8 +26,7 @@ import {
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
-import {useAuth, useUser, useSubscription} from '@/shared/contexts';
-import {hasFeatureAccess, showUpgradePrompt} from '@/shared/utils/featureAccess';
+import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {APP_ID} from '@/shared/services/firebase/config';
 
@@ -54,9 +53,8 @@ interface ItemData {
 export function ItemsScreen() {
   const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
-  const {subscription} = useSubscription();
   const navigation = useNavigation();
-  const [items, setItems] = useState<ItemData[]>([]);
+  const [items, setItems] = useState<ItemData[]>();
   const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -65,21 +63,10 @@ export function ItemsScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
 
-  // Check feature access
-  const hasAccess = hasFeatureAccess('priceComparison', subscription);
-
   useEffect(() => {
     // Track screen view
     analyticsService.logScreenView('Items', 'ItemsScreen');
-    
-    // Show upgrade prompt if no access
-    if (!hasAccess) {
-      showUpgradePrompt('priceComparison', () => {
-        // @ts-ignore
-        navigation.navigate('Subscription');
-      });
-    }
-  }, [hasAccess]);
+  }, []);
 
   // Reload data when screen comes into focus
   useFocusEffect(

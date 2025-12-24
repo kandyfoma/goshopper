@@ -36,7 +36,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, ScanProgressIndicator, ConfirmationModal} from '@/shared/components';
+import {Icon, ScanProgressIndicator, ConfirmationModal, SubscriptionLimitModal} from '@/shared/components';
 import functions from '@react-native-firebase/functions';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
@@ -208,6 +208,9 @@ export function UnifiedScannerScreen() {
     confirmText?: string;
     cancelText?: string;
   } | null>(null);
+
+  // Subscription Limit Modal State
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Processing steps for progress indicator
   const PROCESSING_STEPS = [
@@ -437,16 +440,7 @@ export function UnifiedScannerScreen() {
     // Check scan permission
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
-      Alert.alert(
-        'Limite atteinte',
-        isTrialActive
-          ? 'Passez à Premium pour continuer à scanner.'
-          : 'Vous avez atteint votre limite de scans. Passez à Premium pour continuer.',
-        [
-          {text: 'Annuler', style: 'cancel'},
-          {text: 'Voir Premium', onPress: () => navigation.push('Subscription')},
-        ]
-      );
+      setShowLimitModal(true);
       return;
     }
 
@@ -670,29 +664,44 @@ export function UnifiedScannerScreen() {
     } catch (err: any) {
       console.error('Background processing error:', err);
 
-      // Parse error message
+      // Parse error message - improved extraction
       let errorText = err.message || '';
+      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
+      
       try {
-        if (errorText.includes('{"error":{')) {
-          const jsonMatch = errorText.match(/\{.*\}/);
+        // Try to extract JSON error from various formats
+        if (errorText.includes('{"error":{') || errorText.includes('"error":{')) {
+          const jsonMatch = errorText.match(/\{.*\}/s);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
             if (parsed.error?.message) {
               errorText = parsed.error.message;
+              // Use the backend error message directly if it exists
+              userMessage = parsed.error.message;
             }
           }
         }
-      } catch (parseError) {}
+      } catch (parseError) {
+        console.error('Error parsing JSON:', parseError);
+      }
 
-      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
-      
-      if (errorText.includes('ne semble pas être un reçu') || 
-          errorText.includes('not a receipt')) {
-        userMessage = 'Cette image ne semble pas être un reçu.';
-      } else if (errorText.includes('Unable to detect receipt')) {
-        userMessage = 'Impossible de détecter une facture.';
-      } else if (errorText.includes('network') || errorText.includes('réseau')) {
-        userMessage = 'Pas de connexion internet.';
+      // Only override with generic messages if no specific error was extracted
+      if (userMessage === 'Une erreur est survenue lors de l\'analyse.') {
+        if (errorText.includes('ne semble pas être un reçu') || 
+            errorText.includes('not a receipt')) {
+          userMessage = 'Cette image ne semble pas être un reçu.';
+        } else if (errorText.includes('Unable to detect receipt')) {
+          userMessage = 'Impossible de détecter une facture.';
+        } else if (errorText.includes('network') || errorText.includes('réseau')) {
+          userMessage = 'Pas de connexion internet.';
+        } else if (errorText.includes('floue') || errorText.includes('sombre') || 
+                   errorText.includes('blur') || errorText.includes('dark')) {
+          // Use the extracted message if it's about image quality
+          userMessage = errorText;
+        } else if (errorText && errorText.length > 0 && errorText.length < 200) {
+          // Use the error text directly if it's a reasonable length
+          userMessage = errorText;
+        }
       }
 
       hapticService.error();
@@ -710,16 +719,7 @@ export function UnifiedScannerScreen() {
     // Validate subscription before processing (double-check)
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_no_scans');
-      Alert.alert(
-        'Limite atteinte',
-        isTrialActive
-          ? `Vous avez utilisé vos scans gratuits pour ce mois. Passez à Premium pour continuer.`
-          : 'Vous avez atteint votre limite de scans. Passez à Premium pour continuer.',
-        [
-          {text: 'Annuler', style: 'cancel'},
-          {text: 'Voir Premium', onPress: () => navigation.push('Subscription')},
-        ]
-      );
+      setShowLimitModal(true);
       setState('idle');
       setPhotos([]);
       return;
@@ -1146,6 +1146,14 @@ export function UnifiedScannerScreen() {
           onCancel={confirmModalConfig.onCancel}
         />
       )}
+
+      {/* Subscription Limit Modal */}
+      <SubscriptionLimitModal
+        visible={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType="scan"
+        isTrialActive={isTrialActive}
+      />
       </View>
     </SafeAreaView>
   );

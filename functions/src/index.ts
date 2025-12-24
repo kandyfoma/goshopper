@@ -18,7 +18,7 @@ if (!admin.apps.length) {
 }
 
 // Export functions
-export {parseReceipt, parseReceiptV2, parseReceiptMulti} from './receipt/parseReceipt';
+export {parseReceipt, parseReceiptV2, parseReceiptMulti, parseReceiptVideo} from './receipt/parseReceipt';
 export {quickExtractReceipt} from './receipt/quickExtract';
 
 // Payment functions
@@ -28,6 +28,7 @@ export {
   mokoPaymentWebhook,
   activateSubscriptionFromRailway,
 } from './payments/mokoAfrika';
+export {purchaseScanPack} from './payments/scanPacks';
 export {
   createCardPaymentIntent,
   confirmCardPayment,

@@ -1,0 +1,244 @@
+/**
+ * Subscription Limit Modal
+ * Beautiful modal that blocks access when user hasn't paid for subscription
+ * Used instead of Alert.alert for a better UX
+ */
+
+import React from 'react';
+import {View, Text, StyleSheet, TouchableOpacity, Modal} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '@/shared/types';
+import Icon from '@/shared/components/Icon';
+import {Colors, Typography, Spacing} from '@/shared/theme/theme';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+export type LimitType = 'scan' | 'shoppingList' | 'receipt' | 'generic';
+
+interface SubscriptionLimitModalProps {
+  visible: boolean;
+  onClose: () => void;
+  limitType?: LimitType;
+  customTitle?: string;
+  customMessage?: string;
+  isTrialActive?: boolean;
+}
+
+const LIMIT_CONTENT: Record<LimitType, { icon: string; title: string; message: string; trialMessage: string }> = {
+  scan: {
+    icon: 'camera-off',
+    title: 'Limite de Scans Atteinte',
+    message: 'Vous avez atteint votre limite de scans mensuels. Passez à Premium pour continuer à scanner vos reçus.',
+    trialMessage: 'Vous avez utilisé tous vos scans gratuits ce mois. Passez à Premium pour continuer.',
+  },
+  shoppingList: {
+    icon: 'list',
+    title: 'Limite de Listes Atteinte',
+    message: 'Votre plan actuel ne permet qu\'une seule liste de courses. Passez à Premium pour créer des listes illimitées.',
+    trialMessage: 'Passez à Premium pour créer des listes de courses illimitées.',
+  },
+  receipt: {
+    icon: 'file-text',
+    title: 'Accès Limité',
+    message: 'Cette fonctionnalité nécessite un abonnement Premium. Mettez à niveau pour en profiter.',
+    trialMessage: 'Passez à Premium pour accéder à toutes les fonctionnalités.',
+  },
+  generic: {
+    icon: 'lock',
+    title: 'Fonctionnalité Premium',
+    message: 'Cette fonctionnalité est réservée aux abonnés Premium. Mettez à niveau pour y accéder.',
+    trialMessage: 'Passez à Premium pour débloquer cette fonctionnalité.',
+  },
+};
+
+export default function SubscriptionLimitModal({
+  visible,
+  onClose,
+  limitType = 'generic',
+  customTitle,
+  customMessage,
+  isTrialActive = false,
+}: SubscriptionLimitModalProps) {
+  const navigation = useNavigation<NavigationProp>();
+  
+  const content = LIMIT_CONTENT[limitType];
+  const title = customTitle || content.title;
+  const message = customMessage || (isTrialActive ? content.trialMessage : content.message);
+
+  const handleUpgrade = () => {
+    onClose();
+    navigation.navigate('Subscription');
+  };
+
+  const handleGoBack = () => {
+    onClose();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleGoBack}>
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          {/* Icon */}
+          <View style={styles.iconContainer}>
+            <View style={styles.iconOuter}>
+              <View style={styles.iconInner}>
+                <Icon name={content.icon} size="xl" color={Colors.accent} />
+              </View>
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.title}>{title}</Text>
+
+          {/* Message */}
+          <Text style={styles.message}>{message}</Text>
+
+          {/* Premium benefits preview */}
+          <View style={styles.benefitsContainer}>
+            <View style={styles.benefitRow}>
+              <Icon name="check-circle" size="sm" color={Colors.status.success} />
+              <Text style={styles.benefitText}>Scans illimités</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Icon name="check-circle" size="sm" color={Colors.status.success} />
+              <Text style={styles.benefitText}>Listes de courses illimitées</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Icon name="check-circle" size="sm" color={Colors.status.success} />
+              <Text style={styles.benefitText}>Comparaison de prix avancée</Text>
+            </View>
+          </View>
+
+          {/* Primary Action - Upgrade */}
+          <TouchableOpacity style={styles.primaryButton} onPress={handleUpgrade}>
+            <Icon name="crown" size="sm" color={Colors.white} />
+            <Text style={styles.primaryButtonText}>Mettre à niveau</Text>
+          </TouchableOpacity>
+
+          {/* Secondary Action - Go Back */}
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleGoBack}>
+            <Text style={styles.secondaryButtonText}>Plus tard</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modal: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconContainer: {
+    marginBottom: 20,
+  },
+  iconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.background.secondary, // Warm cream
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: Colors.accentLight, // Light blue
+  },
+  iconInner: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: Colors.accentLight, // Light blue
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  message: {
+    fontSize: 15,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+    paddingHorizontal: 8,
+  },
+  benefitsContainer: {
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    marginBottom: 24,
+    gap: 12,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  benefitText: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    fontWeight: '500',
+  },
+  primaryButton: {
+    backgroundColor: Colors.accent, // Deep blue
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  secondaryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    color: Colors.text.tertiary,
+    fontWeight: '500',
+  },
+});

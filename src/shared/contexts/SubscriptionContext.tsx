@@ -67,22 +67,38 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
 
       let scansRemaining = 0;
       let canScan = false;
+      const EMERGENCY_SCANS_LIMIT = 3;
+
+      // Helper to calculate available scans with bonus and emergency scans
+      const calculateScansWithBonus = (planLimit: number, monthlyUsed: number): number => {
+        const bonusScans = subscription.bonusScans || 0;
+        const emergencyUsed = subscription.emergencyScansUsed || 0;
+        
+        // First, check plan scans
+        const planRemaining = planLimit - monthlyUsed;
+        if (planRemaining > 0) {
+          return planRemaining + bonusScans; // Plan scans + bonus
+        }
+        
+        // Plan depleted, use bonus scans
+        if (bonusScans > 0) {
+          return bonusScans;
+        }
+        
+        // Bonus depleted, offer emergency scans
+        const emergencyRemaining = EMERGENCY_SCANS_LIMIT - emergencyUsed;
+        return emergencyRemaining;
+      };
 
       if (isTrialActive) {
         // Trial users have limited scans
-        const trialLimit = PLAN_SCAN_LIMITS.free || 50;
-        scansRemaining = Math.max(
-          0,
-          trialLimit - (subscription.trialScansUsed || 0),
-        );
+        const trialLimit = PLAN_SCAN_LIMITS.free || 10;
+        scansRemaining = calculateScansWithBonus(trialLimit, subscription.trialScansUsed || 0);
         canScan = scansRemaining > 0;
       } else if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
         // Freemium tier - auto-assigned when no active subscription
         const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
-        scansRemaining = Math.max(
-          0,
-          freemiumLimit - (subscription.monthlyScansUsed || 0),
-        );
+        scansRemaining = calculateScansWithBonus(freemiumLimit, subscription.monthlyScansUsed || 0);
         canScan = scansRemaining > 0;
       } else if (subscription.status === 'grace') {
         // Grace period - keep using remaining scans from expired plan
@@ -90,10 +106,7 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
           PLAN_SCAN_LIMITS[
             subscription.planId as keyof typeof PLAN_SCAN_LIMITS
           ] || 0;
-        scansRemaining = Math.max(
-          0,
-          planLimit - (subscription.monthlyScansUsed || 0),
-        );
+        scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
         canScan = scansRemaining > 0;
       } else if (
         subscription.isSubscribed &&
@@ -112,10 +125,7 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
             scansRemaining = -1;
             canScan = true;
           } else {
-            scansRemaining = Math.max(
-              0,
-              planLimit - (subscription.monthlyScansUsed || 0),
-            );
+            scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
             canScan = scansRemaining > 0;
           }
         }

@@ -77,7 +77,61 @@ export function SubscriptionDurationScreen() {
   const route = useRoute<RouteParams>();
   const insets = useSafeAreaInsets();
 
-  const {planId} = route.params;
+  const {planId, isScanPack, scanPackId, scanPackScans, scanPackPrice} = route.params;
+  
+  // Handle scan packs differently
+  if (isScanPack && scanPackId) {
+    const handlePurchaseScanPack = () => {
+      analyticsService.logCustomEvent('scan_pack_attempted', {
+        pack_id: scanPackId,
+        scans: scanPackScans,
+        amount: scanPackPrice,
+        currency: 'USD',
+      });
+
+      navigation.navigate('MokoPayment', {
+        amount: scanPackPrice || 0,
+        planId: `scanpack_${scanPackId}`,
+        planName: `Pack de ${scanPackScans} scans`,
+        isScanPack: true,
+        scanPackId,
+      });
+    };
+
+    return (
+      <View style={styles.container}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        <View style={[styles.scrollContent, {paddingTop: insets.top + Spacing.md}]}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}>
+              <Icon name="chevron-left" size="md" color={Colors.text.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Pack de Scans</Text>
+          </View>
+          
+          <View style={styles.scanPackInfo}>
+            <Icon name="zap" size="xl" color="#FF6B35" />
+            <Text style={styles.scanPackTitle}>{scanPackScans} Scans</Text>
+            <Text style={styles.scanPackPrice}>${scanPackPrice}</Text>
+            <Text style={styles.scanPackDescription}>
+              Ajoutez {scanPackScans} scans bonus à votre compte
+            </Text>
+          </View>
+
+          <TouchableOpacity style={styles.ctaButton} onPress={handlePurchaseScanPack}>
+            <Text style={styles.ctaButtonText}>Continuer vers le paiement</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   const plan = SUBSCRIPTION_PLANS[planId];
 
   const [selectedDuration, setSelectedDuration] =
@@ -403,6 +457,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: Spacing.sm,
+  },
+
+  // Scan Pack Styles
+  scanPackInfo: {
+    backgroundColor: '#FFF',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+  },
+  scanPackTitle: {
+    fontSize: Typography.fontSize['4xl'],
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginTop: Spacing.md,
+  },
+  scanPackPrice: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FF6B35',
+    marginTop: Spacing.sm,
+  },
+  scanPackDescription: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: Spacing.md,
+    textAlign: 'center',
   },
 
   // Payment Provider Section

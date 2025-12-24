@@ -18,6 +18,7 @@ import {ToastProvider} from '@/shared/contexts/ToastContext';
 import {ScanProcessingProvider} from '@/shared/contexts/ScanProcessingContext';
 import {PaymentProcessingProvider} from '@/shared/contexts/PaymentProcessingContext';
 import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner} from '@/shared/components';
+import ScanUsageWarning from '@/shared/components/ScanUsageWarning';
 import {initializeFirebase} from '@/shared/services/firebase/config';
 import {analyticsService} from '@/shared/services';
 import {pushNotificationService} from '@/shared/services/firebase';
@@ -45,6 +46,7 @@ function NetworkAwareApp(): React.JSX.Element {
                         <OfflineBanner />
                         <GlobalScanProgressBanner />
                         <GlobalPaymentProgressBanner />
+                        <ScanUsageWarning />
                         <StatusBar
                           barStyle="dark-content"
                           backgroundColor="#FFFFFF"

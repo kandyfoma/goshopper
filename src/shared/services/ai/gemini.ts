@@ -363,6 +363,147 @@ class GeminiService {
   }
 
   /**
+   * Parse a receipt video using Gemini AI
+   * Ideal for long receipts - user scans slowly down the receipt
+   */
+  async parseReceiptVideo(
+    videoBase64: string,
+    userId: string,
+    userCity?: string,
+  ): Promise<ReceiptScanResult> {
+    // Check circuit breaker state
+    this.checkCircuitState();
+
+    if (this.circuitState === 'OPEN') {
+      const waitSeconds = Math.ceil((this.nextAttemptTime - Date.now()) / 1000);
+      return {
+        success: false,
+        error: `Service temporairement indisponible. Réessayez dans ${waitSeconds} secondes.`,
+      };
+    }
+
+    // Rate limit check
+    if (this.rateLimitedUntil && new Date() < this.rateLimitedUntil) {
+      const waitSeconds = Math.ceil(
+        (this.rateLimitedUntil.getTime() - Date.now()) / 1000,
+      );
+      return {
+        success: false,
+        error: `Trop de demandes. Veuillez attendre ${waitSeconds} secondes.`,
+      };
+    }
+
+    try {
+      // Get current user's auth token
+      const currentUser = auth().currentUser;
+      if (!currentUser) {
+        return {
+          success: false,
+          error: 'Veuillez vous connecter pour scanner.',
+        };
+      }
+
+      const idToken = await currentUser.getIdToken();
+
+      // Call video parsing Cloud Function
+      const response = await fetch(
+        `https://${FUNCTIONS_REGION}-${PROJECT_ID}.cloudfunctions.net/parseReceiptVideo`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            data: {
+              videoBase64: videoBase64,
+              mimeType: 'video/mp4',
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Video HTTP error:', response.status, errorText);
+
+        if (response.status === 429) {
+          const waitTime = 60000;
+          this.rateLimitedUntil = new Date(Date.now() + waitTime);
+          this.recordFailure();
+          return {
+            success: false,
+            error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+          };
+        }
+
+        this.recordFailure();
+        
+        // Try to parse error message from response
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `Erreur serveur (${response.status})`);
+        } catch {
+          throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
+        }
+      }
+
+      const responseData = await response.json();
+      console.log('Video Cloud Function response:', JSON.stringify(responseData).substring(0, 500));
+
+      if (responseData.error) {
+        const errorMsg =
+          typeof responseData.error === 'object'
+            ? responseData.error.message || JSON.stringify(responseData.error)
+            : responseData.error;
+        throw new Error(errorMsg);
+      }
+
+      const result = responseData as ParseReceiptResponse;
+      const receiptData = result.receipt || result.data;
+
+      if (!result.success || !receiptData) {
+        return {
+          success: false,
+          error: result.error || 'Échec de l\'analyse de la vidéo',
+        };
+      }
+
+      // Transform response to Receipt type
+      const receipt = this.transformToReceipt(
+        receiptData,
+        userId,
+        result.receiptId,
+        userCity,
+      );
+
+      // Mark as video scan
+      (receipt as any).isVideoScan = true;
+
+      // Success - reset circuit breaker
+      this.recordSuccess();
+
+      return {
+        success: true,
+        receipt,
+      };
+    } catch (error: any) {
+      console.error('Gemini video parse error:', error);
+      this.recordFailure();
+
+      if (this.circuitState === 'HALF_OPEN') {
+        this.circuitState = 'OPEN';
+        this.nextAttemptTime = Date.now() + this.OPEN_TIMEOUT;
+      }
+
+      return {
+        success: false,
+        error: error.message || 'Erreur lors de l\'analyse de la vidéo.',
+      };
+    }
+  }
+
+  /**
    * Normalize product name for comparison
    */
   private normalizeProductName(name: string): string {

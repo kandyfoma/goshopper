@@ -24,9 +24,9 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Button} from '@/shared/components';
+import {Icon, Button, SubscriptionLimitModal} from '@/shared/components';
 import {analyticsService, hapticService, widgetDataService} from '@/shared/services';
-import {hasFeatureAccess, showUpgradePrompt} from '@/shared/utils/featureAccess';
+import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import firestore from '@react-native-firebase/firestore';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {APP_ID} from '@/shared/services/firebase/config';
@@ -295,6 +295,7 @@ export function HomeScreen() {
   const [itemsCount, setItemsCount] = useState(0);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentBudget, setCurrentBudget] = useState(0);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Determine display currency: use preferred currency if budget is set, otherwise USD
   const displayCurrency = userProfile?.preferredCurrency || 'USD';
@@ -800,7 +801,7 @@ export function HomeScreen() {
               if (hasFeatureAccess('stats', subscription)) {
                 navigation.push('Stats');
               } else {
-                showUpgradePrompt('stats', () => navigation.push('Subscription'));
+                setShowLimitModal(true);
               }
             }}
             color="cosmos"
@@ -837,6 +838,15 @@ export function HomeScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Subscription Limit Modal */}
+      <SubscriptionLimitModal
+        visible={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType="generic"
+        customTitle="Statistiques"
+        customMessage="Les statistiques avancées sont réservées aux abonnés Standard et Premium. Mettez à niveau pour visualiser vos dépenses."
+      />
     </SafeAreaView>
   );
 }

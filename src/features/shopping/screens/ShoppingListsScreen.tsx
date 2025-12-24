@@ -31,7 +31,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, FadeIn, SlideIn, Input, Button} from '@/shared/components';
+import {Icon, Spinner, Modal, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -69,6 +69,7 @@ export function ShoppingListsScreen() {
   const [newListName, setNewListName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   // FAB animation
   const fabScale = useRef(new Animated.Value(1)).current;
@@ -139,14 +140,7 @@ export function ShoppingListsScreen() {
     // Check if user can create more lists (freemium: 1 list only)
     const listCheck = canCreateShoppingList(subscription, lists.length);
     if (!listCheck.canCreate) {
-      Alert.alert(
-        'Limite atteinte',
-        listCheck.reason || 'Vous avez atteint la limite de listes',
-        [
-          {text: 'Annuler', style: 'cancel'},
-          {text: 'Mettre à niveau', onPress: () => navigation.navigate('Subscription')},
-        ]
-      );
+      setShowLimitModal(true);
       return;
     }
 
@@ -566,6 +560,13 @@ export function ShoppingListsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Subscription Limit Modal */}
+      <SubscriptionLimitModal
+        visible={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType="shoppingList"
+      />
     </SafeAreaView>
   );
 }

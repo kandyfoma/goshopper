@@ -30,6 +30,7 @@ export interface ParsedReceipt {
   totalUSD?: number;
   totalCDF?: number;
   rawText?: string;
+  isVideoScan?: boolean; // True if receipt was scanned via video
 }
 
 export interface Receipt extends ParsedReceipt {

@@ -7,6 +7,7 @@ import {
   Asset,
 } from 'react-native-image-picker';
 import {Platform, PermissionsAndroid} from 'react-native';
+import RNFS from 'react-native-fs';
 
 export interface CaptureResult {
   success: boolean;
@@ -19,6 +20,30 @@ export interface CaptureResult {
   canRetry?: boolean;
   suggestedAction?: 'close_other_apps' | 'open_settings' | 'check_storage' | 'get_closer';
 }
+
+export interface VideoResult {
+  success: boolean;
+  uri?: string;
+  base64?: string;
+  duration?: number;
+  fileName?: string;
+  fileSize?: number;
+  error?: string;
+  canRetry?: boolean;
+  suggestedAction?: 'close_other_apps' | 'open_settings' | 'check_storage';
+}
+
+// Video constraints for receipt scanning
+const MAX_VIDEO_DURATION_SECONDS = 10; // Max 10 seconds for receipt scanning
+const VIDEO_QUALITY = 'medium'; // Balance quality and file size
+
+const DEFAULT_VIDEO_OPTIONS: CameraOptions = {
+  mediaType: 'video',
+  videoQuality: 'medium',
+  durationLimit: MAX_VIDEO_DURATION_SECONDS,
+  saveToPhotos: false,
+  cameraType: 'back',
+};
 
 const DEFAULT_CAMERA_OPTIONS: CameraOptions = {
   mediaType: 'photo',
@@ -97,6 +122,103 @@ class CameraService {
         },
       );
     });
+  }
+
+  /**
+   * Record video for long receipt scanning
+   * @param maxDuration Max duration in seconds (default: 10s)
+   */
+  async recordVideo(maxDuration: number = MAX_VIDEO_DURATION_SECONDS): Promise<VideoResult> {
+    // Check permission first
+    const hasPermission = await this.requestCameraPermission();
+    if (!hasPermission) {
+      return {
+        success: false,
+        error: 'Permission caméra refusée',
+      };
+    }
+
+    return new Promise(resolve => {
+      launchCamera(
+        {
+          ...DEFAULT_VIDEO_OPTIONS,
+          durationLimit: Math.min(maxDuration, MAX_VIDEO_DURATION_SECONDS),
+        },
+        async (response: ImagePickerResponse) => {
+          const result = this.handleVideoPickerResponse(response);
+          
+          // If successful, read the video file and convert to base64
+          if (result.success && result.uri) {
+            try {
+              const base64 = await RNFS.readFile(result.uri, 'base64');
+              result.base64 = base64;
+            } catch (error) {
+              console.error('Error reading video file:', error);
+              resolve({
+                success: false,
+                error: 'Erreur lors de la lecture de la vidéo.',
+                canRetry: true,
+              });
+              return;
+            }
+          }
+          
+          resolve(result);
+        },
+      );
+    });
+  }
+
+  /**
+   * Select video from gallery for long receipts
+   */
+  async selectVideoFromGallery(): Promise<VideoResult> {
+    return new Promise(resolve => {
+      launchImageLibrary(
+        {
+          mediaType: 'video',
+          videoQuality: 'medium',
+        },
+        async (response: ImagePickerResponse) => {
+          const result = this.handleVideoPickerResponse(response);
+          
+          // Validate duration for gallery videos
+          if (result.success && result.duration && result.duration > MAX_VIDEO_DURATION_SECONDS) {
+            resolve({
+              success: false,
+              error: `Vidéo trop longue (max ${MAX_VIDEO_DURATION_SECONDS}s). Sélectionnez une vidéo plus courte.`,
+              canRetry: true,
+            });
+            return;
+          }
+          
+          // If successful, read the video file and convert to base64
+          if (result.success && result.uri) {
+            try {
+              const base64 = await RNFS.readFile(result.uri, 'base64');
+              result.base64 = base64;
+            } catch (error) {
+              console.error('Error reading video file:', error);
+              resolve({
+                success: false,
+                error: 'Erreur lors de la lecture de la vidéo.',
+                canRetry: true,
+              });
+              return;
+            }
+          }
+          
+          resolve(result);
+        },
+      );
+    });
+  }
+
+  /**
+   * Get max video duration allowed
+   */
+  getMaxVideoDuration(): number {
+    return MAX_VIDEO_DURATION_SECONDS;
   }
 
   /**
@@ -185,6 +307,83 @@ class CameraService {
       width: asset.width,
       height: asset.height,
       fileName: asset.fileName,
+    };
+  }
+
+  /**
+   * Handle video picker response
+   */
+  private handleVideoPickerResponse(
+    response: ImagePickerResponse,
+  ): VideoResult {
+    if (response.didCancel) {
+      return {
+        success: false,
+        error: 'Capture annulée',
+        canRetry: true,
+      };
+    }
+
+    if (response.errorCode) {
+      switch (response.errorCode) {
+        case 'camera_unavailable':
+          return {
+            success: false,
+            error: 'Caméra non disponible. Fermez les autres applications.',
+            canRetry: true,
+            suggestedAction: 'close_other_apps',
+          };
+
+        case 'permission':
+          return {
+            success: false,
+            error: 'Permission caméra refusée. Activez-la dans les paramètres.',
+            canRetry: false,
+            suggestedAction: 'open_settings',
+          };
+
+        default:
+          return {
+            success: false,
+            error: response.errorMessage || 'Erreur inconnue',
+            canRetry: true,
+          };
+      }
+    }
+
+    const asset: Asset | undefined = response.assets?.[0];
+    if (!asset || !asset.uri) {
+      return {
+        success: false,
+        error: 'Aucune vidéo capturée. Réessayez.',
+        canRetry: true,
+      };
+    }
+
+    // Validate video duration
+    const durationSeconds = asset.duration || 0;
+    if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+      return {
+        success: false,
+        error: `Vidéo trop longue (max ${MAX_VIDEO_DURATION_SECONDS}s). Réessayez avec une vidéo plus courte.`,
+        canRetry: true,
+      };
+    }
+
+    if (durationSeconds < 1) {
+      return {
+        success: false,
+        error: 'Vidéo trop courte. Scannez lentement tout le reçu.',
+        canRetry: true,
+      };
+    }
+
+    return {
+      success: true,
+      uri: asset.uri,
+      duration: durationSeconds,
+      fileName: asset.fileName,
+      fileSize: asset.fileSize,
     };
   }
 }

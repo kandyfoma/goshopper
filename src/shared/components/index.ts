@@ -79,3 +79,6 @@ export {GlobalScanResultModal} from './GlobalScanResultModal';
 
 // Global Payment Processing Components
 export {GlobalPaymentProgressBanner} from './GlobalPaymentProgressBanner';
+
+// Subscription Components
+export {default as SubscriptionLimitModal} from './SubscriptionLimitModal';

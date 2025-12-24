@@ -25,6 +25,8 @@ interface PaymentProcessingState {
   planName: string;
   message: string;
   error?: string;
+  isScanPack?: boolean;
+  scanPackId?: string;
 }
 
 interface PaymentProcessingContextType {
@@ -37,6 +39,8 @@ interface PaymentProcessingContextType {
     phoneNumber: string;
     planId: string;
     planName: string;
+    isScanPack?: boolean;
+    scanPackId?: string;
   }) => void;
   
   // Update status
@@ -84,6 +88,8 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
     phoneNumber: string;
     planId: string;
     planName: string;
+    isScanPack?: boolean;
+    scanPackId?: string;
   }) => {
     console.log('💳 Starting payment processing:', params.transactionId);
     
@@ -94,6 +100,8 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
       phoneNumber: params.phoneNumber,
       planId: params.planId,
       planName: params.planName,
+      isScanPack: params.isScanPack,
+      scanPackId: params.scanPackId,
       message: 'Demande envoyée à l\'opérateur...',
     });
   }, []);
@@ -146,44 +154,84 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
         console.log('💳 Payment status update:', status, details);
         
         if (status === 'SUCCESS') {
-          // Activate subscription via Firebase
-          try {
-            console.log('✅ Payment successful, activating subscription...');
-            updateStatus('pending', 'Activation de l\'abonnement...');
-            
-            console.log('📞 Calling activateSubscriptionFromRailway with:', {
-              planId: state.planId,
-              transactionId: state.transactionId,
-              amount: state.amount,
-              phoneNumber: state.phoneNumber,
-            });
-            
-            // Call the function in europe-west1 region
-            const functionsInstance = firebase.app().functions('europe-west1');
-            const activateSubscription = functionsInstance.httpsCallable('activateSubscriptionFromRailway');
-            
-            await activateSubscription({
-              planId: state.planId,
-              transactionId: state.transactionId,
-              amount: state.amount,
-              phoneNumber: state.phoneNumber,
-              currency: 'USD',
-            });
-            
-            // Force refresh subscription status from Firestore
-            // This ensures the UI updates immediately after activation
-            console.log('🔄 Refreshing subscription status after activation...');
+          // Check if this is a scan pack purchase
+          if (state.isScanPack && state.scanPackId) {
             try {
-              await subscriptionService.getStatus(); // This will trigger Firestore listener
-            } catch (refreshError) {
-              console.warn('Failed to refresh subscription, but activation succeeded:', refreshError);
+              console.log('✅ Payment successful, adding bonus scans...');
+              updateStatus('pending', 'Ajout des scans bonus...');
+              
+              console.log('📦 Calling purchaseScanPack with:', {
+                packId: state.scanPackId,
+                transactionId: state.transactionId,
+                amount: state.amount,
+                phoneNumber: state.phoneNumber,
+              });
+              
+              // Call the function in europe-west1 region
+              const functionsInstance = firebase.app().functions('europe-west1');
+              const purchasePack = functionsInstance.httpsCallable('purchaseScanPack');
+              
+              await purchasePack({
+                packId: state.scanPackId,
+                transactionId: state.transactionId,
+                amount: state.amount,
+                phoneNumber: state.phoneNumber,
+                currency: 'USD',
+              });
+              
+              // Force refresh subscription status
+              console.log('🔄 Refreshing subscription status after scan pack purchase...');
+              try {
+                await subscriptionService.getStatus();
+              } catch (refreshError) {
+                console.warn('Failed to refresh subscription, but pack purchase succeeded:', refreshError);
+              }
+              
+              setSuccess('Scans bonus ajoutés avec succès!');
+            } catch (error: any) {
+              console.error('Error purchasing scan pack:', error);
+              setFailed('Paiement reçu. Contactez le support pour activer vos scans.');
             }
-            
-            setSuccess(`Abonnement ${state.planName} activé!`);
-          } catch (error: any) {
-            console.error('Error activating subscription:', error);
-            // Payment succeeded but activation failed
-            setFailed('Paiement reçu. Contactez le support pour activer votre abonnement.');
+          } else {
+            // Regular subscription activation
+            try {
+              console.log('✅ Payment successful, activating subscription...');
+              updateStatus('pending', 'Activation de l\'abonnement...');
+              
+              console.log('📞 Calling activateSubscriptionFromRailway with:', {
+                planId: state.planId,
+                transactionId: state.transactionId,
+                amount: state.amount,
+                phoneNumber: state.phoneNumber,
+              });
+              
+              // Call the function in europe-west1 region
+              const functionsInstance = firebase.app().functions('europe-west1');
+              const activateSubscription = functionsInstance.httpsCallable('activateSubscriptionFromRailway');
+              
+              await activateSubscription({
+                planId: state.planId,
+                transactionId: state.transactionId,
+                amount: state.amount,
+                phoneNumber: state.phoneNumber,
+                currency: 'USD',
+              });
+              
+              // Force refresh subscription status from Firestore
+              // This ensures the UI updates immediately after activation
+              console.log('🔄 Refreshing subscription status after activation...');
+              try {
+                await subscriptionService.getStatus(); // This will trigger Firestore listener
+              } catch (refreshError) {
+                console.warn('Failed to refresh subscription, but activation succeeded:', refreshError);
+              }
+              
+              setSuccess(`Abonnement ${state.planName} activé!`);
+            } catch (error: any) {
+              console.error('Error activating subscription:', error);
+              // Payment succeeded but activation failed
+              setFailed('Paiement reçu. Contactez le support pour activer votre abonnement.');
+            }
           }
         } else if (status === 'FAILED') {
           setFailed('Le paiement a échoué. Veuillez réessayer.');

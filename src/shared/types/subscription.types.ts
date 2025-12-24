@@ -30,6 +30,11 @@ export interface Subscription {
   currentBillingPeriodStart?: Date;
   currentBillingPeriodEnd?: Date;
 
+  // Bonus scans (from top-up packs or carried over)
+  bonusScans?: number;
+  bonusScansCarriedOver?: number;
+  emergencyScansUsed?: number;
+
   // Subscription details
   isSubscribed: boolean;
   planId?: SubscriptionPlanId;

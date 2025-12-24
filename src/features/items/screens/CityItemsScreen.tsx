@@ -24,10 +24,10 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, SubscriptionLimitModal} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription} from '@/shared/contexts';
-import {hasFeatureAccess, showUpgradePrompt} from '@/shared/utils/featureAccess';
+import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import {analyticsService} from '@/shared/services/analytics';
 import {cacheManager, CacheTTL} from '@/shared/services/caching';
 import {RootStackParamList} from '@/shared/types';
@@ -69,6 +69,7 @@ export function CityItemsScreen() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
 
@@ -86,11 +87,9 @@ export function CityItemsScreen() {
     // Track screen view
     analyticsService.logScreenView('City Items', 'CityItemsScreen');
     
-    // Show upgrade prompt if no access
+    // Show upgrade modal if no access
     if (!hasAccess) {
-      showUpgradePrompt('priceComparison', () => {
-        navigation.navigate('Subscription');
-      });
+      setShowLimitModal(true);
     }
   }, [hasAccess]);
 
@@ -98,12 +97,19 @@ export function CityItemsScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('📱 CityItemsScreen focused, reloading data');
+      
+      // Guard: Re-check access when screen regains focus
+      if (!hasAccess) {
+        setShowLimitModal(true);
+        return;
+      }
+      
       if (!profileLoading && userProfile?.defaultCity) {
         loadCityItemsData();
       } else if (!profileLoading) {
         setIsLoading(false);
       }
-    }, [userProfile?.defaultCity, profileLoading])
+    }, [userProfile?.defaultCity, profileLoading, hasAccess])
   );
 
   useEffect(() => {
@@ -695,6 +701,15 @@ export function CityItemsScreen() {
             </View>
           )
         }
+      />
+
+      {/* Subscription Limit Modal */}
+      <SubscriptionLimitModal
+        visible={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType="generic"
+        customTitle="Comparaison de Prix"
+        customMessage="Cette fonctionnalité est réservée aux abonnés Standard et Premium. Mettez à niveau pour comparer les prix entre magasins."
       />
     </SafeAreaView>
   );
