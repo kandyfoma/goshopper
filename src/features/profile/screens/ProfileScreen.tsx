@@ -381,8 +381,8 @@ export function ProfileScreen() {
                 {isPremium ? 'Premium' : 'Essai gratuit'}
               </Text>
             </View>
-            <Text style={styles.subscriptionTitle}>{currentPlan.name}</Text>
-            <Text style={styles.subscriptionStatus}>
+            <Text style={[styles.subscriptionTitle, isPremium && styles.subscriptionTitlePremium]}>{currentPlan.name}</Text>
+            <Text style={[styles.subscriptionStatus, isPremium && styles.subscriptionStatusPremium]}>
               {isPremium
                 ? `Actif jusqu'au ${
                     subscription?.expiryDate
@@ -391,8 +391,17 @@ export function ProfileScreen() {
                   }`
                 : `${trialRemaining} scans restants`}
             </Text>
+            {isPremium && (
+              <Text style={styles.subscriptionFeatures}>
+                ✓ Scans illimités • ✓ Analyses avancées • ✓ Support prioritaire
+              </Text>
+            )}
           </View>
-          <Icon name="chevron-right" size="md" color={Colors.text.secondary} />
+          <Icon
+            name="chevron-right"
+            size="md"
+            color={isPremium ? Colors.white : Colors.text.secondary}
+          />
         </TouchableOpacity>
 
         {/* Menu Sections */}
@@ -491,6 +500,13 @@ export function ProfileScreen() {
           <Text style={styles.sectionLabel}>Outils de développement</Text>
           <View style={styles.menuGroup}>
             <MenuItem
+              icon="tool"
+              title="Developer Tools"
+              subtitle="Test premium, clear data, rebuild items"
+              iconColor="purple"
+              onPress={() => navigation.push('DeveloperTools')}
+            />
+            <MenuItem
               icon="refresh-cw"
               title="Reconstruire les articles"
               subtitle={rebuildingItems ? "En cours..." : "Réagrége tous les articles des reçus"}
@@ -508,11 +524,14 @@ export function ProfileScreen() {
           variant="danger"
           size="lg"
           icon={<Icon name="logout" size="sm" color={Colors.white} />}
-          style={{marginTop: Spacing.lg, marginBottom: Spacing.xl}}
+          style={{marginTop: Spacing.xl, marginBottom: Spacing.xxl}}
         />
 
         {/* App Footer */}
         <AppFooter compact />
+        
+        {/* Extra bottom padding to ensure content is scrollable */}
+        <View style={{height: 100}} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -660,10 +679,23 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     marginBottom: Spacing.xs,
   },
+  subscriptionTitlePremium: {
+    color: Colors.white,
+  },
   subscriptionStatus: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
+  },
+  subscriptionStatusPremium: {
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  subscriptionFeatures: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: Spacing.xs,
+    lineHeight: Typography.fontSize.xs * 1.4,
   },
 
   // Sections

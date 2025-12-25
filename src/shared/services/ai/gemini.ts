@@ -405,47 +405,64 @@ class GeminiService {
 
       const idToken = await currentUser.getIdToken();
 
-      // Call video parsing Cloud Function
-      const response = await fetch(
-        `https://${FUNCTIONS_REGION}-${PROJECT_ID}.cloudfunctions.net/parseReceiptVideo`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            data: {
-              videoBase64: videoBase64,
-              mimeType: 'video/mp4',
+      // Call video parsing Cloud Function with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 280000); // 4min 40s timeout (before Cloud Function's 5min)
+
+      try {
+        const response = await fetch(
+          `https://${FUNCTIONS_REGION}-${PROJECT_ID}.cloudfunctions.net/parseReceiptVideo`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
             },
-          }),
-        },
-      );
+            body: JSON.stringify({
+              data: {
+                videoBase64: videoBase64,
+                mimeType: 'video/mp4',
+              },
+            }),
+            signal: controller.signal,
+          },
+        );
+        clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Video HTTP error:', response.status, errorText);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Video HTTP error:', response.status, errorText);
 
-        if (response.status === 429) {
-          const waitTime = 60000;
-          this.rateLimitedUntil = new Date(Date.now() + waitTime);
+          if (response.status === 429) {
+            const waitTime = 60000;
+            this.rateLimitedUntil = new Date(Date.now() + waitTime);
+            this.recordFailure();
+            return {
+              success: false,
+              error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+            };
+          }
+
+          this.recordFailure();
+          
+          // Try to parse error message from response
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || `Erreur serveur (${response.status})`);
+          } catch {
+            throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
+          }
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
           this.recordFailure();
           return {
             success: false,
-            error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+            error: 'Le traitement de la vidéo prend trop de temps. Essayez une vidéo plus courte ou scannez en photo.',
           };
         }
-
-        this.recordFailure();
-        
-        // Try to parse error message from response
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || `Erreur serveur (${response.status})`);
-        } catch {
-          throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
-        }
+        throw fetchError;
       }
 
       const responseData = await response.json();

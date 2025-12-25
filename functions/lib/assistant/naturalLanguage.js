@@ -60,6 +60,11 @@ exports.processNLQuery = functions
     }
     const userId = context.auth.uid;
     try {
+        // Check if API key is configured
+        if (!config_1.config.gemini.apiKey) {
+            console.error('GEMINI_API_KEY not configured in Firebase Functions');
+            throw new functions.https.HttpsError('failed-precondition', 'AI service not configured. Please contact support.');
+        }
         // Gather user's spending context
         const spendingContext = await gatherSpendingContext(userId);
         // Build prompt for Gemini

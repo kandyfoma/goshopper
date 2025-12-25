@@ -23,13 +23,19 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, BackButton} from '@/shared/components';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useSubscription, useScanProcessing} from '@/shared/contexts';
 import {itemsService, migrateItemsAggregation} from '@/shared/services/firebase';
+import firestore from '@react-native-firebase/firestore';
+import {APP_ID, COLLECTIONS} from '@/shared/services/firebase/config';
 
 export function DeveloperToolsScreen() {
   const navigation = useNavigation();
   const {user} = useAuth();
+  const {subscription, refreshSubscription} = useSubscription();
+  const scanProcessing = useScanProcessing();
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isDeletingCityItems, setIsDeletingCityItems] = useState(false);
+  const [isActivatingTestPremium, setIsActivatingTestPremium] = useState(false);
 
   const handleMigrateItems = async () => {
     Alert.alert(
@@ -94,6 +100,228 @@ export function DeveloperToolsScreen() {
     );
   };
 
+  const handleActivateTestPremium = async () => {
+    if (!user?.uid) return;
+
+    const isCurrentlyPremium = subscription?.isSubscribed === true;
+
+    if (isCurrentlyPremium) {
+      // Revert to freemium
+      Alert.alert(
+        'Revert to Freemium',
+        'This will remove your test premium subscription and revert to freemium. Continue?',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Revert',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsActivatingTestPremium(true);
+                
+                const now = new Date();
+                const joinDate = subscription?.trialStartDate || subscription?.createdAt || now;
+                const billingStart = new Date(joinDate);
+                billingStart.setDate(1); // Start of current billing month
+                const billingEnd = new Date(billingStart);
+                billingEnd.setMonth(billingEnd.getMonth() + 1);
+                billingEnd.setDate(0); // Last day of month
+
+                await firestore()
+                  .doc(COLLECTIONS.subscription(user.uid))
+                  .update({
+                    status: 'freemium',
+                    planId: 'freemium',
+                    isSubscribed: false,
+                    scansRemaining: 5,
+                    totalScansThisMonth: 0,
+                    billingPeriodStart: billingStart,
+                    billingPeriodEnd: billingEnd,
+                    // Remove premium fields
+                    subscriptionEndDate: firestore.FieldValue.delete(),
+                    currentPeriodEnd: firestore.FieldValue.delete(),
+                    cancelAtPeriodEnd: firestore.FieldValue.delete(),
+                    updatedAt: now,
+                  });
+
+                await refreshSubscription();
+
+                Alert.alert(
+                  'Reverted to Freemium',
+                  'Your subscription has been reverted to freemium tier (5 scans/month).',
+                  [{text: 'OK'}],
+                );
+              } catch (error) {
+                console.error('Revert premium error:', error);
+                Alert.alert(
+                  'Error',
+                  `Failed to revert premium: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  [{text: 'OK'}],
+                );
+              } finally {
+                setIsActivatingTestPremium(false);
+              }
+            },
+          },
+        ],
+      );
+    } else {
+      // Activate test premium
+      Alert.alert(
+        'Activate Test Premium',
+        'This will give you 1 month of premium access for testing. You can revert anytime. Continue?',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Activate',
+            style: 'default',
+            onPress: async () => {
+              try {
+                setIsActivatingTestPremium(true);
+                
+                const now = new Date();
+                const endDate = new Date(now);
+                endDate.setMonth(endDate.getMonth() + 1);
+
+                await firestore()
+                  .doc(COLLECTIONS.subscription(user.uid))
+                  .update({
+                    status: 'active',
+                    planId: 'premium',
+                    isSubscribed: true,
+                    scansRemaining: 999999, // Unlimited for premium
+                    subscriptionEndDate: endDate,
+                    currentPeriodEnd: endDate,
+                    cancelAtPeriodEnd: false,
+                    updatedAt: now,
+                  });
+
+                await refreshSubscription();
+
+                Alert.alert(
+                  'Test Premium Activated!',
+                  `Premium subscription activated until ${endDate.toLocaleDateString('fr-FR')}. You now have unlimited scans and all premium features.`,
+                  [{text: 'OK'}],
+                );
+              } catch (error) {
+                console.error('Activate test premium error:', error);
+                Alert.alert(
+                  'Error',
+                  `Failed to activate test premium: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  [{text: 'OK'}],
+                );
+              } finally {
+                setIsActivatingTestPremium(false);
+              }
+            },
+          },
+        ],
+      );
+    }
+  };
+
+  const handleClearStuckScan = () => {
+    Alert.alert(
+      'Clear Stuck Scan',
+      'This will reset any stuck processing state. Continue?',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            scanProcessing.reset();
+            Alert.alert(
+              'Cleared!',
+              'Stuck scan state has been reset.',
+              [{text: 'OK'}],
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleClearCityItems = async () => {
+    Alert.alert(
+      'Clear All City Items',
+      '⚠️ WARNING: This will delete ALL cityItems from ALL cities in the database. This cannot be undone! Are you absolutely sure?',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeletingCityItems(true);
+
+              // Known cities in DRC
+              const cities = [
+                'Kinshasa',
+                'Lubumbashi',
+                'Mbuji-Mayi',
+                'Kananga',
+                'Kisangani',
+                'Bukavu',
+                'Goma',
+                'Kolwezi',
+                'Likasi',
+                'Tshikapa',
+              ];
+
+              let totalDeleted = 0;
+
+              // Delete cityItems for each city
+              for (const city of cities) {
+                const collectionPath = `artifacts/${APP_ID}/cityItems/${city}/items`;
+                
+                let shouldContinue = true;
+                while (shouldContinue) {
+                  // Get batch of documents
+                  const snapshot = await firestore()
+                    .collection(collectionPath)
+                    .limit(500)
+                    .get();
+
+                  if (snapshot.empty) {
+                    shouldContinue = false;
+                    break;
+                  }
+
+                  // Delete in batch
+                  const batch = firestore().batch();
+                  snapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                  });
+
+                  await batch.commit();
+                  totalDeleted += snapshot.docs.length;
+                  
+                  console.log(`Deleted ${snapshot.docs.length} items from ${city}, total: ${totalDeleted}`);
+                }
+              }
+
+              Alert.alert(
+                'City Items Cleared!',
+                `Successfully deleted ${totalDeleted} cityItems across all cities.`,
+                [{text: 'OK'}],
+              );
+            } catch (error) {
+              console.error('Clear city items error:', error);
+              Alert.alert(
+                'Error',
+                `Failed to clear city items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                [{text: 'OK'}],
+              );
+            } finally {
+              setIsDeletingCityItems(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -104,10 +332,80 @@ export function DeveloperToolsScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription Testing</Text>
+          <Text style={styles.sectionDescription}>
+            Test premium features without payment
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.toolButton,
+              subscription?.isSubscribed === true
+                ? styles.successButton 
+                : styles.premiumButton,
+              isActivatingTestPremium && styles.toolButtonDisabled
+            ]}
+            onPress={handleActivateTestPremium}
+            disabled={isActivatingTestPremium}
+            activeOpacity={0.8}>
+            <View style={[
+              styles.toolIcon,
+              subscription?.isSubscribed === true
+                ? styles.successIcon
+                : styles.premiumIcon
+            ]}>
+              {isActivatingTestPremium ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Icon 
+                  name={subscription?.isSubscribed === true ? "check-circle" : "star"} 
+                  size="md" 
+                  color={subscription?.isSubscribed === true ? Colors.status.success : Colors.primary} 
+                />
+              )}
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={[
+                styles.toolTitle,
+                subscription?.isSubscribed === true ? styles.successText : undefined
+              ]}>
+                {subscription?.isSubscribed === true
+                  ? '✓ Test Premium Active'
+                  : 'Activate Test Premium'}
+              </Text>
+              <Text style={styles.toolDescription}>
+                {isActivatingTestPremium
+                  ? 'Processing...'
+                  : subscription?.isSubscribed === true
+                  ? `Active until ${subscription?.subscriptionEndDate ? new Date(subscription.subscriptionEndDate).toLocaleDateString('fr-FR') : 'N/A'}. Tap to revert.`
+                  : '1 month premium access for testing (can revert anytime)'}
+              </Text>
+            </View>
+            <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Items Aggregation</Text>
           <Text style={styles.sectionDescription}>
             Tools for managing item statistics and aggregation
           </Text>
+
+          <TouchableOpacity
+            style={styles.toolButton}
+            onPress={handleClearStuckScan}
+            activeOpacity={0.8}>
+            <View style={styles.toolIcon}>
+              <Icon name="x-circle" size="md" color={Colors.status.warning} />
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={styles.toolTitle}>Clear Stuck Scan</Text>
+              <Text style={styles.toolDescription}>
+                Reset any stuck processing banner from video scan
+              </Text>
+            </View>
+            <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.toolButton, isMigrating && styles.toolButtonDisabled]}
@@ -143,6 +441,29 @@ export function DeveloperToolsScreen() {
               <Text style={styles.toolTitle}>Clear Items Cache</Text>
               <Text style={styles.toolDescription}>
                 Remove cached items and force fresh load
+              </Text>
+            </View>
+            <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolButton, styles.dangerButton, isDeletingCityItems && styles.toolButtonDisabled]}
+            onPress={handleClearCityItems}
+            disabled={isDeletingCityItems}
+            activeOpacity={0.8}>
+            <View style={[styles.toolIcon, styles.dangerIcon]}>
+              {isDeletingCityItems ? (
+                <ActivityIndicator size="small" color={Colors.status.error} />
+              ) : (
+                <Icon name="alert-triangle" size="md" color={Colors.status.error} />
+              )}
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={[styles.toolTitle, styles.dangerText]}>Clear All City Items</Text>
+              <Text style={styles.toolDescription}>
+                {isDeletingCityItems
+                  ? 'Deleting city items...'
+                  : '⚠️ Delete ALL cityItems from database (cannot be undone)'}
               </Text>
             </View>
             <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
@@ -221,6 +542,18 @@ const styles = StyleSheet.create({
   toolButtonDisabled: {
     opacity: 0.6,
   },
+  dangerButton: {
+    borderWidth: 2,
+    borderColor: Colors.status.error,
+  },
+  premiumButton: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  successButton: {
+    borderWidth: 2,
+    borderColor: Colors.status.success,
+  },
   toolIcon: {
     width: 48,
     height: 48,
@@ -230,6 +563,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: Spacing.md,
   },
+  dangerIcon: {
+    backgroundColor: 'rgba(249, 62, 62, 0.1)',
+  },
+  premiumIcon: {
+    backgroundColor: 'rgba(88, 86, 214, 0.1)',
+  },
+  successIcon: {
+    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+  },
   toolInfo: {
     flex: 1,
   },
@@ -238,6 +580,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.text.primary,
     marginBottom: Spacing.xs,
+  },
+  dangerText: {
+    color: Colors.status.error,
+  },
+  successText: {
+    color: Colors.status.success,
   },
   toolDescription: {
     fontSize: Typography.fontSize.sm,

@@ -148,6 +148,13 @@ service cloud.firestore {
       allow write: if false; // Only Cloud Functions can write
     }
 
+    // Public stores collection (for city detection)
+    // Read-only for authenticated users - Cloud Functions manage this data
+    match /artifacts/goshopper/stores/{storeId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
     // User profiles collection (for phone number lookup during login)
     match /userProfiles/{profileId} {
       // Allow reading profiles for login purposes (phone number lookup)

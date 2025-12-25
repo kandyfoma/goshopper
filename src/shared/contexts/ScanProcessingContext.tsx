@@ -148,16 +148,31 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       receiptId,
     }));
 
-    // Send local push notification
+    // Send local push notification with receipt details
     try {
       if (Platform.OS === 'android') {
+        const itemCount = receipt.items?.length || 0;
+        const storeName = receipt.storeName || 'Magasin inconnu';
+        const total = receipt.total || 0;
+        const currency = receipt.currency || 'CDF';
+        
+        // Format the total nicely
+        const formattedTotal = total.toLocaleString('fr-FR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        });
+        
         await notifee.displayNotification({
-          title: '✅ Analyse terminée',
-          body: `Votre reçu a été analysé avec succès. ${receipt.items?.length || 0} article(s) détecté(s).`,
+          title: `✅ ${storeName}`,
+          body: `${itemCount} article${itemCount > 1 ? 's' : ''} • Total: ${formattedTotal} ${currency}`,
           android: {
             channelId: 'scan-completion',
             pressAction: {
               id: 'default',
+            },
+            style: {
+              type: 1, // BigTextStyle
+              text: `Reçu analysé avec succès!\n\n📍 Magasin: ${storeName}\n📦 Articles: ${itemCount}\n💰 Total: ${formattedTotal} ${currency}${receipt.date ? `\n📅 Date: ${receipt.date}` : ''}`,
             },
           },
         });
@@ -193,6 +208,17 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
     } catch (notifError) {
       console.error('Error sending scan error notification:', notifError);
     }
+
+    // Auto-dismiss error banner after 5 seconds
+    setTimeout(() => {
+      setState(prev => {
+        // Only dismiss if still in error state
+        if (prev.status === 'error') {
+          return defaultState;
+        }
+        return prev;
+      });
+    }, 5000);
   }, []);
   
   const confirmAndSave = useCallback(async () => {

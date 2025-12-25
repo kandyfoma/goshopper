@@ -32,7 +32,7 @@ import {
 import {SubscriptionScreen, SubscriptionDetailsScreen, SubscriptionDurationScreen} from '@/features/subscription/screens';
 import ScanPacksScreen from '@/features/subscription/screens/ScanPacksScreen';
 import {MokoPaymentScreen} from '@/features/payment/screens/MokoPaymentScreen';
-import {SettingsScreen} from '@/features/settings/screens';
+import {SettingsScreen, DeveloperToolsScreen} from '@/features/settings/screens';
 import {UpdateProfileScreen, BudgetSettingsScreen, SupportScreen, ContactScreen, TermsScreen} from '@/features/profile/screens';
 
 // Phase 1.1 & 1.2 Screens
@@ -325,7 +325,12 @@ export function RootNavigator() {
         component={SettingsScreen}
         options={{headerShown: false}}
       />
-      {/* Phase 1.1 Screens */}
+      <Stack.Screen
+        name="DeveloperTools"
+        component={DeveloperToolsScreen}
+        options={{headerShown: false}}
+      />
+      {/* Phase 1.1 Screens */
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}

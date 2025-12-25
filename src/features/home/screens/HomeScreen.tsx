@@ -1068,12 +1068,13 @@ const styles = StyleSheet.create({
   scanButtonTitle: {
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
+    color: '#FFFFFF',
     marginBottom: Spacing.xs,
   },
   scanButtonSubtitle: {
     fontSize: Typography.fontSize.sm,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#FFFFFF',
+    opacity: 0.95,
   },
   scanArrowCircle: {
     width: 40,

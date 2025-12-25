@@ -538,21 +538,40 @@ function validateVideoData(videoBase64, mimeType) {
 async function parseVideoWithGemini(videoBase64, mimeType) {
     const MAX_RETRIES = 3; // Increased retries for video
     let lastError = null;
-    // Video-specific prompt for receipt extraction
-    const VIDEO_PARSING_PROMPT = `You are an expert receipt scanner analyzing a video of a receipt.
+    // Video-specific prompt for receipt extraction - enhanced for better total extraction
+    const VIDEO_PARSING_PROMPT = `You are an expert receipt scanner analyzing a video of a receipt from the Democratic Republic of Congo.
 The user has slowly scanned down the entire receipt. Extract ALL items visible throughout the video.
 
-IMPORTANT INSTRUCTIONS:
-1. Watch the ENTIRE video carefully - receipts are often long and may scroll
-2. Extract EVERY item you see, even if it appears briefly
-3. Pay attention to prices - they're usually on the right side
-4. Look for the store name at the TOP of the receipt
-5. Look for the TOTAL at the BOTTOM of the receipt
-6. Currency is likely CDF (Congolese Franc) unless you see $ or USD
+CRITICAL VIDEO SCANNING INSTRUCTIONS:
+1. Watch the ENTIRE video from START to END - the total is usually at the VERY END
+2. PAUSE mentally at each frame to read all text clearly
+3. Pay SPECIAL attention to the LAST frames - that's where TOTAL, MONTANT, NET A PAYER appears
+4. Extract EVERY item, even if blurry - estimate the price if partially visible
+5. Prices are on the RIGHT side of each line
+
+TOTAL EXTRACTION RULES (VERY IMPORTANT):
+- Look for: "TOTAL", "TOTAL TTC", "MONTANT", "NET A PAYER", "A PAYER", "MONTANT A PAYER"
+- The TOTAL is the LARGEST number near the BOTTOM of the receipt
+- If you see multiple totals, use the FINAL/LAST one
+- The total should be approximately the SUM of all item prices
+- If items sum to ~50000 but you see 500, multiply by 100 (missing zeros)
+- Common DRC totals: thousands to hundreds of thousands in CDF
+- If total seems too low compared to items, RECALCULATE from items
+
+STORE NAME DETECTION:
+- Look at the TOP of the receipt in the FIRST frames
+- Common DRC stores: Peloustore, Shoprite, Carrefour, Hasson & Frères
+- Store name is usually the LARGEST text at the top
+
+CURRENCY RULES:
+- Default is CDF (Congolese Franc) - prices are usually 1000+
+- Only use USD if you clearly see $ or "USD" or "dollars"
+- CDF prices: 500, 1000, 5000, 10000, 50000, 100000...
+- USD prices: 1.00, 5.00, 10.00, 50.00...
 
 Return a JSON object with this EXACT structure:
 {
-  "storeName": "store name or null",
+  "storeName": "exact store name as seen or null",
   "storeAddress": "address or null",
   "storePhone": "phone or null",
   "receiptNumber": "receipt number or null",
@@ -560,7 +579,7 @@ Return a JSON object with this EXACT structure:
   "currency": "CDF" or "USD",
   "items": [
     {
-      "name": "item name",
+      "name": "item name exactly as printed",
       "quantity": 1,
       "unitPrice": 0.00,
       "totalPrice": 0.00,
@@ -572,17 +591,19 @@ Return a JSON object with this EXACT structure:
   "subtotal": 0.00 or null,
   "tax": 0.00 or null,
   "total": 0.00,
-  "rawText": "any text you couldn't parse"
+  "rawText": "unclear text you couldn't fully parse"
 }
 
-CRITICAL RULES:
-- Return ONLY the raw JSON object, no markdown code blocks
-- Do NOT wrap JSON in \`\`\`json or \`\`\` tags
-- Start your response directly with { and end with }
-- All prices must be numbers, not strings
-- Confidence should reflect how clearly you saw the item in the video
-- Include ALL items from start to end of the receipt
-- Make sure the JSON is complete and valid`;
+VALIDATION BEFORE RESPONDING:
+1. Check: Does your total roughly match the sum of item prices? If not, fix it.
+2. Check: Are prices realistic for the currency? CDF should be 100+, USD under 1000.
+3. Check: Did you capture the FINAL total from the LAST frames?
+
+CRITICAL OUTPUT RULES:
+- Return ONLY the raw JSON object, NO markdown code blocks
+- Start with { and end with }
+- All prices must be numbers (not strings)
+- Verify total is correct BEFORE outputting`;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
             const model = getGeminiAI().getGenerativeModel({
@@ -715,6 +736,28 @@ CRITICAL RULES:
                 rawText: parsed.rawText,
                 isVideoScan: true, // Mark as video scan for analytics
             };
+            // VIDEO TOTAL VALIDATION: Recalculate if total seems wrong
+            const calculatedTotal = receipt.items.reduce((sum, item) => {
+                const itemTotal = item.totalPrice || (item.unitPrice * item.quantity);
+                return sum + itemTotal;
+            }, 0);
+            console.log(`Video total validation: parsed=${receipt.total}, calculated=${calculatedTotal}`);
+            // If parsed total is 0 or significantly lower than calculated, use calculated
+            if (receipt.total === 0 && calculatedTotal > 0) {
+                console.log('⚠️ Video: Using calculated total (parsed was 0)');
+                receipt.total = calculatedTotal;
+            }
+            else if (calculatedTotal > 0 && receipt.total < calculatedTotal * 0.5) {
+                // If parsed total is less than half of calculated, might be missing zeros
+                console.log('⚠️ Video: Parsed total seems too low, using calculated');
+                receipt.total = calculatedTotal;
+            }
+            else if (receipt.total > calculatedTotal * 10 && calculatedTotal > 0) {
+                // If parsed total is 10x higher, might have extra zeros
+                console.log('⚠️ Video: Parsed total seems too high, keeping but flagging');
+                // Keep the parsed total but flag it in raw text
+                receipt.rawText = (receipt.rawText || '') + ' [Total vérifié manuellement]';
+            }
             // Validate we got meaningful data
             if (receipt.items.length === 0 && receipt.total === 0) {
                 throw new Error('Aucun article détecté dans la vidéo. Scannez plus lentement.');
@@ -1364,7 +1407,7 @@ exports.parseReceiptMulti = functions
 exports.parseReceiptVideo = functions
     .region(config_1.config.app.region)
     .runWith({
-    timeoutSeconds: 180, // 3 minutes for video processing
+    timeoutSeconds: 300, // 5 minutes for video processing
     memory: '2GB', // More memory for video
     secrets: ['GEMINI_API_KEY'],
 })

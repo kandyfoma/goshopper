@@ -167,6 +167,11 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
   }, []);
   
   const setSuccess = useCallback(async (message?: string) => {
+    // Get state values before updating
+    const currentPlanName = state.planName;
+    const currentAmount = state.amount;
+    const currentIsScanPack = state.isScanPack;
+    
     const successMessage = message || 'Paiement réussi!';
     setState(prev => ({
       ...prev,
@@ -174,26 +179,56 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
       message: successMessage,
     }));
 
-    // Send local push notification
+    // Send local push notification with subscription details
     try {
       if (Platform.OS === 'android') {
+        // Format amount
+        const formattedAmount = currentAmount.toLocaleString('fr-FR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+        
+        let notifTitle = '✅ Paiement réussi';
+        let notifBody = successMessage;
+        let bigText = '';
+        
+        if (currentIsScanPack) {
+          notifTitle = '✅ Scans bonus ajoutés!';
+          notifBody = `${currentPlanName} • ${formattedAmount} CDF`;
+          bigText = `Votre achat a été validé!\n\n📦 Pack: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\nVos scans bonus ont été ajoutés à votre compte.`;
+        } else if (currentPlanName) {
+          notifTitle = `✅ Abonnement ${currentPlanName}`;
+          notifBody = `Activé • ${formattedAmount} CDF`;
+          bigText = `Votre abonnement a été activé!\n\n🎉 Forfait: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\nProfitez de toutes les fonctionnalités de votre abonnement.`;
+        }
+        
         await notifee.displayNotification({
-          title: '✅ Paiement réussi',
-          body: successMessage,
+          title: notifTitle,
+          body: notifBody,
           android: {
             channelId: 'payment-completion',
             pressAction: {
               id: 'default',
             },
+            ...(bigText && {
+              style: {
+                type: 1, // BigTextStyle
+                text: bigText,
+              },
+            }),
           },
         });
       }
     } catch (error) {
       console.error('Error sending payment success notification:', error);
     }
-  }, []);
+  }, [state.planName, state.amount, state.isScanPack]);
   
   const setFailed = useCallback(async (error: string) => {
+    // Get state values before updating
+    const currentPlanName = state.planName;
+    const currentAmount = state.amount;
+    
     setState(prev => ({
       ...prev,
       status: 'failed',
@@ -201,16 +236,25 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
       error,
     }));
 
-    // Send local push notification for failure
+    // Send local push notification for failure with details
     try {
       if (Platform.OS === 'android') {
+        const formattedAmount = currentAmount.toLocaleString('fr-FR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+        
         await notifee.displayNotification({
           title: '❌ Paiement échoué',
-          body: error,
+          body: currentPlanName ? `${currentPlanName} • ${formattedAmount} CDF` : error,
           android: {
             channelId: 'payment-completion',
             pressAction: {
               id: 'default',
+            },
+            style: {
+              type: 1, // BigTextStyle
+              text: `Le paiement n'a pas abouti.\n\n${currentPlanName ? `📦 Forfait: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\n` : ''}❌ Erreur: ${error}\n\nVeuillez réessayer ou contacter le support.`,
             },
           },
         });
@@ -218,7 +262,7 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
     } catch (notifError) {
       console.error('Error sending payment failure notification:', notifError);
     }
-  }, []);
+  }, [state.planName, state.amount]);
   
   const dismiss = useCallback(() => {
     // Clean up polling

@@ -7,6 +7,12 @@ import {Receipt} from '@/shared/types';
 import {APP_ID, COLLECTIONS} from './config';
 import {authService} from './auth';
 import {convertCurrency} from '@/shared/utils/helpers';
+import {
+  findBestMatch,
+  normalizeForComparison,
+  matchCommonPattern,
+  FuzzyMatchResult,
+} from '@/shared/utils/fuzzyMatch';
 
 const RECEIPTS_COLLECTION = (userId: string) =>
   `artifacts/${APP_ID}/users/${userId}/receipts`;
@@ -65,11 +71,132 @@ class ReceiptStorageService {
         return storeData.city || null;
       }
 
+      // If no exact match, try fuzzy matching
+      const fuzzyMatch = await this.fuzzyMatchStore(storeName);
+      if (fuzzyMatch) {
+        console.log(`🏪 Fuzzy matched store "${storeName}" to "${fuzzyMatch.originalName}" (score: ${fuzzyMatch.score.toFixed(2)})`);
+        // Get city from the matched store
+        const matchedStoreSnapshot = await firestore()
+          .collection(PUBLIC_STORES_COLLECTION)
+          .where('nameNormalized', '==', fuzzyMatch.match)
+          .limit(1)
+          .get();
+        
+        if (!matchedStoreSnapshot.empty) {
+          return matchedStoreSnapshot.docs[0].data().city || null;
+        }
+      }
+
       return null;
     } catch (error) {
       console.error('Error detecting city from store:', error);
       return null;
     }
+  }
+
+  /**
+   * Fuzzy match a store name against existing stores in the system
+   * @param storeName The store name to match
+   * @param userId Optional user ID to also check user's shops
+   * @returns Best match result or null
+   */
+  async fuzzyMatchStore(
+    storeName: string,
+    userId?: string,
+  ): Promise<FuzzyMatchResult | null> {
+    try {
+      if (!storeName || storeName.length < 2) return null;
+
+      // First, check against common patterns (fastest)
+      const patternMatch = matchCommonPattern(storeName);
+      if (patternMatch) {
+        console.log(`🏪 Pattern matched "${storeName}" to "${patternMatch}"`);
+        return {
+          match: patternMatch,
+          originalName: patternMatch.charAt(0).toUpperCase() + patternMatch.slice(1),
+          score: 0.9,
+          isExactMatch: false,
+        };
+      }
+
+      // Get all public stores for fuzzy matching
+      const publicStoresSnapshot = await firestore()
+        .collection(PUBLIC_STORES_COLLECTION)
+        .limit(100) // Limit to prevent too much data
+        .get();
+
+      const candidates: Array<{normalized: string; original: string}> = [];
+
+      publicStoresSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.nameNormalized && data.name) {
+          candidates.push({
+            normalized: data.nameNormalized,
+            original: data.name,
+          });
+        }
+      });
+
+      // Also check user's shops if userId provided
+      if (userId) {
+        const userShopsSnapshot = await firestore()
+          .collection(SHOPS_COLLECTION(userId))
+          .limit(50)
+          .get();
+
+        userShopsSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.nameNormalized && data.name) {
+            candidates.push({
+              normalized: data.nameNormalized,
+              original: data.name,
+            });
+          }
+        });
+      }
+
+      // Find best match with 70% threshold
+      const match = findBestMatch(storeName, candidates, 0.7);
+      
+      if (match) {
+        console.log(`🏪 Fuzzy matched "${storeName}" to "${match.originalName}" (score: ${match.score.toFixed(2)})`);
+      }
+
+      return match;
+    } catch (error) {
+      console.error('Error fuzzy matching store:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Correct store name using fuzzy matching
+   * Returns the corrected name or original if no good match found
+   */
+  async correctStoreName(
+    storeName: string,
+    userId?: string,
+  ): Promise<{name: string; normalized: string; wasCorrect: boolean}> {
+    const normalizedOriginal = this.normalizeStoreName(storeName);
+    
+    // Try fuzzy matching
+    const match = await this.fuzzyMatchStore(storeName, userId);
+    
+    if (match && match.score >= 0.75) {
+      // Use the matched store name
+      return {
+        name: match.originalName,
+        normalized: match.match,
+        wasCorrect: !match.isExactMatch,
+      };
+    }
+
+    // Return original if no good match
+    return {
+      name: storeName,
+      normalized: normalizedOriginal,
+      wasCorrect: false,
+    };
   }
 
   /**
@@ -94,6 +221,18 @@ class ReceiptStorageService {
    * Receipt is saved first (critical), shop update happens in background (non-critical)
    */
   async saveReceipt(receipt: Receipt, userId: string): Promise<string> {
+    // Fuzzy match and correct store name before saving
+    try {
+      const correctedStore = await this.correctStoreName(receipt.storeName, userId);
+      if (correctedStore.wasCorrect) {
+        console.log(`🏪 Store name corrected: "${receipt.storeName}" → "${correctedStore.name}"`);
+        receipt.storeName = correctedStore.name;
+        receipt.storeNameNormalized = correctedStore.normalized;
+      }
+    } catch (error) {
+      console.warn('Store name correction failed, using original:', error);
+    }
+
     // Ensure both USD and CDF amounts are set
     if (receipt.currency === 'USD' && !receipt.totalCDF) {
       receipt.totalUSD = receipt.total;

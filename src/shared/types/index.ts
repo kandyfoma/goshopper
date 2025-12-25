@@ -29,6 +29,7 @@ export type RootStackParamList = {
   ScanPacks: undefined;
   MokoPayment: {amount: number; planId: string; planName: string; isScanPack?: boolean; scanPackId?: string};
   Settings: undefined;
+  DeveloperTools: undefined;
   CitySelection: undefined;
   UpdateProfile: undefined;
   History: undefined;
