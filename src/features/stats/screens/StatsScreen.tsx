@@ -9,9 +9,12 @@ import {
   SafeAreaView,
   Dimensions,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {CompositeNavigationProp} from '@react-navigation/native';
+import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import Svg, {Circle, G, Path, Line, Text as SvgText} from 'react-native-svg';
 import firestore from '@react-native-firebase/firestore';
 import {
@@ -30,11 +33,18 @@ import {SubscriptionLimitModal} from '@/shared/components';
 import {globalSettingsService} from '@/shared/services/globalSettingsService';
 import {APP_ID} from '@/shared/services/firebase/config';
 import {getCurrentMonthBudget} from '@/shared/services/firebase/budgetService';
-import {RootStackParamList} from '@/shared/types';
+import {RootStackParamList, MainTabParamList} from '@/shared/types';
+import {StatsStackParamList} from '../navigation/StatsStackNavigator';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type StatsScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<StatsStackParamList, 'StatsMain'>,
+  CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    NativeStackNavigationProp<RootStackParamList>
+  >
+>;
 
 interface SpendingCategory {
   name: string;
@@ -50,7 +60,7 @@ interface MonthlySpending {
 }
 
 export function StatsScreen() {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<StatsScreenNavigationProp>();
   const {user, isAuthenticated} = useAuth();
   const {profile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
@@ -82,6 +92,7 @@ export function StatsScreen() {
   const [monthlyBudget, setMonthlyBudget] = useState<number>(0); // Will be set from profile
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
+  const [currentMonthReceipts, setCurrentMonthReceipts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('USD');
   const [exchangeRate, setExchangeRate] = useState(2200); // Default rate
@@ -149,7 +160,6 @@ export function StatsScreen() {
           .get();
       } catch (indexError) {
         // Fallback: get all without ordering
-        console.log('Index not ready, fetching all receipts');
         receiptsSnapshot = await firestore()
           .collection('artifacts')
           .doc(APP_ID)
@@ -173,17 +183,11 @@ export function StatsScreen() {
         
         const isCurrentMonth = receiptDate >= startOfMonth;
         
-        if (!isCurrentMonth) {
-          console.log('📊 Filtered out receipt:', data.storeName, 'Date:', receiptDate.toISOString());
-        }
-        
         return isCurrentMonth;
       });
 
-      console.log('📊 Total receipts in database:', receiptsSnapshot.size);
-      console.log('📊 Receipts from current month:', currentMonthReceipts.length);
-      console.log('📊 Start of month filter:', startOfMonth.toISOString());
-      console.log('📊 Current date:', now.toISOString());
+      // Store current month receipts in state for behavior analysis
+      setCurrentMonthReceipts(currentMonthReceipts);
 
       // Determine primary currency from receipts
       const currencyCount: Record<string, number> = {};
@@ -250,8 +254,6 @@ export function StatsScreen() {
             data.items.forEach((item: any) => {
               const category = item.category || 'Autre';
               const itemTotal = item.totalPrice || 0;
-              
-              console.log('📊 Item:', item.name, 'Category:', category, 'Price:', itemTotal);
               
               // Calculate this item's share of the receipt total (in user's currency)
               const itemShare = (itemTotal / receiptItemSum) * receiptTotal;
@@ -325,10 +327,6 @@ export function StatsScreen() {
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      console.log('📊 Categories found:', Object.keys(categoryTotals));
-      console.log('📊 Category totals:', categoryTotals);
-      console.log('📊 Categories array length:', categoriesArray.length);
-
       setTotalSpending(totalSpent);
       setCategories(categoriesArray);
 
@@ -369,7 +367,6 @@ export function StatsScreen() {
           .get();
       } catch (indexError) {
         // Fallback: get all without ordering
-        console.log('Index not ready, fetching all receipts for trends');
         allReceiptsSnapshot = await firestore()
           .collection('artifacts')
           .doc(APP_ID)
@@ -449,8 +446,6 @@ export function StatsScreen() {
       return;
     }
 
-    console.log('📊 Stats: Setting up real-time listener for receipts');
-
     // Subscribe to receipts collection for real-time updates
     const unsubscribe = firestore()
       .collection('artifacts')
@@ -460,7 +455,6 @@ export function StatsScreen() {
       .collection('receipts')
       .onSnapshot(
         (snapshot) => {
-          console.log('📊 Stats: Receipts updated, reloading stats data');
           loadStatsData();
         },
         (error) => {
@@ -472,7 +466,6 @@ export function StatsScreen() {
     loadStatsData();
 
     return () => {
-      console.log('📊 Stats: Cleaning up receipts listener');
       unsubscribe();
     };
   }, [user?.uid, loadStatsData]);
@@ -480,7 +473,6 @@ export function StatsScreen() {
   // Reload data when screen comes into focus (e.g., navigating back from History)
   useFocusEffect(
     useCallback(() => {
-      console.log('📊 Stats: Screen focused, refreshing data');
       if (user?.uid) {
         loadStatsData();
       }
@@ -815,13 +807,18 @@ export function StatsScreen() {
                   {/* Category List */}
                   <View style={styles.categoryList}>
                     {categories.map((category, index) => (
-                      <View
+                      <TouchableOpacity
                         key={index}
                         style={[
                           styles.categoryRow,
                           index === categories.length - 1 &&
                             styles.categoryRowLast,
-                        ]}>
+                        ]}
+                        onPress={() => navigation.navigate('CategoryDetail', {
+                          categoryName: category.name,
+                          categoryColor: category.color,
+                        })}
+                        activeOpacity={0.7}>
                         <View style={styles.categoryLeft}>
                           <View
                             style={[
@@ -842,8 +839,9 @@ export function StatsScreen() {
                               {category.percentage}%
                             </Text>
                           </View>
+                          <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} style={styles.categoryChevron} />
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </>
@@ -855,36 +853,152 @@ export function StatsScreen() {
         {/* Insights */}
         <SlideIn delay={400}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Conseils</Text>
+            <Text style={styles.sectionTitle}>Conseils Personnalisés</Text>
 
-            <View style={styles.insightCard}>
-              <View style={styles.insightIconWrapper}>
-                <Icon name="star" size="md" color={Colors.accent} />
+            {/* Dynamic budget alert */}
+            {totalSpending > monthlyBudget * 0.9 && (
+              <View style={[styles.insightCard, styles.insightWarning]}>
+                <View style={styles.insightIconWrapper}>
+                  <Icon name="alert-circle" size="md" color={Colors.status.warning} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>
+                    Attention au budget!
+                  </Text>
+                  <Text style={styles.insightDesc}>
+                    Vous avez utilisé {Math.round((totalSpending / monthlyBudget) * 100)}% de votre budget mensuel. 
+                    Il vous reste {formatCurrency(Math.max(0, monthlyBudget - totalSpending), primaryCurrency)} pour ce mois.
+                  </Text>
+                </View>
               </View>
-              <View style={styles.insightContent}>
-                <Text style={styles.insightTitle}>
-                  Économisez sur l'alimentation
-                </Text>
-                <Text style={styles.insightDesc}>
-                  Vous pourriez économiser{' '}
-                  {formatCurrency(15.5, primaryCurrency)} en achetant certains
-                  produits à Carrefour plutôt qu'à Shoprite.
-                </Text>
+            )}
+
+            {/* Top spending category insight */}
+            {categories.length > 0 && categories[0].percentage > 40 && (
+              <View style={styles.insightCard}>
+                <View style={styles.insightIconWrapper}>
+                  <Icon name="star" size="md" color={Colors.accent} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>
+                    Catégorie principale: {categories[0].name}
+                  </Text>
+                  <Text style={styles.insightDesc}>
+                    {categories[0].percentage}% de vos dépenses vont vers {categories[0].name} ({formatCurrency(categories[0].amount, primaryCurrency)}). 
+                    Comparez les prix entre magasins pour économiser jusqu'à 15%.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Spending trend insight */}
+            {monthlyData.length >= 2 && (
+              <View style={styles.insightCard}>
+                <View style={[styles.insightIconWrapper, styles.insightIconInfo]}>
+                  <Icon name="trending-up" size="md" color={Colors.status.info} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>
+                    {monthlyData[monthlyData.length - 1].amount > monthlyData[monthlyData.length - 2].amount 
+                      ? 'Dépenses en hausse' 
+                      : 'Dépenses en baisse'}
+                  </Text>
+                  <Text style={styles.insightDesc}>
+                    {monthlyData[monthlyData.length - 1].amount > monthlyData[monthlyData.length - 2].amount 
+                      ? `Vos dépenses ont augmenté de ${Math.round(((monthlyData[monthlyData.length - 1].amount - monthlyData[monthlyData.length - 2].amount) / monthlyData[monthlyData.length - 2].amount) * 100)}% ce mois-ci.`
+                      : `Félicitations! Vous avez réduit vos dépenses de ${Math.round(((monthlyData[monthlyData.length - 2].amount - monthlyData[monthlyData.length - 1].amount) / monthlyData[monthlyData.length - 2].amount) * 100)}% ce mois-ci.`}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Low spending encouragement */}
+            {totalSpending < monthlyBudget * 0.5 && totalSpending > 0 && (
+              <View style={[styles.insightCard, styles.insightSuccess]}>
+                <View style={styles.insightIconWrapper}>
+                  <Icon name="check-circle" size="md" color={Colors.status.success} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>
+                    Excellent contrôle budgétaire!
+                  </Text>
+                  <Text style={styles.insightDesc}>
+                    Vous n'avez dépensé que {Math.round((totalSpending / monthlyBudget) * 100)}% de votre budget. 
+                    Continuez comme ça! Vous économisez {formatCurrency(monthlyBudget - totalSpending, primaryCurrency)}.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </SlideIn>
+
+        {/* Shopping Behavior Analysis */}
+        <SlideIn delay={500}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Analyse de Comportement</Text>
+
+            <View style={styles.behaviorCard}>
+              <View style={styles.behaviorRow}>
+                <View style={styles.behaviorItem}>
+                  <Icon name="calendar" size="sm" color={Colors.primary} />
+                  <Text style={styles.behaviorLabel}>Achats ce mois</Text>
+                  <Text style={styles.behaviorValue}>
+                    {currentMonthReceipts.length}
+                  </Text>
+                </View>
+                <View style={styles.behaviorItem}>
+                  <Icon name="credit-card" size="sm" color={Colors.accent} />
+                  <Text style={styles.behaviorLabel}>Dépense moyenne</Text>
+                  <Text style={styles.behaviorValue}>
+                    {currentMonthReceipts.length > 0 
+                      ? formatCurrency(totalSpending / currentMonthReceipts.length, primaryCurrency)
+                      : formatCurrency(0, primaryCurrency)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.behaviorRow}>
+                <View style={styles.behaviorItem}>
+                  <Icon name="shopping-bag" size="sm" color={Colors.status.success} />
+                  <Text style={styles.behaviorLabel}>Catégories</Text>
+                  <Text style={styles.behaviorValue}>{categories.length}</Text>
+                </View>
+                <View style={styles.behaviorItem}>
+                  <Icon name="trending-down" size="sm" color={Colors.status.info} />
+                  <Text style={styles.behaviorLabel}>Budget restant</Text>
+                  <Text style={styles.behaviorValue}>
+                    {formatCurrency(Math.max(0, monthlyBudget - totalSpending), primaryCurrency)}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.insightCard}>
-              <View style={[styles.insightIconWrapper, styles.insightIconInfo]}>
-                <Icon name="trending-up" size="md" color={Colors.status.info} />
+            {/* Top stores if available */}
+            {currentMonthReceipts.length > 0 && (
+              <View style={[styles.behaviorCard, {marginTop: Spacing.md}]}>
+                <Text style={styles.behaviorCardTitle}>Magasins les plus visités</Text>
+                {(() => {
+                  const storeCounts: Record<string, number> = {};
+                  currentMonthReceipts.forEach(doc => {
+                    const storeName = doc.data().storeName || 'Magasin inconnu';
+                    storeCounts[storeName] = (storeCounts[storeName] || 0) + 1;
+                  });
+                  const topStores = Object.entries(storeCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 3);
+                  
+                  return topStores.map(([store, count], index) => (
+                    <View key={index} style={styles.storeRow}>
+                      <View style={styles.storeRank}>
+                        <Text style={styles.storeRankText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.storeName}>{store}</Text>
+                      <Text style={styles.storeCount}>{count} achats</Text>
+                    </View>
+                  ));
+                })()}
               </View>
-              <View style={styles.insightContent}>
-                <Text style={styles.insightTitle}>Tendance en hausse</Text>
-                <Text style={styles.insightDesc}>
-                  Vos dépenses ont augmenté de 12% ce mois-ci par rapport au
-                  mois dernier.
-                </Text>
-              </View>
-            </View>
+            )}
           </View>
         </SlideIn>
       </ScrollView>
@@ -1098,6 +1212,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  categoryChevron: {
+    marginLeft: Spacing.xs,
+  },
   categoryPercentage: {
     fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semiBold,
@@ -1284,5 +1401,86 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.text.secondary,
+  },
+  // Behavior analysis styles
+  behaviorCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  behaviorCardTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.md,
+  },
+  behaviorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  behaviorItem: {
+    flex: 1,
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.xs,
+  },
+  behaviorLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  behaviorValue: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.accent,
+  },
+  storeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  storeRank: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  storeRankText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.accent,
+  },
+  storeName: {
+    flex: 1,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.primary,
+  },
+  storeCount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.secondary,
+    backgroundColor: Colors.background.secondary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  // Insight variant styles
+  insightWarning: {
+    backgroundColor: Colors.status.warningLight,
+  },
+  insightSuccess: {
+    backgroundColor: Colors.status.successLight,
   },
 });

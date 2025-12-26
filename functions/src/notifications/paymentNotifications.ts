@@ -19,6 +19,7 @@ export async function sendPaymentSuccessNotification(
   amount: number,
   paymentMethod: string,
   transactionId?: string,
+  currency: string = 'USD',
 ): Promise<void> {
   try {
     // Get user's FCM token and language
@@ -56,8 +57,10 @@ export async function sendPaymentSuccessNotification(
 
     const title = 'Paiement Réussi!';
     const titleEn = 'Payment Successful!';
-    const message = `Votre abonnement ${planName.fr} est maintenant actif (${scans} scans/mois). Merci pour votre confiance!`;
-    const messageEn = `Your ${planName.en} subscription is now active (${scans} scans/month). Thank you for your trust!`;
+    const currencySymbol = currency === 'USD' ? '$' : 'FC';
+    const formattedAmount = currency === 'USD' ? amount.toFixed(2) : Math.round(amount);
+    const message = `Votre abonnement ${planName.fr} est maintenant actif (${scans} scans/mois). Montant payé: ${currencySymbol}${formattedAmount}`;
+    const messageEn = `Your ${planName.en} subscription is now active (${scans} scans/month). Amount paid: ${currencySymbol}${formattedAmount}`;
 
     // Send FCM notification
     await messaging.send({
@@ -70,9 +73,11 @@ export async function sendPaymentSuccessNotification(
         type: 'payment_success',
         planId,
         amount: amount.toString(),
+        currency,
         paymentMethod,
         transactionId: transactionId || '',
         scans: scans.toString(),
+        dismissible: 'true',
       },
       android: {
         priority: 'high',
@@ -81,6 +86,7 @@ export async function sendPaymentSuccessNotification(
           icon: 'ic_notification',
           color: '#10b981',
         },
+        collapseKey: `payment_${transactionId}`,
       },
       apns: {
         payload: {
@@ -107,6 +113,7 @@ export async function sendPaymentSuccessNotification(
       priority: 'high',
       planId,
       amount,
+      currency,
       paymentMethod,
       transactionId,
       scans,
@@ -132,6 +139,7 @@ export async function sendPaymentFailedNotification(
   amount: number,
   paymentMethod: string,
   errorReason?: string,
+  currency: string = 'USD',
 ): Promise<void> {
   try {
     // Get user's FCM token and language
@@ -149,8 +157,10 @@ export async function sendPaymentFailedNotification(
 
     const title = 'Paiement Échoué';
     const titleEn = 'Payment Failed';
-    const message = `Le paiement de $${amount} pour l'abonnement ${planId} a échoué. Veuillez réessayer.`;
-    const messageEn = `Payment of $${amount} for ${planId} subscription failed. Please try again.`;
+    const currencySymbol = currency === 'USD' ? '$' : 'FC';
+    const formattedAmount = currency === 'USD' ? amount.toFixed(2) : Math.round(amount);
+    const message = `Le paiement de ${currencySymbol}${formattedAmount} pour l'abonnement ${planId} a échoué. Veuillez réessayer.`;
+    const messageEn = `Payment of ${currencySymbol}${formattedAmount} for ${planId} subscription failed. Please try again.`;
 
     // Send FCM notification
     await messaging.send({
@@ -163,8 +173,10 @@ export async function sendPaymentFailedNotification(
         type: 'payment_failed',
         planId,
         amount: amount.toString(),
+        currency,
         paymentMethod,
         errorReason: errorReason || 'Unknown error',
+        dismissible: 'true',
       },
       android: {
         priority: 'high',
@@ -173,6 +185,7 @@ export async function sendPaymentFailedNotification(
           icon: 'ic_notification',
           color: '#ef4444',
         },
+        collapseKey: `payment_failed_${planId}`,
       },
       apns: {
         payload: {

@@ -125,11 +125,11 @@ export const SUBSCRIPTION_PLANS = {
   premium: {
     id: 'premium',
     name: 'Premium',
-    price: 4.99,
-    priceCDF: 20000,
-    scanLimit: 1000, // Fair use limit
+    price: 1,
+    priceCDF: 4000,
+    scanLimit: -1, // Unlimited
     features: [
-      'Jusqu\'à 1,000 scans/mois',
+      'Scans illimités',
       'Comparaison de prix',
       'Historique 2 mois',
       'Rapports de dépenses',

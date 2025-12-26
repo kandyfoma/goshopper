@@ -14,8 +14,11 @@ import {
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {CompositeNavigationProp} from '@react-navigation/native';
+import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import LinearGradient from 'react-native-linear-gradient';
-import {RootStackParamList} from '@/shared/types';
+import {RootStackParamList, MainTabParamList} from '@/shared/types';
+import {HomeStackParamList} from '../navigation/HomeStackNavigator';
 import {useSubscription, useUser, useTheme, useAuth} from '@/shared/contexts';
 import {
   Colors,
@@ -36,7 +39,13 @@ import {Recommendations} from '@/features/recommendations';
 const {width} = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.lg * 2 - Spacing.md) / 2;
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type HomeScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>,
+  CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    NativeStackNavigationProp<RootStackParamList>
+  >
+>;
 
 // Time Period Selector
 const TimePeriodSelector = ({
@@ -278,7 +287,7 @@ const QuickAction = ({
 };
 
 export function HomeScreen() {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const {colors, isDarkMode} = useTheme();
   const {isAuthenticated} = useAuth();
   const {
@@ -299,25 +308,6 @@ export function HomeScreen() {
 
   // Determine display currency: use preferred currency if budget is set, otherwise USD
   const displayCurrency = userProfile?.preferredCurrency || 'USD';
-
-  // Debug logging for all dashboard values
-  useEffect(() => {
-    console.log('📊 Dashboard Stats:', {
-      trialScansUsed,
-      scansRemaining,
-      monthlySpending,
-      itemsCount,
-      currentBudget,
-      isLoadingStats,
-      displayCurrency,
-      userId: userProfile?.userId,
-      subscription: subscription ? {
-        status: subscription.status,
-        trialScansUsed: subscription.trialScansUsed,
-        isTrialActive,
-      } : 'null',
-    });
-  }, [trialScansUsed, scansRemaining, subscription, isTrialActive, monthlySpending, itemsCount, currentBudget, isLoadingStats, displayCurrency, userProfile?.userId]);
 
   // Load current month budget
   useEffect(() => {
@@ -454,7 +444,6 @@ export function HomeScreen() {
       );
 
     return () => {
-      console.log('📊 Home: Cleaning up receipts listener');
       unsubscribe();
     };
   }, [userProfile?.userId, displayCurrency]);
@@ -464,7 +453,6 @@ export function HomeScreen() {
     if (!userProfile?.userId) return;
 
     try {
-      console.log('📱 HomeScreen: Fetching items count');
       const receiptsSnapshot = await firestore()
         .collection('artifacts')
         .doc(APP_ID)
@@ -487,7 +475,6 @@ export function HomeScreen() {
         });
       });
 
-      console.log('📱 HomeScreen: Items count:', itemsSet.size);
       setItemsCount(itemsSet.size);
     } catch (error) {
       console.error('Error fetching items count:', error);

@@ -9,10 +9,11 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
-import {RootStackParamList} from '@/shared/types';
+import {HomeStackParamList} from '@/features/home/navigation/HomeStackNavigator';
 import {
   Colors,
   Typography,
@@ -20,13 +21,13 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, EmptyState, AppFooter, BackButton} from '@/shared/components';
+import {Icon, EmptyState, AppFooter, BackButton, FadeIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {APP_ID} from '@/shared/services/firebase/config';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Shops'>;
 
 interface Shop {
   id: string;
@@ -52,6 +53,7 @@ const CARD_COLORS: Array<'red' | 'crimson' | 'blue' | 'cosmos' | 'cream'> = [
 
 export function ShopsScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const {user} = useAuth();
   const [shops, setShops] = useState<Shop[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,11 +198,18 @@ export function ShopsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <BackButton />
-          <Text style={styles.title}>Mes Magasins</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        {/* Modern Header */}
+        <FadeIn duration={400}>
+          <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+            <BackButton />
+            
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Mes Magasins</Text>
+            </View>
+            
+            <View style={styles.headerRight} />
+          </View>
+        </FadeIn>
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Chargement des magasins...</Text>
@@ -211,22 +220,21 @@ export function ShopsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <BackButton />
-        <Text style={styles.title}>Mes Magasins</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      {/* Shop Count */}
-      {shops.length > 0 && (
-        <View style={styles.countContainer}>
-          <Text style={styles.countText}>
-            {shops.length} magasin{shops.length !== 1 ? 's' : ''} visité
-            {shops.length !== 1 ? 's' : ''}
-          </Text>
+      {/* Modern Header */}
+      <FadeIn duration={400}>
+        <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+          <BackButton />
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Mes Magasins</Text>
+            <Text style={styles.headerSubtitle}>
+              {shops.length} magasin{shops.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          
+          <View style={styles.headerRight} />
         </View>
-      )}
+      </FadeIn>
 
       {/* Shops List */}
       <FlatList
@@ -264,43 +272,30 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
 
-  // Header
+  // Modern Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    ...Shadows.sm,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background.primary,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
+  headerCenter: {
+    flex: 1,
     alignItems: 'center',
   },
-  title: {
-    flex: 1,
+  headerTitle: {
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    textAlign: 'center',
   },
-  headerSpacer: {
-    width: 44,
-  },
-
-  // Count
-  countContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  countText: {
+  headerSubtitle: {
     fontSize: Typography.fontSize.sm,
     color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
+  },
+  headerRight: {
+    width: 44,
   },
 
   // List

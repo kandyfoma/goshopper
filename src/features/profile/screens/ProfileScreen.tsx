@@ -15,8 +15,11 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {CompositeNavigationProp} from '@react-navigation/native';
+import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {useAuth, useSubscription, useUser} from '@/shared/contexts';
-import {RootStackParamList} from '@/shared/types';
+import {RootStackParamList, MainTabParamList} from '@/shared/types';
+import {ProfileStackParamList} from '../navigation/ProfileStackNavigator';
 import {
   Colors,
   Typography,
@@ -33,7 +36,13 @@ import {getCurrentMonthBudget} from '@/shared/services/firebase/budgetService';
 
 const {width} = Dimensions.get('window');
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type ProfileScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<ProfileStackParamList, 'ProfileMain'>,
+  CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    NativeStackNavigationProp<RootStackParamList>
+  >
+>;
 
 // Stat Card Component with Pastel Background
 const StatCard = ({
@@ -133,7 +142,7 @@ const MenuItem = ({
 };
 
 export function ProfileScreen() {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const {user, signOut, isAuthenticated} = useAuth();
   const {subscription, trialScansUsed} = useSubscription();
   const {profile, isLoading: profileLoading} = useUser();
@@ -154,18 +163,7 @@ export function ProfileScreen() {
   const trialRemaining = Math.max(0, TRIAL_SCAN_LIMIT - trialScansUsed);
   const isPremium = subscription?.isSubscribed;
 
-  // Debug logging for subscription status
-  useEffect(() => {
-    console.log('📊 Profile - Full subscription data:', {
-      planId: subscription?.planId,
-      status: subscription?.status,
-      isSubscribed: subscription?.isSubscribed,
-      trialScansUsed: subscription?.trialScansUsed,
-      monthlyScansUsed: subscription?.monthlyScansUsed,
-      subscriptionEndDate: subscription?.subscriptionEndDate?.toString?.() || subscription?.subscriptionEndDate,
-      currentPlanName: currentPlan?.name,
-    });
-  }, [subscription, currentPlan]);
+
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -495,27 +493,29 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        {/* Developer Tools */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Outils de développement</Text>
-          <View style={styles.menuGroup}>
-            <MenuItem
-              icon="tool"
-              title="Developer Tools"
-              subtitle="Test premium, clear data, rebuild items"
-              iconColor="purple"
-              onPress={() => navigation.push('DeveloperTools')}
-            />
-            <MenuItem
-              icon="refresh-cw"
-              title="Reconstruire les articles"
-              subtitle={rebuildingItems ? "En cours..." : "Réagrége tous les articles des reçus"}
-              iconColor="blue"
-              onPress={handleRebuildItems}
-              disabled={rebuildingItems}
-            />
+        {/* Developer Tools - Only for admin */}
+        {profile?.phoneNumber === '+243828812498' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Outils de développement</Text>
+            <View style={styles.menuGroup}>
+              <MenuItem
+                icon="tool"
+                title="Developer Tools"
+                subtitle="Test premium, clear data, rebuild items"
+                iconColor="purple"
+                onPress={() => navigation.push('DeveloperTools')}
+              />
+              <MenuItem
+                icon="refresh-cw"
+                title="Reconstruire les articles"
+                subtitle={rebuildingItems ? "En cours..." : "Réagrége tous les articles des reçus"}
+                iconColor="blue"
+                onPress={handleRebuildItems}
+                disabled={rebuildingItems}
+              />
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Sign Out */}
         <Button

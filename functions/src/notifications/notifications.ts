@@ -365,7 +365,7 @@ async function getUserSpendingContext(userId: string): Promise<string> {
     totalSpent += data.total || 0;
 
     (data.items || []).forEach((item: any) => {
-      const cat = item.category || 'Other';
+      const cat = item.category || 'Autres';
       categories[cat] =
         (categories[cat] || 0) + (item.unitPrice || 0) * (item.quantity || 1);
       stores[data.storeName] =

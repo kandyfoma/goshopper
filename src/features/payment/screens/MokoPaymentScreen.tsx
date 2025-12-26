@@ -110,8 +110,6 @@ export function MokoPaymentScreen() {
     setIsProcessing(true);
 
     try {
-      console.log('💳 Initiating payment:', { amount, phoneNumber, userId: user.uid });
-      
       const response = await mokoPaymentService.initiatePayment({
         amount: amount,
         phoneNumber: phoneNumber,

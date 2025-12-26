@@ -373,22 +373,24 @@ export const mokoPaymentWebhook = functions
           payment,
         );
         
-        // Send payment success notification
+        // Send payment success notification with currency
         await sendPaymentSuccessNotification(
           userId,
           payment.planId,
           payment.amount,
           payment.provider || 'mobile_money',
           transaction_id,
+          payment.currency || 'USD',
         );
       } else if (newStatus === 'failed') {
-        // Send payment failed notification
+        // Send payment failed notification with currency
         await sendPaymentFailedNotification(
           userId,
           payment.planId,
           payment.amount,
           payment.provider || 'mobile_money',
           status,
+          payment.currency || 'USD',
         );
       }
 

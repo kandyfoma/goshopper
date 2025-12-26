@@ -116,6 +116,24 @@ export {
   sendManualScanLimitWarning,
 } from './notifications/scanLimitNotifications';
 
+// Category insights for premium users
+export {
+  sendCategoryInsights,
+  sendCategoryInsightToUser,
+} from './notifications/categoryInsightsNotifications';
+
+// Welcome notifications for new users
+export {
+  sendUpgradeProposals,
+  sendUpgradeProposalToUser,
+} from './notifications/welcomeNotifications';
+
+// Monthly upgrade offers (30th of each month)
+export {
+  sendMonthlyUpgradeOffers,
+  sendUpgradeOfferToUser,
+} from './notifications/monthlyUpgradeNotifications';
+
 export {
   sendManualPaymentNotification,
 } from './notifications/paymentNotifications';

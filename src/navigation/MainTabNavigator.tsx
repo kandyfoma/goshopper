@@ -21,11 +21,11 @@ import {useSubscription} from '@/shared/contexts';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 
 // Screens
-import {HomeScreen} from '@/features/home/screens';
+import {HomeStackNavigator} from '@/features/home/navigation/HomeStackNavigator';
 import {UnifiedScannerScreen} from '@/features/scanner/screens';
 import {ItemsScreen, CityItemsScreen} from '@/features/items';
-import {StatsScreen} from '@/features/stats/screens';
-import {ProfileScreen} from '@/features/profile/screens';
+import {StatsStackNavigator} from '@/features/stats/navigation/StatsStackNavigator';
+import {ProfileStackNavigator} from '@/features/profile/navigation/ProfileStackNavigator';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -132,7 +132,7 @@ export function MainTabNavigator() {
         }}>
         <Tab.Screen
           name="Home"
-          component={HomeScreen}
+          component={HomeStackNavigator}
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon focused={focused} icon="home" label="Accueil" badge={notificationBadges.Home} />
@@ -159,7 +159,7 @@ export function MainTabNavigator() {
         />
         <Tab.Screen
           name="Stats"
-          component={StatsScreen}
+          component={StatsStackNavigator}
           listeners={{
             tabPress: (e) => {
               if (!handleStatsPress()) {
@@ -175,7 +175,7 @@ export function MainTabNavigator() {
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={ProfileStackNavigator}
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon focused={focused} icon="user" label="Profil" badge={notificationBadges.Profile} />

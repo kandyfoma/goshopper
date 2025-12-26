@@ -20,7 +20,7 @@ import {PaymentProcessingProvider} from '@/shared/contexts/PaymentProcessingCont
 import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner} from '@/shared/components';
 import ScanUsageWarning from '@/shared/components/ScanUsageWarning';
 import {initializeFirebase} from '@/shared/services/firebase/config';
-import {analyticsService} from '@/shared/services';
+import {analyticsService, translationService} from '@/shared/services';
 import {pushNotificationService} from '@/shared/services/firebase';
 import {quickActionsService, inAppReviewService, spotlightSearchService, offlineService, widgetDataService} from '@/shared/services';
 import {cacheInitializer} from '@/shared/services/caching';
@@ -131,6 +131,19 @@ function App(): React.JSX.Element {
         console.log('Initializing Widget Data Service...');
         await widgetDataService.initialize();
         console.log('Widget Data Service initialized successfully');
+
+        // Pre-translate common search terms in background
+        console.log('Pre-loading translation cache...');
+        InteractionManager.runAfterInteractions(async () => {
+          const commonTerms = [
+            'pain', 'bread', 'lait', 'milk', 'eau', 'water', 
+            'riz', 'rice', 'viande', 'meat', 'poisson', 'fish',
+            'fromage', 'cheese', 'tomate', 'tomato', 'poulet', 'chicken',
+            'pomme', 'apple', 'banane', 'banana', 'œuf', 'egg'
+          ];
+          await translationService.preTranslateCommonTerms(commonTerms);
+          console.log('Translation cache pre-loaded successfully');
+        });
 
         setLoading(false);
       } catch (err) {

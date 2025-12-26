@@ -45,6 +45,8 @@ export type RootStackParamList = {
   // Shops
   Shops: undefined;
   ShopDetail: {shopId: string; shopName: string};
+  // Stats
+  CategoryDetail: {categoryName: string; categoryColor: string};
   // Legal Screens
   FAQ: undefined;
   PrivacyPolicy: undefined;

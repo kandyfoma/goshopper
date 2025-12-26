@@ -320,12 +320,12 @@ exports.mokoPaymentWebhook = functions
         // If completed, activate subscription
         if (newStatus === 'completed') {
             await activateSubscription(userId, payment.planId, payment);
-            // Send payment success notification
-            await (0, paymentNotifications_1.sendPaymentSuccessNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', transaction_id);
+            // Send payment success notification with currency
+            await (0, paymentNotifications_1.sendPaymentSuccessNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', transaction_id, payment.currency || 'USD');
         }
         else if (newStatus === 'failed') {
-            // Send payment failed notification
-            await (0, paymentNotifications_1.sendPaymentFailedNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', status);
+            // Send payment failed notification with currency
+            await (0, paymentNotifications_1.sendPaymentFailedNotification)(userId, payment.planId, payment.amount, payment.provider || 'mobile_money', status, payment.currency || 'USD');
         }
         res.status(200).json({ success: true, status: newStatus });
     }

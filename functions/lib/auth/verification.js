@@ -340,6 +340,7 @@ exports.verifyCode = functions
 exports.completeRegistration = functions
     .region(config_1.config.app.region)
     .https.onCall(async (data, context) => {
+    var _a;
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
     }
@@ -373,6 +374,8 @@ exports.completeRegistration = functions
             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
             countryCode: verification.countryCode,
             isInDRC: verification.countryCode === 'CD',
+            registrationDate: admin.firestore.FieldValue.serverTimestamp(),
+            upgradeProposalSent: false,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
         if (verification.type === 'phone') {
@@ -396,6 +399,20 @@ exports.completeRegistration = functions
         }
         // Clean up verification record
         await verificationDoc.ref.delete();
+        // Send welcome notifications if FCM token is available
+        const userProfileData = await userProfileRef.get();
+        const fcmToken = (_a = userProfileData.data()) === null || _a === void 0 ? void 0 : _a.fcmToken;
+        if (fcmToken) {
+            // Import notification functions
+            const { sendWelcomeNotification, sendTrialPlanNotification } = await Promise.resolve().then(() => __importStar(require('../notifications/welcomeNotifications')));
+            console.log(`📧 Sending welcome notifications to ${userId}`);
+            // Send welcome notification immediately
+            await sendWelcomeNotification(userId, fcmToken, verification.language || 'fr');
+            // Send trial notification after a short delay
+            setTimeout(async () => {
+                await sendTrialPlanNotification(userId, fcmToken, verification.language || 'fr');
+            }, 5000);
+        }
         return {
             success: true,
             userId,

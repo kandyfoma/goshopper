@@ -10,6 +10,7 @@ export {spotlightSearchService} from './spotlightSearchService';
 export {offlineService} from './offlineService';
 export {widgetDataService} from './widgetDataService';
 export {ocrCorrectionService} from './ocrCorrectionService';
+export {translationService} from './translation';
 
 // Caching services
 export {cacheManager, CacheTTL, CachePriority} from './caching';

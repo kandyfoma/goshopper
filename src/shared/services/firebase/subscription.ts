@@ -443,15 +443,9 @@ class SubscriptionService {
         {includeMetadataChanges: true}, // Include metadata to detect cache vs server
         doc => {
           const fromCache = doc.metadata.fromCache;
-          console.log(`📊 Subscription snapshot received (fromCache: ${fromCache})`);
           
           if (doc.exists) {
             const data = doc.data()!;
-            console.log('📊 Raw subscription data from Firestore:', {
-              status: data.status,
-              isSubscribed: data.isSubscribed,
-              planId: data.planId,
-            });
             callback(this.mapSubscription(data));
           } else {
             console.warn('⚠️ Subscription document does not exist for user:', user.uid);

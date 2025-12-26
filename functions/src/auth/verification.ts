@@ -448,6 +448,8 @@ export const completeRegistration = functions
         verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
         countryCode: verification.countryCode,
         isInDRC: verification.countryCode === 'CD',
+        registrationDate: admin.firestore.FieldValue.serverTimestamp(),
+        upgradeProposalSent: false,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -475,6 +477,25 @@ export const completeRegistration = functions
 
       // Clean up verification record
       await verificationDoc.ref.delete();
+
+      // Send welcome notifications if FCM token is available
+      const userProfileData = await userProfileRef.get();
+      const fcmToken = userProfileData.data()?.fcmToken;
+      
+      if (fcmToken) {
+        // Import notification functions
+        const {sendWelcomeNotification, sendTrialPlanNotification} = await import('../notifications/welcomeNotifications');
+        
+        console.log(`📧 Sending welcome notifications to ${userId}`);
+        
+        // Send welcome notification immediately
+        await sendWelcomeNotification(userId, fcmToken, verification.language || 'fr');
+        
+        // Send trial notification after a short delay
+        setTimeout(async () => {
+          await sendTrialPlanNotification(userId, fcmToken, verification.language || 'fr');
+        }, 5000);
+      }
 
       return {
         success: true,

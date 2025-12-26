@@ -230,7 +230,8 @@ export const subscribeToPaymentStatus = (
         
         // Only log every 6 polls (30 seconds) or when we get a result
         if (result || pollCount % 6 === 0) {
-          console.log(`📊 Poll ${pollCount}: ${result ? result.status : 'Waiting...'}`);
+          if (result) {
+        return result;
         }
         
         if (result && result.status !== 'PENDING') {

@@ -43,7 +43,6 @@ export async function getFCMToken(): Promise<string | null> {
     }
 
     const token = await messaging().getToken();
-    console.log('📱 FCM Token:', token);
     return token;
   } catch (error) {
     console.error('Get FCM token error:', error);

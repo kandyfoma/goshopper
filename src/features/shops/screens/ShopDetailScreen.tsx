@@ -9,10 +9,12 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
-import {Receipt, RootStackParamList} from '@/shared/types';
+import {Receipt} from '@/shared/types';
+import {HomeStackParamList} from '@/features/home/navigation/HomeStackNavigator';
 import {
   Colors,
   Typography,
@@ -20,17 +22,18 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, EmptyState, BackButton} from '@/shared/components';
+import {Icon, EmptyState, BackButton, FadeIn} from '@/shared/components';
 import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {APP_ID} from '@/shared/services/firebase/config';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type ShopDetailRouteProp = RouteProp<RootStackParamList, 'ShopDetail'>;
+type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'ShopDetail'>;
+type ShopDetailRouteProp = RouteProp<HomeStackParamList, 'ShopDetail'>;
 
 export function ShopDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ShopDetailRouteProp>();
+  const insets = useSafeAreaInsets();
   const {shopId, shopName} = route.params;
   const {user} = useAuth();
 
@@ -171,13 +174,20 @@ export function ShopDetailScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <BackButton />
-          <Text style={styles.title} numberOfLines={1}>
-            {shopName}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        {/* Modern Header */}
+        <FadeIn duration={400}>
+          <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+            <BackButton />
+            
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {shopName}
+              </Text>
+            </View>
+            
+            <View style={styles.headerRight} />
+          </View>
+        </FadeIn>
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Chargement...</Text>
@@ -188,24 +198,27 @@ export function ShopDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <BackButton />
-        <Text style={styles.title} numberOfLines={1}>
-          {shopName}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      {/* Modern Header */}
+      <FadeIn duration={400}>
+        <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+          <BackButton />
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {shopName}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {receipts.length} facture{receipts.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          
+          <View style={styles.headerRight} />
+        </View>
+      </FadeIn>
 
       {/* Stats Summary */}
       {receipts.length > 0 && (
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{receipts.length}</Text>
-            <Text style={styles.statLabel}>
-              Facture{receipts.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
               {formatCurrency(totalSpent, 'USD')}
@@ -250,44 +263,37 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
 
-  // Header
+  // Modern Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    ...Shadows.sm,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background.primary,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
+  headerCenter: {
+    flex: 1,
     alignItems: 'center',
   },
-  title: {
-    flex: 1,
+  headerTitle: {
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.sm,
   },
-  headerSpacer: {
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
+  },
+  headerRight: {
     width: 44,
   },
 
   // Stats
   statsContainer: {
-    flexDirection: 'row',
     padding: Spacing.lg,
-    gap: Spacing.md,
   },
   statCard: {
-    flex: 1,
     backgroundColor: Colors.card.cream,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,

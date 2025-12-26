@@ -30,6 +30,7 @@ import {useAuth, useUser, useSubscription} from '@/shared/contexts';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import {analyticsService} from '@/shared/services/analytics';
 import {cacheManager, CacheTTL} from '@/shared/services/caching';
+import {translationService} from '@/shared/services/translation';
 import {RootStackParamList} from '@/shared/types';
 
 // City/Community item data (Tier 3: Community Prices - Anonymous)
@@ -96,27 +97,19 @@ export function CityItemsScreen() {
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('📱 CityItemsScreen focused, reloading data');
-      console.log('📱 hasAccess:', hasAccess);
-      console.log('📱 profileLoading:', profileLoading);
-      console.log('📱 userProfile?.defaultCity:', userProfile?.defaultCity);
+
       
       // Guard: Re-check access when screen regains focus
       if (!hasAccess) {
-        console.log('🚫 No access to price comparison feature');
         setShowLimitModal(true);
         setIsLoading(false); // Stop loading to show the modal
         return;
       }
       
       if (!profileLoading && userProfile?.defaultCity) {
-        console.log('✅ Starting loadCityItemsData...');
         loadCityItemsData();
       } else if (!profileLoading) {
-        console.log('⚠️ No default city, stopping loading');
         setIsLoading(false);
-      } else {
-        console.log('⏳ Profile still loading, waiting...');
       }
     }, [userProfile?.defaultCity, profileLoading, hasAccess])
   );
@@ -146,12 +139,6 @@ export function CityItemsScreen() {
   };
 
   const loadCityItemsData = async () => {
-    console.log(
-      '🔄 loadCityItemsData called, userProfile:',
-      userProfile,
-      'profileLoading:',
-      profileLoading,
-    );
     if (profileLoading) {
       console.log('⏳ Profile still loading, skipping');
       return;
@@ -169,7 +156,6 @@ export function CityItemsScreen() {
     try {
       const cachedData = await cacheManager.get<CityItemData[]>(cacheKey, 'receipts');
       if (cachedData && cachedData.length > 0) {
-        console.log('✅ Loaded city items from cache:', cachedData.length);
         setItems(cachedData);
         setIsLoading(false);
         return;
@@ -257,8 +243,8 @@ export function CityItemsScreen() {
     }
   };
 
-  // Simple, reliable search function
-  const simpleSearch = (itemName: string, query: string): boolean => {
+  // Simple, reliable search function with bilingual support
+  const simpleSearch = async (itemName: string, query: string): Promise<boolean> => {
     // Normalize both strings: lowercase, remove accents
     const normalize = (str: string) => 
       str.toLowerCase()
@@ -269,17 +255,22 @@ export function CityItemsScreen() {
     const normalizedItem = normalize(itemName);
     const normalizedQuery = normalize(query);
     
-    // 1. Direct contains match
+    // 1. Bilingual match (French <-> English) - with API fallback
+    if (await translationService.bilingualMatchAsync(itemName, query)) {
+      return true;
+    }
+    
+    // 2. Direct contains match
     if (normalizedItem.includes(normalizedQuery)) {
       return true;
     }
     
-    // 2. Query contains item (for short item names)
+    // 3. Query contains item (for short item names)
     if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
       return true;
     }
     
-    // 3. Word-by-word match (any word matches)
+    // 4. Word-by-word match (any word matches)
     const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
     const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
     
@@ -296,7 +287,7 @@ export function CityItemsScreen() {
       }
     }
     
-    // 4. Fuzzy match - allow 1-2 character differences for words >= 4 chars
+    // 5. Fuzzy match - allow 1-2 character differences for words >= 4 chars
     if (normalizedQuery.length >= 4) {
       for (const iWord of itemWords) {
         if (iWord.length >= 4) {
@@ -337,14 +328,19 @@ export function CityItemsScreen() {
     setIsSearching(true);
     
     // Use setTimeout to allow UI to update with loading state
-    setTimeout(() => {
+    setTimeout(async () => {
       let filtered: CityItemData[];
       
       if (!searchQuery.trim()) {
         filtered = items;
       } else {
-        // Simple, direct search
-        filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+        // Simple, direct search with async translation support
+        filtered = [];
+        for (const item of items) {
+          if (await simpleSearch(item.name, searchQuery)) {
+            filtered.push(item);
+          }
+        }
         
         // Log search for analytics
         analyticsService.logCustomEvent('city_items_search', {

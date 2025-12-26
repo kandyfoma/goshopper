@@ -815,9 +815,14 @@ exports.checkExpiredSubscriptions = functions
         let expiredCount = 0;
         const expiredBatch = db.batch();
         expiredQuery.docs.forEach(doc => {
+            console.log(`Expiring subscription for user, moving to freemium plan`);
+            // Move to freemium plan instead of just marking as expired
             expiredBatch.update(doc.ref, {
+                planId: 'freemium',
                 isSubscribed: false,
                 status: 'expired',
+                expiresAt: admin.firestore.FieldValue.delete(),
+                subscriptionEndDate: admin.firestore.FieldValue.delete(),
                 monthlyScansUsed: 0,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
@@ -825,7 +830,7 @@ exports.checkExpiredSubscriptions = functions
         });
         if (expiredCount > 0) {
             await expiredBatch.commit();
-            console.log(`Expired ${expiredCount} subscriptions`);
+            console.log(`Expired ${expiredCount} subscriptions and moved to freemium plan`);
         }
         // 2. Expire trials that have ended
         const expiredTrialsQuery = await db
@@ -836,15 +841,22 @@ exports.checkExpiredSubscriptions = functions
         let trialExpiredCount = 0;
         const trialBatch = db.batch();
         expiredTrialsQuery.docs.forEach(doc => {
+            console.log(`Trial expired for user, moving to freemium plan`);
+            // Move to freemium plan when trial expires
             trialBatch.update(doc.ref, {
+                planId: 'freemium',
                 status: 'expired',
+                isSubscribed: false,
+                expiresAt: admin.firestore.FieldValue.delete(),
+                trialEndDate: admin.firestore.FieldValue.delete(),
+                monthlyScansUsed: 0,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             trialExpiredCount++;
         });
         if (trialExpiredCount > 0) {
             await trialBatch.commit();
-            console.log(`Expired ${trialExpiredCount} trials`);
+            console.log(`Expired ${trialExpiredCount} trials and moved to freemium plan`);
         }
         // 3. Apply pending downgrades that have reached their effective date
         const pendingDowngradesQuery = await db

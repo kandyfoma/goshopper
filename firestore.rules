@@ -145,7 +145,7 @@ service cloud.firestore {
     // Data persists even when users delete their receipts
     match /artifacts/goshopper/cityItems/{city}/items/{itemId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Only Cloud Functions can write
+      allow write, delete: if isAuthenticated(); // Allow authenticated users to delete (for dev tools)
     }
 
     // Public stores collection (for city detection)

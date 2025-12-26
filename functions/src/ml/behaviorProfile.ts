@@ -142,7 +142,7 @@ async function calculateUserFeatures(userId: string): Promise<void> {
   receipts.forEach(r => {
     const date = r.date?.toDate() || null;
     (r.items || []).forEach((item: any) => {
-      const category = item.category || 'Other';
+      const category = item.category || 'Autres';
       if (!categoryStats[category]) {
         categoryStats[category] = {count: 0, spent: 0, lastDate: null};
       }

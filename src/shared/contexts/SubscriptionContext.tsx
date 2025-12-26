@@ -218,11 +218,6 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
     console.log('📊 Subscribing to subscription status for user:', user.uid);
     unsubscribe = subscriptionService.subscribeToStatus(subscription => {
       if (isMounted) {
-        console.log('📊 Subscription updated:', {
-          status: subscription.status,
-          isSubscribed: subscription.isSubscribed,
-          planId: subscription.planId,
-        });
         setState(calculateState(subscription));
       }
     });

@@ -46,7 +46,7 @@ import {FAQScreen, PrivacyPolicyScreen, TermsOfServiceScreen} from '@/features/l
 import {ShopsScreen, ShopDetailScreen} from '@/features/shops';
 import {CityItemsScreen} from '@/features/items/screens';
 import {ItemsScreen} from '@/features/items';
-import {StatsScreen} from '@/features/stats/screens/StatsScreen';
+import {StatsScreen, CategoryDetailScreen} from '@/features/stats/screens';
 import {HistoryScreen} from '@/features/history/screens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -371,6 +371,12 @@ export function RootNavigator() {
         <Stack.Screen
           name="ShopDetail"
           component={ShopDetailScreen}
+          options={{headerShown: false}}
+        />
+        {/* Stats - Category Detail */}
+        <Stack.Screen
+          name="CategoryDetail"
+          component={CategoryDetailScreen}
           options={{headerShown: false}}
         />
         <Stack.Screen

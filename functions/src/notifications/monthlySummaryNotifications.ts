@@ -53,7 +53,7 @@ async function calculateMonthlyStats(
 
     (data.items || []).forEach((item: any) => {
       itemsCount++;
-      const category = item.category || 'Other';
+      const category = item.category || 'Autres';
       const itemTotal = (item.unitPrice || 0) * (item.quantity || 1);
       categories[category] = (categories[category] || 0) + itemTotal;
     });

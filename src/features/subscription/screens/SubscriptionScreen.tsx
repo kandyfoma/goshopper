@@ -134,7 +134,6 @@ export function SubscriptionScreen() {
         <View style={styles.header}>
           <BackButton />
           <Text style={styles.headerTitle}>Choisir un abonnement</Text>
-          <View style={styles.headerSpacer} />
         </View>
 
         {/* Trial Banner */}
@@ -232,7 +231,7 @@ export function SubscriptionScreen() {
             
             // Assign colors to plans - Using app branding
             const cardColor = planId === 'basic' ? '#FDF0D5' : planId === 'standard' ? '#669BBC' : '#003049';
-            const scanCount = planId === 'basic' ? '25' : planId === 'standard' ? '100' : '1,000';
+            const scanCount = planId === 'basic' ? '25' : planId === 'standard' ? '100' : 'Illimité';
             // White text for standard and premium, dark text for basic
             const textColor = planId === 'basic' ? Colors.text.primary : '#FFFFFF';
             const iconColor = planId === 'basic' ? Colors.text.primary : '#FFFFFF';
@@ -330,16 +329,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
   headerTitle: {
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
-  },
-  headerSpacer: {
-    width: 44,
+    flex: 1,
   },
 
   // Trial Banner - Tag style

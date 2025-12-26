@@ -23,7 +23,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, BackButton} from '@/shared/components';
-import {useAuth, useSubscription, useScanProcessing} from '@/shared/contexts';
+import {useAuth, useSubscription, useScanProcessing, useUser} from '@/shared/contexts';
 import {itemsService, migrateItemsAggregation} from '@/shared/services/firebase';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID, COLLECTIONS} from '@/shared/services/firebase/config';
@@ -32,10 +32,35 @@ export function DeveloperToolsScreen() {
   const navigation = useNavigation();
   const {user} = useAuth();
   const {subscription, refreshSubscription} = useSubscription();
+  const {profile} = useUser();
   const scanProcessing = useScanProcessing();
   const [isMigrating, setIsMigrating] = useState(false);
   const [isDeletingCityItems, setIsDeletingCityItems] = useState(false);
   const [isActivatingTestPremium, setIsActivatingTestPremium] = useState(false);
+
+  // Check if user is authorized (admin)
+  const isAuthorized = profile?.phoneNumber === '+243828812498';
+
+  // If not authorized, show unauthorized message
+  if (!isAuthorized) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <BackButton onPress={() => navigation.goBack()} />
+          <Text style={styles.title}>Developer Tools</Text>
+        </View>
+        <View style={[styles.content, {justifyContent: 'center', alignItems: 'center'}]}>
+          <Icon name="lock" size="lg" color={Colors.text.tertiary} />
+          <Text style={[styles.sectionTitle, {marginTop: Spacing.lg, textAlign: 'center'}]}>
+            Access Denied
+          </Text>
+          <Text style={[styles.subtitle, {marginTop: Spacing.sm, textAlign: 'center', paddingHorizontal: Spacing.xl}]}>
+            You do not have permission to access developer tools.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleMigrateItems = async () => {
     Alert.alert(
@@ -296,8 +321,6 @@ export function DeveloperToolsScreen() {
 
                   await batch.commit();
                   totalDeleted += snapshot.docs.length;
-                  
-                  console.log(`Deleted ${snapshot.docs.length} items from ${city}, total: ${totalDeleted}`);
                 }
               }
 

@@ -71,7 +71,6 @@ export function ItemsScreen() {
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('📱 ItemsScreen focused, reloading data');
       loadItemsData();
     }, [user])
   );
@@ -107,7 +106,6 @@ export function ItemsScreen() {
     }
 
     try {
-      console.log('📦 Loading items for user:', user.uid);
       
       // Fetch user's aggregated items from backend (Tier 2: User Aggregated Items)
       // This collection is automatically maintained by Cloud Functions when receipts are created/updated
@@ -133,11 +131,8 @@ export function ItemsScreen() {
           .get();
       }
 
-      console.log('📦 Items found:', itemsSnapshot.size);
-
       // If no items found, check if user has receipts and trigger rebuild
       if (itemsSnapshot.empty) {
-        console.log('📦 No items found, checking for receipts...');
         const receiptsSnapshot = await firestore()
           .collection('artifacts')
           .doc(APP_ID)
@@ -205,8 +200,6 @@ export function ItemsScreen() {
             console.error('❌ Error rebuilding items:', rebuildError);
             // Continue with empty items
           }
-        } else {
-          console.log('📦 No receipts found - user has no data yet');
         }
       }
 
@@ -239,8 +232,8 @@ export function ItemsScreen() {
     }
   };
 
-  // Simple, reliable search function
-  const simpleSearch = (itemName: string, query: string): boolean => {
+  // Simple, reliable search function with bilingual support
+  const simpleSearch = async (itemName: string, query: string): Promise<boolean> => {
     // Normalize both strings: lowercase, remove accents
     const normalize = (str: string) => 
       str.toLowerCase()
@@ -251,17 +244,22 @@ export function ItemsScreen() {
     const normalizedItem = normalize(itemName);
     const normalizedQuery = normalize(query);
     
-    // 1. Direct contains match
+    // 1. Bilingual match (French <-> English) - with API fallback
+    if (await translationService.bilingualMatchAsync(itemName, query)) {
+      return true;
+    }
+    
+    // 2. Direct contains match
     if (normalizedItem.includes(normalizedQuery)) {
       return true;
     }
     
-    // 2. Query contains item (for short item names)
+    // 3. Query contains item (for short item names)
     if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
       return true;
     }
     
-    // 3. Word-by-word match (any word matches)
+    // 4. Word-by-word match (any word matches)
     const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
     const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
     
@@ -278,7 +276,7 @@ export function ItemsScreen() {
       }
     }
     
-    // 4. Fuzzy match - allow 1-2 character differences for words >= 4 chars
+    // 5. Fuzzy match - allow 1-2 character differences for words >= 4 chars
     if (normalizedQuery.length >= 4) {
       for (const iWord of itemWords) {
         if (iWord.length >= 4) {
@@ -319,15 +317,20 @@ export function ItemsScreen() {
     setIsSearching(true);
     
     // Use setTimeout to allow UI to update with loading state
-    setTimeout(() => {
+    setTimeout(async () => {
       if (!searchQuery.trim() || !items) {
         setFilteredItems(items || []);
         setIsSearching(false);
         return;
       }
 
-      // Simple, direct search
-      const filtered = items.filter(item => simpleSearch(item.name, searchQuery));
+      // Simple, direct search with async translation support
+      const filtered = [];
+      for (const item of items) {
+        if (await simpleSearch(item.name, searchQuery)) {
+          filtered.push(item);
+        }
+      }
       setFilteredItems(filtered);
 
       // Log search for analytics
