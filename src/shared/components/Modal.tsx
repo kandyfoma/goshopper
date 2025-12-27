@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   body: {
-    flexShrink: 1,
+    flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },

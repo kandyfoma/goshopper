@@ -40,6 +40,8 @@ import {RootStackParamList} from '@/shared/types';
 interface CityItemData {
   id: string;
   name: string;
+  category?: string;        // Item category (e.g., 'Boissons', 'Alimentation')
+  searchKeywords?: string[]; // Keywords for enhanced search (e.g., ['wine', 'vin'] for 'merlot')
   prices: {
     storeName: string;
     price: number;
@@ -54,6 +56,7 @@ interface CityItemData {
   currency: 'USD' | 'CDF';
   userCount: number; // Number of users who purchased this item
   lastPurchaseDate: Date;
+  createdAt?: Date;
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -263,7 +266,8 @@ export function CityItemsScreen() {
   };
 
   // Simple, reliable search function with bilingual support
-  const simpleSearch = async (itemName: string, query: string): Promise<boolean> => {
+  // Now also checks category and searchKeywords for enhanced search
+  const simpleSearch = async (item: CityItemData, query: string): Promise<boolean> => {
     // Normalize both strings: lowercase, remove accents
     const normalize = (str: string) => 
       str.toLowerCase()
@@ -271,25 +275,43 @@ export function CityItemsScreen() {
         .replace(/[\u0300-\u036f]/g, '') // Remove accents
         .trim();
     
-    const normalizedItem = normalize(itemName);
+    const normalizedItem = normalize(item.name);
     const normalizedQuery = normalize(query);
     
-    // 1. Bilingual match (French <-> English) - with API fallback
-    if (await translationService.bilingualMatchAsync(itemName, query)) {
+    // 1. Check searchKeywords first (for category-based search like "wine" -> "merlot")
+    if (item.searchKeywords && item.searchKeywords.length > 0) {
+      for (const keyword of item.searchKeywords) {
+        const normalizedKeyword = normalize(keyword);
+        if (normalizedKeyword.includes(normalizedQuery) || normalizedQuery.includes(normalizedKeyword)) {
+          return true;
+        }
+      }
+    }
+    
+    // 2. Check category match
+    if (item.category) {
+      const normalizedCategory = normalize(item.category);
+      if (normalizedCategory.includes(normalizedQuery) || normalizedQuery.includes(normalizedCategory)) {
+        return true;
+      }
+    }
+    
+    // 3. Bilingual match (French <-> English) - with API fallback
+    if (await translationService.bilingualMatchAsync(item.name, query)) {
       return true;
     }
     
-    // 2. Direct contains match
+    // 4. Direct contains match
     if (normalizedItem.includes(normalizedQuery)) {
       return true;
     }
     
-    // 3. Query contains item (for short item names)
+    // 5. Query contains item (for short item names)
     if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
       return true;
     }
     
-    // 4. Word-by-word match (any word matches)
+    // 6. Word-by-word match (any word matches)
     const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
     const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
     
@@ -306,7 +328,7 @@ export function CityItemsScreen() {
       }
     }
     
-    // 5. Fuzzy match - allow 1-2 character differences for words >= 4 chars
+    // 7. Fuzzy match - allow 1-2 character differences for words >= 4 chars
     if (normalizedQuery.length >= 4) {
       for (const iWord of itemWords) {
         if (iWord.length >= 4) {
@@ -348,43 +370,48 @@ export function CityItemsScreen() {
     
     // Use setTimeout to allow UI to update with loading state
     setTimeout(async () => {
-      let filtered: CityItemData[];
-      
-      if (!searchQuery.trim()) {
-        filtered = items;
-      } else {
-        // Simple, direct search with async translation support
-        filtered = [];
-        for (const item of items) {
-          if (await simpleSearch(item.name, searchQuery)) {
-            filtered.push(item);
+      try {
+        let filtered: CityItemData[];
+        
+        if (!searchQuery.trim()) {
+          filtered = items;
+        } else {
+          // Enhanced search with category and keyword support
+          filtered = [];
+          for (const item of items) {
+            if (await simpleSearch(item, searchQuery)) {
+              filtered.push(item);
+            }
           }
+          
+          // Log search for analytics
+          analyticsService.logCustomEvent('city_items_search', {
+            query: searchQuery,
+            results_count: filtered.length,
+          });
         }
         
-        // Log search for analytics
-        analyticsService.logCustomEvent('city_items_search', {
-          query: searchQuery,
-          results_count: filtered.length,
-        });
+        // Apply sorting
+        const sorted = [...filtered];
+        switch (sortBy) {
+          case 'name':
+            sorted.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+          case 'price':
+            sorted.sort((a, b) => a.minPrice - b.minPrice);
+            break;
+          case 'popular':
+          default:
+            sorted.sort((a, b) => b.prices.length - a.prices.length);
+            break;
+        }
+        
+        // Update filtered items and stop searching AFTER all operations complete
+        setFilteredItems(sorted);
+      } finally {
+        // Always set isSearching to false after search completes
+        setIsSearching(false);
       }
-      
-      // Apply sorting
-      const sorted = [...filtered];
-      switch (sortBy) {
-        case 'name':
-          sorted.sort((a, b) => a.name.localeCompare(b.name));
-          break;
-        case 'price':
-          sorted.sort((a, b) => a.minPrice - b.minPrice);
-          break;
-        case 'popular':
-        default:
-          sorted.sort((a, b) => b.prices.length - a.prices.length);
-          break;
-      }
-      
-      setFilteredItems(sorted);
-      setIsSearching(false);
     }, 0);
   };
 

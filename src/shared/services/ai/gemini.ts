@@ -228,7 +228,7 @@ class GeminiService {
         receipt,
       };
     } catch (error: any) {
-      console.error('Gemini parse error:', error);
+      console.error('Receipt parse error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       console.error('Error details:', JSON.stringify(error, null, 2));
@@ -524,7 +524,7 @@ class GeminiService {
         receipt,
       };
     } catch (error: any) {
-      console.error('Gemini video parse error:', error);
+      console.error('Video receipt parse error:', error);
       this.recordFailure();
 
       if (this.circuitState === 'HALF_OPEN') {

@@ -89,6 +89,8 @@ export interface CityItem {
   name: string;
   nameNormalized: string;
   city: string;
+  category?: string;        // Item category (e.g., 'Boissons', 'Alimentation')
+  searchKeywords?: string[]; // Keywords for enhanced search (e.g., ['wine', 'vin'] for 'merlot')
   prices: CityItemPrice[];
   minPrice: number;
   maxPrice: number;
@@ -217,6 +219,27 @@ function normalizeItemName(name: string): string {
   normalized = normalized
     .replace(/\s+/g, ' ') // Normalize spaces again
     .trim();
+
+  // ============ STEP 8: Fix OCR spacing errors in common words ============
+  // Words that OCR often splits: "bag" -> "b ag", "sac" -> "s ac"
+  normalized = normalized
+    .replace(/\bb\s+ag\b/gi, 'bag')       // "b ag" -> "bag"
+    .replace(/\bs\s+ac\b/gi, 'sac')       // "s ac" -> "sac"
+    .replace(/\br\s+iz\b/gi, 'riz')       // "r iz" -> "riz"
+    .replace(/\bl\s+ait\b/gi, 'lait')     // "l ait" -> "lait"
+    .replace(/\be\s+au\b/gi, 'eau')       // "e au" -> "eau"
+    .replace(/\bh\s+uile\b/gi, 'huile')   // "h uile" -> "huile"
+    .replace(/\bs\s+ucre\b/gi, 'sucre')   // "s ucre" -> "sucre"
+    .replace(/\bp\s+ain\b/gi, 'pain')     // "p ain" -> "pain"
+    .replace(/\bv\s+in\b/gi, 'vin')       // "v in" -> "vin"
+    .trim();
+
+  // ============ STEP 9: Aggressive fix for any OCR spacing errors ============
+  // Remove spaces between letters in words that are likely OCR mistakes
+  // "s u c r e" -> "sucre", "b a g" -> "bag", etc.
+  normalized = normalized.replace(/\b([a-z](?:\s+[a-z]){1,6})\b/g, (match) => {
+    return match.replace(/\s+/g, '');
+  });
 
   return normalized;
 }
@@ -654,11 +677,14 @@ function getCanonicalName(name: string): string {
   // Check if normalized name matches any synonym
   for (const [canonical, variations] of Object.entries(synonyms)) {
     if (variations.some(v => normalized.includes(v) || v.includes(normalized))) {
-      return canonical;
+      // Remove spaces from canonical name for consistent document IDs
+      return canonical.replace(/\s+/g, '');
     }
   }
 
-  return normalized;
+  // Remove all spaces from the final normalized name for consistent document IDs
+  // This ensures "b ag riz" and "bag riz" both become "bagriz"
+  return normalized.replace(/\s+/g, '');
 }
 
 /**
@@ -699,6 +725,136 @@ function isValidItemName(name: string, normalizedName: string): boolean {
   // Accept everything else - normalization already fixed spacing issues
   // Examples: "b EGADANET" → "begadanet" ✓, "s AC" → "sac" ✓
   return true;
+}
+
+/**
+ * Category keywords mapping for detection and search
+ * Maps categories to their related keywords in French and English
+ */
+const CATEGORY_KEYWORDS_MAP: Record<string, {
+  category: string;        // Display name (French)
+  keywords: string[];      // Keywords that belong to this category
+  searchTerms: string[];   // Alternative search terms users might use
+}> = {
+  'boissons': {
+    category: 'Boissons',
+    keywords: ['eau', 'water', 'jus', 'juice', 'soda', 'coca', 'fanta', 'sprite', 'pepsi', 'limonade', 
+               'biere', 'beer', 'vin', 'wine', 'merlot', 'cabernet', 'chardonnay', 'medco', 'sauvignon',
+               'whisky', 'vodka', 'rhum', 'rum', 'champagne', 'cafe', 'coffee', 'the', 'tea', 'lait', 'milk',
+               'yaourt', 'yogurt', 'primus', 'heineken', 'skol', 'tembo', 'castel', 'ngok', 'nkoyi',
+               'simba', 'mutzig', 'masanga', 'malavu', 'lotoko', 'maziwa'],
+    searchTerms: ['boisson', 'drink', 'beverage', 'alcool', 'alcohol', 'soft', 'gazeuse'],
+  },
+  'alimentation': {
+    category: 'Alimentation',
+    keywords: ['riz', 'rice', 'pain', 'bread', 'farine', 'flour', 'pate', 'pasta', 'spaghetti', 'macaroni',
+               'cereale', 'cereal', 'biscuit', 'cookie', 'chocolat', 'chocolate', 'sucre', 'sugar',
+               'sel', 'salt', 'huile', 'oil', 'miel', 'honey', 'confiture', 'jam', 'beurre', 'butter',
+               'fromage', 'cheese', 'oeuf', 'egg', 'viande', 'meat', 'poulet', 'chicken', 'boeuf', 'beef',
+               'poisson', 'fish', 'sardine', 'thon', 'tuna', 'mafuta', 'mungwa', 'fufu', 'pondu', 'saka',
+               'makayabu', 'mbisi', 'ngolo', 'kapiteni', 'sombe', 'matembele', 'biteku', 'ngai ngai', 'ndunda'],
+    searchTerms: ['nourriture', 'food', 'manger', 'eat', 'cuisine', 'repas', 'meal'],
+  },
+  'fruits_legumes': {
+    category: 'Fruits & Légumes',
+    keywords: ['pomme', 'apple', 'banane', 'banana', 'orange', 'citron', 'lemon', 'mangue', 'mango',
+               'ananas', 'pineapple', 'avocat', 'avocado', 'tomate', 'tomato', 'carotte', 'carrot',
+               'oignon', 'onion', 'ail', 'garlic', 'salade', 'lettuce', 'chou', 'cabbage', 'haricot', 'bean',
+               'pomme de terre', 'potato', 'patate', 'epinard', 'spinach', 'concombre', 'cucumber',
+               'poivron', 'pepper', 'aubergine', 'eggplant', 'courgette', 'zucchini', 'raisin', 'grape',
+               'pastèque', 'watermelon', 'melon', 'papaye', 'papaya', 'goyave', 'guava', 'noix de coco', 'coconut',
+               'limboko', 'liboke', 'matunda', 'viazi', 'kitunguu', 'nyanya', 'mboga'],
+    searchTerms: ['fruit', 'legume', 'vegetable', 'produce', 'frais', 'fresh'],
+  },
+  'hygiene': {
+    category: 'Hygiène',
+    keywords: ['savon', 'soap', 'shampooing', 'shampoo', 'dentifrice', 'toothpaste', 'brosse', 'brush',
+               'papier toilette', 'toilet paper', 'serviette', 'towel', 'deodorant', 'gel douche', 'shower gel',
+               'lotion', 'creme', 'cream', 'parfum', 'perfume', 'coton', 'cotton', 'rasoir', 'razor',
+               'savuni', 'detergent', 'lessive', 'lingette', 'wipe'],
+    searchTerms: ['hygiene', 'toilette', 'soin', 'care', 'beaute', 'beauty', 'proprete', 'clean'],
+  },
+  'menage': {
+    category: 'Ménage',
+    keywords: ['javel', 'bleach', 'detergent', 'lessive', 'laundry', 'eponge', 'sponge', 'balai', 'broom',
+               'seau', 'bucket', 'serpilliere', 'mop', 'torchon', 'cloth', 'poubelle', 'trash', 'sac poubelle',
+               'insecticide', 'desodorisant', 'air freshener', 'makala', 'charbon', 'charcoal'],
+    searchTerms: ['menage', 'household', 'nettoyage', 'cleaning', 'maison', 'home', 'entretien', 'maintenance'],
+  },
+  'bebe': {
+    category: 'Bébé',
+    keywords: ['couche', 'diaper', 'nappy', 'pampers', 'biberon', 'bottle', 'lait bebe', 'baby formula',
+               'lingette bebe', 'baby wipe', 'sucette', 'pacifier', 'tetine', 'cereale bebe', 'baby cereal',
+               'huggies', 'molfix'],
+    searchTerms: ['bebe', 'baby', 'enfant', 'child', 'nourrisson', 'infant'],
+  },
+  'electronique': {
+    category: 'Électronique',
+    keywords: ['pile', 'battery', 'chargeur', 'charger', 'cable', 'ecouteur', 'earphone', 'lampe', 'lamp',
+               'ampoule', 'bulb', 'torch', 'torche', 'flashlight', 'radio', 'telephone', 'phone'],
+    searchTerms: ['electronique', 'electronic', 'electric', 'electrique', 'appareil', 'device'],
+  },
+};
+
+/**
+ * Detect category and generate search keywords for an item
+ * Returns category name and array of related search keywords
+ */
+function detectCategoryAndKeywords(name: string): { category: string | null; searchKeywords: string[] } {
+  const normalizedName = name.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  const foundKeywords: string[] = [];
+  let detectedCategory: string | null = null;
+  
+  // Check each category
+  for (const [, config] of Object.entries(CATEGORY_KEYWORDS_MAP)) {
+    // Check if item name contains any keywords from this category
+    for (const keyword of config.keywords) {
+      if (normalizedName.includes(keyword) || keyword.includes(normalizedName)) {
+        detectedCategory = config.category;
+        // Add category search terms as keywords
+        foundKeywords.push(...config.searchTerms);
+        // Also add the category name in both languages
+        foundKeywords.push(config.category.toLowerCase());
+        break;
+      }
+    }
+    if (detectedCategory) break;
+  }
+  
+  // Also check for specific product types (wine brands -> wine keywords)
+  const wineVarieties = ['merlot', 'cabernet', 'chardonnay', 'sauvignon', 'pinot', 'medco', 'riesling', 'shiraz', 'malbec'];
+  const beerBrands = ['heineken', 'primus', 'skol', 'tembo', 'castel', 'ngok', 'nkoyi', 'simba', 'mutzig', 'stella', 'budweiser'];
+  const sodaBrands = ['coca', 'fanta', 'sprite', 'pepsi', 'schweppes', 'orangina', 'mirinda'];
+  
+  // Wine varieties -> add wine keywords
+  if (wineVarieties.some(v => normalizedName.includes(v))) {
+    foundKeywords.push('vin', 'wine', 'alcool', 'alcohol', 'boisson', 'drink');
+    if (!detectedCategory) detectedCategory = 'Boissons';
+  }
+  
+  // Beer brands -> add beer keywords
+  if (beerBrands.some(b => normalizedName.includes(b))) {
+    foundKeywords.push('biere', 'beer', 'alcool', 'alcohol', 'boisson', 'drink');
+    if (!detectedCategory) detectedCategory = 'Boissons';
+  }
+  
+  // Soda brands -> add soda keywords
+  if (sodaBrands.some(s => normalizedName.includes(s))) {
+    foundKeywords.push('soda', 'boisson', 'drink', 'soft', 'gazeuse');
+    if (!detectedCategory) detectedCategory = 'Boissons';
+  }
+  
+  // Remove duplicates
+  const uniqueKeywords = Array.from(new Set(foundKeywords));
+  
+  return {
+    category: detectedCategory,
+    searchKeywords: uniqueKeywords,
+  };
 }
 
 /**
@@ -948,8 +1104,9 @@ export const aggregateItemsOnReceipt = functions
             const existingCityName = cityData.name || '';
             const newCityName = item.name || '';
             const bestCityName = newCityName.length > existingCityName.length ? newCityName : existingCityName;
-
-            batch.update(cityItemRef, {
+            
+            // Detect/update category and search keywords if not already set
+            const updateData: Record<string, any> = {
               name: bestCityName,
               prices: updatedCityPrices,
               minPrice,
@@ -963,10 +1120,27 @@ export const aggregateItemsOnReceipt = functions
               lastPurchaseDate: receiptDate,
               city: userCity,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            };
+            
+            // Add category and searchKeywords if not already present
+            const cityDataAny = cityData as any;
+            if (!cityDataAny.category || !cityDataAny.searchKeywords) {
+              const { category, searchKeywords } = detectCategoryAndKeywords(bestCityName);
+              if (category && !cityDataAny.category) {
+                updateData.category = category;
+              }
+              if (searchKeywords.length > 0 && !cityDataAny.searchKeywords) {
+                updateData.searchKeywords = searchKeywords;
+              }
+            }
+
+            batch.update(cityItemRef, updateData);
           } else {
             // Create new city item
-            const newCityItem = {
+            // Detect category and search keywords for enhanced search
+            const { category, searchKeywords } = detectCategoryAndKeywords(item.name);
+            
+            const newCityItem: Record<string, any> = {
               id: itemNameNormalized,
               name: item.name,
               nameNormalized: itemNameNormalized,
@@ -984,6 +1158,16 @@ export const aggregateItemsOnReceipt = functions
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
+            
+            // Add category if detected
+            if (category) {
+              newCityItem.category = category;
+            }
+            
+            // Add search keywords if found
+            if (searchKeywords.length > 0) {
+              newCityItem.searchKeywords = searchKeywords;
+            }
 
             batch.set(cityItemRef, newCityItem);
           }
@@ -1385,5 +1569,100 @@ export const getCityItems = functions
         message: `Unable to load items for ${city}. Please try again later.`,
         error: error?.message || 'Unknown error',
       };
+    }
+  });
+
+/**
+ * Backfill existing city items with category and searchKeywords
+ * Call this function once to update all existing items
+ */
+export const backfillCityItemCategories = functions
+  .region('europe-west1')
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .https.onCall(async (data, context) => {
+    // Only allow admin users to run this
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { city, dryRun = false } = data;
+
+    if (!city) {
+      throw new functions.https.HttpsError('invalid-argument', 'City parameter is required');
+    }
+
+    try {
+      console.log(`🔄 Starting category backfill for city: ${city}, dryRun: ${dryRun}`);
+      
+      const cityItemsRef = db.collection(`artifacts/${config.app.id}/cityItems/${city}/items`);
+      const snapshot = await cityItemsRef.get();
+      
+      if (snapshot.empty) {
+        return { success: true, message: `No items found for city ${city}`, updated: 0 };
+      }
+
+      let updatedCount = 0;
+      let skippedCount = 0;
+      const batch = db.batch();
+      const updates: { name: string; category: string | null; keywords: string[] }[] = [];
+
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+        
+        // Skip if already has category and searchKeywords
+        if (data.category && data.searchKeywords && data.searchKeywords.length > 0) {
+          skippedCount++;
+          continue;
+        }
+
+        // Detect category and keywords
+        const { category, searchKeywords } = detectCategoryAndKeywords(data.name);
+        
+        updates.push({
+          name: data.name,
+          category,
+          keywords: searchKeywords,
+        });
+
+        if (!dryRun) {
+          const updateData: Record<string, any> = {};
+          
+          if (category && !data.category) {
+            updateData.category = category;
+          }
+          
+          if (searchKeywords.length > 0 && (!data.searchKeywords || data.searchKeywords.length === 0)) {
+            updateData.searchKeywords = searchKeywords;
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            batch.update(doc.ref, updateData);
+            updatedCount++;
+          }
+        } else {
+          if (category || searchKeywords.length > 0) {
+            updatedCount++;
+          }
+        }
+      }
+
+      if (!dryRun && updatedCount > 0) {
+        await batch.commit();
+      }
+
+      console.log(`✅ Category backfill complete for ${city}: updated ${updatedCount}, skipped ${skippedCount}`);
+
+      return {
+        success: true,
+        city,
+        totalItems: snapshot.size,
+        updated: updatedCount,
+        skipped: skippedCount,
+        dryRun,
+        sampleUpdates: updates.slice(0, 20), // Return first 20 for review
+      };
+    } catch (error: any) {
+      console.error('Error in category backfill:', error);
+      throw new functions.https.HttpsError('internal', error.message);
     }
   });

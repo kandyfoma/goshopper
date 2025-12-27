@@ -54,7 +54,7 @@ function getGeminiAI() {
     if (!genAI) {
         const apiKey = process.env.GEMINI_API_KEY || config_1.config.gemini.apiKey;
         if (!apiKey) {
-            throw new Error('GEMINI_API_KEY not configured');
+            throw new Error('Service d\'analyse non configuré');
         }
         genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
     }
@@ -339,30 +339,37 @@ const PARSING_PROMPT = `You are an expert receipt/invoice OCR and data extractio
 4. Focus ONLY on printed receipts from cash registers or printers
 5. If you see both printed and handwritten totals, USE ONLY THE PRINTED ONE
 
+⚠️ CRITICAL: TEXT SPACING:
+6. DO NOT add extra spaces within words
+7. "BAG" should be "BAG", NOT "B AG" or "B A G"
+8. "TOMATES" should be "TOMATES", NOT "TOMATE S" or "T OMATES"
+9. Keep product names as continuous words WITHOUT artificial spacing
+10. Only use spaces between SEPARATE words, not within a single word
+
 ⚠️ HANDLING INVISIBLE/FADED ITEMS:
-6. If item name is invisible/faded BUT price is visible → Use "Unavailable name" as item name
-7. If BOTH item name AND price are invisible/faded → SKIP that item entirely
-8. Always ensure the total amount matches the receipt, even if some items are skipped
+11. If item name is invisible/faded BUT price is visible → Use "Unavailable name" as item name
+12. If BOTH item name AND price are invisible/faded → SKIP that item entirely
+13. Always ensure the total amount matches the receipt, even if some items are skipped
 
 ⚠️ CRITICAL: FINDING THE CORRECT TOTAL AMOUNT:
-9. DO NOT just take the last number at the bottom of the receipt
-10. LOOK FOR TEXT LABELS that indicate the total amount:
+14. DO NOT just take the last number at the bottom of the receipt
+15. LOOK FOR TEXT LABELS that indicate the total amount:
    - "TOTAL" or "Total" or "total"
    - "MONTANT A PAYER" or "Montant à payer" 
    - "TOTAL A PAYER" or "Total à payer"
    - "NET A PAYER" or "Net à payer"
    - "AMOUNT DUE" or "Amount Due"
    - "GRAND TOTAL"
-11. The number next to or below these labels is the ACTUAL TOTAL
-12. IGNORE other numbers at the bottom like:
+16. The number next to or below these labels is the ACTUAL TOTAL
+17. IGNORE other numbers at the bottom like:
    - Customer numbers
    - Transaction IDs
    - Receipt numbers
    - Payment reference numbers
    - Change given ("Monnaie")
    - Amount tendered ("Montant reçu")
-13. If you see "Subtotal" and "Total", use the "Total" (which includes tax)
-14. The total MUST match the sum of all item prices (within small rounding tolerance)
+18. If you see "Subtotal" and "Total", use the "Total" (which includes tax)
+19. The total MUST match the sum of all item prices (within small rounding tolerance)
 
 You MUST extract the ACTUAL machine-printed text visible in the image. DO NOT use placeholder text like "Test Store", "Item 1", "Item 2", etc.
 
@@ -380,7 +387,7 @@ Return ONLY a valid JSON object with double quotes around all property names and
   "currency": "USD or CDF based on currency symbols in receipt",
   "items": [
     {
-      "name": "EXACT product name as written on receipt",
+      "name": "EXACT product name as ONE word or phrase WITHOUT extra spaces (e.g., BAG not B AG)",
       "quantity": ACTUAL_NUMBER,
       "unitPrice": ACTUAL_PRICE,
       "totalPrice": ACTUAL_TOTAL,
@@ -448,16 +455,193 @@ function generateItemId() {
     return Math.random().toString(36).substring(2, 15);
 }
 /**
+ * Clean item name from OCR spacing errors
+ * Fixes common AI vision issues like "B AG" -> "BAG", "TOMATE S" -> "TOMATES"
+ */
+function cleanItemName(name) {
+    if (!name)
+        return name;
+    let cleaned = name.trim();
+    // === FIX 1: Remove spaces between single letter and rest of word ===
+    // "B AG" -> "BAG", "S AC" -> "SAC", "R IZ" -> "RIZ"
+    cleaned = cleaned.replace(/\b([A-Za-z])\s+([A-Za-z]{2,})\b/g, '$1$2');
+    // === FIX 2: Remove spaces before last letter ===
+    // "TOMATE S" -> "TOMATES", "BANANE S" -> "BANANES"
+    cleaned = cleaned.replace(/\b([A-Za-z]{2,})\s+([A-Za-z])\b/g, '$1$2');
+    // === FIX 3: Fix common split words (comprehensive list) ===
+    const splitWordFixes = [
+        // Common French words
+        [/\bB\s*A\s*G\b/gi, 'BAG'],
+        [/\bS\s*A\s*C\b/gi, 'SAC'],
+        [/\bR\s*I\s*Z\b/gi, 'RIZ'],
+        [/\bE\s*A\s*U\b/gi, 'EAU'],
+        [/\bV\s*I\s*N\b/gi, 'VIN'],
+        [/\bL\s*A\s*I\s*T\b/gi, 'LAIT'],
+        [/\bP\s*A\s*I\s*N\b/gi, 'PAIN'],
+        [/\bS\s*E\s*L\b/gi, 'SEL'],
+        [/\bT\s*H\s*E\b/gi, 'THE'],
+        [/\bC\s*A\s*F\s*E\b/gi, 'CAFE'],
+        [/\bH\s*U\s*I\s*L\s*E\b/gi, 'HUILE'],
+        [/\bS\s*U\s*C\s*R\s*E\b/gi, 'SUCRE'],
+        [/\bB\s*E\s*U\s*R\s*R\s*E\b/gi, 'BEURRE'],
+        [/\bF\s*R\s*O\s*M\s*A\s*G\s*E\b/gi, 'FROMAGE'],
+        [/\bP\s*O\s*U\s*L\s*E\s*T\b/gi, 'POULET'],
+        [/\bV\s*I\s*A\s*N\s*D\s*E\b/gi, 'VIANDE'],
+        [/\bP\s*O\s*I\s*S\s*S\s*O\s*N\b/gi, 'POISSON'],
+        [/\bL\s*E\s*G\s*U\s*M\s*E\s*S?\b/gi, 'LEGUMES'],
+        [/\bF\s*R\s*U\s*I\s*T\s*S?\b/gi, 'FRUITS'],
+        [/\bT\s*O\s*M\s*A\s*T\s*E\s*S?\b/gi, 'TOMATES'],
+        [/\bB\s*A\s*N\s*A\s*N\s*E\s*S?\b/gi, 'BANANES'],
+        [/\bO\s*R\s*A\s*N\s*G\s*E\s*S?\b/gi, 'ORANGES'],
+        [/\bO\s*I\s*G\s*N\s*O\s*N\s*S?\b/gi, 'OIGNONS'],
+        [/\bS\s*A\s*V\s*O\s*N\b/gi, 'SAVON'],
+        [/\bF\s*A\s*R\s*I\s*N\s*E\b/gi, 'FARINE'],
+        [/\bP\s*A\s*T\s*E\s*S?\b/gi, 'PATES'],
+        [/\bS\s*P\s*R\s*I\s*T\s*E\b/gi, 'SPRITE'],
+        [/\bF\s*A\s*N\s*T\s*A\b/gi, 'FANTA'],
+        [/\bC\s*O\s*C\s*A\b/gi, 'COCA'],
+        [/\bC\s*O\s*L\s*A\b/gi, 'COLA'],
+        [/\bB\s*I\s*E\s*R\s*E\b/gi, 'BIERE'],
+        [/\bY\s*A\s*O\s*U\s*R\s*T\b/gi, 'YAOURT'],
+        [/\bC\s*R\s*E\s*M\s*E\b/gi, 'CREME'],
+        [/\bO\s*E\s*U\s*F\s*S?\b/gi, 'OEUFS'],
+        [/\bP\s*O\s*M\s*M\s*E\s*S?\b/gi, 'POMMES'],
+        [/\bP\s*O\s*I\s*V\s*R\s*E\b/gi, 'POIVRE'],
+        [/\bM\s*A\s*Y\s*O\b/gi, 'MAYO'],
+        [/\bK\s*E\s*T\s*C\s*H\s*U\s*P\b/gi, 'KETCHUP'],
+        [/\bS\s*A\s*U\s*C\s*E\b/gi, 'SAUCE'],
+        [/\bJ\s*U\s*S\b/gi, 'JUS'],
+        [/\bS\s*O\s*D\s*A\b/gi, 'SODA'],
+        // English common words
+        [/\bM\s*I\s*L\s*K\b/gi, 'MILK'],
+        [/\bB\s*R\s*E\s*A\s*D\b/gi, 'BREAD'],
+        [/\bR\s*I\s*C\s*E\b/gi, 'RICE'],
+        [/\bO\s*I\s*L\b/gi, 'OIL'],
+        [/\bS\s*A\s*L\s*T\b/gi, 'SALT'],
+        [/\bS\s*U\s*G\s*A\s*R\b/gi, 'SUGAR'],
+        [/\bW\s*A\s*T\s*E\s*R\b/gi, 'WATER'],
+        [/\bJ\s*U\s*I\s*C\s*E\b/gi, 'JUICE'],
+        [/\bB\s*E\s*E\s*R\b/gi, 'BEER'],
+        [/\bC\s*H\s*E\s*E\s*S\s*E\b/gi, 'CHEESE'],
+        [/\bB\s*U\s*T\s*T\s*E\s*R\b/gi, 'BUTTER'],
+        [/\bC\s*H\s*I\s*C\s*K\s*E\s*N\b/gi, 'CHICKEN'],
+        [/\bF\s*I\s*S\s*H\b/gi, 'FISH'],
+        [/\bM\s*E\s*A\s*T\b/gi, 'MEAT'],
+        [/\bS\s*O\s*A\s*P\b/gi, 'SOAP'],
+        [/\bF\s*L\s*O\s*U\s*R\b/gi, 'FLOUR'],
+        // Brands
+        [/\bN\s*I\s*D\s*O\b/gi, 'NIDO'],
+        [/\bM\s*A\s*G\s*G\s*I\b/gi, 'MAGGI'],
+        [/\bN\s*E\s*S\s*T\s*L\s*E\b/gi, 'NESTLE'],
+        [/\bP\s*E\s*P\s*S\s*I\b/gi, 'PEPSI'],
+        [/\bP\s*R\s*I\s*M\s*U\s*S\b/gi, 'PRIMUS'],
+        [/\bS\s*K\s*O\s*L\b/gi, 'SKOL'],
+        [/\bT\s*E\s*M\s*B\s*O\b/gi, 'TEMBO'],
+    ];
+    for (const [pattern, replacement] of splitWordFixes) {
+        cleaned = cleaned.replace(pattern, replacement);
+    }
+    // === FIX 4: General pattern - remove single spaces between letters in ALL CAPS words ===
+    // "P E L O U S T O R E" -> "PELOUSTORE"
+    // But only if the result looks like a word (consecutive letters)
+    cleaned = cleaned.replace(/\b([A-Z](?:\s[A-Z]){2,})\b/g, (match) => {
+        return match.replace(/\s/g, '');
+    });
+    // === FIX 5: Clean up multiple spaces ===
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    return cleaned;
+}
+/**
  * Normalize product name for matching
  */
 function normalizeProductName(name) {
-    return name
+    let normalized = name
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove accents
         .replace(/[^a-z0-9\s]/g, '') // Remove special chars
         .replace(/\s+/g, ' ') // Normalize spaces
         .trim();
+    // Fix OCR spacing errors in common words
+    normalized = normalized
+        .replace(/\bb\s+ag\b/gi, 'bag') // "b ag" -> "bag"
+        .replace(/\bs\s+ac\b/gi, 'sac') // "s ac" -> "sac"
+        .replace(/\br\s+iz\b/gi, 'riz') // "r iz" -> "riz"
+        .replace(/\bl\s+ait\b/gi, 'lait') // "l ait" -> "lait"
+        .replace(/\be\s+au\b/gi, 'eau') // "e au" -> "eau"
+        .replace(/\bh\s+uile\b/gi, 'huile') // "h uile" -> "huile"
+        .replace(/\bs\s+ucre\b/gi, 'sucre') // "s ucre" -> "sucre"
+        .replace(/\bp\s+ain\b/gi, 'pain') // "p ain" -> "pain"
+        .replace(/\bv\s+in\b/gi, 'vin') // "v in" -> "vin"
+        .trim();
+    return normalized;
+}
+/**
+ * Check if two product names are similar (fuzzy match)
+ * This catches OCR errors like "Bag a lilac" vs "Bag alilac"
+ */
+function areProductNamesSimilar(name1, name2) {
+    // Normalize by removing ALL spaces for comparison
+    const noSpace1 = name1.replace(/\s+/g, '');
+    const noSpace2 = name2.replace(/\s+/g, '');
+    // If they're identical without spaces, they're the same item
+    if (noSpace1 === noSpace2) {
+        return true;
+    }
+    // If one name is a substring of the other, they're similar
+    if (name1.includes(name2) || name2.includes(name1)) {
+        return true;
+    }
+    // Calculate simple character-based similarity
+    const longer = noSpace1.length > noSpace2.length ? noSpace1 : noSpace2;
+    const shorter = noSpace1.length > noSpace2.length ? noSpace2 : noSpace1;
+    // If lengths differ by more than 30%, probably different items
+    if (longer.length > shorter.length * 1.3) {
+        return false;
+    }
+    // Count matching characters
+    let matches = 0;
+    for (let i = 0; i < shorter.length; i++) {
+        if (longer.includes(shorter[i])) {
+            matches++;
+        }
+    }
+    // If 80%+ characters match, consider similar
+    return matches / shorter.length >= 0.8;
+}
+/**
+ * Deduplicate items by similar name + same/similar price
+ */
+function deduplicateItems(items) {
+    const uniqueItems = [];
+    for (const item of items) {
+        let isDuplicate = false;
+        for (let i = 0; i < uniqueItems.length; i++) {
+            const existing = uniqueItems[i];
+            // Check if prices are similar (within 1% or same)
+            const priceDiff = Math.abs(existing.unitPrice - item.unitPrice);
+            const pricesSimilar = priceDiff < 0.01 ||
+                (existing.unitPrice > 0 && priceDiff / existing.unitPrice < 0.01);
+            // Check if names are similar
+            if (pricesSimilar && areProductNamesSimilar(existing.nameNormalized, item.nameNormalized)) {
+                // Keep the longer/more complete name
+                if (item.name.length > existing.name.length) {
+                    uniqueItems[i] = {
+                        ...existing,
+                        name: item.name,
+                        nameNormalized: item.nameNormalized,
+                    };
+                }
+                isDuplicate = true;
+                console.log(`🔄 Merged duplicate: "${item.name}" with "${existing.name}"`);
+                break;
+            }
+        }
+        if (!isDuplicate) {
+            uniqueItems.push(item);
+        }
+    }
+    return uniqueItems;
 }
 /**
  * Normalize store name
@@ -550,6 +734,13 @@ CRITICAL VIDEO SCANNING INSTRUCTIONS:
 5. Prices are on the RIGHT side of each line
 6. ONLY read MACHINE-PRINTED text - IGNORE any handwritten text
 
+⚠️ CRITICAL: TEXT SPACING - DO NOT ADD EXTRA SPACES:
+- "BAG" should be "BAG", NOT "B AG" or "B A G"
+- "TOMATES" should be "TOMATES", NOT "TOMATE S" or "T OMATES"
+- "RIZ" should be "RIZ", NOT "R IZ"
+- Keep product names as continuous words without artificial spacing
+- Only use spaces between SEPARATE words, not within a single word
+
 ⚠️ CRITICAL: FINDING THE CORRECT TOTAL AMOUNT:
 - DO NOT just take the last number at the bottom of the receipt
 - LOOK FOR TEXT LABELS that indicate the total amount:
@@ -628,7 +819,7 @@ CRITICAL OUTPUT RULES:
                 },
             });
             // Reduced timeout for video processing - fail fast
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini video API timeout')), 60000)); // 60s timeout (reduced from 90s)
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 60000)); // 60s timeout (reduced from 90s)
             const resultPromise = model.generateContent([
                 VIDEO_PARSING_PROMPT,
                 {
@@ -716,7 +907,7 @@ CRITICAL OUTPUT RULES:
             catch (parseError) {
                 console.error('Video JSON parse error:', parseError);
                 console.error('Failed JSON string:', jsonStr.substring(0, 500));
-                throw new Error(`Failed to parse video response: ${jsonStr.substring(0, 200)}`);
+                throw new Error('Impossible de lire la vidéo. Veuillez réessayer plus lentement.');
             }
             // Transform and validate the result
             // Handle cases where Gemini returns "null" as a string
@@ -724,6 +915,24 @@ CRITICAL OUTPUT RULES:
             const storeName = storeNameRaw && storeNameRaw !== 'null' && storeNameRaw !== 'undefined'
                 ? storeNameRaw
                 : 'Magasin inconnu';
+            // Parse items first - clean OCR spacing errors
+            const rawItems = (parsed.items || []).map((item, index) => {
+                const cleanedName = cleanItemName(item.name || 'Article inconnu');
+                return {
+                    id: `item_${index}`,
+                    name: cleanedName,
+                    nameNormalized: normalizeProductName(cleanedName),
+                    quantity: Number(item.quantity) || 1,
+                    unitPrice: Number(item.unitPrice) || 0,
+                    totalPrice: Number(item.totalPrice) || 0,
+                    unit: item.unit || 'pièce',
+                    category: item.category,
+                    confidence: Number(item.confidence) || 0.8,
+                };
+            });
+            // Deduplicate items
+            const deduplicatedItems = deduplicateItems(rawItems);
+            console.log(`📦 Video deduplication: ${rawItems.length} items -> ${deduplicatedItems.length} unique items`);
             const receipt = {
                 storeName: storeName,
                 storeNameNormalized: normalizeStoreName(storeName),
@@ -732,17 +941,7 @@ CRITICAL OUTPUT RULES:
                 receiptNumber: parsed.receiptNumber,
                 date: parsed.date || new Date().toISOString().split('T')[0],
                 currency: parsed.currency === 'USD' ? 'USD' : 'CDF',
-                items: (parsed.items || []).map((item, index) => ({
-                    id: `item_${index}`,
-                    name: item.name || 'Article inconnu',
-                    nameNormalized: (item.name || '').toLowerCase().trim(),
-                    quantity: Number(item.quantity) || 1,
-                    unitPrice: Number(item.unitPrice) || 0,
-                    totalPrice: Number(item.totalPrice) || 0,
-                    unit: item.unit || 'pièce',
-                    category: item.category,
-                    confidence: Number(item.confidence) || 0.8,
-                })),
+                items: deduplicatedItems,
                 subtotal: parsed.subtotal ? Number(parsed.subtotal) : undefined,
                 tax: parsed.tax ? Number(parsed.tax) : undefined,
                 total: Number(parsed.total) || 0,
@@ -829,7 +1028,7 @@ async function parseWithGemini(imageBase64, mimeType) {
                 },
             });
             // Set timeout for Gemini API call
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini API timeout')), 45000)); // 45s
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 45000)); // 45s
             const resultPromise = model.generateContent([
                 PARSING_PROMPT,
                 {
@@ -872,15 +1071,13 @@ async function parseWithGemini(imageBase64, mimeType) {
                 console.error('JSON parse error:', parseError);
                 console.error('Raw Gemini response:', text);
                 console.error('Cleaned JSON:', jsonStr);
-                // Try to extract partial data or provide fallback
-                const errorMessage = parseError instanceof Error
-                    ? parseError.message
-                    : String(parseError);
-                throw new Error(`Failed to parse Gemini response as JSON: ${errorMessage}. Raw response: ${text.substring(0, 200)}`);
+                // Log the actual parse error for debugging
+                console.error('Parse error details:', parseError instanceof Error ? parseError.message : String(parseError));
+                throw new Error(`Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.`);
             }
             // Validate parsed data structure
             if (!parsed || typeof parsed !== 'object') {
-                throw new Error('Gemini response is not a valid object');
+                throw new Error('Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.');
             }
             if (!parsed.storeName && !parsed.items) {
                 console.warn('Gemini response missing required fields:', parsed);
@@ -917,10 +1114,11 @@ async function parseWithGemini(imageBase64, mimeType) {
                 const quantity = parseNumericValue(item.quantity) || 1;
                 const unitPrice = parseNumericValue(item.unitPrice);
                 const totalPrice = parseNumericValue(item.totalPrice) || quantity * unitPrice;
+                const cleanedName = cleanItemName(item.name || 'Unknown Item');
                 return {
                     id: generateItemId(),
-                    name: item.name || 'Unknown Item',
-                    nameNormalized: normalizeProductName(item.name || ''),
+                    name: cleanedName,
+                    nameNormalized: normalizeProductName(cleanedName),
                     quantity,
                     unitPrice,
                     totalPrice,
@@ -929,6 +1127,9 @@ async function parseWithGemini(imageBase64, mimeType) {
                     confidence: 0.85, // Default confidence for Gemini parsing
                 };
             });
+            // Deduplicate items by similar name + same price
+            const deduplicatedItems = deduplicateItems(items);
+            console.log(`📦 Deduplication: ${items.length} items -> ${deduplicatedItems.length} unique items`);
             // Build parsed receipt - exclude undefined fields for Firestore compatibility
             // Handle cases where Gemini returns "null" as a string
             const storeNameRaw = parsed.storeName;
@@ -943,9 +1144,9 @@ async function parseWithGemini(imageBase64, mimeType) {
                 receiptNumber: parsed.receiptNumber || null,
                 date: parsed.date || new Date().toISOString().split('T')[0],
                 currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
-                items,
+                items: deduplicatedItems,
                 total: parseNumericValue(parsed.total) ||
-                    items.reduce((sum, item) => sum + item.totalPrice, 0),
+                    deduplicatedItems.reduce((sum, item) => sum + item.totalPrice, 0),
             };
             // Only add optional numeric fields if they have valid values
             const subtotalValue = parseNumericValue(parsed.subtotal);
@@ -979,7 +1180,7 @@ async function parseWithGemini(imageBase64, mimeType) {
                 throw new functions.https.HttpsError('invalid-argument', 'Image inappropriée détectée. Veuillez scanner un reçu valide.');
             }
             if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('timeout')) {
-                console.warn(`Gemini timeout on attempt ${attempt + 1}`);
+                console.warn(`Service timeout on attempt ${attempt + 1}`);
                 if (attempt < MAX_RETRIES) {
                     await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Exponential backoff
                     continue;
@@ -995,7 +1196,7 @@ async function parseWithGemini(imageBase64, mimeType) {
         }
     }
     throw (lastError ||
-        new functions.https.HttpsError('internal', 'Failed to parse receipt after retries'));
+        new functions.https.HttpsError('internal', 'Impossible de traiter ce reçu après plusieurs tentatives. Veuillez réessayer avec une photo plus claire.'));
 }
 /**
  * Callable function to parse receipt
@@ -1139,9 +1340,17 @@ exports.parseReceipt = functions
         if (error instanceof functions.https.HttpsError) {
             throw error;
         }
-        // Return more detailed error for debugging
+        // Return user-friendly error message without exposing internal details
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        throw new functions.https.HttpsError('internal', `Failed to parse receipt: ${errorMessage}`);
+        // Check for common error patterns and provide helpful messages
+        if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
+            throw new functions.https.HttpsError('internal', 'Le reçu est difficile à lire. Veuillez réessayer avec une image plus claire et un meilleur éclairage.');
+        }
+        if (errorMessage.includes('timeout') || errorMessage.includes('trop de temps')) {
+            throw new functions.https.HttpsError('deadline-exceeded', 'Le traitement a pris trop de temps. Réessayez avec une image plus petite.');
+        }
+        // Generic error for all other cases
+        throw new functions.https.HttpsError('internal', 'Impossible de traiter ce reçu. Veuillez réessayer avec une photo plus claire.');
     }
 });
 /**
@@ -1352,7 +1561,7 @@ exports.parseReceiptV2 = functions
     }
     catch (error) {
         console.error('Multi-page receipt parsing error:', error);
-        res.status(500).send('Failed to parse receipt');
+        res.status(500).send('Impossible de traiter ce reçu. Veuillez réessayer.');
     }
 });
 /**
@@ -1424,7 +1633,12 @@ exports.parseReceiptMulti = functions
         if (error instanceof functions.https.HttpsError) {
             throw error;
         }
-        throw new functions.https.HttpsError('internal', error.message || 'Failed to parse receipt');
+        // User-friendly error message
+        const errorMsg = error.message || '';
+        if (errorMsg.includes('JSON') || errorMsg.includes('parse')) {
+            throw new functions.https.HttpsError('internal', 'Le reçu est difficile à lire. Veuillez réessayer avec une image plus claire.');
+        }
+        throw new functions.https.HttpsError('internal', 'Impossible de traiter ce reçu. Veuillez réessayer avec une photo plus claire.');
     }
 });
 /**

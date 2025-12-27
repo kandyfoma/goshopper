@@ -572,8 +572,7 @@ export function UnifiedScannerScreen() {
         return;
       }
 
-      // Record scan usage
-      await recordScan();
+      // Note: Scan usage is already recorded atomically by the Cloud Function
 
       scanProcessing.updateProgress(90, 'Finalisation...');
 
@@ -700,8 +699,7 @@ export function UnifiedScannerScreen() {
           }).catch(err => console.log('Failed to track shopping patterns:', err));
         }
 
-        // Record scan usage
-        await recordScan();
+        // Note: Scan usage is already recorded atomically by the Cloud Function
 
         analyticsService.logCustomEvent('scan_completed_background', {
           success: true,

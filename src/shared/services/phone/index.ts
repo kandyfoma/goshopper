@@ -1,5 +1,6 @@
 // Phone number validation and checking service
 import firestore from '@react-native-firebase/firestore';
+import { APP_ID } from '../firebase/config';
 
 export class PhoneService {
   /**
@@ -38,12 +39,23 @@ export class PhoneService {
     try {
       console.log('🔍 Checking if phone exists:', phoneNumber);
       
-      // Query userProfiles collection for existing phone number
-      const profilesRef = firestore().collection('userProfiles');
-      const snapshot = await profilesRef.where('phoneNumber', '==', phoneNumber).limit(1).get();
+      // Query the correct users collection path: artifacts/{APP_ID}/users
+      const usersRef = firestore()
+        .collection('artifacts')
+        .doc(APP_ID)
+        .collection('users');
+      
+      const snapshot = await usersRef
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get();
       
       const exists = !snapshot.empty;
       console.log(`📱 Phone ${phoneNumber} exists:`, exists);
+      
+      if (exists && !snapshot.empty) {
+        console.log('👤 Existing user found with userId:', snapshot.docs[0].id);
+      }
       
       return exists;
     } catch (error) {

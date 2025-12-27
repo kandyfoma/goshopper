@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   FlatList,
+  Modal as RNModal,
 } from 'react-native';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -23,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Modal, Button, MainLayout} from '@/shared/components';
+import {Icon, Modal, Button, MainLayout, BackButton} from '@/shared/components';
 import {PhoneService} from '@/shared/services/phone';
 import {countryCodeList} from '@/shared/constants/countries';
 import {
@@ -34,7 +35,10 @@ import {
   CityData,
 } from '@/shared/constants/cities';
 import firestore from '@react-native-firebase/firestore';
+import messaging from '@react-native-firebase/messaging';
+import functions from '@react-native-firebase/functions';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {getFCMToken, requestNotificationPermission} from '@/shared/services/notificationService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileSetupRouteProp = RouteProp<RootStackParamList, 'ProfileSetup'>;
@@ -42,8 +46,18 @@ type ProfileSetupRouteProp = RouteProp<RootStackParamList, 'ProfileSetup'>;
 export function ProfileSetupScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ProfileSetupRouteProp>();
-  const {user} = useAuth();
+  const {user, signOut} = useAuth();
   const {showToast} = useToast();
+
+  // Handle back button press
+  const handleBackPress = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // If no screen to go back to, sign out the user
+      signOut();
+    }
+  };
 
   // Extract names from displayName if available
   const extractNamesFromDisplayName = (displayName: string | null) => {
@@ -93,6 +107,15 @@ export function ProfileSetupScreen() {
     city?: string;
   }>({});
 
+  // Reset phone exists check when country code changes
+  useEffect(() => {
+    setPhoneExists(false);
+    setErrors(prev => ({
+      ...prev,
+      phoneNumber: undefined,
+    }));
+  }, [selectedCountry.code]);
+
   // Check if names are pre-filled from social login
   const namesPreFilled = !!(
     route.params?.firstName || displayNameParts.firstName
@@ -102,12 +125,29 @@ export function ProfileSetupScreen() {
   const checkPhoneExists = useCallback(async (phone: string) => {
     if (!phone || phone.length < 8) {
       setPhoneExists(false);
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: phone.length > 0 && phone.length < 8 ? 'Le numéro doit contenir au moins 8 chiffres' : undefined,
+      }));
       return;
     }
 
+    // Format and validate the phone number first
+    const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phone);
+    const isValid = PhoneService.validatePhoneNumber(formattedPhone);
+    
+    if (!isValid) {
+      setPhoneExists(false);
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: 'Format de numéro de téléphone invalide',
+      }));
+      return;
+    }
+
+    // Only check if exists after validating format
     setIsCheckingPhone(true);
     try {
-      const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phone);
       const exists = await PhoneService.checkPhoneExists(formattedPhone);
       setPhoneExists(exists);
       
@@ -138,6 +178,12 @@ export function ProfileSetupScreen() {
     const timeout = setTimeout(() => {
       if (phoneNumber) {
         checkPhoneExists(phoneNumber);
+      } else {
+        setPhoneExists(false);
+        setErrors(prev => ({
+          ...prev,
+          phoneNumber: undefined,
+        }));
       }
     }, 800);
 
@@ -213,26 +259,72 @@ export function ProfileSetupScreen() {
       return;
     }
 
+    // Double-check phone doesn't exist before proceeding
+    if (phoneExists) {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: 'Ce numéro est déjà utilisé',
+      }));
+      showToast('Ce numéro de téléphone est déjà utilisé', 'error', 3000);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
       
+      // Final check if phone exists before creating profile
+      const phoneExistsCheck = await PhoneService.checkPhoneExists(formattedPhone);
+      if (phoneExistsCheck) {
+        setPhoneExists(true);
+        setErrors(prev => ({
+          ...prev,
+          phoneNumber: 'Ce numéro est déjà utilisé',
+        }));
+        showToast('Ce numéro de téléphone est déjà utilisé par un autre compte', 'error', 3000);
+        setIsLoading(false);
+        return;
+      }
+      
       // Determine if user is in DRC based on selected location country
       const isDRC = selectedLocationCountry?.code === 'CD';
       
-      // Save profile to Firestore
-      await firestore()
+      // Check if user document exists
+      const userDocRef = firestore()
         .collection('artifacts')
         .doc(APP_ID)
         .collection('users')
-        .doc(user.uid)
-        .set(
+        .doc(user.uid);
+      
+      const userDoc = await userDocRef.get();
+      
+      if (!userDoc.exists) {
+        // Create new user document
+        await userDocRef.set({
+          userId: user.uid,
+          email: user.email || null,
+          firstName: firstName.trim(),
+          surname: surname.trim(),
+          displayName: `${firstName.trim()} ${surname.trim()}`,
+          phoneNumber: formattedPhone,
+          defaultCity: selectedCity,
+          city: selectedCity,
+          countryCode: selectedLocationCountry?.code,
+          isInDRC: isDRC,
+          profileCompleted: true,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update existing user document
+        await userDocRef.set(
           {
             firstName: firstName.trim(),
             surname: surname.trim(),
             displayName: `${firstName.trim()} ${surname.trim()}`,
             phoneNumber: formattedPhone,
             defaultCity: selectedCity,
+            city: selectedCity,
             countryCode: selectedLocationCountry?.code,
             isInDRC: isDRC,
             profileCompleted: true,
@@ -240,6 +332,7 @@ export function ProfileSetupScreen() {
           },
           {merge: true},
         );
+      }
 
       // Create subscription document if it doesn't exist
       const subscriptionRef = firestore()
@@ -276,6 +369,54 @@ export function ProfileSetupScreen() {
         console.log('✅ Trial subscription created successfully');
       } else {
         console.log('✅ Subscription already exists');
+      }
+
+      // Setup push notifications and send welcome notifications
+      try {
+        console.log('📱 Setting up push notifications...');
+        
+        // Request notification permission
+        const hasPermission = await requestNotificationPermission();
+        
+        if (hasPermission) {
+          // Get FCM token
+          const fcmToken = await getFCMToken();
+          
+          if (fcmToken) {
+            console.log('✅ FCM token obtained');
+            
+            // Save FCM token to user document
+            await userDocRef.update({
+              fcmToken,
+              fcmTokenUpdatedAt: firestore.FieldValue.serverTimestamp(),
+              notificationsEnabled: true,
+              platform: Platform.OS,
+            });
+            
+            console.log('✅ FCM token saved to user document');
+            
+            // Call Cloud Function to send welcome notifications
+            try {
+              const sendWelcomeToNewUser = functions().httpsCallable('sendWelcomeToNewUser');
+              const result = await sendWelcomeToNewUser({
+                userId: user.uid,
+                fcmToken,
+                language: 'fr',
+              });
+              
+              console.log('✅ Welcome notifications sent:', result.data);
+            } catch (funcError) {
+              console.error('⚠️ Error calling sendWelcomeToNewUser:', funcError);
+            }
+          } else {
+            console.log('⚠️ Could not obtain FCM token');
+          }
+        } else {
+          console.log('⚠️ Notification permission denied');
+        }
+      } catch (notificationError) {
+        console.error('⚠️ Error setting up notifications:', notificationError);
+        // Don't block registration if notifications fail
       }
 
       // Navigate to main app
@@ -342,20 +483,34 @@ export function ProfileSetupScreen() {
     const otherCountries = COUNTRIES_CITIES.filter(c => !c.isPopular);
 
     return (
-      <Modal
+      <RNModal
         visible={showCityPicker}
-        variant="fullscreen"
-        title={
-          showCountrySelector
-            ? 'Sélectionnez votre pays'
-            : selectedLocationCountry?.name || 'Sélectionnez votre ville'
-        }
-        onClose={() => {
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
           setShowCityPicker(false);
           setShowCountrySelector(true);
           setSearchQuery('');
           setSelectedLocationCountry(null);
         }}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {showCountrySelector
+                ? 'Sélectionnez votre pays'
+                : selectedLocationCountry?.name || 'Sélectionnez votre ville'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowCityPicker(false);
+                setShowCountrySelector(true);
+                setSearchQuery('');
+                setSelectedLocationCountry(null);
+              }}
+              style={styles.modalCloseButton}>
+              <Icon name="x" size="lg" color={Colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
         <View style={styles.searchContainer}>
           <View style={styles.searchIconWrapper}>
             <Icon name="search" size="md" color={Colors.primary} />
@@ -394,7 +549,8 @@ export function ProfileSetupScreen() {
           style={styles.cityScrollView}
           contentContainerStyle={styles.cityListContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}>
           {searchQuery.trim() ? (
             searchResults.length === 0 ? (
               <View style={styles.emptyState}>
@@ -553,7 +709,10 @@ export function ProfileSetupScreen() {
                     onPress={() => handleCitySelect(city, selectedLocationCountry || undefined)}
                     activeOpacity={0.7}>
                     <View
-                      style={styles.cityIconWrapper}>
+                      style={[
+                        styles.cityIconWrapper,
+                        selectedCity === city && styles.cityIconWrapperSelected,
+                      ]}>
                       <Icon
                         name="map-pin"
                         size="sm"
@@ -578,20 +737,33 @@ export function ProfileSetupScreen() {
             </>
           )}
         </ScrollView>
-      </Modal>
+        </SafeAreaView>
+      </RNModal>
     );
   };
 
   // Country picker modal (for phone code selection)
   const renderCountryPicker = () => (
-    <Modal
+    <RNModal
       visible={showCountryPicker}
-      variant="fullscreen"
-      title="Sélectionnez votre pays"
-      onClose={() => {
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => {
         setShowCountryPicker(false);
         setCountrySearchQuery('');
       }}>
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Sélectionnez votre pays</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setShowCountryPicker(false);
+              setCountrySearchQuery('');
+            }}
+            style={styles.modalCloseButton}>
+            <Icon name="x" size="lg" color={Colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
         {/* Search input */}
         <View style={styles.searchContainer}>
           <View style={styles.searchIconWrapper}>
@@ -626,6 +798,7 @@ export function ProfileSetupScreen() {
         )}
 
         <FlatList
+          style={styles.countryList}
           data={filteredCountries}
           keyExtractor={item => item.code + item.shortName}
           renderItem={({item}) => (
@@ -652,7 +825,6 @@ export function ProfileSetupScreen() {
               )}
             </TouchableOpacity>
           )}
-          contentContainerStyle={styles.countryList}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
@@ -674,7 +846,8 @@ export function ProfileSetupScreen() {
             </View>
           }
         />
-    </Modal>
+      </SafeAreaView>
+    </RNModal>
   );
 
   return (
@@ -686,6 +859,9 @@ export function ProfileSetupScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          {/* Back Button */}
+          <BackButton onPress={handleBackPress} />
+
           {/* Header */}
           <View style={styles.header}>
               <View style={styles.iconContainer}>
@@ -839,13 +1015,19 @@ export function ProfileSetupScreen() {
                   {isCheckingPhone && (
                     <Icon name="loader" size="sm" color={Colors.primary} />
                   )}
-                  {!isCheckingPhone && phoneNumber && !errors.phoneNumber && (
+                  {!isCheckingPhone && phoneExists && (
+                    <Icon name="x-circle" size="sm" color={Colors.status.error} />
+                  )}
+                  {!isCheckingPhone && !phoneExists && phoneNumber && !errors.phoneNumber && (
                     <Icon name="check-circle" size="sm" color={Colors.status.success} />
                   )}
                 </View>
               </View>
               {errors.phoneNumber && (
                 <Text style={styles.errorText}>{errors.phoneNumber}</Text>
+              )}
+              {isCheckingPhone && (
+                <Text style={styles.infoText}>Vérification du numéro...</Text>
               )}
             </View>
 
@@ -911,6 +1093,37 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+    backgroundColor: Colors.white,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    flex: 1,
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.cream,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   keyboardView: {
     flex: 1,
@@ -1008,6 +1221,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     marginLeft: Spacing.xs,
   },
+  infoText: {
+    color: Colors.text.secondary,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.xs,
+  },
   phoneRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
@@ -1062,6 +1282,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   countryList: {
+    flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing['3xl'],
   },
@@ -1161,8 +1382,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cityListContent: {
-    paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing['3xl'],
+    flexGrow: 1,
   },
   citySection: {
     marginBottom: Spacing.lg,
@@ -1170,9 +1391,9 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.md,
@@ -1182,7 +1403,6 @@ const styles = StyleSheet.create({
   popularCitiesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
   popularCityChip: {
@@ -1225,6 +1445,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
+  },
+  cityIconWrapperSelected: {
+    backgroundColor: Colors.primary,
   },
   cityText: {
     flex: 1,

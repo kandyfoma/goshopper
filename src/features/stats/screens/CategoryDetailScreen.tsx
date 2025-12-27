@@ -239,13 +239,13 @@ export function CategoryDetailScreen() {
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Total dépensé</Text>
               <Text style={styles.statValue}>
-                {formatCurrency(item.totalSpent, primaryCurrency)}
+                {formatCurrency(item.totalSpent, item.currency)}
               </Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Prix moyen</Text>
               <Text style={styles.statValue}>
-                {formatCurrency(item.averagePrice, primaryCurrency)}
+                {formatCurrency(item.averagePrice, item.currency)}
               </Text>
             </View>
           </View>

@@ -223,10 +223,10 @@ async function updateEngagementMetrics(
     metricsUpdates[`engagementMetrics.${key}`] = value;
   }
 
-  await profileRef.update({
+  await profileRef.set({
     ...metricsUpdates,
     updatedAt: firestore.FieldValue.serverTimestamp(),
-  });
+  }, {merge: true});
 }
 
 /**
@@ -376,9 +376,13 @@ export async function trackUserSession(
       const currentAvg = metrics.averageSessionDuration || 0;
       const newAvg = ((currentAvg * (totalSessions - 1)) + sessionDuration) / totalSessions;
 
-      await profileRef.update({
-        'engagementMetrics.averageSessionDuration': newAvg,
-      });
+      await profileRef.set({
+        engagementMetrics: {
+          ...metrics,
+          averageSessionDuration: newAvg,
+        },
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
     }
   } catch (error) {
     console.error('Error tracking user session:', error);

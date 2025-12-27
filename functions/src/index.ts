@@ -170,6 +170,7 @@ export {
   rebuildItemsAggregation,
   getCityItems,
   cleanupDeletedReceiptItems,
+  backfillCityItemCategories,
 } from './items/itemAggregation';
 
 // Product Management functions
