@@ -547,6 +547,12 @@ function cleanItemName(name) {
     cleaned = cleaned.replace(/\b([A-Z](?:\s[A-Z]){2,})\b/g, (match) => {
         return match.replace(/\s/g, '');
     });
+    // === FIX 4.5: Aggressive fix for OCR spacing errors ===
+    // Remove spaces between letters in words that are likely OCR mistakes
+    // "s u c r e" -> "sucre", "b a g" -> "bag", etc.
+    cleaned = cleaned.replace(/\b([A-Za-z](?:\s+[A-Za-z]){1,6})\b/g, (match) => {
+        return match.replace(/\s+/g, '');
+    });
     // === FIX 5: Clean up multiple spaces ===
     cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
     return cleaned;
