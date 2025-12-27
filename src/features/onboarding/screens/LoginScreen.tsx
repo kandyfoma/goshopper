@@ -500,7 +500,9 @@ export function LoginScreen() {
         if (storedPhone && storedPassword) {
           // Perform actual authentication with stored credentials
           try {
-            await authService.signInWithPhone(storedPhone, storedPassword);
+            const userCredential = await authService.signInWithPhone(storedPhone, storedPassword);
+            // Set user in AuthContext to trigger navigation
+            setPhoneUser(userCredential);
             showToast('Connexion biométrique réussie!', 'success', 2000);
           } catch (authError: any) {
             // If auth fails, credentials might be outdated
@@ -514,7 +516,9 @@ export function LoginScreen() {
         } else if (storedEmail && storedPassword) {
           // Email + password login
           try {
-            await authService.signInWithEmail(storedEmail, storedPassword);
+            const userCredential = await authService.signInWithEmail(storedEmail, storedPassword);
+            // Set user in AuthContext to trigger navigation
+            setPhoneUser(userCredential);
             showToast('Connexion biométrique réussie!', 'success', 2000);
           } catch (authError: any) {
             // If auth fails, credentials might be outdated

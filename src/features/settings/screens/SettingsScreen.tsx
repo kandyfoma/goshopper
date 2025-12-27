@@ -874,18 +874,22 @@ export function SettingsScreen() {
         </Text>
 
         <View style={styles.logoutModalActions}>
-          <Button
-            title="Annuler"
-            onPress={() => setShowLogoutModal(false)}
-            variant="secondary"
-            size="lg"
-          />
-          <Button
-            title="Déconnecter"
-            onPress={confirmSignOut}
-            variant="primary"
-            size="lg"
-          />
+          <View style={{flex: 1}}>
+            <Button
+              title="Annuler"
+              onPress={() => setShowLogoutModal(false)}
+              variant="secondary"
+              size="lg"
+            />
+          </View>
+          <View style={{flex: 1}}>
+            <Button
+              title="Déconnecter"
+              onPress={confirmSignOut}
+              variant="primary"
+              size="lg"
+            />
+          </View>
         </View>
       </AnimatedModal>
     </SafeAreaView>
