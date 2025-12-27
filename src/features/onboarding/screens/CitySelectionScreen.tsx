@@ -179,6 +179,13 @@ export function CitySelectionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Back Button */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}>
+        <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+      </TouchableOpacity>
+
       <View style={styles.header}>
         <View style={styles.headerIcon}>
           <Icon name="map-pin" size="xl" color={Colors.primary} />
@@ -220,8 +227,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background.primary,
   },
+  backButton: {
+    position: 'absolute',
+    top: Spacing.base,
+    left: Spacing.base,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
   header: {
     padding: Spacing.xl,
+    paddingTop: Spacing['2xl'], // Extra top padding to avoid back button
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.light,

@@ -241,12 +241,6 @@ export const countryCodeList = [
     shortName: 'RCA'
   },
   {
-    name: 'Rwanda',
-    code: '+250',
-    flag: '🇷🇼',
-    shortName: 'RW'
-  },
-  {
     name: 'Sahara Occidental',
     code: '+212',
     flag: '🇪🇭',

@@ -129,8 +129,6 @@ export async function initializeNotificationChannels(): Promise<void> {
         lightColor: channel.color,
       });
     }
-
-    console.log('✅ Notification channels initialized');
   } catch (error) {
     console.error('Error initializing notification channels:', error);
   }

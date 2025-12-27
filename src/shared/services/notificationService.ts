@@ -81,19 +81,15 @@ export async function saveFCMToken(userId: string, token: string): Promise<void>
  */
 export async function initializePushNotifications(userId: string): Promise<void> {
   try {
-    console.log('🔔 Initializing push notifications...');
-
     // Request permission
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      console.log('❌ No notification permission');
       return;
     }
 
     // Get FCM token
     const token = await getFCMToken();
     if (!token) {
-      console.log('❌ No FCM token');
       return;
     }
 
@@ -102,11 +98,8 @@ export async function initializePushNotifications(userId: string): Promise<void>
 
     // Handle token refresh
     messaging().onTokenRefresh(async newToken => {
-      console.log('🔄 FCM token refreshed:', newToken);
       await saveFCMToken(userId, newToken);
     });
-
-    console.log('✅ Push notifications initialized');
   } catch (error) {
     console.error('Initialize push notifications error:', error);
   }

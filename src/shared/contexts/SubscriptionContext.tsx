@@ -112,19 +112,9 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       } else if (subscription.status === 'cancelled') {
         // Cancelled but still within paid period - allow scanning until end date
         if (subscription.subscriptionEndDate && new Date(subscription.subscriptionEndDate) > new Date()) {
-          if (subscription.planId === 'premium') {
-            scansRemaining = -1;
-            canScan = true;
-          } else {
-            const planLimit = PLAN_SCAN_LIMITS[subscription.planId as keyof typeof PLAN_SCAN_LIMITS] || 0;
-            if (planLimit === -1) {
-              scansRemaining = -1;
-              canScan = true;
-            } else {
-              scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
-              canScan = scansRemaining > 0;
-            }
-          }
+          const planLimit = PLAN_SCAN_LIMITS[subscription.planId as keyof typeof PLAN_SCAN_LIMITS] || 0;
+          scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
+          canScan = scansRemaining > 0;
         } else {
           // Cancelled and expired - treat as freemium
           scansRemaining = 0;
@@ -143,22 +133,12 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
         subscription.status === 'active'
       ) {
         // Check plan limits
-        if (subscription.planId === 'premium') {
-          scansRemaining = -1; // Unlimited
-          canScan = true;
-        } else {
-          const planLimit =
-            PLAN_SCAN_LIMITS[
-              subscription.planId as keyof typeof PLAN_SCAN_LIMITS
-            ] || 0;
-          if (planLimit === -1) {
-            scansRemaining = -1;
-            canScan = true;
-          } else {
-            scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
-            canScan = scansRemaining > 0;
-          }
-        }
+        const planLimit =
+          PLAN_SCAN_LIMITS[
+            subscription.planId as keyof typeof PLAN_SCAN_LIMITS
+          ] || 0;
+        scansRemaining = calculateScansWithBonus(planLimit, subscription.monthlyScansUsed || 0);
+        canScan = scansRemaining > 0;
       }
 
       const now = new Date();
@@ -215,7 +195,6 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       };
     }
 
-    console.log('📊 Subscribing to subscription status for user:', user.uid);
     unsubscribe = subscriptionService.subscribeToStatus(subscription => {
       if (isMounted) {
         setState(calculateState(subscription));

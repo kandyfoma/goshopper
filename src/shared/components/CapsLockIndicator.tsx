@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Colors, Typography, Spacing } from '@/shared/theme/theme';
-import { Icon } from '@/shared/components';
+import Icon from './Icon';
 
 interface CapsLockIndicatorProps {
   value: string;

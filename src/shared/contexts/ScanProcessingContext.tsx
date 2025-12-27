@@ -17,6 +17,9 @@ import {Platform} from 'react-native';
 
 const SCAN_PROCESSING_KEY = '@goshopperai/scan_processing_state';
 
+// Auto-cleanup processing stuck for more than 5 minutes
+const STUCK_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+
 export type ScanStatus = 'idle' | 'processing' | 'success' | 'error';
 
 interface ScanProcessingState {
@@ -27,6 +30,7 @@ interface ScanProcessingState {
   receiptId?: string;
   error?: string;
   photoCount?: number;
+  startedAt?: number; // Timestamp for stuck detection
 }
 
 interface ScanProcessingContextType {
@@ -91,6 +95,30 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
     }
   }, [state, isLoaded]);
 
+  // Auto-cleanup stuck processing states (check every minute)
+  useEffect(() => {
+    if (state.status !== 'processing' || !state.startedAt) {
+      return;
+    }
+
+    const checkStuck = () => {
+      const elapsed = Date.now() - (state.startedAt || 0);
+      if (elapsed > STUCK_PROCESSING_TIMEOUT_MS) {
+        console.warn(`⚠️ Scan processing stuck for ${Math.round(elapsed / 60000)} minutes, auto-resetting`);
+        setState({
+          ...defaultState,
+          status: 'error',
+          error: 'Le traitement a pris trop de temps. Veuillez réessayer.',
+          message: 'Le traitement a pris trop de temps. Veuillez réessayer.',
+        });
+      }
+    };
+
+    // Check every minute while processing
+    const interval = setInterval(checkStuck, 60000);
+    return () => clearInterval(interval);
+  }, [state.status, state.startedAt]);
+
   const loadPersistedState = async () => {
     try {
       const stored = await AsyncStorage.getItem(SCAN_PROCESSING_KEY);
@@ -98,8 +126,19 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
         const persistedState = JSON.parse(stored);
         // Only restore if still processing
         if (persistedState.status === 'processing') {
-          setState(persistedState);
-          console.log('📱 Restored scan processing state');
+          // Check if processing is stuck (started more than 5 minutes ago)
+          const startedAt = persistedState.startedAt || 0;
+          const elapsed = Date.now() - startedAt;
+          
+          if (elapsed > STUCK_PROCESSING_TIMEOUT_MS) {
+            // Processing is stuck - auto-cleanup
+            console.warn(`⚠️ Scan processing was stuck for ${Math.round(elapsed / 60000)} minutes, cleaning up`);
+            await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+            // Don't restore the stuck state
+          } else {
+            setState(persistedState);
+            console.log('📱 Restored scan processing state');
+          }
         }
       }
     } catch (error) {
@@ -127,6 +166,7 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       progress: 0,
       message: 'Préparation de l\'analyse...',
       photoCount,
+      startedAt: Date.now(), // Track when processing started
     });
   }, []);
   

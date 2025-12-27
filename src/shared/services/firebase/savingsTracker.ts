@@ -907,6 +907,19 @@ class SavingsTrackerService {
       return [];
     }
   }
+
+  /**
+   * Clear the stats cache for a user
+   * Call this when receipts are deleted to ensure fresh data
+   */
+  async clearStatsCache(userId: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(`${USER_STATS_KEY}_${userId}`);
+      console.log('[SavingsTracker] Stats cache cleared for user:', userId);
+    } catch (error) {
+      console.error('[SavingsTracker] Error clearing stats cache:', error);
+    }
+  }
 }
 
 export const savingsTrackerService = new SavingsTrackerService();

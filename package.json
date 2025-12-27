@@ -46,6 +46,7 @@
     "nativewind": "^2.0.11",
     "react": "18.2.0",
     "react-native": "0.73.6",
+    "react-native-base64": "^0.2.2",
     "react-native-biometrics": "^3.0.1",
     "react-native-compressor": "^1.8.24",
     "react-native-confetti-cannon": "^1.5.2",

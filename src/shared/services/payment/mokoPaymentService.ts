@@ -151,9 +151,6 @@ export const initiatePayment = async (request: PaymentRequest): Promise<PaymentR
 
     const data = await response.json();
     
-    console.log('🚀 Railway Payment Hub Response:', JSON.stringify(data, null, 2));
-    console.log('🔑 Transaction ID for polling:', data.transaction_id || data.reference);
-    
     if (!response.ok) {
       throw new Error(data.error || 'Échec de l\'initiation du paiement');
     }
@@ -202,7 +199,6 @@ export const subscribeToPaymentStatus = (
   };
 
   // Poll Railway's status endpoint every 5 seconds
-  console.log('🔄 Starting polling for transaction:', transactionId);
   
   // Initial delay to give Railway/FreshPay time to process
   const startPolling = () => {
@@ -218,7 +214,6 @@ export const subscribeToPaymentStatus = (
       
       // Stop polling after max attempts
       if (pollCount >= maxPolls) {
-        console.log('⏱️ Polling timeout reached');
         isResolved = true;
         onStatusChange('FAILED', { error: 'Timeout - paiement non confirmé' });
         if (pollInterval) clearInterval(pollInterval);
@@ -230,20 +225,14 @@ export const subscribeToPaymentStatus = (
         
         // Only log every 6 polls (30 seconds) or when we get a result
         if (result || pollCount % 6 === 0) {
-          if (result) {
-        return result;
-        }
-        
-        if (result && result.status !== 'PENDING') {
-          isResolved = true;
-          onStatusChange(result.status, result.details);
-          if (pollInterval) clearInterval(pollInterval);
+          if (result && result.status !== 'PENDING') {
+            isResolved = true;
+            onStatusChange(result.status, result.details);
+            if (pollInterval) clearInterval(pollInterval);
+          }
         }
       } catch (error) {
-        // Only log significant errors, not expected waits
-        if (pollCount % 12 === 0) {
-          console.log(`⏳ Still waiting for confirmation (${pollCount * 5}s)...`);
-        }
+        // Silent - polling continues
       }
     }, 5000);
   };
@@ -268,17 +257,14 @@ export const getPaymentStatus = async (transactionId: string): Promise<{
 } | null> => {
   try {
     const url = `${PAYMENT_STATUS_URL}/${transactionId}`;
-    console.log('🔍 Polling payment status:', transactionId);
     const response = await fetch(url);
     
     if (!response.ok) {
-      console.log('⏳ Status not found yet (404), txId:', transactionId);
-      // 404 is expected while waiting for webhook, don't spam logs
+      // 404 is expected while waiting for webhook
       return null;
     }
 
     const data = await response.json();
-    console.log('✅ Payment status found:', data.status, 'for txId:', transactionId, 'Full data:', JSON.stringify(data));
     
     return {
       status: data.status as PaymentStatus,

@@ -52,7 +52,6 @@ export const quickActionsService = {
     try {
       // Set up the quick actions
       QuickActions.setShortcutItems(QUICK_ACTIONS);
-      console.log('Quick actions initialized');
     } catch (error) {
       console.error('Error initializing quick actions:', error);
     }

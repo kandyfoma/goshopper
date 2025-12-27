@@ -27,7 +27,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, AppFooter, Button} from '@/shared/components';
+import {Icon, AppFooter, Button, ConfirmationModal} from '@/shared/components';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {firebase} from '@react-native-firebase/functions';
@@ -148,6 +148,7 @@ export function ProfileScreen() {
   const {profile, isLoading: profileLoading} = useUser();
   const [currentBudget, setCurrentBudget] = useState(0);
   const [rebuildingItems, setRebuildingItems] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [userStats, setUserStats] = useState({
     totalReceipts: 0,
@@ -221,7 +222,6 @@ export function ProfileScreen() {
         // NOT_FOUND is expected for new users with no data yet
         const errorCode = error?.code || error?.message || '';
         if (errorCode.includes('NOT_FOUND') || errorCode.includes('not-found')) {
-          console.log('📊 New user - no stats available yet');
           setUserStats({
             totalReceipts: 0,
             totalSavings: 0,
@@ -258,13 +258,18 @@ export function ProfileScreen() {
     );
   }
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmSignOut = async () => {
+    setShowLogoutModal(false);
     try {
       await signOut();
       // Navigate to Home tab after sign out by resetting to Main
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Main' }],
+        routes: [{name: 'Main'}],
       });
     } catch (error) {
       console.error('Sign out error:', error);
@@ -334,7 +339,9 @@ export function ProfileScreen() {
               ? `${profile.name} ${profile.surname}`
               : profile?.name || profile?.surname || user?.displayName || 'Utilisateur'}
           </Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
+          <Text style={styles.userEmail}>
+            {profile?.phoneNumber || user?.phoneNumber || user?.email || 'Aucun contact'}
+          </Text>
         </View>
 
         {/* Stats Cards Row */}
@@ -533,6 +540,20 @@ export function ProfileScreen() {
         {/* Extra bottom padding to ensure content is scrollable */}
         <View style={{height: 100}} />
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Déconnexion"
+        message="Êtes-vous sûr de vouloir vous déconnecter ?"
+        icon="logout"
+        variant="danger"
+        confirmText="Déconnecter"
+        cancelText="Annuler"
+        onConfirm={confirmSignOut}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </SafeAreaView>
   );
 }

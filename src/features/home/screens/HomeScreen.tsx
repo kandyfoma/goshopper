@@ -11,6 +11,7 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -145,12 +146,17 @@ const StatCard = ({
 const ScanButton = ({
   onPress,
   disabled,
+  noScansLeft,
 }: {
   onPress: () => void;
   disabled: boolean;
+  noScansLeft?: boolean;
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const iconRotateAnim = useRef(new Animated.Value(0)).current;
+  const arrowBounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Subtle pulsing glow animation
@@ -168,7 +174,55 @@ const ScanButton = ({
         }),
       ]),
     ).start();
-  }, [glowAnim]);
+
+    // Floating animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+
+    // Icon rotation animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconRotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconRotateAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+
+    // Arrow bounce animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowBounceAnim, {
+          toValue: 5,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(arrowBounceAnim, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [glowAnim, floatAnim, iconRotateAnim, arrowBounceAnim]);
 
   const handlePressIn = () => {
     hapticService.light();
@@ -194,9 +248,22 @@ const ScanButton = ({
     outputRange: [0.3, 0.7],
   });
 
+  const iconRotate = iconRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '10deg'],
+  });
+
   return (
     <Animated.View
-      style={[styles.scanButtonWrapper, {transform: [{scale: scaleAnim}]}]}>
+      style={[
+        styles.scanButtonWrapper,
+        {
+          transform: [
+            {scale: scaleAnim},
+            {translateY: floatAnim},
+          ],
+        },
+      ]}>
       {/* Glow effect */}
       <Animated.View
         style={[
@@ -208,11 +275,13 @@ const ScanButton = ({
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        disabled={disabled}
+        disabled={false}
         activeOpacity={1}>
         <LinearGradient
           colors={
-            disabled
+            noScansLeft
+              ? ['#FDB913', '#F59E0B']
+              : disabled
               ? [Colors.border.light, Colors.background.secondary]
               : [Colors.card.crimson, Colors.card.red]
           }
@@ -224,23 +293,35 @@ const ScanButton = ({
           <View style={styles.scanButtonDecor2} />
 
           <View style={styles.scanButtonContent}>
-            <View style={styles.scanIconWrapper}>
+            <Animated.View
+              style={[
+                styles.scanIconWrapper,
+                {transform: [{rotate: iconRotate}]},
+              ]}>
               <View style={styles.scanIconCircle}>
-                <Icon name="camera" size="xl" color={Colors.card.crimson} />
+                <Icon 
+                  name={noScansLeft ? "star" : "camera"} 
+                  size="xl" 
+                  color={noScansLeft ? "#FDB913" : Colors.card.crimson} 
+                />
               </View>
               <View style={styles.scanIconRing} />
-            </View>
+            </Animated.View>
             <View style={styles.scanTextContainer}>
               <Text style={styles.scanButtonTitle}>
-                Scanner un ticket
+                {noScansLeft ? "Activer votre abonnement" : "Scanner un reçu"}
               </Text>
               <Text style={styles.scanButtonSubtitle}>
-                Comparez les prix instantanément
+                {noScansLeft ? "Cliquez ici pour continuer" : "Comparez les prix instantanément"}
               </Text>
             </View>
-            <View style={styles.scanArrowCircle}>
+            <Animated.View
+              style={[
+                styles.scanArrowCircle,
+                {transform: [{translateX: arrowBounceAnim}]},
+              ]}>
               <Icon name="arrow-right" size="md" color={Colors.white} />
-            </View>
+            </Animated.View>
           </View>
         </LinearGradient>
       </TouchableOpacity>
@@ -305,6 +386,7 @@ export function HomeScreen() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentBudget, setCurrentBudget] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Determine display currency: use preferred currency if budget is set, otherwise USD
   const displayCurrency = userProfile?.preferredCurrency || 'USD';
@@ -315,17 +397,11 @@ export function HomeScreen() {
       if (!userProfile?.userId) return;
 
       try {
-        console.log('💰 Loading budget for user:', userProfile.userId);
-        console.log('💰 Default budget:', userProfile.defaultMonthlyBudget);
-        console.log('💰 Legacy budget:', userProfile.monthlyBudget);
-        console.log('💰 Currency:', userProfile.preferredCurrency);
-        
         const budget = await getCurrentMonthBudget(
           userProfile.userId,
           userProfile.defaultMonthlyBudget || userProfile.monthlyBudget,
           userProfile.preferredCurrency || 'USD',
         );
-        console.log('💰 Loaded budget:', budget);
         setCurrentBudget(budget.amount);
       } catch (error) {
         console.error('Error loading budget:', error);
@@ -361,7 +437,7 @@ export function HomeScreen() {
       return;
     }
 
-    console.log('📊 Home: Setting up real-time listener for receipts');
+
     setIsLoadingStats(true);
 
     const now = new Date();
@@ -376,7 +452,7 @@ export function HomeScreen() {
       .collection('receipts')
       .onSnapshot(
         (snapshot) => {
-          console.log('📊 Home: Receipts updated, recalculating spending');
+
           
           let total = 0;
           let receiptCount = 0;
@@ -427,9 +503,6 @@ export function HomeScreen() {
               total += receiptTotal;
             }
           });
-
-          console.log('📊 Home: Total receipts this month:', receiptCount);
-          console.log('📊 Home: Total spending:', total, displayCurrency);
           
           // Ensure total is a valid number
           const validTotal = Number.isFinite(total) ? total : 0;
@@ -485,15 +558,47 @@ export function HomeScreen() {
   // Reload items count when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('📱 HomeScreen focused, reloading items count');
+
       fetchItemsCount();
     }, [fetchItemsCount])
   );
 
+  // Pull to refresh handler - clears widget cache and reloads data
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      console.log('🔄 Refreshing dashboard data...');
+      
+      // Clear widget cache for fresh data
+      await widgetDataService.clearAllWidgetData();
+      console.log('✅ Widget cache cleared');
+      
+      // Reload budget
+      if (userProfile?.userId) {
+        const budget = await getCurrentMonthBudget(
+          userProfile.userId,
+          userProfile.defaultMonthlyBudget || userProfile.monthlyBudget,
+          userProfile.preferredCurrency || 'USD',
+        );
+        setCurrentBudget(budget.amount);
+      }
+      
+      // Reload items count
+      await fetchItemsCount();
+      
+      // Real-time listener will automatically refresh spending data
+      console.log('✅ Dashboard data refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing dashboard:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleScanPress = () => {
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
-      navigation.push('Subscription');
+      setShowLimitModal(true);
       return;
     }
 
@@ -553,7 +658,7 @@ export function HomeScreen() {
           <View style={styles.featuresGrid}>
             <View style={[styles.featureCard, {backgroundColor: Colors.card.blue}]}>
               <Icon name="camera" size="lg" color={Colors.text.primary} />
-              <Text style={styles.featureTitle}>Scanner vos tickets</Text>
+              <Text style={styles.featureTitle}>Scanner vos reçus</Text>
               <Text style={styles.featureDescription}>
                 Numérisez instantanément vos reçus et gardez une trace de tous vos achats
               </Text>
@@ -671,7 +776,17 @@ export function HomeScreen() {
       />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+            title="Actualiser les données..."
+            titleColor={Colors.text.secondary}
+          />
+        }>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>{/* Empty space for balance */}</View>
@@ -720,11 +835,7 @@ export function HomeScreen() {
             <StatCard
               title="Scans"
               value={trialScansUsed || 0}
-              subtitle={
-                scansRemaining === -1
-                  ? 'illimités'
-                  : `${scansRemaining} restants`
-              }
+              subtitle={`${scansRemaining} restants`}
               color="blue"
               icon="camera"
               onPress={() => navigation.navigate('SubscriptionDetails')}
@@ -767,7 +878,11 @@ export function HomeScreen() {
         </View>
 
         {/* Main Scan Button */}
-        <ScanButton onPress={handleScanPress} disabled={!canScan} />
+        <ScanButton 
+          onPress={handleScanPress} 
+          disabled={!canScan} 
+          noScansLeft={!canScan}
+        />
 
         {/* AI Recommendations */}
         <Recommendations
@@ -808,13 +923,11 @@ export function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Subscription Limit Modal */}
+      {/* Subscription Limit Modal - for scan limit */}
       <SubscriptionLimitModal
         visible={showLimitModal}
         onClose={() => setShowLimitModal(false)}
-        limitType="generic"
-        customTitle="Statistiques"
-        customMessage="Les statistiques avancées sont réservées aux abonnés Standard et Premium. Mettez à niveau pour visualiser vos dépenses."
+        limitType="scan"
       />
     </SafeAreaView>
   );

@@ -131,7 +131,7 @@ export function ItemsScreen() {
           .get();
       }
 
-      // If no items found, check if user has receipts and trigger rebuild
+      // If no items found, check if user has receipts WITH items and trigger rebuild
       if (itemsSnapshot.empty) {
         const receiptsSnapshot = await firestore()
           .collection('artifacts')
@@ -139,16 +139,33 @@ export function ItemsScreen() {
           .collection('users')
           .doc(user.uid)
           .collection('receipts')
-          .limit(1)
+          .limit(10) // Check a few receipts to see if any have items
           .get();
 
-        if (!receiptsSnapshot.empty) {
-          console.log('📦 Receipts found but no items - triggering rebuild...');
+        // Check if any receipts actually have items
+        const hasReceiptsWithItems = receiptsSnapshot.docs.some(doc => {
+          const data = doc.data();
+          return data.items && Array.isArray(data.items) && data.items.length > 0;
+        });
+
+        if (hasReceiptsWithItems) {
+          console.log('📦 Receipts with items found but no aggregated items - triggering rebuild...');
+          
+          // Skip auto-rebuild if user not authenticated
+          if (!user?.uid) {
+            console.warn('⚠️ User not authenticated, skipping auto-rebuild');
+            setItems([]);
+            return;
+          }
+          
           try {
             const functionsInstance = firebase.app().functions('europe-west1');
             const rebuildCallable = functionsInstance.httpsCallable('rebuildItemsAggregation');
-            await rebuildCallable();
-            console.log('✅ Items aggregation rebuilt, reloading...');
+            
+            console.log('🔄 Calling rebuildItemsAggregation function...');
+            const result = await rebuildCallable();
+            console.log('✅ Items aggregation rebuilt:', result.data);
+            console.log('🔄 Reloading items...');
             
             // Reload items after rebuild
             let reloadedItemsSnapshot;
@@ -196,8 +213,10 @@ export function ItemsScreen() {
 
             setItems(itemsArray);
             return;
-          } catch (rebuildError) {
+          } catch (rebuildError: any) {
             console.error('❌ Error rebuilding items:', rebuildError);
+            console.error('❌ Error message:', rebuildError?.message);
+            console.error('❌ Error details:', JSON.stringify(rebuildError, null, 2));
             // Continue with empty items
           }
         }

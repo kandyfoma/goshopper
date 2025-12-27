@@ -13,6 +13,8 @@ import {
   matchCommonPattern,
   FuzzyMatchResult,
 } from '@/shared/utils/fuzzyMatch';
+import {savingsTrackerService} from './savingsTracker';
+import {widgetDataService} from '../widgetDataService';
 
 const RECEIPTS_COLLECTION = (userId: string) =>
   `artifacts/${APP_ID}/users/${userId}/receipts`;
@@ -544,6 +546,16 @@ class ReceiptStorageService {
       console.warn('🗑️ Failed to update aggregated items (non-critical):', error.message);
     });
 
+    // 5. Clear all caches to ensure fresh data
+    try {
+      console.log('🗑️ Clearing caches after receipt deletion...');
+      await savingsTrackerService.clearStatsCache(userId);
+      await widgetDataService.clearAllWidgetData();
+      console.log('🗑️ Caches cleared');
+    } catch (cacheError) {
+      console.warn('🗑️ Failed to clear caches (non-critical):', cacheError);
+    }
+
     console.log('🗑️ Receipt deletion complete');
   }
 
@@ -595,6 +607,16 @@ class ReceiptStorageService {
         shopsSnapshot.docs.forEach(doc => shopBatch.delete(doc.ref));
         await shopBatch.commit();
         console.log(`🗑️ Deleted ${shopsSnapshot.size} shops`);
+      }
+
+      // Clear all caches to ensure fresh data
+      try {
+        console.log('🗑️ Clearing caches after bulk receipt deletion...');
+        await savingsTrackerService.clearStatsCache(userId);
+        await widgetDataService.clearAllWidgetData();
+        console.log('🗑️ Caches cleared');
+      } catch (cacheError) {
+        console.warn('🗑️ Failed to clear caches (non-critical):', cacheError);
       }
 
       console.log('🗑️ All receipts deleted successfully');

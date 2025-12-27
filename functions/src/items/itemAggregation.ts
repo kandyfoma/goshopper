@@ -588,6 +588,67 @@ function getCanonicalName(name: string): string {
     'golden penny': ['golden penny', 'pasta', 'semolina'],
     'honeywell': ['honeywell', 'flour'],
     'dangote': ['dangote', 'sugar', 'flour', 'cement'],
+
+    // ============ LINGALA NAMES (DRC - Kinshasa region) ============
+    // Fish & Seafood (Lingala)
+    'mbisi': ['mbisi', 'poisson'],
+    'ngolo': ['ngolo', 'poisson chat'],
+    'kapiteni': ['kapiteni', 'capitaine'],
+    
+    // Vegetables & Leaves (Lingala)
+    'ngai ngai': ['ngai ngai', 'oseille'],
+    'ndunda': ['ndunda', 'haricots'],
+    'matembele': ['matembele', 'feuilles patate douce'],
+    'biteku teku': ['biteku teku', 'amarante'],
+    'mfumbwa': ['mfumbwa', 'gnetum'],
+    
+    // Staples (Lingala)
+    'fufu': ['fufu', 'foufou', 'farine de manioc'],
+    'kwanga': ['kwanga', 'chikwangue', 'pain de manioc'],
+    'bukari': ['bukari', 'pate de mais'],
+    'loso': ['loso', 'riz'],
+    'mbala': ['mbala', 'patate douce'],
+    'makemba': ['makemba', 'plantain', 'banane plantain'],
+    
+    // Meat (Lingala)
+    'nyama': ['nyama', 'viande', 'meat'],
+    'nyama ngombe': ['nyama ngombe', 'viande de boeuf', 'beef'],
+    'nyama ngulu': ['nyama ngulu', 'viande de porc', 'pork'],
+    'nsoso': ['nsoso', 'poulet', 'chicken'],
+    'ntaba': ['ntaba', 'chevre', 'goat'],
+    
+    // Fruits (Lingala)
+    'makondo': ['makondo', 'banane'],
+    'makofi': ['makofi', 'papaye'],
+    'manga': ['manga', 'mangue'],
+    'limau': ['limau', 'citron'],
+    
+    // Beverages (Lingala)
+    'mai': ['mai', 'eau', 'water'],
+    'masanga': ['masanga', 'biere', 'beer'],
+    'malavu': ['malavu', 'vin de palme', 'palm wine'],
+    'lotoko': ['lotoko', 'alcool local'],
+    
+    // Cooking (Lingala)
+    'mafuta': ['mafuta', 'huile', 'oil'],
+    'mafuta ya palme': ['mafuta ya palme', 'huile de palme', 'palm oil'],
+    'mungwa': ['mungwa', 'sel', 'salt'],
+    'makala': ['makala', 'charbon', 'charcoal'],
+    
+    // Household (Lingala)
+    'savuni': ['savuni', 'savon', 'soap'],
+
+    // ============ SWAHILI NAMES (DRC - Eastern region) ============
+    'mboga': ['mboga', 'legumes', 'vegetables'],
+    'matunda': ['matunda', 'fruits'],
+    'viazi': ['viazi', 'pomme de terre', 'potato'],
+    'kitunguu': ['kitunguu', 'oignon', 'onion'],
+    'nyanya': ['nyanya', 'tomate', 'tomato'],
+    'maziwa': ['maziwa', 'lait', 'milk'],
+    'siagi': ['siagi', 'beurre', 'butter'],
+    'sukari': ['sukari', 'sucre', 'sugar'],
+    'kahawa': ['kahawa', 'cafe', 'coffee'],
+    'chai': ['chai', 'the', 'tea'],
   };
 
   // Check if normalized name matches any synonym

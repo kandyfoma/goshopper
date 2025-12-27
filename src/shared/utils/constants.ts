@@ -20,7 +20,7 @@ export const PLAN_SCAN_LIMITS = {
   free: 10, // Trial limit
   basic: 25,
   standard: 100,
-  premium: -1, // Unlimited
+  premium: 1000, // 1000 scans per month
 } as const;
 
 // Image Limits
@@ -125,19 +125,20 @@ export const SUBSCRIPTION_PLANS = {
   premium: {
     id: 'premium',
     name: 'Premium',
-    price: 1,
-    priceCDF: 4000,
-    scanLimit: -1, // Unlimited
+    price: 4.99,
+    priceCDF: 20000,
+    scanLimit: 1000,
     features: [
-      'Scans illimités',
+      '1,000 scans par mois',
+      'Statistiques avancées',
       'Comparaison de prix',
-      'Historique 2 mois',
+      'Historique illimité',
       'Rapports de dépenses',
       'Historique des prix',
       'Analyse par catégorie',
       'Mode hors ligne',
       'Alertes de prix',
-      'Listes de courses',
+      'Listes de courses illimitées',
       'Export des données',
     ],
   },

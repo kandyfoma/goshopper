@@ -38,7 +38,7 @@ export function SubscriptionDetailsScreen() {
   const isActive = subscription?.isSubscribed && subscription?.status === 'active';
   const isTrial = isTrialActive;
   const scansUsed = subscription?.monthlyScansUsed || subscription?.trialScansUsed || 0;
-  const scanLimit = subscription?.planId === 'premium' ? -1 : 
+  const scanLimit = subscription?.planId === 'premium' ? 1000 : 
                     subscription?.planId === 'standard' ? 100 :
                     subscription?.planId === 'basic' ? 25 :
                     subscription?.trialScansLimit || 10;
@@ -87,13 +87,10 @@ export function SubscriptionDetailsScreen() {
       {/* Modern Header */}
       <FadeIn>
         <View style={styles.header}>
-          <BackButton />
           <View style={styles.headerContent}>
+            <BackButton />
             <View style={styles.headerLeft}>
-              <View style={styles.titleRow}>
-                <Icon name="zap" size="md" color={Colors.primary} />
-                <Text style={styles.title}>Mon Abonnement</Text>
-              </View>
+              <Text style={styles.title}>Mon Abonnement</Text>
               <Text style={styles.subtitle}>
                 {isPremium
                   ? 'Premium actif'
@@ -158,27 +155,25 @@ export function SubscriptionDetailsScreen() {
               <View style={styles.scansDivider} />
               <View style={styles.scansStat}>
                 <Text style={[styles.scansValue, {color: Colors.card.blue}]}>
-                  {scansRemaining === -1 ? '∞' : (scansRemaining || 0)}
+                  {scansRemaining}
                 </Text>
                 <Text style={styles.scansLabel}>Restants</Text>
               </View>
             </View>
 
-            {scansRemaining !== -1 && (
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: `${Math.min(100, scanLimit > 0 ? (scansUsed / scanLimit) * 100 : 0).toFixed(0)}%` as any,
-                    },
-                  ]}
-                />
-              </View>
-            )}
+            <View style={styles.progressBarContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: `${Math.min(100, scanLimit > 0 ? (scansUsed / scanLimit) * 100 : 0).toFixed(0)}%` as any,
+                  },
+                ]}
+              />
+            </View>
           </View>
 
-          {scansRemaining !== -1 && scansRemaining <= 5 && (
+          {scansRemaining <= 5 && (
             <View style={styles.warningBox}>
               <Icon name="alert-circle" size="sm" color={Colors.card.red} />
               <Text style={styles.warningText}>

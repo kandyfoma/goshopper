@@ -5,3 +5,4 @@ export {ThemeProvider, useTheme} from './ThemeContext';
 export {ToastProvider, useToast} from './ToastContext';
 export {ScanProcessingProvider, useScanProcessing} from './ScanProcessingContext';
 export {PaymentProcessingProvider, usePaymentProcessing} from './PaymentProcessingContext';
+export {OfflineModeProvider, useOfflineMode} from './OfflineModeContext';

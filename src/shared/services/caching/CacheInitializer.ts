@@ -14,8 +14,6 @@ class CacheInitializer {
    * Initialize cache system
    */
   async initialize(): Promise<void> {
-    console.log('Cache: Initializing cache system...');
-
     // Start cache analytics monitoring (every 30 minutes)
     if (__DEV__) {
       cacheAnalytics.startMonitoring(30);
@@ -30,8 +28,7 @@ class CacheInitializer {
     this.startPeriodicCleanup(6 * 60 * 60 * 1000);
 
     // Run initial cleanup of expired entries
-    const cleaned = await cacheManager.cleanupExpired();
-    console.log(`Cache: Initial cleanup removed ${cleaned} expired entries`);
+    await cacheManager.cleanupExpired();
 
     // Preload critical data
     await this.preloadCriticalData();

@@ -14,7 +14,6 @@ class AnalyticsService {
       // Enable analytics collection
       await analytics().setAnalyticsCollectionEnabled(true);
       this.initialized = true;
-      console.log('📊 Analytics initialized');
     } catch (error) {
       console.error('Failed to initialize analytics:', error);
     }

@@ -250,3 +250,95 @@ export function getPlanDisplayName(planId: string): string {
   };
   return planNames[planId] || planId;
 }
+
+/**
+ * Get plan tier level (higher = more features)
+ */
+export function getPlanTier(planId: string): number {
+  const tiers: Record<string, number> = {
+    freemium: 0,
+    free: 0,
+    basic: 1,
+    standard: 2,
+    premium: 3,
+  };
+  return tiers[planId] || 0;
+}
+
+/**
+ * Check if user has downgraded from a higher plan
+ * Returns previous plan info if detected
+ */
+export function checkDowngradeStatus(subscription: Subscription | null): {
+  isDowngraded: boolean;
+  previousPlan?: string;
+  currentPlan?: string;
+  lostFeatures?: FeatureName[];
+} {
+  if (!subscription) {
+    return { isDowngraded: false };
+  }
+
+  const currentPlan = subscription.planId || 'freemium';
+  
+  // Check if there's a recorded previous plan that was higher tier
+  // This could be stored in subscription document after downgrade
+  const previousPlan = (subscription as any).previousPlanId;
+  
+  if (previousPlan && getPlanTier(previousPlan) > getPlanTier(currentPlan)) {
+    // Determine which features were lost
+    const lostFeatures: FeatureName[] = [];
+    
+    for (const [feature, allowedPlans] of Object.entries(FEATURE_ACCESS)) {
+      if (allowedPlans.includes(previousPlan) && !allowedPlans.includes(currentPlan)) {
+        lostFeatures.push(feature as FeatureName);
+      }
+    }
+    
+    return {
+      isDowngraded: true,
+      previousPlan: getPlanDisplayName(previousPlan),
+      currentPlan: getPlanDisplayName(currentPlan),
+      lostFeatures,
+    };
+  }
+
+  return { isDowngraded: false };
+}
+
+/**
+ * Get features lost when downgrading between plans
+ */
+export function getFeaturesLostOnDowngrade(
+  fromPlan: string,
+  toPlan: string,
+): { feature: FeatureName; name: string; description: string }[] {
+  const lostFeatures: { feature: FeatureName; name: string; description: string }[] = [];
+
+  for (const [feature, allowedPlans] of Object.entries(FEATURE_ACCESS)) {
+    if (allowedPlans.includes(fromPlan) && !allowedPlans.includes(toPlan)) {
+      const info = FEATURE_DESCRIPTIONS[feature as FeatureName];
+      lostFeatures.push({
+        feature: feature as FeatureName,
+        name: info.name,
+        description: info.description,
+      });
+    }
+  }
+
+  return lostFeatures;
+}
+
+/**
+ * Check if a specific feature requires upgrade from current plan
+ */
+export function getRequiredPlanForFeature(feature: FeatureName): string {
+  const allowedPlans = FEATURE_ACCESS[feature];
+  
+  // Return the lowest tier plan that has access
+  if (allowedPlans.includes('basic')) return 'Basic';
+  if (allowedPlans.includes('standard')) return 'Standard';
+  if (allowedPlans.includes('premium')) return 'Premium';
+  
+  return 'Premium';
+}

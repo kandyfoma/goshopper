@@ -316,7 +316,7 @@ function HomeSection() {
                 </div>
               </a>
             </div>
-            <p className="download-note">Téléchargement gratuit • Aucune carte de crédit requise • Disponible dans le monde entier</p>
+            <p className="download-note">Téléchargement gratuit • 30 jours d'essai gratuit • Aucune carte de crédit requise</p>
           </div>
         </div>
       </section>
@@ -950,7 +950,7 @@ function Support() {
         {
           id: 'pricing-plans',
           question: 'Quels sont les tarifs d\'abonnement ?',
-          answer: 'GoShopper propose : Essai gratuit (2 mois, illimité), Plan Basic (1,99$/mois - 25 scans), Plan Standard (2,99$/mois - 100 scans), Plan Premium (4,99$/mois - illimité). Les prix en RDC sont : Basic 8 000 FC, Standard 12 000 FC, Premium 20 000 FC.'
+          answer: 'GoShopper propose : Plan Gratuit (3 scans/mois), Essai Gratuit (30 jours - 10 scans), Plan Basic (1,99$/mois ou 8 000 FC - 25 scans), Plan Standard (2,99$/mois ou 12 000 FC - 100 scans), Plan Premium (4,99$/mois ou 20 000 FC - 1,000 scans + statistiques avancées et fonctionnalités complètes).'
         },
         {
           id: 'payment-methods',
@@ -960,7 +960,7 @@ function Support() {
         {
           id: 'free-trial',
           question: 'Comment fonctionne l\'essai gratuit ?',
-          answer: 'Nouveaux utilisateurs bénéficient de 2 mois d\'accès illimité gratuit. Aucune carte de crédit requise. Vous pouvez scanner autant de tickets que vous voulez pendant cette période.'
+          answer: 'Nouveaux utilisateurs bénéficient de 30 jours d\'essai gratuit avec 10 scans inclus. Aucune carte de crédit requise. Accès à toutes les fonctionnalités premium pendant la période d\'essai. Après l\'essai, vous passez automatiquement au plan gratuit (3 scans/mois) sauf si vous choisissez un abonnement payant.'
         },
         {
           id: 'cancel-subscription',
@@ -1070,7 +1070,7 @@ function Support() {
               <div className="stat-label">Support client</div>
             </div>
             <div className="stat-item">
-              <div className="stat-number">2 mois</div>
+              <div className="stat-number">30j</div>
               <div className="stat-label">Essai gratuit</div>
             </div>
           </div>
@@ -1209,12 +1209,13 @@ function Support() {
                     <span>2,99$ / 12 000 FC</span>
                   </div>
                   <div className="price-row premium">
-                    <span>Premium (Illimité)</span>
+                    <span>Premium (1,000 scans/mois)</span>
                     <span>4,99$ / 20 000 FC</span>
                   </div>
                 </div>
                 <p className="pricing-note">
-                  ✅ Essai gratuit de 2 mois<br/>
+                  ✅ Essai gratuit de 30 jours (10 scans)<br/>
+                  ✅ Puis plan gratuit 3 scans/mois<br/>
                   ✅ Aucune carte requise<br/>
                   ✅ Annulation en un clic
                 </p>

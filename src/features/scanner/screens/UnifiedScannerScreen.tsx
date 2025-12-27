@@ -17,7 +17,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useSubscription, useAuth, useUser} from '@/shared/contexts';
+import {useSubscription, useAuth, useUser, useOfflineMode} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {useScanProcessing} from '@/shared/contexts/ScanProcessingContext';
 import {cameraService, imageCompressionService} from '@/shared/services/camera';
@@ -27,6 +27,7 @@ import {analyticsService} from '@/shared/services/analytics';
 import {hapticService} from '@/shared/services/hapticService';
 import {inAppReviewService} from '@/shared/services/inAppReviewService';
 import {offlineQueueService, receiptStorageService, userBehaviorService} from '@/shared/services/firebase';
+import {offlineModeService} from '@/shared/services/offlineModeService';
 import {
   Colors,
   Typography,
@@ -48,7 +49,7 @@ const MAX_RETRY_ATTEMPTS = 3;
 
 // Fun loading messages
 const LOADING_MESSAGES = [
-  {icon: 'search', text: 'Recherche du ticket...', subtext: 'Kozela na tiki...'},
+  {icon: 'search', text: 'Recherche du reçu...', subtext: 'Kozela na reçu...'},
   {icon: 'camera', text: 'Analyse de l\'image...', subtext: 'Kotala foto...'},
   {icon: 'cpu', text: 'IA en action...', subtext: 'Intelligence artificielle ezo sebela...'},
   {icon: 'edit', text: 'Extraction des articles...', subtext: 'Kobimisa biloko...'},
@@ -170,6 +171,21 @@ async function checkProcessedReceiptDuplicate(
   }
 }
 
+// Processing timeout constants
+const PROCESSING_TIMEOUT_MS = 30000; // 30 seconds max
+const MAX_BACKGROUND_RETRIES = 2;
+const SCAN_DEBOUNCE_MS = 2000; // 2 seconds between scans
+
+// Helper to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+    ),
+  ]);
+}
+
 export function UnifiedScannerScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user, isAuthenticated} = useAuth();
@@ -198,6 +214,10 @@ export function UnifiedScannerScreen() {
 
   // Subscription Limit Modal State
   const [showLimitModal, setShowLimitModal] = useState(false);
+
+  // Debouncing state for preventing rapid scans
+  const lastScanTimeRef = useRef<number>(0);
+  const isProcessingRef = useRef<boolean>(false);
 
   // Processing steps for progress indicator
   const PROCESSING_STEPS = [
@@ -418,6 +438,18 @@ export function UnifiedScannerScreen() {
 
   // Capture and process single photo
   const handlePhotoCapture = useCallback(async (fromGallery: boolean = false) => {
+    // Debounce: Prevent rapid multiple scans
+    const now = Date.now();
+    if (now - lastScanTimeRef.current < SCAN_DEBOUNCE_MS) {
+      showToast('Veuillez patienter avant de scanner à nouveau', 'warning');
+      return;
+    }
+    if (isProcessingRef.current) {
+      showToast('Un scan est déjà en cours', 'warning');
+      return;
+    }
+    lastScanTimeRef.current = now;
+
     // Check scan permission
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
@@ -573,28 +605,40 @@ export function UnifiedScannerScreen() {
   }, [canScan, user?.uid, profile?.defaultCity, showToast, scanProcessing, recordScan]);
 
   // Background process single photo - runs in background while user can navigate away
-  const processPhotoInBackground = useCallback(async (photoUri: string): Promise<void> => {
+  const processPhotoInBackground = useCallback(async (photoUri: string, retryCount: number = 0): Promise<void> => {
+    isProcessingRef.current = true;
+    
     try {
-      // Step 1: Compression
+      // Step 1: Compression with timeout
       scanProcessing.updateProgress(10, 'Préparation de l\'analyse...');
       
-      const imageBase64 = await imageCompressionService.compressToBase64(photoUri);
+      const imageBase64 = await withTimeout(
+        imageCompressionService.compressToBase64(photoUri),
+        10000, // 10s timeout for compression
+        'Compression de l\'image trop longue. Réessayez avec une photo plus petite.'
+      );
 
       // Step 2: Detection
       scanProcessing.updateProgress(25, 'Compression et optimisation...');
       scanProcessing.updateProgress(45, 'Extraction des données...');
       
-      const response = await hybridReceiptProcessor.processReceipt(
-        imageBase64,
-        user?.uid || 'unknown-user',
-        profile?.defaultCity
+      // Add timeout to the AI processing
+      const response = await withTimeout(
+        hybridReceiptProcessor.processReceipt(
+          imageBase64,
+          user?.uid || 'unknown-user',
+          profile?.defaultCity
+        ),
+        PROCESSING_TIMEOUT_MS,
+        'L\'analyse prend trop de temps. Vérifiez votre connexion et réessayez.'
       );
 
       if (response.success && response.receipt) {
         // Validation checks
         const total = response.receipt.total;
         if (total === null || total === undefined || total === 0) {
-          scanProcessing.setError('Reçu invalide: Aucun montant détecté.\nVeuillez scanner un reçu valide avec des prix.');
+          isProcessingRef.current = false;
+          scanProcessing.setError('Reçu invalide: Aucun montant détecté.\\nVeuillez scanner un reçu valide avec des prix.');
           return;
         }
         
@@ -622,13 +666,28 @@ export function UnifiedScannerScreen() {
           }
         }
         
-        // Step 5: Finalization - Save to Firestore
+        // Step 5: Finalization - Save to Firestore (or queue if offline)
         scanProcessing.updateProgress(90, 'Finalisation...');
         
-        const savedReceiptId = await receiptStorageService.saveReceipt(
+        // Use offline mode service to handle both online and offline scenarios
+        const saveResult = await offlineModeService.saveReceipt(
           response.receipt,
+          null, // Image URI - we've already processed the image
           user?.uid || 'unknown-user'
         );
+
+        if (!saveResult.success) {
+          throw new Error(saveResult.error || 'Échec de la sauvegarde');
+        }
+
+        const savedReceiptId = saveResult.queued 
+          ? saveResult.queuedReceipt?.id || response.receipt.id
+          : saveResult.savedReceiptId || response.receipt.id;
+        
+        // Show queued message if receipt was queued for offline sync
+        if (saveResult.queued) {
+          showToast('Reçu enregistré hors ligne. Il sera synchronisé une fois connecté.', 'info', 4000);
+        }
 
         // Track shopping patterns for ML
         if (user?.uid) {
@@ -659,6 +718,7 @@ export function UnifiedScannerScreen() {
           inAppReviewService.requestReviewIfAppropriate();
         });
         
+        isProcessingRef.current = false;
         return;
       } else {
         throw new Error(response.error || 'Échec de l\'analyse');
@@ -666,8 +726,26 @@ export function UnifiedScannerScreen() {
     } catch (err: any) {
       console.error('Background processing error:', err);
 
+      // Check if we should retry (network/timeout errors only)
+      const errorText = err.message || '';
+      const isRetryableError = 
+        errorText.includes('timeout') ||
+        errorText.includes('trop longue') ||
+        errorText.includes('network') ||
+        errorText.includes('réseau') ||
+        errorText.includes('fetch') ||
+        errorText.includes('Failed to fetch');
+
+      if (isRetryableError && retryCount < MAX_BACKGROUND_RETRIES) {
+        console.log(`Retrying scan (attempt ${retryCount + 2}/${MAX_BACKGROUND_RETRIES + 1})...`);
+        scanProcessing.updateProgress(10, `Nouvelle tentative (${retryCount + 2}/${MAX_BACKGROUND_RETRIES + 1})...`);
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return processPhotoInBackground(photoUri, retryCount + 1);
+      }
+
       // Parse error message - improved extraction
-      let errorText = err.message || '';
       let userMessage = 'Une erreur est survenue lors de l\'analyse.';
       
       try {
@@ -677,7 +755,6 @@ export function UnifiedScannerScreen() {
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
             if (parsed.error?.message) {
-              errorText = parsed.error.message;
               // Use the backend error message directly if it exists
               userMessage = parsed.error.message;
             }
@@ -694,8 +771,16 @@ export function UnifiedScannerScreen() {
           userMessage = 'Cette image ne semble pas être un reçu.';
         } else if (errorText.includes('Unable to detect receipt')) {
           userMessage = 'Impossible de détecter une facture.';
-        } else if (errorText.includes('network') || errorText.includes('réseau')) {
-          userMessage = 'Pas de connexion internet.';
+        } else if (errorText.includes('timeout') || errorText.includes('trop longue')) {
+          userMessage = 'L\'analyse a pris trop de temps. Vérifiez votre connexion et réessayez.';
+        } else if (errorText.includes('network') || errorText.includes('réseau') || errorText.includes('offline')) {
+          // Check if user has offline access
+          const hasOfflineAccess = offlineModeService.canUseOfflineMode();
+          if (hasOfflineAccess) {
+            userMessage = 'Erreur réseau. Le scan sera synchronisé une fois connecté.';
+          } else {
+            userMessage = 'Pas de connexion internet. Mettez à niveau vers Standard ou Premium pour scanner hors ligne.';
+          }
         } else if (errorText.includes('floue') || errorText.includes('sombre') || 
                    errorText.includes('blur') || errorText.includes('dark')) {
           // Use the extracted message if it's about image quality
@@ -708,6 +793,7 @@ export function UnifiedScannerScreen() {
 
       hapticService.error();
       scanProcessing.setError(userMessage);
+      isProcessingRef.current = false;
     }
   }, [user?.uid, profile?.defaultCity, recordScan, scanProcessing]);
 
@@ -753,17 +839,17 @@ export function UnifiedScannerScreen() {
           ]}
         >
           <View style={styles.scansRemainingBadge}>
-            <Icon name="zap" size="xs" color={Colors.accent} />
+            <Icon name="zap" size="xs" color={Colors.white} />
             <Text style={styles.scansRemainingText}>{scansRemaining} scans restants</Text>
           </View>
           <TouchableOpacity
             onPress={() => Alert.alert(
               'Conseils',
-              '• Photo nette et bien éclairée\n• Ticket complet visible\n• Évitez reflets et ombres\n• Mode vidéo pour longs tickets'
+              '• Photo nette et bien éclairée\n• Reçu complet visible\n• Évitez reflets et ombres\n• Mode vidéo pour longs reçus'
             )}
             hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
           >
-            <Icon name="help-circle" size="sm" color={Colors.text.tertiary} />
+            <Icon name="help-circle" size="sm" color={Colors.white} />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -834,7 +920,7 @@ export function UnifiedScannerScreen() {
 
             {/* Welcome Text */}
             <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeTitle}>Scannez votre ticket</Text>
+              <Text style={styles.welcomeTitle}>Scannez votre reçu</Text>
               <Text style={styles.welcomeSubtitle}>
                 Capturez votre reçu pour analyser vos dépenses
               </Text>
@@ -870,25 +956,6 @@ export function UnifiedScannerScreen() {
                   <Text style={[styles.secondaryActionText, {color: Colors.accent}]}>Vidéo</Text>
                   <Text style={styles.videoHint}>(longs reçus)</Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Feature Cards */}
-            <View style={styles.featureCards}>
-              <View style={styles.featureCard}>
-                <Icon name="zap" size="md" color={Colors.primary} />
-                <Text style={styles.featureTitle}>Rapide</Text>
-                <Text style={styles.featureDesc}>En 5 secondes</Text>
-              </View>
-              <View style={styles.featureCard}>
-                <Icon name="shield" size="md" color={Colors.accent} />
-                <Text style={styles.featureTitle}>Sécurisé</Text>
-                <Text style={styles.featureDesc}>Données cryptées</Text>
-              </View>
-              <View style={styles.featureCard}>
-                <Icon name="globe" size="md" color={Colors.accentLight} />
-                <Text style={styles.featureTitle}>Multi-devise</Text>
-                <Text style={styles.featureDesc}>USD & CDF</Text>
               </View>
             </View>
           </Animated.View>
@@ -959,7 +1026,7 @@ export function UnifiedScannerScreen() {
               style={styles.helpButton}
               onPress={() => Alert.alert(
                 'Aide',
-                '• Assurez-vous que la photo est bien éclairée\n• Le ticket doit être entièrement visible\n• Évitez les reflets et les ombres\n• Pour les longs tickets, utilisez le mode vidéo'
+                '• Assurez-vous que la photo est bien éclairée\n• Le reçu doit être entièrement visible\n• Évitez les reflets et les ombres\n• Pour les longs reçus, utilisez le mode vidéo'
               )}
             >
               <Text style={styles.helpButtonText}>💡 Conseils pour un meilleur scan</Text>
@@ -1041,14 +1108,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
+    backgroundColor: 'rgba(0, 48, 73, 0.9)',
+    borderBottomWidth: 0,
   },
   scansRemainingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.accentLight,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
@@ -1057,7 +1123,7 @@ const styles = StyleSheet.create({
   scansRemainingText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.medium,
-    color: Colors.accent,
+    color: Colors.white,
   },
   headerBackButton: {
     width: 40,

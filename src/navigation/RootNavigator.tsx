@@ -61,13 +61,6 @@ export function RootNavigator() {
   );
   const [checkingProfile, setCheckingProfile] = useState(false);
 
-  console.log(
-    '🧭 RootNavigator render - isAuthenticated:',
-    isAuthenticated,
-    'isLoading:',
-    isLoading,
-  );
-
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {
@@ -101,30 +94,25 @@ export function RootNavigator() {
           .get();
 
         const userData = userDoc.data();
-        // Profile is complete if they have firstName, surname, phoneNumber, and city
+        
+        // Profile is complete if:
+        // 1. profileCompleted flag is true, OR
+        // 2. User has firstName, surname, phoneNumber, and defaultCity (social login users), OR
+        // 3. User registered with phone (has phoneNumber and city from registration)
         const isComplete = !!(
           userData?.profileCompleted ||
           (userData?.firstName &&
             userData?.surname &&
             userData?.phoneNumber &&
-            userData?.defaultCity)
+            userData?.defaultCity) ||
+          (userData?.phoneNumber && userData?.city && userData?.countryCode)
         );
-
-        console.log('👤 Profile check:', {
-          exists: userDoc.exists,
-          profileCompleted: userData?.profileCompleted,
-          firstName: userData?.firstName,
-          surname: userData?.surname,
-          phoneNumber: userData?.phoneNumber,
-          defaultCity: userData?.defaultCity,
-          isComplete,
-        });
 
         setIsProfileComplete(isComplete);
       } catch (error) {
         console.error('Error checking profile:', error);
-        // On error, assume profile needs setup
-        setIsProfileComplete(false);
+        // On error, assume profile is complete (don't block user)
+        setIsProfileComplete(true);
       } finally {
         setCheckingProfile(false);
       }
@@ -147,14 +135,6 @@ export function RootNavigator() {
   }
 
   // Always show main app - allow anonymous access
-  console.log(
-    '✅ Showing main app (allowing anonymous access), authenticated:',
-    isAuthenticated,
-    'profileComplete:',
-    isProfileComplete,
-    'isFirstLaunch:',
-    isFirstLaunch,
-  );
 
   // Determine initial route based on state
   let initialRoute: keyof RootStackParamList = 'Main';

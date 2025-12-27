@@ -35,6 +35,8 @@ export interface VideoResult {
 
 // Video constraints for receipt scanning
 const MAX_VIDEO_DURATION_SECONDS = 10; // Max 10 seconds for receipt scanning
+const MIN_VIDEO_DURATION_SECONDS = 3; // Min 3 seconds for meaningful content
+const MAX_VIDEO_SIZE_BYTES = 10 * 1024 * 1024; // 10MB max for video
 const VIDEO_QUALITY = 'medium'; // Balance quality and file size
 
 const DEFAULT_VIDEO_OPTIONS: CameraOptions = {
@@ -52,7 +54,8 @@ const DEFAULT_CAMERA_OPTIONS: CameraOptions = {
   maxHeight: 2500,
   includeBase64: true, // Get base64 directly to avoid saving files
   saveToPhotos: false,
-  cameraType: 'back', // H4 FIX: Use back camera for receipts (not front)
+  cameraType: 'back',
+  selectionLimit: 1,
 };
 
 class CameraService {
@@ -84,6 +87,42 @@ class CameraService {
   }
 
   /**
+   * Request camera and audio permissions for video recording (Android only)
+   */
+  async requestVideoPermissions(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      const permissions = [
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      ];
+
+      const results = await PermissionsAndroid.requestMultiple(permissions);
+      
+      const cameraGranted = results[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED;
+      const audioGranted = results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED;
+      
+      if (!cameraGranted) {
+        console.warn('Camera permission denied');
+        return false;
+      }
+      
+      // Audio is optional for video - we can record without audio
+      if (!audioGranted) {
+        console.warn('Audio permission denied - video will be recorded without audio');
+      }
+      
+      return cameraGranted;
+    } catch (err) {
+      console.error('Video permissions error:', err);
+      return false;
+    }
+  }
+
+  /**
    * Capture image from camera
    */
   async captureFromCamera(
@@ -98,9 +137,15 @@ class CameraService {
       };
     }
 
+    const cameraOptions = {...DEFAULT_CAMERA_OPTIONS, ...options};
+    console.log('📷 [CameraService] Opening camera with options:', {
+      cameraType: cameraOptions.cameraType,
+      mediaType: cameraOptions.mediaType,
+    });
+
     return new Promise(resolve => {
       launchCamera(
-        {...DEFAULT_CAMERA_OPTIONS, ...options},
+        cameraOptions,
         (response: ImagePickerResponse) => {
           resolve(this.handleImagePickerResponse(response));
         },
@@ -129,8 +174,8 @@ class CameraService {
    * @param maxDuration Max duration in seconds (default: 10s)
    */
   async recordVideo(maxDuration: number = MAX_VIDEO_DURATION_SECONDS): Promise<VideoResult> {
-    // Check permission first
-    const hasPermission = await this.requestCameraPermission();
+    // Check permissions first (camera + audio)
+    const hasPermission = await this.requestVideoPermissions();
     if (!hasPermission) {
       return {
         success: false,
@@ -147,9 +192,20 @@ class CameraService {
         async (response: ImagePickerResponse) => {
           const result = this.handleVideoPickerResponse(response);
           
-          // If successful, read the video file and convert to base64
+          // If successful, validate size and convert to base64
           if (result.success && result.uri) {
             try {
+              // Check file size BEFORE loading into memory
+              const fileInfo = await RNFS.stat(result.uri);
+              if (fileInfo.size > MAX_VIDEO_SIZE_BYTES) {
+                resolve({
+                  success: false,
+                  error: `Vidéo trop volumineuse (${Math.round(fileInfo.size / 1024 / 1024)}MB). Maximum ${MAX_VIDEO_SIZE_BYTES / 1024 / 1024}MB.`,
+                  canRetry: true,
+                });
+                return;
+              }
+
               const base64 = await RNFS.readFile(result.uri, 'base64');
               result.base64 = base64;
             } catch (error) {
@@ -182,19 +238,40 @@ class CameraService {
         async (response: ImagePickerResponse) => {
           const result = this.handleVideoPickerResponse(response);
           
-          // Validate duration for gallery videos
-          if (result.success && result.duration && result.duration > MAX_VIDEO_DURATION_SECONDS) {
-            resolve({
-              success: false,
-              error: `Vidéo trop longue (max ${MAX_VIDEO_DURATION_SECONDS}s). Sélectionnez une vidéo plus courte.`,
-              canRetry: true,
-            });
-            return;
+          // Validate duration FIRST before loading into memory
+          if (result.success && result.duration) {
+            if (result.duration > MAX_VIDEO_DURATION_SECONDS) {
+              resolve({
+                success: false,
+                error: `Vidéo trop longue (${Math.round(result.duration)}s). Maximum ${MAX_VIDEO_DURATION_SECONDS}s.`,
+                canRetry: true,
+              });
+              return;
+            }
+            if (result.duration < MIN_VIDEO_DURATION_SECONDS) {
+              resolve({
+                success: false,
+                error: `Vidéo trop courte (${Math.round(result.duration)}s). Minimum ${MIN_VIDEO_DURATION_SECONDS}s pour capturer le reçu.`,
+                canRetry: true,
+              });
+              return;
+            }
           }
           
-          // If successful, read the video file and convert to base64
+          // If successful, check size and read the video file
           if (result.success && result.uri) {
             try {
+              // Check file size BEFORE loading into memory
+              const fileInfo = await RNFS.stat(result.uri);
+              if (fileInfo.size > MAX_VIDEO_SIZE_BYTES) {
+                resolve({
+                  success: false,
+                  error: `Vidéo trop volumineuse (${Math.round(fileInfo.size / 1024 / 1024)}MB). Maximum ${MAX_VIDEO_SIZE_BYTES / 1024 / 1024}MB.`,
+                  canRetry: true,
+                });
+                return;
+              }
+
               const base64 = await RNFS.readFile(result.uri, 'base64');
               result.base64 = base64;
             } catch (error) {
@@ -365,15 +442,15 @@ class CameraService {
     if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
       return {
         success: false,
-        error: `Vidéo trop longue (max ${MAX_VIDEO_DURATION_SECONDS}s). Réessayez avec une vidéo plus courte.`,
+        error: `Vidéo trop longue (${Math.round(durationSeconds)}s). Maximum ${MAX_VIDEO_DURATION_SECONDS}s.`,
         canRetry: true,
       };
     }
 
-    if (durationSeconds < 1) {
+    if (durationSeconds < MIN_VIDEO_DURATION_SECONDS) {
       return {
         success: false,
-        error: 'Vidéo trop courte. Scannez lentement tout le reçu.',
+        error: `Vidéo trop courte (${Math.round(durationSeconds)}s). Scannez lentement tout le reçu (minimum ${MIN_VIDEO_DURATION_SECONDS}s).`,
         canRetry: true,
       };
     }

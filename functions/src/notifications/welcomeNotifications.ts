@@ -375,3 +375,56 @@ export const sendUpgradeProposalToUser = functions
       userId,
     };
   });
+
+/**
+ * Callable function to send welcome notification to a new user
+ * Called from mobile app after phone registration
+ */
+export const sendWelcomeToNewUser = functions
+  .region(config.app.region)
+  .https.onCall(async (data, context) => {
+    const {userId, fcmToken, language = 'fr'} = data;
+
+    if (!userId) {
+      throw new functions.https.HttpsError('invalid-argument', 'userId is required');
+    }
+
+    if (!fcmToken) {
+      // Save notification to database even without FCM token
+      await db
+        .collection(`artifacts/${config.app.id}/users/${userId}/notifications`)
+        .add({
+          type: 'welcome',
+          title: '🎉 Bienvenue sur GoShopper!',
+          body: 'Commencez à scanner vos reçus pour suivre vos dépenses et économiser!',
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+      return {
+        success: true,
+        userId,
+        message: 'Welcome notification saved (no FCM token)',
+      };
+    }
+
+    // Update user document with FCM token
+    await db
+      .doc(`artifacts/${config.app.id}/users/${userId}`)
+      .set(
+        {
+          fcmToken,
+          fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          notificationsEnabled: true,
+        },
+        {merge: true}
+      );
+
+    const success = await sendWelcomeNotification(userId, fcmToken, language);
+    await sendTrialPlanNotification(userId, fcmToken, language);
+
+    return {
+      success,
+      userId,
+    };
+  });

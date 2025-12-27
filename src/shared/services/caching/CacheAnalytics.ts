@@ -142,31 +142,11 @@ class CacheAnalyticsService {
   }
 
   /**
-   * Log cache performance to console
+   * Log cache performance to console (disabled in production)
    */
   logPerformance(): void {
-    const report = this.checkHealth();
-    
-    console.log('\n=== Cache Performance Report ===');
-    console.log(`Timestamp: ${report.timestamp.toLocaleString()}`);
-    console.log(`Performance: ${report.performance.toUpperCase()}`);
-    console.log('\nHit Rates:');
-    console.log(`  Memory: ${report.hitRate.memory.toFixed(1)}%`);
-    console.log(`  Disk: ${report.hitRate.disk.toFixed(1)}%`);
-    console.log(`  Overall: ${report.hitRate.overall.toFixed(1)}%`);
-    console.log('\nStatistics:');
-    console.log(`  Memory Entries: ${report.stats.memoryEntries}`);
-    console.log(`  Memory Size: ${(report.stats.memorySize / 1024).toFixed(1)}KB`);
-    console.log(`  Evictions: ${report.stats.evictions}`);
-    console.log(`  Errors: ${report.stats.errors}`);
-    
-    if (report.recommendations.length > 0) {
-      console.log('\nRecommendations:');
-      report.recommendations.forEach((rec, i) => {
-        console.log(`  ${i + 1}. ${rec}`);
-      });
-    }
-    console.log('================================\n');
+    // Disabled to reduce console noise in production
+    // Use getSummary() for UI display instead
   }
 
   /**

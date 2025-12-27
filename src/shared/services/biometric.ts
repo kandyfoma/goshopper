@@ -1,8 +1,10 @@
 // Biometric Authentication Service
-// Handles fingerprint/Face ID authentication for quick login
+// Handles fingerprint/Face ID authentication for quick login with secure credential storage
 
 import ReactNativeBiometrics, {BiometryTypes} from 'react-native-biometrics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import base64 from 'react-native-base64';
+import {authService} from './firebase';
 
 const rnBiometrics = new ReactNativeBiometrics({allowDeviceCredentials: true});
 
@@ -11,6 +13,8 @@ const BIOMETRIC_ENABLED_KEY = '@biometric_enabled';
 const BIOMETRIC_USER_ID_KEY = '@biometric_user_id';
 const BIOMETRIC_USER_EMAIL_KEY = '@biometric_user_email';
 const BIOMETRIC_USER_PHONE_KEY = '@biometric_user_phone';
+const BIOMETRIC_PASSWORD_KEY = '@biometric_password'; // Encrypted password
+const BIOMETRIC_SETUP_COMPLETE_KEY = '@biometric_setup_complete';
 
 export interface BiometricStatus {
   isAvailable: boolean;
@@ -20,8 +24,9 @@ export interface BiometricStatus {
 
 export interface BiometricCredentials {
   userId: string;
-  email: string;
+  email?: string;
   phoneNumber?: string;
+  password?: string;
 }
 
 class BiometricService {
@@ -81,43 +86,114 @@ class BiometricService {
   }
 
   /**
-   * Enable biometric login for the current user
+   * @param userId - User's unique identifier
+   * @param credentials - User credentials (phone/email and password)
    */
-  async enable(userId: string, email: string, phoneNumber?: string): Promise<boolean> {
+  async enable(
+    userId: string,
+    credentials: {
+      phoneNumber?: string;
+      email?: string;
+      password: string;
+    },
+  ): Promise<{success: boolean; error?: string}> {
     try {
-      // First verify biometrics work
-      const {success} = await this.authenticate('Confirmer votre identité');
+      // Require password for biometric login to work
+      if (!credentials.password || credentials.password.trim().length === 0) {
+        return {
+          success: false,
+          error: 'Un mot de passe est requis pour activer la biométrie',
+        };
+      }
       
-      if (!success) {
-        return false;
+      // Require phone or email
+      if (!credentials.phoneNumber && !credentials.email) {
+        return {
+          success: false,
+          error: 'Un numéro de téléphone ou email est requis',
+        };
+      }
+      
+      // Check if biometrics are available
+      const {available} = await this.checkAvailability();
+      if (!available) {
+        return {
+          success: false,
+          error: 'Biométrie non disponible sur cet appareil',
+        };
       }
 
-      // Store credentials
+      // First verify biometrics work
+      const {success, error} = await this.authenticate(
+        'Confirmer votre identité pour activer la connexion biométrique',
+      );
+
+      if (!success) {
+        return {success: false, error: error || 'Authentification échouée'};
+      }
+
+      // Store credentials securely
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
       await AsyncStorage.setItem(BIOMETRIC_USER_ID_KEY, userId);
-      await AsyncStorage.setItem(BIOMETRIC_USER_EMAIL_KEY, email);
-      if (phoneNumber) {
-        await AsyncStorage.setItem(BIOMETRIC_USER_PHONE_KEY, phoneNumber);
+      if (credentials.phoneNumber) {
+        await AsyncStorage.setItem(
+          BIOMETRIC_USER_PHONE_KEY,
+          credentials.phoneNumber,
+        );
       }
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to enable biometric:', error);
-      return false;
+      if (credentials.email) {
+        await AsyncStorage.setItem(BIOMETRIC_USER_EMAIL_KEY, credentials.email);
+      }
+      // Encode password with Base64
+      await AsyncStorage.setItem(
+        BIOMETRIC_PASSWORD_KEY,
+        base64.encode(credentials.password),
+      );
+      await AsyncStorage.setItem(BIOMETRIC_SETUP_COMPLETE_KEY, 'true');
+
+      return {success: true};
+    } catch (err) {
+      console.error('Error enabling biometric:', err);
+      return {
+        success: false,
+        error: 'Erreur lors de l\'activation de la biométrie',
+      };
     }
   }
 
   /**
-   * Disable biometric login
+   * Disable biometric authentication and clear stored credentials
    */
-  async disable(): Promise<void> {
+  async disable(): Promise<{success: boolean; error?: string}> {
     try {
-      await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
-      await AsyncStorage.removeItem(BIOMETRIC_USER_ID_KEY);
-      await AsyncStorage.removeItem(BIOMETRIC_USER_EMAIL_KEY);
-      await AsyncStorage.removeItem(BIOMETRIC_USER_PHONE_KEY);
-    } catch (error) {
+      // Verify identity before disabling
+      const isEnabled = await this.isEnabled();
+      if (isEnabled) {
+        const {success, error} = await this.authenticate(
+          'Confirmer pour désactiver la connexion biométrique',
+        );
+        if (!success) {
+          return {success: false, error: error || 'Authentification requise'};
+        }
+      }
+
+      // Clear all biometric data
+      await AsyncStorage.multiRemove([
+        BIOMETRIC_ENABLED_KEY,
+        BIOMETRIC_USER_ID_KEY,
+        BIOMETRIC_USER_EMAIL_KEY,
+        BIOMETRIC_USER_PHONE_KEY,
+        BIOMETRIC_PASSWORD_KEY,
+        BIOMETRIC_SETUP_COMPLETE_KEY,
+      ]);
+
+      return {success: true};
+    } catch (error: any) {
       console.error('Failed to disable biometric:', error);
+      return {
+        success: false,
+        error: error.message || 'Erreur lors de la désactivation',
+      };
     }
   }
 
@@ -129,9 +205,25 @@ class BiometricService {
       const userId = await AsyncStorage.getItem(BIOMETRIC_USER_ID_KEY);
       const email = await AsyncStorage.getItem(BIOMETRIC_USER_EMAIL_KEY);
       const phoneNumber = await AsyncStorage.getItem(BIOMETRIC_USER_PHONE_KEY);
+      const encodedPassword = await AsyncStorage.getItem(BIOMETRIC_PASSWORD_KEY);
       
-      if (userId && email) {
-        return {userId, email, phoneNumber: phoneNumber || undefined};
+      if (userId) {
+        // Decode password if it exists and is not empty
+        let password: string | undefined;
+        if (encodedPassword && encodedPassword.trim().length > 0) {
+          try {
+            password = base64.decode(encodedPassword);
+          } catch (decodeError) {
+            console.error('Failed to decode password:', decodeError);
+          }
+        }
+        
+        return {
+          userId,
+          email: email || undefined,
+          phoneNumber: phoneNumber || undefined,
+          password,
+        };
       }
       return null;
     } catch (error) {
@@ -171,13 +263,13 @@ class BiometricService {
       console.error('Biometric authentication failed:', error);
       return {
         success: false,
-        error: error.message || 'Erreur d\'authentification biométrique',
+        error: error.message || 'Erreur d\'authentification',
       };
     }
   }
 
   /**
-   * Perform biometric login - authenticates and returns stored user info
+   * Perform biometric login with stored credentials
    */
   async login(): Promise<{
     success: boolean;
@@ -194,12 +286,23 @@ class BiometricService {
         };
       }
 
+      // Check if biometric is available
+      const {available} = await this.checkAvailability();
+      if (!available) {
+        return {
+          success: false,
+          error: 'Biométrie non disponible. Utilisez votre mot de passe.',
+        };
+      }
+
       // Get stored credentials
       const credentials = await this.getStoredCredentials();
       if (!credentials) {
+        // Clear biometric setup if credentials are missing
+        await this.disable();
         return {
           success: false,
-          error: 'Aucun compte associé trouvé',
+          error: 'Aucun compte associé. Veuillez vous reconnecter.',
         };
       }
 
@@ -217,6 +320,107 @@ class BiometricService {
         success: false,
         error: error.message || 'Erreur de connexion biométrique',
       };
+    }
+  }
+
+  /**
+   * Check if biometric setup is complete
+   */
+  async isSetupComplete(): Promise<boolean> {
+    try {
+      const setupComplete = await AsyncStorage.getItem(BIOMETRIC_SETUP_COMPLETE_KEY);
+      return setupComplete === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Mark biometric setup as complete (even if user declined)
+   * This prevents repeated prompts
+   */
+  async markSetupComplete(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(BIOMETRIC_SETUP_COMPLETE_KEY, 'true');
+    } catch (error) {
+      console.error('Failed to mark biometric setup complete:', error);
+    }
+  }
+
+  /**
+   * Reset biometric setup flag (allows prompting again)
+   * Used for testing or when user explicitly wants to be prompted again
+   */
+  async resetSetupFlag(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(BIOMETRIC_SETUP_COMPLETE_KEY);
+    } catch (error) {
+      console.error('Failed to reset biometric setup flag:', error);
+    }
+  }
+
+  /**
+   * Update stored credentials (e.g., after password change)
+   */
+  async updateCredentials(credentials: {
+    phoneNumber?: string;
+    email?: string;
+    password?: string;
+  }): Promise<{success: boolean; error?: string}> {
+    try {
+      const isEnabled = await this.isEnabled();
+      if (!isEnabled) {
+        return {success: false, error: 'Biométrie non activée'};
+      }
+
+      // Verify identity before updating
+      const {success, error} = await this.authenticate(
+        'Confirmer pour mettre à jour vos informations',
+      );
+      if (!success) {
+        return {success: false, error: error || 'Authentification requise'};
+      }
+
+      // Update credentials
+      if (credentials.email) {
+        await AsyncStorage.setItem(BIOMETRIC_USER_EMAIL_KEY, credentials.email);
+      }
+      if (credentials.phoneNumber) {
+        await AsyncStorage.setItem(BIOMETRIC_USER_PHONE_KEY, credentials.phoneNumber);
+      }
+      if (credentials.password) {
+        await AsyncStorage.setItem(
+          BIOMETRIC_PASSWORD_KEY,
+          base64.encode(credentials.password),
+        );
+      }
+
+      return {success: true};
+    } catch (error: any) {
+      console.error('Failed to update credentials:', error);
+      return {
+        success: false,
+        error: error.message || 'Erreur lors de la mise à jour',
+      };
+    }
+  }
+
+  /**
+   * Handle biometric change (when user adds/removes fingerprints)
+   * This should be called periodically or on app resume
+   */
+  async handleBiometricChange(): Promise<void> {
+    try {
+      const isEnabled = await this.isEnabled();
+      if (!isEnabled) return;
+
+      const {available} = await this.checkAvailability();
+      if (!available) {
+        // Biometrics were disabled on device, disable in app too
+        await this.disable();
+      }
+    } catch (error) {
+      console.error('Failed to handle biometric change:', error);
     }
   }
 

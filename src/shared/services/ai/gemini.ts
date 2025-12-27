@@ -6,6 +6,7 @@ import auth from '@react-native-firebase/auth';
 import {Receipt, ReceiptItem, ReceiptScanResult} from '@/shared/types';
 import {generateUUID, convertCurrency} from '@/shared/utils/helpers';
 import {ocrCorrectionService} from '../ocrCorrectionService';
+import {itemSanitizationService} from '../itemSanitizationService';
 
 // Cloud Functions region - must match deployed functions
 const FUNCTIONS_REGION = 'us-central1'; // H5 FIX: Match actual deployed region
@@ -299,9 +300,10 @@ class GeminiService {
     const now = new Date();
     // Use the Firestore receipt ID if provided, otherwise generate a new one
     const receiptId = firestoreReceiptId || generateUUID();
+    const currency = data.currency || 'CDF';
 
     // Transform items - filter out undefined fields
-    const items: ReceiptItem[] = data.items.map((item, index) => {
+    const rawItems: ReceiptItem[] = data.items.map((item, index) => {
       const receiptItem: any = {
         id: `${receiptId}-item-${index}`,
         name: ocrCorrectionService.correctProductName(item.name),
@@ -319,15 +321,31 @@ class GeminiService {
       return receiptItem as ReceiptItem;
     });
 
+    // Sanitize all items - filter garbage, fix errors, translate local languages
+    const { validItems, invalidItems, modifications } = itemSanitizationService.sanitizeItems(
+      rawItems,
+      { currency: currency as 'USD' | 'CDF', strictMode: false }
+    );
+
+    if (invalidItems.length > 0) {
+      console.log(`🧹 [Gemini] Filtered ${invalidItems.length} invalid items:`, invalidItems.map(i => i.reason));
+    }
+    if (modifications.length > 0) {
+      console.log(`✏️ [Gemini] Made ${modifications.length} item modifications:`, modifications.slice(0, 5));
+    }
+
+    // Sanitize store name
+    const sanitizedStoreName = itemSanitizationService.sanitizeStoreName(data.storeName || '');
+
     // Create receipt object with only defined fields
     const receipt: any = {
       id: receiptId,
       userId,
-      storeName: data.storeName || 'Magasin inconnu',
-      storeNameNormalized: this.normalizeStoreName(data.storeName || 'magasin-inconnu'),
+      storeName: sanitizedStoreName,
+      storeNameNormalized: this.normalizeStoreName(sanitizedStoreName),
       date: data.date ? new Date(data.date) : now, // Use receipt date or fallback to now
-      currency: data.currency || 'CDF',
-      items,
+      currency,
+      items: validItems,
       total: data.total || 0,
       processingStatus: 'completed',
       createdAt: now,

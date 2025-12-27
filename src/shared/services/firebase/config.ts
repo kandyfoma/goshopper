@@ -26,7 +26,6 @@ export const initializeFirebase = async (): Promise<void> => {
     });
 
     initialized = true;
-    console.log('✅ Firebase initialized successfully');
   } catch (error) {
     console.warn(
       '⚠️ Firebase initialization failed - running in demo mode:',

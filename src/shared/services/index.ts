@@ -8,6 +8,7 @@ export {quickActionsService} from './quickActionsService';
 export {dynamicTypeService} from './dynamicTypeService';
 export {spotlightSearchService} from './spotlightSearchService';
 export {offlineService} from './offlineService';
+export {offlineModeService} from './offlineModeService';
 export {widgetDataService} from './widgetDataService';
 export {ocrCorrectionService} from './ocrCorrectionService';
 export {translationService} from './translation';

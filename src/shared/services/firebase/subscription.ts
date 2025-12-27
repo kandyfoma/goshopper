@@ -434,8 +434,6 @@ class SubscriptionService {
       callback(this.getDefaultSubscription(''));
       return () => {};
     }
-
-    console.log('📊 Setting up subscription listener for user:', user.uid);
     
     return firestore()
       .doc(COLLECTIONS.subscription(user.uid))

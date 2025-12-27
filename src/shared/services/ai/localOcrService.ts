@@ -175,21 +175,31 @@ class LocalOcrService {
 
   /**
    * Extract items with prices from receipt text
+   * Handles multiple formats including CDF prices (12 500 FC, 12.500,00)
    */
   private extractItems(lines: string[]): Array<{name: string; price: number; quantity: number}> {
     const items: Array<{name: string; price: number; quantity: number}> = [];
 
-    // Common receipt patterns:
+    // Common receipt patterns - including CDF formats:
     // "Item Name    12.50"
     // "Item Name 2x 25.00"
     // "2 Item Name  25.00"
+    // CDF: "Item Name    12 500 FC" or "Item Name    12.500,00"
     const patterns = [
-      // Pattern: "Item Name    12.50"
+      // Pattern: CDF with space separator "Item Name    12 500" or "Item Name    12 500 FC"
+      /^(.+?)\s+(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?\s*$/i,
+      // Pattern: CDF with dot separator "Item Name    12.500,00"
+      /^(.+?)\s+(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:FC|CDF)?\s*$/i,
+      // Pattern: "Item Name    12.50" (standard decimal)
       /^(.+?)\s+(\d+[.,]\d{2})\s*$/,
       // Pattern: "Item Name 2x 25.00" or "Item Name x2 25.00"
       /^(.+?)\s+[xX]?(\d+)[xX]?\s+(\d+[.,]\d{2})\s*$/,
       // Pattern: "2 Item Name  25.00"
       /^(\d+)\s+(.+?)\s+(\d+[.,]\d{2})\s*$/,
+      // Pattern: CDF with quantity "Item Name 2x 12 500"
+      /^(.+?)\s+[xX]?(\d+)[xX]?\s+(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?\s*$/i,
+      // Pattern: CDF quantity at start "2 Item Name  12 500"
+      /^(\d+)\s+(.+?)\s+(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?\s*$/i,
     ];
 
     for (const line of lines) {
@@ -197,27 +207,46 @@ class LocalOcrService {
       if (this.isHeaderOrFooter(line)) continue;
 
       // Try each pattern
-      for (const pattern of patterns) {
+      for (let i = 0; i < patterns.length; i++) {
+        const pattern = patterns[i];
         const match = line.match(pattern);
         if (match) {
           let name: string;
           let price: number;
           let quantity = 1;
 
-          if (pattern === patterns[0]) {
+          if (i === 0) {
+            // CDF with space separator "Item Name    12 500"
+            name = match[1].trim();
+            price = this.parseCdfPrice(match[2]);
+          } else if (i === 1) {
+            // CDF with dot separator "Item Name    12.500,00"
+            name = match[1].trim();
+            price = this.parseCdfPrice(match[2]);
+          } else if (i === 2) {
             // Pattern: "Item Name    12.50"
             name = match[1].trim();
             price = parseFloat(match[2].replace(',', '.'));
-          } else if (pattern === patterns[1]) {
+          } else if (i === 3) {
             // Pattern: "Item Name 2x 25.00"
             name = match[1].trim();
             quantity = parseInt(match[2], 10);
             price = parseFloat(match[3].replace(',', '.'));
-          } else {
+          } else if (i === 4) {
             // Pattern: "2 Item Name  25.00"
             quantity = parseInt(match[1], 10);
             name = match[2].trim();
             price = parseFloat(match[3].replace(',', '.'));
+          } else if (i === 5) {
+            // CDF with quantity "Item Name 2x 12 500"
+            name = match[1].trim();
+            quantity = parseInt(match[2], 10);
+            price = this.parseCdfPrice(match[3]);
+          } else {
+            // CDF quantity at start "2 Item Name  12 500"
+            quantity = parseInt(match[1], 10);
+            name = match[2].trim();
+            price = this.parseCdfPrice(match[3]);
           }
 
           // Validate extracted data
@@ -237,16 +266,50 @@ class LocalOcrService {
   }
 
   /**
+   * Parse CDF price formats
+   * "12 500" -> 12500
+   * "12.500,00" -> 12500.00
+   * "1 250 000" -> 1250000
+   */
+  private parseCdfPrice(priceStr: string): number {
+    // Remove FC/CDF suffix if present
+    let cleaned = priceStr.replace(/\s*(FC|CDF)\s*/gi, '').trim();
+    
+    // Handle "12.500,00" format (dot as thousand separator, comma as decimal)
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d{2})?$/.test(cleaned)) {
+      // "12.500,00" -> "12500.00"
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Handle "12 500" format (space as thousand separator)
+      cleaned = cleaned.replace(/\s/g, '');
+    }
+    
+    return parseFloat(cleaned) || 0;
+  }
+
+  /**
    * Extract total from receipt text
+   * Handles CDF formats (12 500 FC, 12.500,00)
    */
   private extractTotal(lines: string[]): number | undefined {
     // Look for total in last lines
     const lastLines = lines.slice(-10); // Check last 10 lines
 
     const totalPatterns = [
+      // CDF with space: "Total: 12 500 FC" or "Total: 125 000"
+      /total\s*:?\s*(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?/i,
+      // CDF with dots: "Total: 12.500,00"
+      /total\s*:?\s*(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:FC|CDF)?/i,
+      // Standard decimal: "Total: 12.50"
       /total\s*:?\s*(\d+[.,]\d{2})/i,
+      // French "montant" patterns
+      /montant\s*:?\s*(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?/i,
       /montant\s*:?\s*(\d+[.,]\d{2})/i,
+      // French "somme" patterns
+      /somme\s*:?\s*(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?/i,
       /somme\s*:?\s*(\d+[.,]\d{2})/i,
+      // Line starting with Total
+      /^total\s+(\d{1,3}(?:\s\d{3})+)\s*(?:FC|CDF)?/i,
       /^total\s+(\d+[.,]\d{2})/i,
     ];
 
@@ -254,7 +317,7 @@ class LocalOcrService {
       for (const pattern of totalPatterns) {
         const match = line.match(pattern);
         if (match) {
-          return parseFloat(match[1].replace(',', '.'));
+          return this.parseCdfPrice(match[1]);
         }
       }
     }
@@ -355,9 +418,31 @@ class LocalOcrService {
 
   /**
    * Check if local OCR is available
+   * Actually tests ML Kit to ensure it's working
    */
-  isAvailable(): boolean {
-    // ML Kit is available on both Android and iOS
+  async isAvailable(): Promise<boolean> {
+    // Basic platform check
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+      return false;
+    }
+    
+    try {
+      // Try to import and check if TextRecognition module exists
+      if (!TextRecognition || typeof TextRecognition.recognize !== 'function') {
+        console.warn('ML Kit TextRecognition not available');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('ML Kit availability check failed:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Synchronous version for quick checks (doesn't verify ML Kit works)
+   */
+  isAvailableSync(): boolean {
     return Platform.OS === 'android' || Platform.OS === 'ios';
   }
 }

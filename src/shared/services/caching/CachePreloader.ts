@@ -23,7 +23,6 @@ class CachePreloader {
     }
 
     this.isPreloading = true;
-    console.log('🔄 Starting cache preload...');
 
     try {
       await Promise.all([
@@ -34,7 +33,6 @@ class CachePreloader {
       ]);
 
       this.preloadComplete = true;
-      console.log('✅ Cache preload complete');
     } catch (error) {
       console.error('❌ Cache preload failed:', error);
     } finally {
@@ -100,7 +98,6 @@ class CachePreloader {
         }
       );
 
-      console.log(`✅ Preloaded ${receipts.length} recent receipts`);
     } catch (error) {
       console.error('Failed to preload receipts:', error);
     }
@@ -134,7 +131,6 @@ class CachePreloader {
         }
       );
 
-      console.log(`✅ Preloaded ${lists.length} shopping lists`);
     } catch (error) {
       console.error('Failed to preload shopping lists:', error);
     }

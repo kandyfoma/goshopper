@@ -561,6 +561,8 @@ export function ShoppingListsScreen() {
         visible={showLimitModal}
         onClose={() => setShowLimitModal(false)}
         limitType="shoppingList"
+        requiredPlan="Basic"
+        currentPlan={subscription?.planId === 'freemium' ? 'Gratuit' : undefined}
       />
     </SafeAreaView>
   );

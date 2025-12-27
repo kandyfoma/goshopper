@@ -60,7 +60,7 @@ export default function ScanPacksScreen() {
       <View style={styles.statusCard}>
         <Icon name="zap" size="lg" color="#FF6B35" />
         <Text style={styles.statusTitle}>Scans Restants</Text>
-        <Text style={styles.statusCount}>{scansRemaining === -1 ? '∞' : scansRemaining}</Text>
+        <Text style={styles.statusCount}>{scansRemaining}</Text>
         {scansRemaining === 0 && (
           <Text style={styles.statusWarning}>
             Vous avez épuisé vos scans mensuels

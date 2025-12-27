@@ -18,14 +18,14 @@ import {
   FlatList,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SvgXml} from 'react-native-svg';
 import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {useAuth, useToast} from '@/shared/contexts';
-import {Icon, Button} from '@/shared/components';
+import {Icon, Button, BiometricModal, triggerBiometricPrompt} from '@/shared/components';
 import Logo from '@/shared/components/Logo';
 //Login Screen imports
 import {PhoneService} from '@/shared/services/phone';
@@ -95,6 +95,15 @@ export function LoginScreen() {
   );
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [biometricPromptData, setBiometricPromptData] = useState<{
+    userId: string;
+    credentials: {
+      email?: string;
+      phoneNumber?: string;
+      password?: string;
+    };
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -227,7 +236,15 @@ export function LoginScreen() {
       setPasswordError('Le mot de passe est requis');
       return false;
     }
-    if (value.length < 6) {
+    
+    // Edge case: Check trimmed password (user entered only spaces)
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      setPasswordError('Le mot de passe ne peut pas contenir uniquement des espaces');
+      return false;
+    }
+    
+    if (trimmedValue.length < 6) {
       setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
       return false;
     }
@@ -273,11 +290,25 @@ export function LoginScreen() {
 
     setLoading(true);
     try {
-      await authService.signInWithPhone(formattedPhone, password);
+      const userCredential = await authService.signInWithPhone(formattedPhone, password);
       
       // Record successful login
       await loginSecurityService.recordAttempt(formattedPhone, true);
       showToast('Connexion réussie!', 'success', 3000);
+
+      // Check if biometric is available but not enabled
+      const biometricStatus = await biometricService.getStatus();
+      const isSetupComplete = await biometricService.isSetupComplete();
+      
+      if (biometricStatus.isAvailable && !biometricStatus.isEnabled && !isSetupComplete) {
+        // Prompt user to enable biometric login
+        setTimeout(() => {
+          showBiometricPrompt(userCredential.uid, {
+            phoneNumber: formattedPhone,
+            password: password,
+          });
+        }, 1000);
+      }
     } catch (err: any) {
       // Record failed login attempt
       await loginSecurityService.recordAttempt(formattedPhone, false);
@@ -320,6 +351,47 @@ export function LoginScreen() {
     }
   };
 
+  // Biometric modal handlers
+  const showBiometricPrompt = (userId: string, credentials: {
+    email?: string;
+    phoneNumber?: string;
+    password?: string;
+  }) => {
+    setBiometricPromptData({userId, credentials});
+    setShowBiometricModal(true);
+  };
+
+  const handleBiometricAccept = async () => {
+    if (!biometricPromptData) return;
+
+    setShowBiometricModal(false);
+    
+    const result = await biometricService.enable(
+      biometricPromptData.userId,
+      biometricPromptData.credentials,
+    );
+    
+    if (result.success) {
+      showToast('Connexion biométrique activée!', 'success', 3000);
+      const updatedStatus = await biometricService.getStatus();
+      setBiometricStatus(updatedStatus);
+    } else {
+      showToast(
+        result.error || 'Échec de l\'activation',
+        'error',
+        3000,
+      );
+    }
+    
+    setBiometricPromptData(null);
+  };
+
+  const handleBiometricDecline = async () => {
+    setShowBiometricModal(false);
+    await biometricService.markSetupComplete();
+    setBiometricPromptData(null);
+  };
+
   // Handle forgot password - navigate to forgot password flow
   const handleForgotPassword = () => {
     navigation.navigate('ForgotPassword');
@@ -335,7 +407,14 @@ export function LoginScreen() {
     setSocialLoading('google');
     setError(null);
     try {
-      await signInWithGoogle();
+      const userCredential = await signInWithGoogle();
+      console.log('[LoginScreen] Google sign in result:', {
+        userId: userCredential?.uid,
+        email: userCredential?.email,
+      });
+      
+      // Note: Biometric auth is NOT supported for social logins
+      // because we cannot store/re-use OAuth tokens automatically
     } catch (err: any) {
       setError(err?.message || 'Échec de la connexion Google');
     } finally {
@@ -348,7 +427,8 @@ export function LoginScreen() {
     setSocialLoading('apple');
     setError(null);
     try {
-      await signInWithApple();
+      const userCredential = await signInWithApple();
+      // Note: Biometric auth is NOT supported for social logins
     } catch (err: any) {
       setError(err?.message || 'Échec de la connexion Apple');
     } finally {
@@ -361,7 +441,8 @@ export function LoginScreen() {
     setSocialLoading('facebook');
     setError(null);
     try {
-      await signInWithFacebook();
+      const userCredential = await signInWithFacebook();
+      // Note: Biometric auth is NOT supported for social logins
     } catch (err: any) {
       setError(err?.message || 'Échec de la connexion Facebook');
     } finally {
@@ -369,7 +450,7 @@ export function LoginScreen() {
     }
   };
 
-  // Check biometric availability on mount
+  // Check biometric availability on mount and when screen focuses
   useEffect(() => {
     const checkBiometric = async () => {
       const status = await biometricService.getStatus();
@@ -378,6 +459,17 @@ export function LoginScreen() {
     checkBiometric();
   }, []);
 
+  // Refresh biometric status when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const refreshBiometric = async () => {
+        const status = await biometricService.getStatus();
+        setBiometricStatus(status);
+      };
+      refreshBiometric();
+    }, [])
+  );
+
   // Handle biometric login
   const handleBiometricLogin = async () => {
     setBiometricLoading(true);
@@ -385,19 +477,63 @@ export function LoginScreen() {
     try {
       const result = await biometricService.login();
       if (result.success && result.credentials) {
-        // Auto-fill phone and show success
-        setPhoneNumber(result.credentials.phoneNumber || result.credentials.email || '');
-        setSuccessMessage('Connexion biométrique réussie!');
-        showToast('Connexion biométrique réussie!', 'success', 2000);
-        // Navigate to main app
-        setTimeout(() => {
-          navigation.navigate('MainTab' as never);
-        }, 2000);
+        const {phoneNumber: storedPhone, email: storedEmail, password: storedPassword} = result.credentials;
+        
+        // For social logins (no password stored), re-authenticate using Firebase
+        if (!storedPassword) {
+          // Clear invalid biometric setup
+          await biometricService.disable();
+          // Refresh biometric status
+          const status = await biometricService.getStatus();
+          setBiometricStatus(status);
+          throw new Error(
+            'Données biométriques incomplètes. Veuillez vous reconnecter avec votre mot de passe.',
+          );
+        }
+        
+        // For phone/email + password logins
+        if (storedPhone && storedPassword) {
+          // Perform actual authentication with stored credentials
+          try {
+            await authService.signInWithPhone(storedPhone, storedPassword);
+            showToast('Connexion biométrique réussie!', 'success', 2000);
+          } catch (authError: any) {
+            // If auth fails, credentials might be outdated
+            await biometricService.disable();
+            const status = await biometricService.getStatus();
+            setBiometricStatus(status);
+            throw new Error(
+              'Informations expirées. Veuillez vous reconnecter avec votre mot de passe.',
+            );
+          }
+        } else if (storedEmail && storedPassword) {
+          // Email + password login
+          try {
+            await authService.signInWithEmail(storedEmail, storedPassword);
+            showToast('Connexion biométrique réussie!', 'success', 2000);
+          } catch (authError: any) {
+            // If auth fails, credentials might be outdated
+            await biometricService.disable();
+            const status = await biometricService.getStatus();
+            setBiometricStatus(status);
+            throw new Error(
+              'Informations expirées. Veuillez vous reconnecter avec votre mot de passe.',
+            );
+          }
+        } else {
+          // Clear invalid biometric setup
+          await biometricService.disable();
+          const status = await biometricService.getStatus();
+          setBiometricStatus(status);
+          throw new Error('Informations de connexion incomplètes. Veuillez vous reconnecter.');
+        }
       } else {
-        setError(result.error || 'Authentification échouée');
+        throw new Error(result.error || 'Authentification échouée');
       }
     } catch (err: any) {
-      setError(err?.message || 'Échec de la connexion biométrique');
+      const errorMsg = err?.message || 'Échec de la connexion biométrique';
+      setError(errorMsg);
+      showToast(errorMsg, 'error', 5000);
     } finally {
       setBiometricLoading(false);
     }
@@ -454,18 +590,6 @@ export function LoginScreen() {
               </View>
             )}
 
-            {/* Error Message */}
-            {error && (
-              <Animated.View
-                style={[
-                  styles.errorBanner,
-                  {transform: [{translateX: shakeAnimation}]},
-                ]}>
-                <Icon name="alert-triangle" size="sm" color={GOCHUJANG.error} />
-                <Text style={styles.errorText}>{error}</Text>
-              </Animated.View>
-            )}
-
             {/* Login Card */}
             <View style={styles.loginCard}>
               {/* Phone Number Input */}
@@ -506,9 +630,6 @@ export function LoginScreen() {
                     />
                   </View>
                 </View>
-                {phoneError && (
-                  <Text style={styles.fieldError}>{phoneError}</Text>
-                )}
               </View>
 
               {/* Password Input */}
@@ -545,9 +666,6 @@ export function LoginScreen() {
                     />
                   </TouchableOpacity>
                 </View>
-                {passwordError && (
-                  <Text style={styles.fieldError}>{passwordError}</Text>
-                )}
                 
                 {/* Security Status */}
                 {securityStatus.locked && (
@@ -688,11 +806,11 @@ export function LoginScreen() {
 
                   <Button
                     variant="outline"
-                    title={`Connexion avec ${biometricService.getBiometryDisplayName(biometricStatus.biometryType)}`}
+                    title="Connexion biométrique"
                     onPress={handleBiometricLogin}
                     disabled={isLoading || biometricLoading}
                     loading={biometricLoading}
-                    icon={<Icon name={biometricService.getBiometryIcon(biometricStatus.biometryType)} size="sm" color={GOCHUJANG.textPrimary} />}
+                    icon={<Icon name="fingerprint" size="sm" color={GOCHUJANG.textPrimary} />}
                     iconPosition="left"
                   />
                 </>
@@ -769,6 +887,12 @@ export function LoginScreen() {
                   onPress={() => {
                     setSelectedCountry(item);
                     setShowCountryModal(false);
+                    // Reset security status when country changes (different formatted phone)
+                    setSecurityStatus({
+                      locked: false,
+                      remainingAttempts: 5,
+                      lockTimeRemaining: 0,
+                    });
                   }}
                 >
                   <Text style={styles.countryFlag}>{item.flag}</Text>
@@ -781,6 +905,14 @@ export function LoginScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Biometric Modal */}
+      <BiometricModal
+        visible={showBiometricModal}
+        biometryType={biometricStatus?.biometryType || null}
+        onAccept={handleBiometricAccept}
+        onDecline={handleBiometricDecline}
+      />
     </View>
   );
 }

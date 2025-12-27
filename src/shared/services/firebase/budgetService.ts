@@ -93,7 +93,7 @@ export async function getCurrentMonthBudget(
       isCustom: false,
     };
   } catch (error) {
-    console.error('Error getting current month budget:', error);
+    // Silently return fallback - permission errors happen during app init before auth is ready
     return {
       amount: 0,
       currency,

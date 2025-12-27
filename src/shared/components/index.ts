@@ -28,6 +28,8 @@ export {useNetwork, NetworkBanner} from './NetworkBanner';
 export {SocialSignInButtons} from './SocialSignInButtons';
 export {PasswordStrengthIndicator} from './PasswordStrengthIndicator';
 export {CapsLockIndicator} from './CapsLockIndicator';
+export {BiometricModal} from './BiometricModal';
+export {default as BiometricSetupPrompt, triggerBiometricPrompt} from './BiometricSetupPrompt';
 export {ScanProgressIndicator} from './ScanProgressIndicator';
 
 // Animations
@@ -53,7 +55,7 @@ export {
 
 // Modal Components
 export {Modal} from './Modal';
-export {ConfirmationModal} from './ConfirmationModal';
+export {ConfirmationModal, type ConfirmationModalProps} from './ConfirmationModal';
 export {SwipeToDelete} from './SwipeToDelete';
 
 // Accessible Typography Components
@@ -73,6 +75,7 @@ export {
 
 // Offline Components
 export {OfflineBanner, OfflineIndicator} from './OfflineBanner';
+export {OfflineSyncBadge, OfflineSyncBanner} from './OfflineSyncBadge';
 
 // Global Scan Processing Components
 export {GlobalScanProgressBanner} from './GlobalScanProgressBanner';

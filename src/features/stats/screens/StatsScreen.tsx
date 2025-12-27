@@ -10,7 +10,9 @@ import {
   Dimensions,
   ActivityIndicator,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {CompositeNavigationProp} from '@react-navigation/native';
@@ -65,6 +67,7 @@ export function StatsScreen() {
   const {profile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Check if user has access to stats (Standard+ feature)
   const hasAccess = hasFeatureAccess('stats', subscription);
@@ -114,8 +117,7 @@ export function StatsScreen() {
           );
           setMonthlyBudget(budget.amount);
         } catch (error) {
-          console.error('Error loading current month budget:', error);
-          // Fallback to legacy budget
+          // Silently fallback to legacy budget if Firestore access fails
           if (profile.monthlyBudget !== undefined) {
             setMonthlyBudget(profile.monthlyBudget);
           }
@@ -135,7 +137,7 @@ export function StatsScreen() {
     return unsubscribe;
   }, []);
 
-  const loadStatsData = useCallback(async () => {
+  const loadStatsData = useCallback(async (forceRefresh: boolean = false) => {
     if (!user?.uid) {
       setIsLoading(false);
       return;
@@ -143,6 +145,18 @@ export function StatsScreen() {
 
     try {
       setIsLoading(true);
+
+      // Clear AsyncStorage stats cache if force refresh
+      if (forceRefresh) {
+        console.log('🔄 Force refresh - clearing stats cache');
+        try {
+          const USER_STATS_KEY = '@goshopper:user-stats';
+          await AsyncStorage.removeItem(`${USER_STATS_KEY}_${user.uid}`);
+          console.log('✅ Stats cache cleared');
+        } catch (cacheError) {
+          console.log('⚠️ Failed to clear stats cache:', cacheError);
+        }
+      }
 
       // Get current month receipts (load all and filter in memory to avoid index issues)
       const now = new Date();
@@ -470,14 +484,21 @@ export function StatsScreen() {
     };
   }, [user?.uid, loadStatsData]);
 
-  // Reload data when screen comes into focus (e.g., navigating back from History)
+  // Reload data when screen comes into focus - always fetch fresh data for real-time updates
   useFocusEffect(
     useCallback(() => {
       if (user?.uid) {
-        loadStatsData();
+        loadStatsData(true); // Always force refresh for real-time data
       }
     }, [user?.uid, loadStatsData])
   );
+
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadStatsData(true); // Force refresh with cache clear
+    setRefreshing(false);
+  };
 
   const maxMonthlyAmount = Math.max(
     ...monthlyData.map(d => d.amount),
@@ -565,7 +586,17 @@ export function StatsScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+              title="Actualiser les statistiques..."
+              titleColor={Colors.text.secondary}
+            />
+          }>
         {/* Summary Cards */}
         <SlideIn delay={100}>
           <View style={styles.summaryRow}>
@@ -1011,9 +1042,9 @@ export function StatsScreen() {
         setShowLimitModal(false);
         navigation.goBack();
       }}
-      limitType="generic"
-      customTitle="Statistiques"
-      customMessage="Les statistiques sont réservées aux abonnés Premium. Mettez à niveau pour visualiser vos dépenses et tendances."
+      limitType="stats"
+      requiredPlan="Premium"
+      currentPlan={subscription?.planId === 'freemium' ? 'Gratuit' : subscription?.planId === 'basic' ? 'Basic' : subscription?.planId === 'standard' ? 'Standard' : undefined}
     />
     </>
   );

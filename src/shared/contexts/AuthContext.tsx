@@ -13,10 +13,11 @@ import {analyticsService} from '@/shared/services';
 import {cachePreloader} from '@/shared/services/caching';
 
 interface AuthContextType extends AuthState {
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
+  signInWithGoogle: () => Promise<User | null>;
+  signInWithApple: () => Promise<User | null>;
+  signInWithFacebook: () => Promise<User | null>;
   signOut: () => Promise<void>;
+  setPhoneUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,11 +36,8 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   // Listen to auth state changes
   useEffect(() => {
-    console.log('🔌 Setting up auth state listener...');
     try {
       const unsubscribe = authService.onAuthStateChanged(user => {
-        console.log('📱 AuthContext received user:', user?.uid || 'null');
-        console.log('📱 Setting isAuthenticated to:', !!user);
 
         // Track user authentication state
         if (user) {
@@ -77,7 +75,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   // Removed auto sign-in - users must now register/login explicitly
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (): Promise<User | null> => {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithGoogle();
@@ -90,6 +88,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('google');
+      return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Google';
       setState(prev => ({
@@ -101,7 +100,7 @@ export function AuthProvider({children}: AuthProviderProps) {
     }
   }, []);
 
-  const signInWithApple = useCallback(async () => {
+  const signInWithApple = useCallback(async (): Promise<User | null> => {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithApple();
@@ -114,6 +113,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('apple');
+      return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Apple';
       setState(prev => ({
@@ -125,7 +125,7 @@ export function AuthProvider({children}: AuthProviderProps) {
     }
   }, []);
 
-  const signInWithFacebook = useCallback(async () => {
+  const signInWithFacebook = useCallback(async (): Promise<User | null> => {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithFacebook();
@@ -138,6 +138,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('facebook');
+      return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Facebook';
       setState(prev => ({
@@ -168,6 +169,25 @@ export function AuthProvider({children}: AuthProviderProps) {
     }
   }, []);
 
+  // Set user after phone registration (since Firebase Auth is not used)
+  const setPhoneUser = useCallback((user: User) => {
+    setState({
+      user,
+      isLoading: false,
+      isAuthenticated: true,
+      error: null,
+    });
+    
+    // Track user authentication state
+    analyticsService.setUserId(user.uid);
+    analyticsService.logLogin('phone');
+    
+    // Preload critical data for better performance
+    cachePreloader.preloadCriticalData(user.uid).catch(error => {
+      console.warn('Cache preload failed:', error);
+    });
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -176,6 +196,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         signInWithApple,
         signInWithFacebook,
         signOut,
+        setPhoneUser,
       }}>
       {children}
     </AuthContext.Provider>

@@ -18,6 +18,7 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {useAuth, useUser, useSubscription, useTheme, useToast} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
+import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {
   Colors,
   Typography,
@@ -25,7 +26,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn, AppFooter, BackButton, Modal, Input, Button} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, AppFooter, BackButton, Modal, Input, Button, ConfirmationModal} from '@/shared/components';
 import {useDynamicType, useOffline} from '@/shared/hooks';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatDate} from '@/shared/utils/helpers';
@@ -122,12 +123,24 @@ export function SettingsScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isDeletingData, setIsDeletingData] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const {profile, toggleNotifications, togglePriceAlerts} = useUser();
   const {showToast} = useToast();
   const {subscription, trialScansUsed} = useSubscription();
   const {isOnline, isSyncing, pendingActions, lastSyncTime, syncNow, clearQueue} = useOffline();
   const {isDarkMode, toggleTheme, themeMode, setThemeMode} = useTheme();
   const {fontScale, isLargeText, shouldReduceMotion} = useDynamicType();
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
+  const [togglingBiometric, setTogglingBiometric] = useState(false);
+
+  // Check biometric status on mount
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const status = await biometricService.getStatus();
+      setBiometricStatus(status);
+    };
+    checkBiometric();
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -167,22 +180,90 @@ export function SettingsScreen() {
     }
   };
 
+  const handleToggleBiometric = async (value: boolean) => {
+    if (togglingBiometric) return;
+    
+    setTogglingBiometric(true);
+    try {
+      if (value) {
+        // Enable biometric
+        if (!biometricStatus?.isAvailable) {
+          Alert.alert(
+            'Non disponible',
+            'La biométrie n\'est pas disponible sur cet appareil.',
+          );
+          setTogglingBiometric(false);
+          return;
+        }
+
+        // Prompt for password to enable
+        Alert.prompt(
+          'Activer la connexion biométrique',
+          'Entrez votre mot de passe pour activer la connexion biométrique',
+          [
+            {text: 'Annuler', style: 'cancel'},
+            {
+              text: 'Activer',
+              onPress: async (password) => {
+                if (!password || password.length < 6) {
+                  showToast('Mot de passe invalide', 'error');
+                  setTogglingBiometric(false);
+                  return;
+                }
+
+                const result = await biometricService.enable(
+                  user?.uid || '',
+                  {
+                    phoneNumber: profile?.phoneNumber,
+                    email: user?.email || profile?.email,
+                    password: password,
+                  },
+                );
+
+                if (result.success) {
+                  showToast('Connexion biométrique activée', 'success');
+                  const newStatus = await biometricService.getStatus();
+                  setBiometricStatus(newStatus);
+                } else {
+                  Alert.alert('Erreur', result.error || 'Impossible d\'activer');
+                }
+                setTogglingBiometric(false);
+              },
+            },
+          ],
+          'secure-text',
+        );
+      } else {
+        // Disable biometric
+        const result = await biometricService.disable();
+        if (result.success) {
+          showToast('Connexion biométrique désactivée', 'success');
+          const newStatus = await biometricService.getStatus();
+          setBiometricStatus(newStatus);
+        } else {
+          Alert.alert('Erreur', result.error || 'Impossible de désactiver');
+        }
+        setTogglingBiometric(false);
+      }
+    } catch (error: any) {
+      console.error('Biometric toggle error:', error);
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      setTogglingBiometric(false);
+    }
+  };
+
   const handleSignOut = () => {
-    Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
-      {text: 'Annuler', style: 'cancel'},
-      {
-        text: 'Déconnecter',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          // Navigate to Home tab after sign out by resetting to Main
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-        },
-      },
-    ]);
+    setShowLogoutModal(true);
+  };
+
+  const confirmSignOut = async () => {
+    setShowLogoutModal(false);
+    await signOut();
+    // Navigate to Home tab after sign out by resetting to Main
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Main'}],
+    });
   };
 
   const handleDeleteData = () => {
@@ -469,6 +550,36 @@ export function SettingsScreen() {
 
         {/* Settings Sections */}
         <SlideIn delay={300}>
+          <SettingSection title="Sécurité">
+            {biometricStatus?.isAvailable && (
+              <SettingItem
+                icon={biometricService.getBiometryIcon(biometricStatus.biometryType)}
+                title={`Connexion ${biometricService.getBiometryDisplayName(biometricStatus.biometryType)}`}
+                subtitle={
+                  biometricStatus.isEnabled
+                    ? 'Activée'
+                    : 'Connectez-vous rapidement et en toute sécurité'
+                }
+                showArrow={false}
+                iconBgColor={Colors.card.cosmos}
+                rightElement={
+                  <Switch
+                    value={biometricStatus.isEnabled}
+                    onValueChange={handleToggleBiometric}
+                    disabled={togglingBiometric}
+                    trackColor={{
+                      false: Colors.border.light,
+                      true: Colors.primary,
+                    }}
+                    thumbColor={'#ffffff'}
+                  />
+                }
+              />
+            )}
+          </SettingSection>
+        </SlideIn>
+
+        <SlideIn delay={350}>
           <SettingSection title="Préférences">
             <SettingItem
               icon="moon"
@@ -559,7 +670,7 @@ export function SettingsScreen() {
           </SettingSection>
         </SlideIn>
 
-        <SlideIn delay={350}>
+        <SlideIn delay={400}>
           <SettingSection title="Synchronisation">
             <SettingItem
               icon={isSyncing ? "refresh" : isOnline ? "cloud" : "cloud-off"}
@@ -599,7 +710,7 @@ export function SettingsScreen() {
           </SettingSection>
         </SlideIn>
 
-        <SlideIn delay={400}>
+        <SlideIn delay={450}>
           <SettingSection title="Support">
             <SettingItem
               icon="message"
@@ -625,7 +736,7 @@ export function SettingsScreen() {
           </SettingSection>
         </SlideIn>
 
-        <SlideIn delay={600}>
+        <SlideIn delay={650}>
           <SettingSection title="Compte">
             <SettingItem
               icon="trash"
@@ -743,6 +854,20 @@ export function SettingsScreen() {
           </View>
         </ScrollView>
       </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Déconnexion"
+        message="Êtes-vous sûr de vouloir vous déconnecter ?"
+        icon="logout"
+        variant="danger"
+        confirmText="Déconnecter"
+        cancelText="Annuler"
+        onConfirm={confirmSignOut}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </SafeAreaView>
   );
 }

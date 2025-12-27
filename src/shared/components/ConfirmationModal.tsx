@@ -51,33 +51,33 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   variant = 'info',
   loading = false,
 }) => {
-  // Get variant-specific styling - Finly design uses bright yellow/lime for success
+  // Get variant-specific styling - Gochujang/Urbanist branding colors
   const getVariantConfig = () => {
     switch (variant) {
       case 'danger':
         return {
           iconName: icon || 'alert-triangle',
           iconColor: iconColor || '#FFFFFF',
-          iconBgColor: '#FF4757',
+          iconBgColor: '#C1121F', // Crimson Blaze
         };
       case 'warning':
         return {
           iconName: icon || 'alert-triangle',
-          iconColor: iconColor || '#1A1A1A',
-          iconBgColor: '#FFD43B',
+          iconColor: iconColor || '#780000',
+          iconBgColor: '#FDB913', // Yellow
         };
       case 'success':
         return {
           iconName: icon || 'check',
-          iconColor: iconColor || '#1A1A1A',
-          iconBgColor: '#D4F400', // Bright lime yellow like the design
+          iconColor: iconColor || '#FFFFFF',
+          iconBgColor: '#22C55E', // Success Green
         };
       case 'info':
       default:
         return {
           iconName: icon || 'info',
-          iconColor: iconColor || '#1A1A1A',
-          iconBgColor: '#E8E8E8',
+          iconColor: iconColor || '#FFFFFF',
+          iconBgColor: '#669BBC', // Blue Marble
         };
     }
   };
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: 100,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#669BBC', // Blue Marble
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 52,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   primaryButton: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#C1121F', // Crimson Blaze
     borderRadius: 100,
   },
   primaryButtonText: {

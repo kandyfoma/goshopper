@@ -62,7 +62,6 @@ class OfflineQueueService {
    */
   private handleNetworkChange = async (state: NetInfoState): Promise<void> => {
     if (state.isConnected && state.isInternetReachable) {
-      console.log('[OfflineQueue] Network available, processing queue...');
       await this.processQueue();
     }
   };
@@ -255,11 +254,8 @@ class OfflineQueueService {
       const queue = await this.getQueue();
 
       if (queue.length === 0) {
-        console.log('[OfflineQueue] Queue is empty');
         return {processed: 0, failed: 0};
       }
-
-      console.log(`[OfflineQueue] Processing ${queue.length} items...`);
 
       for (const item of queue) {
         try {

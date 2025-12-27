@@ -126,6 +126,7 @@ export {
 export {
   sendUpgradeProposals,
   sendUpgradeProposalToUser,
+  sendWelcomeToNewUser,
 } from './notifications/welcomeNotifications';
 
 // Monthly upgrade offers (30th of each month)

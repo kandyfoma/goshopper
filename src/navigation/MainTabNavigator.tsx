@@ -38,7 +38,7 @@ function TabIcon({focused, icon, label, badge}: {focused: boolean; icon: string;
 // Custom Tab Bar Component with rounded design
 export function MainTabNavigator() {
   const navigation = useNavigation<RootNavigationProp>();
-  const {subscription} = useSubscription();
+  const {subscription, canScan} = useSubscription();
   const [showStatsLimitModal, setShowStatsLimitModal] = React.useState(false);
 
   // Check if user has access to stats
@@ -47,6 +47,14 @@ export function MainTabNavigator() {
   const handleStatsPress = () => {
     if (!hasStatsAccess) {
       setShowStatsLimitModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleScannerPress = () => {
+    if (!canScan) {
+      navigation.navigate('Subscription');
       return false;
     }
     return true;
@@ -151,6 +159,13 @@ export function MainTabNavigator() {
         <Tab.Screen
           name="Scanner"
           component={UnifiedScannerScreen}
+          listeners={{
+            tabPress: (e) => {
+              if (!handleScannerPress()) {
+                e.preventDefault();
+              }
+            },
+          }}
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon focused={focused} icon="camera" label="Scanner" badge={notificationBadges.Scanner} />

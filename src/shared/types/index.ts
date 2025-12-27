@@ -25,7 +25,18 @@ export type RootStackParamList = {
   PriceComparison: {receiptId: string};
   Subscription: undefined;
   SubscriptionDetails: undefined;
-  SubscriptionDuration: {planId: 'basic' | 'standard' | 'premium'; isScanPack?: boolean; scanPackId?: string; scanPackScans?: number; scanPackPrice?: number};
+  SubscriptionDuration: {
+    planId: 'basic' | 'standard' | 'premium';
+    isScanPack?: boolean;
+    scanPackId?: string;
+    scanPackScans?: number;
+    scanPackPrice?: number;
+    isUpgrade?: boolean;
+    isDowngrade?: boolean;
+    currentPlanId?: string;
+    currentEndDate?: Date | string;
+    remainingScans?: number;
+  };
   ScanPacks: undefined;
   MokoPayment: {amount: number; planId: string; planName: string; isScanPack?: boolean; scanPackId?: string};
   Settings: undefined;

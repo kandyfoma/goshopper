@@ -568,7 +568,6 @@ class AuthService {
       const authInstance = auth();
 
       unsubscribe = authInstance.onAuthStateChanged(firebaseUser => {
-        console.log('🔄 Auth state changed:', firebaseUser?.uid || 'null');
         const user = firebaseUser ? this.mapFirebaseUser(firebaseUser) : null;
         callback(user);
       });
@@ -749,6 +748,29 @@ class AuthService {
         createdAt: firestore.FieldValue.serverTimestamp(),
         lastLoginAt: firestore.FieldValue.serverTimestamp(),
         isAnonymous: false,
+        // Include behavior profile data during creation
+        behaviorProfile: {
+          profileVersion: 1,
+          lastProfileUpdate: firestore.FieldValue.serverTimestamp(),
+          dataQualityScore: 0,
+        },
+        recommendationPreferences: {
+          enablePersonalizedRecommendations: true,
+          enablePriceAlertRecommendations: true,
+          enableBundleRecommendations: true,
+          enableSeasonalRecommendations: true,
+          recommendationStyle: 'balanced',
+          maxRecommendationsPerDay: 5,
+        },
+        engagementMetrics: {
+          totalSessions: 0,
+          scansCount: 0,
+          itemViewsCount: 0,
+          alertsCreatedCount: 0,
+          shoppingListsCreatedCount: 0,
+          daysActive: 0,
+          consecutiveDaysActive: 0,
+        },
       };
       
       // Create user document in the main users collection

@@ -79,6 +79,33 @@ export function SubscriptionScreen() {
   }, [user?.uid]);
 
   const isCurrentPlan = (planId: PlanId) => subscription?.planId === planId;
+  
+  // Determine if this is an upgrade or downgrade
+  const getPlanTier = (planId: PlanId): number => {
+    switch (planId) {
+      case 'freemium':
+      case 'free':
+        return 0;
+      case 'basic':
+        return 1;
+      case 'standard':
+        return 2;
+      case 'premium':
+        return 3;
+      default:
+        return 0;
+    }
+  };
+
+  const isUpgrade = (targetPlanId: PlanId) => {
+    if (!subscription?.planId) return true;
+    return getPlanTier(targetPlanId) > getPlanTier(subscription.planId as PlanId);
+  };
+
+  const isDowngrade = (targetPlanId: PlanId) => {
+    if (!subscription?.planId) return false;
+    return getPlanTier(targetPlanId) < getPlanTier(subscription.planId as PlanId);
+  };
 
   const handlePlanSelect = (planId: PlanId) => {
     // Only allow subscribing to paid plans
@@ -89,12 +116,23 @@ export function SubscriptionScreen() {
     
     setSelectedPlan(planId);
     
+    const changeType = isUpgrade(planId) ? 'upgrade' : isDowngrade(planId) ? 'downgrade' : 'new';
+    
     analyticsService.logCustomEvent('subscription_plan_selected', {
       plan_id: planId,
+      change_type: changeType,
+      current_plan: subscription?.planId || 'none',
     });
 
-    // Navigate to duration selection screen
-    navigation.navigate('SubscriptionDuration', {planId});
+    // Navigate to duration selection screen with upgrade/downgrade info
+    navigation.navigate('SubscriptionDuration', {
+      planId,
+      isUpgrade: isUpgrade(planId),
+      isDowngrade: isDowngrade(planId),
+      currentPlanId: subscription?.planId,
+      currentEndDate: subscription?.subscriptionEndDate,
+      remainingScans: scansRemaining,
+    });
   };
 
   if (isLoadingLocation) {
@@ -179,7 +217,7 @@ export function SubscriptionScreen() {
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Scans restants</Text>
                   <Text style={styles.detailValue}>
-                    {scansRemaining === -1 ? 'Illimité' : scansRemaining}
+                    {scansRemaining}
                   </Text>
                 </View>
               </View>
@@ -222,12 +260,47 @@ export function SubscriptionScreen() {
           </View>
         )}
 
+        {/* Buy Scans Card - Quick Option */}
+        <TouchableOpacity 
+          style={styles.buyScansCard}
+          onPress={() => navigation.navigate('ScanPacks')}
+          activeOpacity={0.9}>
+          <View style={styles.buyScansContent}>
+            <View style={styles.buyScansIconContainer}>
+              <Icon name="zap" size="lg" color="#FF6B35" />
+            </View>
+            <View style={styles.buyScansTextContainer}>
+              <Text style={styles.buyScansTitle}>Acheter des Scans</Text>
+              <Text style={styles.buyScansSubtitle}>
+                Besoin de plus de scans rapidement?
+              </Text>
+            </View>
+            <Icon name="chevron-right" size="md" color="#FF6B35" />
+          </View>
+          <View style={styles.buyScansPacksPreview}>
+            <View style={styles.buyScansPackItem}>
+              <Text style={styles.buyScansPackNumber}>10</Text>
+              <Text style={styles.buyScansPackLabel}>scans</Text>
+            </View>
+            <View style={styles.buyScansPackItem}>
+              <Text style={styles.buyScansPackNumber}>25</Text>
+              <Text style={styles.buyScansPackLabel}>scans</Text>
+            </View>
+            <View style={[styles.buyScansPackItem, styles.buyScansPackPopular]}>
+              <Text style={[styles.buyScansPackNumber, {color: '#FFF'}]}>50</Text>
+              <Text style={[styles.buyScansPackLabel, {color: '#FFF'}]}>scans</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {/* Plan Selection - Stacked Cards (Design 1) */}
         <View style={styles.plansStack}>
           {plans.map(([id, plan], index) => {
             const planId = id as PlanId;
             const isSelected = selectedPlan === planId;
             const isCurrent = isCurrentPlan(planId);
+            const isPlanUpgrade = isUpgrade(planId);
+            const isPlanDowngrade = isDowngrade(planId);
             
             // Assign colors to plans - Using app branding
             const cardColor = planId === 'basic' ? '#FDF0D5' : planId === 'standard' ? '#669BBC' : '#003049';
@@ -250,7 +323,24 @@ export function SubscriptionScreen() {
                 disabled={isCurrent}>
                 <View style={styles.planStackContent}>
                   <View style={{flex: 1}}>
-                    <Text style={[styles.planStackLabel, {color: textColor}]}>{plan.name.toUpperCase()}</Text>
+                    <View style={styles.planLabelRow}>
+                      <Text style={[styles.planStackLabel, {color: textColor}]}>{plan.name.toUpperCase()}</Text>
+                      {!isCurrent && subscription?.isSubscribed && (
+                        <View style={[
+                          styles.changeBadge,
+                          {backgroundColor: isPlanUpgrade ? '#10B981' : '#F59E0B'}
+                        ]}>
+                          <Icon
+                            name={isPlanUpgrade ? 'trending-up' : 'trending-down'}
+                            size="xs"
+                            color="#FFFFFF"
+                          />
+                          <Text style={styles.changeBadgeText}>
+                            {isPlanUpgrade ? 'Upgrade' : 'Downgrade'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={[styles.planStackPrice, {color: textColor}]}>
                       {formatCurrency(plan.price)}/mois
                     </Text>
@@ -448,6 +538,77 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Buy Scans Card
+  buyScansCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    shadowColor: '#FF6B35',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#FF6B3520',
+  },
+  buyScansContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  buyScansIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FF6B3515',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buyScansTextContainer: {
+    flex: 1,
+  },
+  buyScansTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  buyScansSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  buyScansPacksPreview: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  buyScansPackItem: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#F5F5F5',
+    minWidth: 70,
+  },
+  buyScansPackPopular: {
+    backgroundColor: '#FF6B35',
+  },
+  buyScansPackNumber: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  buyScansPackLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+  },
+
   // Section Title
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
@@ -477,12 +638,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  planLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   planStackLabel: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
     letterSpacing: 0.5,
-    marginBottom: Spacing.xs,
+  },
+  changeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  changeBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: '#FFFFFF',
   },
   planStackPrice: {
     fontSize: Typography.fontSize['2xl'],

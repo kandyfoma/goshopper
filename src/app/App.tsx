@@ -17,7 +17,8 @@ import {ThemeProvider} from '@/shared/contexts/ThemeContext';
 import {ToastProvider} from '@/shared/contexts/ToastContext';
 import {ScanProcessingProvider} from '@/shared/contexts/ScanProcessingContext';
 import {PaymentProcessingProvider} from '@/shared/contexts/PaymentProcessingContext';
-import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner} from '@/shared/components';
+import {OfflineModeProvider} from '@/shared/contexts/OfflineModeContext';
+import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner, BiometricSetupPrompt, OfflineSyncBanner} from '@/shared/components';
 import ScanUsageWarning from '@/shared/components/ScanUsageWarning';
 import {initializeFirebase} from '@/shared/services/firebase/config';
 import {analyticsService, translationService} from '@/shared/services';
@@ -25,6 +26,7 @@ import {pushNotificationService} from '@/shared/services/firebase';
 import {quickActionsService, inAppReviewService, spotlightSearchService, offlineService, widgetDataService} from '@/shared/services';
 import {cacheInitializer} from '@/shared/services/caching';
 import {initializeNotificationChannels} from '@/shared/utils/notificationChannels';
+import {useBiometricCheck} from '@/shared/hooks';
 
 // Ignore specific warnings in development
 LogBox.ignoreLogs([
@@ -33,6 +35,9 @@ LogBox.ignoreLogs([
 ]);
 
 function NetworkAwareApp(): React.JSX.Element {
+  // Check biometric availability on app resume
+  useBiometricCheck();
+
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <SafeAreaProvider>
@@ -41,23 +46,27 @@ function NetworkAwareApp(): React.JSX.Element {
             <UserProvider>
               <SubscriptionProvider>
                 <ToastProvider>
-                  <ScanProcessingProvider>
-                    <PaymentProcessingProvider>
-                      <NavigationContainer>
-                        <OfflineBanner />
-                        <GlobalScanProgressBanner />
-                        <GlobalPaymentProgressBanner />
-                        <ScanUsageWarning />
-                        <StatusBar
-                          barStyle="dark-content"
-                          backgroundColor="#FFFFFF"
-                          translucent={false}
-                        />
-                        <RootNavigator />
-                        <GlobalScanResultModal />
-                      </NavigationContainer>
-                    </PaymentProcessingProvider>
-                  </ScanProcessingProvider>
+                  <OfflineModeProvider>
+                    <ScanProcessingProvider>
+                      <PaymentProcessingProvider>
+                        <NavigationContainer>
+                          <OfflineBanner />
+                          <OfflineSyncBanner />
+                          <GlobalScanProgressBanner />
+                          <GlobalPaymentProgressBanner />
+                          <ScanUsageWarning />
+                          <BiometricSetupPrompt />
+                          <StatusBar
+                            barStyle="dark-content"
+                            backgroundColor="#FFFFFF"
+                            translucent={false}
+                          />
+                          <RootNavigator />
+                          <GlobalScanResultModal />
+                        </NavigationContainer>
+                      </PaymentProcessingProvider>
+                    </ScanProcessingProvider>
+                  </OfflineModeProvider>
                 </ToastProvider>
               </SubscriptionProvider>
             </UserProvider>
@@ -76,19 +85,13 @@ function App(): React.JSX.Element {
     // Initialize Firebase on app start
     const init = async () => {
       try {
-        console.log('Initializing Firebase...');
         await initializeFirebase();
-        console.log('Firebase initialized successfully');
 
         // Initialize Cache System (early for better performance)
-        console.log('Initializing Cache System...');
         await cacheInitializer.initialize();
-        console.log('Cache System initialized successfully');
 
         // Initialize Analytics
-        console.log('Initializing Analytics...');
         await analyticsService.initialize();
-        console.log('Analytics initialized successfully');
 
         // Wait for all interactions to complete before requesting permissions
         await new Promise(resolve => {
@@ -98,42 +101,27 @@ function App(): React.JSX.Element {
         });
 
         // Initialize Push Notifications (after interaction is complete)
-        console.log('Initializing Push Notifications...');
         await pushNotificationService.init();
-        console.log('Push Notifications initialized successfully');
 
         // Initialize Notification Channels (Android only)
-        console.log('Initializing Notification Channels...');
         await initializeNotificationChannels();
-        console.log('Notification Channels initialized successfully');
 
         // Initialize Quick Actions (App Icon Shortcuts)
-        console.log('Initializing Quick Actions...');
         quickActionsService.initialize();
-        console.log('Quick Actions initialized successfully');
 
         // Initialize In-App Review tracking
-        console.log('Initializing In-App Review...');
         await inAppReviewService.initialize();
-        console.log('In-App Review initialized successfully');
 
         // Initialize Spotlight Search
-        console.log('Initializing Spotlight Search...');
         await spotlightSearchService.initialize();
-        console.log('Spotlight Search initialized successfully');
 
         // Initialize Offline Service
-        console.log('Initializing Offline Service...');
         await offlineService.initialize();
-        console.log('Offline Service initialized successfully');
 
         // Initialize Widget Data Service
-        console.log('Initializing Widget Data Service...');
         await widgetDataService.initialize();
-        console.log('Widget Data Service initialized successfully');
 
         // Pre-translate common search terms in background
-        console.log('Pre-loading translation cache...');
         InteractionManager.runAfterInteractions(async () => {
           const commonTerms = [
             'pain', 'bread', 'lait', 'milk', 'eau', 'water', 
@@ -142,7 +130,6 @@ function App(): React.JSX.Element {
             'pomme', 'apple', 'banane', 'banana', 'œuf', 'egg'
           ];
           await translationService.preTranslateCommonTerms(commonTerms);
-          console.log('Translation cache pre-loaded successfully');
         });
 
         setLoading(false);

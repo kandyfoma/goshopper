@@ -886,31 +886,37 @@ const iconPaths: Record<
   fingerprint: {
     outline: (
       <>
+        {/* Fingerprint - realistic curved lines pattern */}
         <Path
-          d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10"
+          d="M12 2C9.24 2 7 4.24 7 7v4c0 2.76 2.24 5 5 5s5-2.24 5-5V7c0-2.76-2.24-5-5-5z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <Path
+          d="M12 6c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2s2-.9 2-2V8c0-1.1-.9-2-2-2z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <Path
+          d="M12 22v-4"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <Path
-          d="M12 2c-1.85 4.5-1.85 9.5 0 14"
+          d="M9 19c0-1.66 1.34-3 3-3s3 1.34 3 3"
           strokeLinecap="round"
           strokeLinejoin="round"
+          fill="none"
         />
         <Path
-          d="M5 19c2.5-3.5 2.5-8.5 0-12"
+          d="M7 17c0-2.76 2.24-5 5-5s5 2.24 5 5"
           strokeLinecap="round"
           strokeLinejoin="round"
+          fill="none"
         />
-        <Path
-          d="M19 19c-2.5-3.5-2.5-8.5 0-12"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d="M12 22c1.85-4.5 1.85-9.5 0-14"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <Circle cx="12" cy="10" r="1" fill="currentColor" />
       </>
     ),
   },

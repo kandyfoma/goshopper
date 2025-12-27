@@ -5,3 +5,4 @@
 
 export {useDynamicType, useFontScale, useReduceMotion} from './useDynamicType';
 export {useOffline, useIsOnline} from './useOffline';
+export {useBiometricCheck} from './useBiometricCheck';

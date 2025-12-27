@@ -6,6 +6,7 @@ import {Platform} from 'react-native';
 import {Receipt, ReceiptItem, ReceiptScanResult} from '@/shared/types';
 import {generateUUID} from '@/shared/utils/helpers';
 import {ocrCorrectionService} from '../ocrCorrectionService';
+import {itemSanitizationService} from '../itemSanitizationService';
 import {localOcrService} from './localOcrService';
 
 // Import existing Gemini service for fallback
@@ -396,9 +397,10 @@ class HybridReceiptProcessor {
   ): Receipt {
     const now = new Date();
     const receiptId = generateUUID();
+    const currency = (localResult.currency as 'USD' | 'CDF') || 'CDF';
 
-    // Transform items
-    const items: ReceiptItem[] = (localResult.items || []).map((item, index) => ({
+    // Transform items with initial processing
+    const rawItems: ReceiptItem[] = (localResult.items || []).map((item, index) => ({
       id: `${receiptId}-item-${index}`,
       name: ocrCorrectionService.correctProductName(item.name),
       nameNormalized: this.normalizeProductName(item.name),
@@ -408,15 +410,33 @@ class HybridReceiptProcessor {
       confidence: localResult.confidence,
     }));
 
+    // Sanitize all items - filter garbage, fix errors, translate local languages
+    const { validItems, invalidItems, modifications } = itemSanitizationService.sanitizeItems(
+      rawItems,
+      { currency, strictMode: false }
+    );
+
+    if (invalidItems.length > 0) {
+      console.log(`🧹 Filtered ${invalidItems.length} invalid items:`, invalidItems.map(i => i.reason));
+    }
+    if (modifications.length > 0) {
+      console.log(`✏️ Made ${modifications.length} item modifications:`, modifications.slice(0, 5));
+    }
+
+    // Sanitize store name
+    const sanitizedStoreName = itemSanitizationService.sanitizeStoreName(
+      localResult.merchant || ''
+    );
+
     const receipt: any = {
       id: receiptId,
       userId,
-      storeName: localResult.merchant || 'Unknown Store',
-      storeNameNormalized: this.normalizeStoreName(localResult.merchant || ''),
+      storeName: sanitizedStoreName,
+      storeNameNormalized: this.normalizeStoreName(sanitizedStoreName),
       date: now,
-      currency: (localResult.currency as 'USD' | 'CDF') || 'CDF',
-      items,
-      total: localResult.total || items.reduce((sum, item) => sum + item.totalPrice, 0),
+      currency,
+      items: validItems,
+      total: localResult.total || validItems.reduce((sum, item) => sum + item.totalPrice, 0),
       processingStatus: 'completed',
       createdAt: now,
       updatedAt: now,

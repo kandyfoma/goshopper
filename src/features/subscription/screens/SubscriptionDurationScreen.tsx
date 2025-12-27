@@ -77,7 +77,18 @@ export function SubscriptionDurationScreen() {
   const route = useRoute<RouteParams>();
   const insets = useSafeAreaInsets();
 
-  const {planId, isScanPack, scanPackId, scanPackScans, scanPackPrice} = route.params;
+  const {
+    planId,
+    isScanPack,
+    scanPackId,
+    scanPackScans,
+    scanPackPrice,
+    isUpgrade,
+    isDowngrade,
+    currentPlanId,
+    currentEndDate,
+    remainingScans,
+  } = route.params;
   
   // Handle scan packs differently
   if (isScanPack && scanPackId) {
@@ -186,6 +197,39 @@ export function SubscriptionDurationScreen() {
           <Text style={styles.headerTitle}>Choisir la durée</Text>
           <View style={styles.headerSpacer} />
         </View>
+
+        {/* Upgrade/Downgrade Banner */}
+        {(isUpgrade || isDowngrade) && currentPlanId && (
+          <View style={[
+            styles.changeBanner,
+            {backgroundColor: isUpgrade ? '#ECFDF5' : '#FEF3C7'}
+          ]}>
+            <Icon
+              name={isUpgrade ? 'trending-up' : 'trending-down'}
+              size="md"
+              color={isUpgrade ? '#10B981' : '#F59E0B'}
+            />
+            <View style={styles.changeBannerContent}>
+              <Text style={[
+                styles.changeBannerTitle,
+                {color: isUpgrade ? '#047857' : '#B45309'}
+              ]}>
+                {isUpgrade ? 'Mise à niveau' : 'Changement de plan'}
+              </Text>
+              <Text style={styles.changeBannerText}>
+                {isUpgrade
+                  ? `Vous passez de ${currentPlanId} à ${planId}. Votre temps restant sera conservé et vos scans non utilisés seront ajoutés en bonus.`
+                  : `Vous passez de ${currentPlanId} à ${planId}. Le changement prendra effet immédiatement. Vos scans non utilisés (${remainingScans || 0}) seront conservés.`
+                }
+              </Text>
+              {currentEndDate && (
+                <Text style={styles.changeBannerDate}>
+                  Abonnement actuel expire le: {new Date(currentEndDate).toLocaleDateString('fr-FR')}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Selected Plan Summary */}
         <View style={[
@@ -360,6 +404,36 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+  },
+
+  // Change Banner (Upgrade/Downgrade)
+  changeBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  changeBannerContent: {
+    flex: 1,
+  },
+  changeBannerTitle: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    marginBottom: 4,
+  },
+  changeBannerText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    lineHeight: 20,
+  },
+  changeBannerDate: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.tertiary,
+    marginTop: 8,
   },
 
   // Plan Summary

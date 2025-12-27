@@ -182,23 +182,6 @@ export const COUNTRIES_CITIES: CountryData[] = [
     ].sort(),
   },
   {
-    name: 'Rwanda',
-    code: 'RW',
-    flag: '🇷🇼',
-    isPopular: true,
-    cities: [
-      'Kigali',
-      'Butare',
-      'Gitarama',
-      'Ruhengeri',
-      'Gisenyi',
-      'Byumba',
-      'Cyangugu',
-      'Kibungo',
-      'Kibuye',
-    ].sort(),
-  },
-  {
     name: 'Ethiopia',
     code: 'ET',
     flag: '🇪🇹',
@@ -521,11 +504,6 @@ export const POPULAR_CITIES = [
   'Lubumbashi',
   'Goma',
   'Bukavu',
-  // Rwanda - 4 cities
-  'Kigali',
-  'Butare',
-  'Gitarama',
-  'Gisenyi',
   // Cameroon - 4 cities
   'Douala',
   'Yaoundé',

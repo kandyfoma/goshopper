@@ -14,7 +14,7 @@ import {Colors, Typography, Spacing} from '@/shared/theme/theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-export type LimitType = 'scan' | 'shoppingList' | 'receipt' | 'generic';
+export type LimitType = 'scan' | 'shoppingList' | 'receipt' | 'generic' | 'stats' | 'priceComparison' | 'downgrade';
 
 interface SubscriptionLimitModalProps {
   visible: boolean;
@@ -23,6 +23,9 @@ interface SubscriptionLimitModalProps {
   customTitle?: string;
   customMessage?: string;
   isTrialActive?: boolean;
+  previousPlan?: string;
+  currentPlan?: string;
+  requiredPlan?: string;
 }
 
 const LIMIT_CONTENT: Record<LimitType, { icon: string; title: string; message: string; trialMessage: string }> = {
@@ -44,6 +47,24 @@ const LIMIT_CONTENT: Record<LimitType, { icon: string; title: string; message: s
     message: 'Cette fonctionnalité nécessite un abonnement Premium. Mettez à niveau pour en profiter.',
     trialMessage: 'Passez à Premium pour accéder à toutes les fonctionnalités.',
   },
+  stats: {
+    icon: 'bar-chart-2',
+    title: 'Statistiques Premium',
+    message: 'Les statistiques détaillées sont réservées aux abonnés Premium. Mettez à niveau pour visualiser vos dépenses.',
+    trialMessage: 'Passez à Premium pour accéder aux statistiques détaillées.',
+  },
+  priceComparison: {
+    icon: 'trending-up',
+    title: 'Comparaison de Prix',
+    message: 'La comparaison de prix est disponible à partir du plan Standard. Mettez à niveau pour comparer les prix.',
+    trialMessage: 'Passez à Standard ou Premium pour comparer les prix.',
+  },
+  downgrade: {
+    icon: 'alert-triangle',
+    title: 'Fonctionnalité Non Disponible',
+    message: 'Cette fonctionnalité n\'est plus disponible avec votre plan actuel. Repassez à un plan supérieur pour y accéder.',
+    trialMessage: 'Mettez à niveau pour retrouver l\'accès à cette fonctionnalité.',
+  },
   generic: {
     icon: 'lock',
     title: 'Fonctionnalité Premium',
@@ -59,16 +80,31 @@ export default function SubscriptionLimitModal({
   customTitle,
   customMessage,
   isTrialActive = false,
+  previousPlan,
+  currentPlan,
+  requiredPlan,
 }: SubscriptionLimitModalProps) {
   const navigation = useNavigation<NavigationProp>();
   
   const content = LIMIT_CONTENT[limitType];
-  const title = customTitle || content.title;
-  const message = customMessage || (isTrialActive ? content.trialMessage : content.message);
+  
+  // Generate dynamic message for downgrade scenario
+  let title = customTitle || content.title;
+  let message = customMessage || (isTrialActive ? content.trialMessage : content.message);
+  
+  if (limitType === 'downgrade' && previousPlan && currentPlan) {
+    title = 'Accès Restreint';
+    message = `Vous êtes passé de ${previousPlan} à ${currentPlan}. Cette fonctionnalité nécessite le plan ${requiredPlan || 'supérieur'}. Mettez à niveau pour retrouver l'accès.`;
+  }
 
   const handleUpgrade = () => {
     onClose();
     navigation.navigate('Subscription');
+  };
+
+  const handleBuyScans = () => {
+    onClose();
+    navigation.navigate('ScanPacks');
   };
 
   const handleGoBack = () => {
@@ -77,6 +113,9 @@ export default function SubscriptionLimitModal({
       navigation.goBack();
     }
   };
+
+  // Show buy scans option for scan-related limits
+  const showBuyScansOption = limitType === 'scan';
 
   return (
     <Modal
@@ -117,10 +156,20 @@ export default function SubscriptionLimitModal({
             </View>
           </View>
 
+          {/* Buy Scans Option - for scan limit */}
+          {showBuyScansOption && (
+            <TouchableOpacity style={styles.buyScansButton} onPress={handleBuyScans}>
+              <Icon name="zap" size="sm" color={Colors.white} />
+              <Text style={styles.buyScansButtonText}>Acheter des Scans</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Primary Action - Upgrade */}
-          <TouchableOpacity style={styles.primaryButton} onPress={handleUpgrade}>
-            <Icon name="crown" size="sm" color={Colors.white} />
-            <Text style={styles.primaryButtonText}>Mettre à niveau</Text>
+          <TouchableOpacity style={[styles.primaryButton, showBuyScansOption && styles.primaryButtonAlt]} onPress={handleUpgrade}>
+            <Icon name="crown" size="sm" color={showBuyScansOption ? Colors.accent : Colors.white} />
+            <Text style={[styles.primaryButtonText, showBuyScansOption && styles.primaryButtonTextAlt]}>
+              {showBuyScansOption ? 'Ou mettre à niveau' : 'Mettre à niveau'}
+            </Text>
           </TouchableOpacity>
 
           {/* Secondary Action - Go Back */}
@@ -225,7 +274,39 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  primaryButtonAlt: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   primaryButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  primaryButtonTextAlt: {
+    color: Colors.accent,
+  },
+  buyScansButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buyScansButtonText: {
     fontSize: 17,
     fontWeight: '700',
     color: Colors.white,

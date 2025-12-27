@@ -10,14 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   Modal,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
-import {smsService} from '@/shared/services/sms';
 import {PhoneService} from '@/shared/services/phone';
 import {countryCodeList, congoCities} from '@/shared/constants/countries';
 import {
@@ -33,16 +31,20 @@ import {
   Spacing,
   BorderRadius,
 } from '@/shared/theme/theme';
-import {Icon, Button} from '@/shared/components';
+import {Icon, Button, BiometricModal} from '@/shared/components';
 import {passwordService} from '@/shared/services/password';
-import {useAuth} from '@/shared/contexts';
+import {useAuth, useToast} from '@/shared/contexts';
+import {biometricService} from '@/shared/services/biometric';
+import {getFCMToken} from '@/shared/services/notificationService';
+import functions from '@react-native-firebase/functions';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RegistrationStep = 'step1' | 'step2';
 
 export function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {signInWithGoogle, signInWithApple} = useAuth();
+  const {signInWithGoogle, signInWithApple, setPhoneUser} = useAuth();
+  const {showToast} = useToast();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<RegistrationStep>('step1');
@@ -64,6 +66,11 @@ export function RegisterScreen() {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   
+  // Biometric modal state
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [biometryType, setBiometryType] = useState<'TouchID' | 'FaceID' | 'Biometrics' | null>(null);
+  const [biometricData, setBiometricData] = useState<{userId: string; phoneNumber: string; password: string} | null>(null);
+  
   // Modal states
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showCityModal, setShowCityModal] = useState(false);
@@ -75,8 +82,10 @@ export function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
-  let phoneCheckTimeout: ReturnType<typeof setTimeout>;
+  // Ref for phone check timeout (fix memory leak)
+  const phoneCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Phone number validation and checking
   const validatePhoneNumber = (phone: string): string => {
@@ -100,11 +109,14 @@ export function RegisterScreen() {
     if (error) return;
     
     setCheckingPhone(true);
+    setNetworkError(null);
     try {
       const exists = await PhoneService.checkPhoneExists(formatted);
       setPhoneExists(exists);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error checking phone:', err);
+      // Show network error to user instead of silently failing
+      setNetworkError('Impossible de vérifier le numéro. Vérifiez votre connexion.');
     } finally {
       setCheckingPhone(false);
     }
@@ -127,18 +139,21 @@ export function RegisterScreen() {
     setPhoneNumber(cleanText);
     setPhoneError('');
     setPhoneExists(false);
+    setNetworkError(null);
     
-    // Debounce phone checking
-    clearTimeout(phoneCheckTimeout);
-    phoneCheckTimeout = setTimeout(() => {
+    // Debounce phone checking (using ref to avoid memory leak)
+    if (phoneCheckTimeoutRef.current) {
+      clearTimeout(phoneCheckTimeoutRef.current);
+    }
+    phoneCheckTimeoutRef.current = setTimeout(() => {
       checkPhoneExists(cleanText);
     }, 800);
   };
 
   useEffect(() => {
     return () => {
-      if (phoneCheckTimeout) {
-        clearTimeout(phoneCheckTimeout);
+      if (phoneCheckTimeoutRef.current) {
+        clearTimeout(phoneCheckTimeoutRef.current);
       }
     };
   }, []);
@@ -187,7 +202,8 @@ export function RegisterScreen() {
       selectedCity !== '' &&
       !phoneError &&
       !phoneExists &&
-      !checkingPhone
+      !checkingPhone &&
+      !networkError // Block if there's a network error
     );
   };
 
@@ -225,28 +241,73 @@ export function RegisterScreen() {
     if (!isStep2Valid()) return;
     
     setLoading(true);
+    setError(null);
+    
     try {
       const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
       
-      // Send OTP for registration
-      const result = await smsService.sendOTP(formattedPhone);
+      // Re-check phone exists before registration (edge case: user went back and changed phone)
+      const phoneStillAvailable = !(await PhoneService.checkPhoneExists(formattedPhone));
+      if (!phoneStillAvailable) {
+        setError('Ce numéro est déjà utilisé');
+        setCurrentStep('step1');
+        setLoading(false);
+        return;
+      }
       
-      if (result.success) {
-        // Navigate to OTP verification with registration data
-        navigation.navigate('VerifyOtp', { 
-          phoneNumber: formattedPhone,
-          isRegistration: true,
-          registrationData: {
-            password,
-            city: selectedCity,
-            countryCode: selectedCountry.code
-          }
+      // Create user directly without OTP verification
+      // Phone verification can be done later from profile
+      const user = await authService.createUserWithPhone({
+        phoneNumber: formattedPhone,
+        password,
+        city: selectedCity,
+        countryCode: selectedCountry.code
+      });
+      
+      console.log('✅ User created:', user.uid);
+      
+      // Set user in AuthContext to log them in
+      setPhoneUser(user);
+      console.log('✅ User set in AuthContext');
+      
+      // Send welcome notification
+      try {
+        const fcmToken = await getFCMToken();
+        console.log('📱 FCM Token:', fcmToken ? 'received' : 'null');
+        
+        const result = await functions().httpsCallable('sendWelcomeToNewUser')({
+          userId: user.uid,
+          fcmToken,
+          language: 'fr',
         });
+        console.log('✅ Welcome notification result:', result.data);
+      } catch (notifErr) {
+        console.log('❌ Welcome notification not sent:', notifErr);
+      }
+      
+      // Check biometric availability and prompt user
+      const {available, biometryType: availableBiometryType} = await biometricService.checkAvailability();
+      if (available && availableBiometryType) {
+        // Store user data for biometric setup
+        setBiometricData({
+          userId: user.uid,
+          phoneNumber: formattedPhone,
+          password: password,
+        });
+        setBiometryType(availableBiometryType);
+        setShowBiometricModal(true);
       } else {
-        Alert.alert('Erreur', result.error || 'Erreur lors de l\'envoi du code');
+        // Show success toast and navigate to main app immediately if biometrics not available
+        showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
+        
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'Main'}]
+        });
       }
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors de l\'inscription');
+      console.error('Registration error:', error);
+      setError(error.message || 'Erreur lors de l\'inscription');
     } finally {
       setLoading(false);
     }
@@ -347,9 +408,9 @@ export function RegisterScreen() {
                     />
                   </View>
                 </View>
-                {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
                 {checkingPhone && <Text style={styles.infoText}>Vérification du numéro...</Text>}
-                {phoneExists && <Text style={styles.errorText}>Ce numéro existe déjà. Connectez-vous à la place.</Text>}
+                {phoneExists && <Text style={styles.errorText}>Ce numéro est déjà utilisé</Text>}
+                {networkError && <Text style={styles.errorText}>{networkError}</Text>}
               </View>
 
               {/* City Selection */}
@@ -404,13 +465,6 @@ export function RegisterScreen() {
                   icon={<Icon name="apple" size="sm" color={Colors.text.primary} />}
                   iconPosition="left"
                 />
-              )}
-
-              {/* Error Message */}
-              {error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
               )}
             </View>
           )}
@@ -478,36 +532,55 @@ export function RegisterScreen() {
 
               {/* Terms and Privacy */}
               <TouchableOpacity 
-                style={styles.checkboxContainer}
-                onPress={() => setAcceptedTerms(!acceptedTerms)}>
+                style={styles.termsRow}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                activeOpacity={0.7}>
                 <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
                   {acceptedTerms && <Icon name="check" size="sm" color={Colors.white} />}
                 </View>
-                <Text style={styles.checkboxText}>
-                  J'accepte les <Text style={styles.linkInText}>conditions d'utilisation</Text> et la <Text style={styles.linkInText}>politique de confidentialité</Text>
+                <Text style={styles.termsText}>
+                  J'accepte les{' '}
+                  <Text 
+                    style={styles.termsLink}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      navigation.navigate('TermsOfService' as any);
+                    }}>
+                    conditions d'utilisation
+                  </Text>
+                  {' '}et la{' '}
+                  <Text 
+                    style={styles.termsLink}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      navigation.navigate('PrivacyPolicy' as any);
+                    }}>
+                    politique de confidentialité
+                  </Text>
                 </Text>
               </TouchableOpacity>
 
-              {/* Register Button */}
-              <Button
-                variant="primary"
-                title="Créer mon compte"
-                onPress={handleRegistration}
-                disabled={!isStep2Valid()}
-                loading={loading}
-                icon={<Icon name="user-plus" size="sm" color={Colors.white} />}
-                iconPosition="right"
-              />
+              {/* Buttons */}
+              <View style={styles.buttonGroup}>
+                <Button
+                  variant="primary"
+                  title="Créer mon compte"
+                  onPress={handleRegistration}
+                  disabled={!isStep2Valid()}
+                  loading={loading}
+                  icon={<Icon name="user-plus" size="sm" color={Colors.white} />}
+                  iconPosition="right"
+                />
 
-              {/* Back Button */}
-              <Button
-                variant="outline"
-                title="Retour"
-                onPress={() => setCurrentStep('step1')}
-                disabled={loading}
-                icon={<Icon name="arrow-left" size="sm" color={Colors.text.primary} />}
-                iconPosition="left"
-              />
+                <Button
+                  variant="outline"
+                  title="Retour"
+                  onPress={() => setCurrentStep('step1')}
+                  disabled={loading}
+                  icon={<Icon name="arrow-left" size="sm" color={Colors.text.primary} />}
+                  iconPosition="left"
+                />
+              </View>
             </View>
           )}
 
@@ -606,6 +679,20 @@ export function RegisterScreen() {
             )}
           </View>
 
+          {/* Back button for city selection - outside ScrollView to prevent overlap */}
+          {!citySearchQuery.trim() && !showCountrySelector && selectedLocationCountry && (
+            <TouchableOpacity
+              style={styles.modalBackButton}
+              onPress={() => {
+                setShowCountrySelector(true);
+                setSelectedLocationCountry(null);
+                setCitySearchQuery('');
+              }}>
+              <Icon name="arrow-left" size="md" color={Colors.primary} />
+              <Text style={styles.backButtonText}>Changer de pays</Text>
+            </TouchableOpacity>
+          )}
+
           <ScrollView 
             style={styles.modalContent}
             contentContainerStyle={styles.modalScrollContent}>
@@ -690,16 +777,6 @@ export function RegisterScreen() {
             ) : (
               /* City selection for selected country */
               <>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => {
-                    setShowCountrySelector(true);
-                    setSelectedLocationCountry(null);
-                    setCitySearchQuery('');
-                  }}>
-                  <Icon name="arrow-left" size="md" color={Colors.primary} />
-                  <Text style={styles.backButtonText}>Changer de pays</Text>
-                </TouchableOpacity>
                 {selectedLocationCountry?.cities.map(city => (
                   <TouchableOpacity
                     key={city}
@@ -722,6 +799,47 @@ export function RegisterScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Biometric Modal */}
+      <BiometricModal
+        visible={showBiometricModal}
+        biometryType={biometryType}
+        onAccept={async () => {
+          try {
+            if (biometricData) {
+              await biometricService.enable(biometricData.userId, {
+                phoneNumber: biometricData.phoneNumber,
+                password: biometricData.password,
+              });
+            }
+          } catch (error) {
+            console.error('Failed to enable biometric:', error);
+          } finally {
+            setShowBiometricModal(false);
+            setBiometricData(null);
+            
+            // Show success toast and navigate to main app
+            showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
+            
+            navigation.reset({
+              index: 0,
+              routes: [{name: 'Main'}]
+            });
+          }
+        }}
+        onDecline={() => {
+          setShowBiometricModal(false);
+          setBiometricData(null);
+          
+          // Show success toast and navigate to main app
+          showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
+          
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'Main'}]
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -753,6 +871,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background.secondary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background.secondary,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+    gap: Spacing.sm,
+  },
+  backButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.primary,
   },
   logoContainer: {
     marginBottom: Spacing.lg,
@@ -905,35 +1038,40 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: Spacing.xs,
   },
-  checkboxContainer: {
+  termsRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: Spacing.lg,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    lineHeight: 20,
+    marginLeft: Spacing.sm,
+  },
+  termsLink: {
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
+  buttonGroup: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: Colors.border.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.sm,
-    marginTop: 2,
   },
   checkboxChecked: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  checkboxText: {
-    flex: 1,
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
-    lineHeight: Typography.lineHeight.relaxed,
-  },
-  linkInText: {
-    color: Colors.accent,
-    fontWeight: Typography.fontWeight.semiBold,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   divider: {
     flexDirection: 'row',

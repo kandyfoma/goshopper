@@ -6,6 +6,7 @@ import functions from '@react-native-firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import {Platform, PermissionsAndroid, NativeModules} from 'react-native';
+import notifee, {AndroidImportance} from '@notifee/react-native';
 import {APP_ID} from './config';
 
 const FCM_TOKEN_KEY = '@goshopperai/fcm_token';
@@ -250,6 +251,36 @@ class PushNotificationService {
       receivedAt: new Date(),
       read: false,
     };
+
+    // Display notification using notifee (for foreground)
+    try {
+      const channelId = message.data?.channelId || message.notification?.android?.channelId || 'general';
+      
+      // Create channel if it doesn't exist
+      await notifee.createChannel({
+        id: channelId,
+        name: channelId === 'subscription' ? 'Abonnement' : 'Général',
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+      });
+      
+      await notifee.displayNotification({
+        title: notification.title,
+        body: notification.body,
+        android: {
+          channelId,
+          smallIcon: 'ic_notification',
+          pressAction: {
+            id: 'default',
+          },
+        },
+        ios: {
+          sound: 'default',
+        },
+      });
+    } catch (displayError) {
+      console.warn('[PushNotifications] Failed to display notification:', displayError);
+    }
 
     // Save to local storage
     await this.saveNotification(notification);

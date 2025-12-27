@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -71,6 +72,7 @@ export function CityItemsScreen() {
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
 
@@ -94,7 +96,7 @@ export function CityItemsScreen() {
     }
   }, [hasAccess]);
 
-  // Reload data when screen comes into focus
+  // Reload data when screen comes into focus - always fetch fresh data
   useFocusEffect(
     useCallback(() => {
 
@@ -107,12 +109,19 @@ export function CityItemsScreen() {
       }
       
       if (!profileLoading && userProfile?.defaultCity) {
-        loadCityItemsData();
+        loadCityItemsData(true); // Always force refresh for real-time data
       } else if (!profileLoading) {
         setIsLoading(false);
       }
     }, [userProfile?.defaultCity, profileLoading, hasAccess])
   );
+
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCityItemsData(true); // Force refresh
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     filterItems();
@@ -138,7 +147,7 @@ export function CityItemsScreen() {
     }
   };
 
-  const loadCityItemsData = async () => {
+  const loadCityItemsData = async (forceRefresh: boolean = false) => {
     if (profileLoading) {
       console.log('⏳ Profile still loading, skipping');
       return;
@@ -152,16 +161,26 @@ export function CityItemsScreen() {
     const city = userProfile.defaultCity;
     const cacheKey = `city-items-${city}`;
 
-    // Try cache first
-    try {
-      const cachedData = await cacheManager.get<CityItemData[]>(cacheKey, 'receipts');
-      if (cachedData && cachedData.length > 0) {
-        setItems(cachedData);
-        setIsLoading(false);
-        return;
+    // Try cache first (skip if force refresh)
+    if (!forceRefresh) {
+      try {
+        const cachedData = await cacheManager.get<CityItemData[]>(cacheKey, 'receipts');
+        if (cachedData && cachedData.length > 0) {
+          setItems(cachedData);
+          setIsLoading(false);
+          return;
+        }
+      } catch (cacheError) {
+        console.log('⚠️ Cache read failed:', cacheError);
       }
-    } catch (cacheError) {
-      console.log('⚠️ Cache read failed:', cacheError);
+    } else {
+      // Force refresh - clear the cache first
+      console.log('🔄 Force refresh - clearing cache for:', cacheKey);
+      try {
+        await cacheManager.remove(cacheKey, 'receipts');
+      } catch (e) {
+        console.log('⚠️ Failed to clear cache:', e);
+      }
     }
 
     console.log('📡 Calling getCityItems for city:', city);
@@ -702,6 +721,16 @@ export function CityItemsScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+            title="Actualiser les données..."
+            titleColor={Colors.text.secondary}
+          />
+        }
         ListEmptyComponent={
           isSearching ? (
             <View style={styles.emptyContainer}>
@@ -736,9 +765,9 @@ export function CityItemsScreen() {
       <SubscriptionLimitModal
         visible={showLimitModal}
         onClose={() => setShowLimitModal(false)}
-        limitType="generic"
-        customTitle="Comparaison de Prix"
-        customMessage="Cette fonctionnalité est réservée aux abonnés Standard et Premium. Mettez à niveau pour comparer les prix entre magasins."
+        limitType="priceComparison"
+        requiredPlan="Standard"
+        currentPlan={subscription?.planId === 'freemium' ? 'Gratuit' : subscription?.planId === 'basic' ? 'Basic' : undefined}
       />
     </SafeAreaView>
   );
