@@ -140,6 +140,20 @@ export function UserProvider({children}: UserProviderProps) {
   // Create default profile for new users
   const createDefaultProfile = async (userId: string, authUser?: typeof user) => {
     try {
+      // Check if the user document exists in Firestore first
+      // This prevents creating a profile for a deleted user
+      const userDoc = await firestore()
+        .collection('artifacts')
+        .doc('goshopper')
+        .collection('users')
+        .doc(userId)
+        .get();
+      
+      if (!userDoc.exists) {
+        console.log('User document does not exist, skipping profile creation');
+        return;
+      }
+      
       // Split displayName into name and surname if available
       let name = '';
       let surname = '';
@@ -149,20 +163,23 @@ export function UserProvider({children}: UserProviderProps) {
         surname = nameParts.slice(1).join(' ') || '';
       }
 
+      // Build profile without undefined values (Firestore doesn't accept undefined)
       const defaultProfile: UserProfile = {
         userId,
         preferredLanguage: 'fr',
         preferredCurrency: 'USD',
         notificationsEnabled: true,
         priceAlertsEnabled: true,
-        displayName: authUser?.displayName,
-        email: authUser?.email,
-        phoneNumber: authUser?.phoneNumber,
-        name: name || undefined,
-        surname: surname || undefined,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      
+      // Only add fields that have values
+      if (authUser?.displayName) defaultProfile.displayName = authUser.displayName;
+      if (authUser?.email) defaultProfile.email = authUser.email;
+      if (authUser?.phoneNumber) defaultProfile.phoneNumber = authUser.phoneNumber;
+      if (name) defaultProfile.name = name;
+      if (surname) defaultProfile.surname = surname;
 
       await firestore()
         .doc(COLLECTIONS.userProfile(userId))

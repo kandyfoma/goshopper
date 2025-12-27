@@ -103,9 +103,10 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    width: '100%',
-    maxWidth: 400,
+    padding: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    width: '90%',
+    maxWidth: 340,
     alignItems: 'center',
     ...Shadows.lg,
   },

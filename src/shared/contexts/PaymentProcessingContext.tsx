@@ -14,8 +14,7 @@ import {mokoPaymentService, PaymentStatus} from '@/shared/services/payment';
 import firebase from '@react-native-firebase/app';
 import '@react-native-firebase/functions';
 import {subscriptionService} from '@/shared/services/firebase';
-import notifee from '@notifee/react-native';
-import {Platform} from 'react-native';
+import {notificationActionsService} from '@/shared/services/notificationActions';
 
 const PAYMENT_PROCESSING_KEY = '@goshopperai/payment_processing_state';
 
@@ -181,48 +180,32 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
 
     // Send local push notification with subscription details
     try {
-      if (Platform.OS === 'android') {
-        // Format amount
-        const formattedAmount = currentAmount.toLocaleString('fr-FR', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-        
-        let notifTitle = '✅ Paiement réussi';
-        let notifBody = successMessage;
-        let bigText = '';
-        
-        if (currentIsScanPack) {
-          notifTitle = '✅ Scans bonus ajoutés!';
-          notifBody = `${currentPlanName} • ${formattedAmount} CDF`;
-          bigText = `Votre achat a été validé!\n\n📦 Pack: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\nVos scans bonus ont été ajoutés à votre compte.`;
-        } else if (currentPlanName) {
-          notifTitle = `✅ Abonnement ${currentPlanName}`;
-          notifBody = `Activé • ${formattedAmount} CDF`;
-          bigText = `Votre abonnement a été activé!\n\n🎉 Forfait: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\nProfitez de toutes les fonctionnalités de votre abonnement.`;
-        }
-        
-        await notifee.displayNotification({
-          title: notifTitle,
-          body: notifBody,
-          android: {
-            channelId: 'payment-completion',
-            pressAction: {
-              id: 'default',
-            },
-            ...(bigText && {
-              style: {
-                type: 1, // BigTextStyle
-                text: bigText,
-              },
-            }),
-          },
-        });
+      // Format amount
+      const formattedAmount = currentAmount.toLocaleString('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+      
+      let notifTitle = '✅ Paiement réussi';
+      let notifBody = successMessage;
+      
+      if (currentIsScanPack) {
+        notifTitle = '✅ Scans bonus ajoutés!';
+        notifBody = `${currentPlanName} • ${formattedAmount} CDF`;
+      } else if (currentPlanName) {
+        notifTitle = `✅ Abonnement ${currentPlanName}`;
+        notifBody = `Activé • ${formattedAmount} CDF`;
       }
+      
+      await notificationActionsService.displayPaymentNotification({
+        title: notifTitle,
+        body: notifBody,
+        transactionId: state.transactionId || undefined,
+      });
     } catch (error) {
       console.error('Error sending payment success notification:', error);
     }
-  }, [state.planName, state.amount, state.isScanPack]);
+  }, [state.planName, state.amount, state.isScanPack, state.transactionId]);
   
   const setFailed = useCallback(async (error: string) => {
     // Get state values before updating
@@ -238,31 +221,20 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
 
     // Send local push notification for failure with details
     try {
-      if (Platform.OS === 'android') {
-        const formattedAmount = currentAmount.toLocaleString('fr-FR', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-        
-        await notifee.displayNotification({
-          title: '❌ Paiement échoué',
-          body: currentPlanName ? `${currentPlanName} • ${formattedAmount} CDF` : error,
-          android: {
-            channelId: 'payment-completion',
-            pressAction: {
-              id: 'default',
-            },
-            style: {
-              type: 1, // BigTextStyle
-              text: `Le paiement n'a pas abouti.\n\n${currentPlanName ? `📦 Forfait: ${currentPlanName}\n💰 Montant: ${formattedAmount} CDF\n\n` : ''}❌ Erreur: ${error}\n\nVeuillez réessayer ou contacter le support.`,
-            },
-          },
-        });
-      }
+      const formattedAmount = currentAmount.toLocaleString('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+      
+      await notificationActionsService.displayPaymentNotification({
+        title: '❌ Paiement échoué',
+        body: currentPlanName ? `${currentPlanName} • ${formattedAmount} CDF` : error,
+        transactionId: state.transactionId || undefined,
+      });
     } catch (notifError) {
       console.error('Error sending payment failure notification:', notifError);
     }
-  }, [state.planName, state.amount]);
+  }, [state.planName, state.amount, state.transactionId]);
   
   const dismiss = useCallback(() => {
     // Clean up polling

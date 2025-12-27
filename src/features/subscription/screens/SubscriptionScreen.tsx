@@ -15,6 +15,7 @@ import firestore from '@react-native-firebase/firestore';
 import {useSubscription, useAuth} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
 import {SUBSCRIPTION_PLANS} from '@/shared/utils/constants';
+import {SCAN_PACKS} from '@/shared/types/scanPacks.types';
 import {formatCurrency} from '@/shared/utils/helpers';
 import {analyticsService} from '@/shared/services/analytics';
 import {APP_ID} from '@/shared/services/firebase/config';
@@ -32,7 +33,7 @@ export function SubscriptionScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const {user, isAuthenticated} = useAuth();
+  const {user, isAuthenticated, isLoading: isAuthLoading} = useAuth();
   const {subscription, isTrialActive, trialDaysRemaining, scansRemaining, canScan} = useSubscription();
 
   // Hooks must be called unconditionally
@@ -45,10 +46,28 @@ export function SubscriptionScreen() {
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigation.navigate('Login');
+    if (!isAuthLoading && !isAuthenticated) {
+      navigation.replace('Login');
     }
-  }, [isAuthenticated, navigation]);
+  }, [isAuthenticated, isAuthLoading, navigation]);
+
+  // Show loading while checking auth
+  if (isAuthLoading) {
+    return (
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+        <Spinner size="lg" color={Colors.primary.main} />
+      </View>
+    );
+  }
+
+  // Don't render content if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+        <Spinner size="lg" color={Colors.primary.main} />
+      </View>
+    );
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -261,10 +280,7 @@ export function SubscriptionScreen() {
         )}
 
         {/* Buy Scans Card - Quick Option */}
-        <TouchableOpacity 
-          style={styles.buyScansCard}
-          onPress={() => navigation.navigate('ScanPacks')}
-          activeOpacity={0.9}>
+        <View style={styles.buyScansCard}>
           <View style={styles.buyScansContent}>
             <View style={styles.buyScansIconContainer}>
               <Icon name="zap" size="lg" color="#FF6B35" />
@@ -275,23 +291,61 @@ export function SubscriptionScreen() {
                 Besoin de plus de scans rapidement?
               </Text>
             </View>
-            <Icon name="chevron-right" size="md" color="#FF6B35" />
           </View>
           <View style={styles.buyScansPacksPreview}>
-            <View style={styles.buyScansPackItem}>
+            <TouchableOpacity
+              style={styles.buyScansPackItem}
+              onPress={() => {
+                const pack = SCAN_PACKS.medium;
+                navigation.navigate('MokoPayment', {
+                  amount: pack.price,
+                  planId: `scanpack_${pack.id}`,
+                  planName: `Pack de ${pack.scans} scans`,
+                  isScanPack: true,
+                  scanPackId: pack.id,
+                });
+              }}
+              activeOpacity={0.7}>
               <Text style={styles.buyScansPackNumber}>10</Text>
               <Text style={styles.buyScansPackLabel}>scans</Text>
-            </View>
-            <View style={styles.buyScansPackItem}>
+              <Text style={styles.buyScansPackPrice}>$0.99</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.buyScansPackItem}
+              onPress={() => {
+                const pack = SCAN_PACKS.large;
+                navigation.navigate('MokoPayment', {
+                  amount: pack.price,
+                  planId: `scanpack_${pack.id}`,
+                  planName: `Pack de ${pack.scans} scans`,
+                  isScanPack: true,
+                  scanPackId: pack.id,
+                });
+              }}
+              activeOpacity={0.7}>
               <Text style={styles.buyScansPackNumber}>25</Text>
               <Text style={styles.buyScansPackLabel}>scans</Text>
-            </View>
-            <View style={[styles.buyScansPackItem, styles.buyScansPackPopular]}>
+              <Text style={styles.buyScansPackPrice}>$1.99</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.buyScansPackItem, styles.buyScansPackPopular]}
+              onPress={() => {
+                const pack = SCAN_PACKS.large;
+                navigation.navigate('MokoPayment', {
+                  amount: pack.price * 2.5,
+                  planId: 'scanpack_xlarge',
+                  planName: 'Pack de 50 scans',
+                  isScanPack: true,
+                  scanPackId: 'xlarge',
+                });
+              }}
+              activeOpacity={0.7}>
               <Text style={[styles.buyScansPackNumber, {color: '#FFF'}]}>50</Text>
               <Text style={[styles.buyScansPackLabel, {color: '#FFF'}]}>scans</Text>
-            </View>
+              <Text style={[styles.buyScansPackPrice, {color: '#FFF'}]}>$4.99</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* Plan Selection - Stacked Cards (Design 1) */}
         <View style={styles.plansStack}>
@@ -607,6 +661,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
+  },
+  buyScansPackPrice: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.accent,
+    marginTop: 2,
   },
 
   // Section Title

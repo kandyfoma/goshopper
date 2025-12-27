@@ -37,7 +37,6 @@ export type RootStackParamList = {
     currentEndDate?: Date | string;
     remainingScans?: number;
   };
-  ScanPacks: undefined;
   MokoPayment: {amount: number; planId: string; planName: string; isScanPack?: boolean; scanPackId?: string};
   Settings: undefined;
   DeveloperTools: undefined;

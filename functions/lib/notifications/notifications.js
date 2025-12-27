@@ -57,20 +57,28 @@ exports.sendWeeklySavingsTips = functions
     .onRun(async (context) => {
     console.log('Sending weekly savings tips...');
     try {
-        // Get all users with FCM tokens
-        const usersSnapshot = await db.collectionGroup('users').get();
+        // Get all users with FCM tokens (only from the app's users collection)
+        const usersSnapshot = await db
+            .collection('artifacts')
+            .doc(config_1.config.app.id)
+            .collection('users')
+            .get();
         const usersWithTokens = [];
+        // Track FCM tokens to avoid duplicates
+        const seenTokens = new Set();
         for (const userDoc of usersSnapshot.docs) {
             const userData = userDoc.data();
-            if (userData.fcmToken) {
+            // Only add if user has FCM token and we haven't seen this token yet
+            if (userData.fcmToken && !seenTokens.has(userData.fcmToken)) {
                 usersWithTokens.push({
                     userId: userDoc.id,
                     fcmToken: userData.fcmToken,
                     language: userData.language || 'fr', // Default to French
                 });
+                seenTokens.add(userData.fcmToken);
             }
         }
-        console.log(`Found ${usersWithTokens.length} users with FCM tokens`);
+        console.log(`Found ${usersWithTokens.length} unique users with FCM tokens`);
         // Send personalized tips to each user
         for (const user of usersWithTokens) {
             try {
@@ -167,7 +175,6 @@ exports.sendAdminBroadcast = functions
         throw new functions.https.HttpsError('invalid-argument', 'Title and body are required');
     }
     try {
-        let usersQuery = db.collectionGroup('users');
         // If specific users targeted, filter by user IDs
         if (targetUsers && Array.isArray(targetUsers)) {
             // For specific users, we need to get each user's FCM token individually
@@ -215,11 +222,18 @@ exports.sendAdminBroadcast = functions
             };
         }
         // Send to all users with FCM tokens
-        const usersSnapshot = await usersQuery.get();
+        const usersSnapshot = await db
+            .collection('artifacts')
+            .doc(config_1.config.app.id)
+            .collection('users')
+            .get();
         const notifications = [];
+        const seenTokens = new Set();
         for (const userDoc of usersSnapshot.docs) {
             const userData = userDoc.data();
-            if (userData.fcmToken) {
+            // Avoid duplicate FCM tokens
+            if (userData.fcmToken && !seenTokens.has(userData.fcmToken)) {
+                seenTokens.add(userData.fcmToken);
                 notifications.push({
                     token: userData.fcmToken,
                     notification: {

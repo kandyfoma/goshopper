@@ -188,8 +188,6 @@ export const sendAdminBroadcast = functions
     }
 
     try {
-      let usersQuery = db.collectionGroup('users');
-
       // If specific users targeted, filter by user IDs
       if (targetUsers && Array.isArray(targetUsers)) {
         // For specific users, we need to get each user's FCM token individually

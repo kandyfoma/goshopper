@@ -26,6 +26,7 @@ import {pushNotificationService} from '@/shared/services/firebase';
 import {quickActionsService, inAppReviewService, spotlightSearchService, offlineService, widgetDataService} from '@/shared/services';
 import {cacheInitializer} from '@/shared/services/caching';
 import {initializeNotificationChannels} from '@/shared/utils/notificationChannels';
+import {notificationActionsService} from '@/shared/services/notificationActions';
 import {useBiometricCheck} from '@/shared/hooks';
 
 // Ignore specific warnings in development
@@ -105,6 +106,9 @@ function App(): React.JSX.Element {
 
         // Initialize Notification Channels (Android only)
         await initializeNotificationChannels();
+
+        // Initialize Notification Actions (mark as read, etc.)
+        await notificationActionsService.initialize();
 
         // Initialize Quick Actions (App Icon Shortcuts)
         quickActionsService.initialize();

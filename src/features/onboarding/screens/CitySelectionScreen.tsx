@@ -6,7 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  FlatList,
+  ScrollView,
+  TextInput,
   ActivityIndicator,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
@@ -23,109 +24,45 @@ import {
 import {Icon, Button} from '@/shared/components';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {COUNTRIES_CITIES, CountryData, CityData} from '@/shared/constants/cities';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-const DRC_CITIES = [
-  'Kinshasa',
-  'Lubumbashi',
-  'Mbuji-Mayi',
-  'Kisangani',
-  'Kananga',
-  'Bukavu',
-  'Tshikapa',
-  'Kolwezi',
-  'Likasi',
-  'Goma',
-  'Uvira',
-  'Butembo',
-  'Beni',
-  'Bunia',
-  'Isiro',
-  'Mbandaka',
-  'Gemena',
-  'Kikwit',
-  'Bandundu',
-  'Matadi',
-  'Boma',
-  'Inongo',
-  'Boende',
-  'Lusambo',
-  'Kabinda',
-  'Lubao',
-  'Ilebo',
-  'Mweka',
-  'Basankusu',
-  'Libenge',
-  'Bumba',
-  'Yangambi',
-  'Aketi',
-  'Lisala',
-  'Bondo',
-  'Poko',
-  'Bosobolo',
-  'Yumbi',
-  'Bolomba',
-  'Makanza',
-  'Lukolela',
-  'Irebu',
-  'Kiri',
-  'Ingende',
-  'Oshwe',
-  'Befale',
-  'Lukunga',
-  'Mont-Ngafula',
-  'Kintambo',
-  'Ngaliema',
-  'Gombe',
-  'Barumbu',
-  'Lingwala',
-  'Makala',
-  'Selembao',
-  'Masina',
-  'Righini',
-  'Nsele',
-  'Maluku',
-  'Kimbanseke',
-  'Ngaba',
-  'Mont-Amba',
-  'Binza',
-  'Limete',
-  'Matete',
-  'Kasa-Vubu',
-  'Ndjili',
-  'Lemba',
-  'Kingasani',
-  'Kimwenza',
-  'Mbanza-Ngungu',
-  'Kasangulu',
-  'Madimba',
-  'Kimpese',
-  'Boko',
-  'Songololo',
-  'Lukaya',
-  'Tshela',
-  'Luozi',
-  'Noki',
-  'Kimvula',
-  'Lukula',
-  'Seke-Banza',
-  'Kwamouth',
-  'Inga',
-  'Kisantu',
-  'Mbanza-Mputu',
-  'Lukala',
-].sort();
 
 export function CitySelectionScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user} = useAuth();
   const {showToast} = useToast();
   const [selectedCity, setSelectedCity] = useState<string>('');
+  const [selectedLocationCountry, setSelectedLocationCountry] = useState<CountryData | null>(null);
+  const [showCountrySelector, setShowCountrySelector] = useState(true);
+  const [citySearchQuery, setCitySearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleCitySelect = async () => {
-    if (!selectedCity || !user?.uid) {
+  // Search across all cities
+  const searchCities = (query: string): Array<{name: string; country: string; countryCode: string}> => {
+    const lowerQuery = query.toLowerCase().trim();
+    if (!lowerQuery) return [];
+
+    const results: Array<{name: string; country: string; countryCode: string}> = [];
+    
+    COUNTRIES_CITIES.forEach(country => {
+      country.cities.forEach(city => {
+        if (city.toLowerCase().includes(lowerQuery) || 
+            country.name.toLowerCase().includes(lowerQuery)) {
+          results.push({
+            name: city,
+            country: country.name,
+            countryCode: country.code,
+          });
+        }
+      });
+    });
+
+    return results.slice(0, 20); // Limit results
+  };
+
+  const handleCitySelect = async (cityName: string) => {
+    if (!cityName || !user?.uid) {
       return;
     }
 
@@ -139,7 +76,7 @@ export function CitySelectionScreen() {
         .doc(user.uid)
         .set(
           {
-            defaultCity: selectedCity,
+            defaultCity: cityName,
             updatedAt: firestore.FieldValue.serverTimestamp(),
           },
           {merge: true},
@@ -150,74 +87,142 @@ export function CitySelectionScreen() {
       navigation.replace('Scanner');
     } catch (error) {
       console.error('Error saving city:', error);
+      showToast('Erreur lors de la sauvegarde', 'error', 2000);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const renderCity = ({item}: {item: string}) => (
-    <TouchableOpacity
-      style={[
-        styles.cityItem,
-        selectedCity === item && styles.cityItemSelected,
-      ]}
-      onPress={() => setSelectedCity(item)}>
-      {selectedCity === item && (
-        <View style={styles.checkIcon}>
-          <Icon name="check" size="sm" color={Colors.white} />
-        </View>
-      )}
-      <Text
-        style={[
-          styles.cityText,
-          selectedCity === item && styles.cityTextSelected,
-        ]}>
-        {item}
-      </Text>
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Back Button */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}>
-        <Icon name="arrow-left" size="md" color={Colors.text.primary} />
-      </TouchableOpacity>
-
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <Icon name="map-pin" size="xl" color={Colors.primary} />
-        </View>
-        <Text style={styles.title}>Sélectionnez votre ville</Text>
-        <Text style={styles.subtitle}>
-          Choisissez la ville où vous faites vos achats pour une meilleure
-          expérience
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}>
+          <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.title}>
+          {showCountrySelector
+            ? 'Sélectionnez votre pays'
+            : selectedLocationCountry?.name || 'Sélectionnez votre ville'}
         </Text>
       </View>
 
-      <FlatList
-        data={DRC_CITIES}
-        renderItem={renderCity}
-        keyExtractor={item => item}
-        numColumns={2}
-        contentContainerStyle={styles.citiesGrid}
-        showsVerticalScrollIndicator={false}
-      />
-
-      <View style={styles.footer}>
-        <Button
-          title="Continuer"
-          onPress={handleCitySelect}
-          variant="primary"
-          size="lg"
-          loading={isSaving}
-          disabled={!selectedCity || isSaving}
-          icon={<Icon name="arrow-right" size="sm" color={Colors.white} />}
-          iconPosition="right"
+      {/* Search input */}
+      <View style={styles.searchContainer}>
+        <Icon name="search" size="md" color={Colors.text.tertiary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={
+            showCountrySelector
+              ? 'Rechercher un pays ou une ville...'
+              : 'Rechercher une ville...'
+          }
+          placeholderTextColor={Colors.text.tertiary}
+          value={citySearchQuery}
+          onChangeText={setCitySearchQuery}
+          autoCapitalize="words"
         />
+        {citySearchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setCitySearchQuery('')}>
+            <Icon name="x-circle" size="md" color={Colors.text.tertiary} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Back button for city selection */}
+      {!citySearchQuery.trim() && !showCountrySelector && selectedLocationCountry && (
+        <TouchableOpacity
+          style={styles.backToCountryButton}
+          onPress={() => {
+            setShowCountrySelector(true);
+            setSelectedLocationCountry(null);
+            setCitySearchQuery('');
+          }}>
+          <Icon name="arrow-left" size="md" color={Colors.primary} />
+          <Text style={styles.backToCountryText}>Changer de pays</Text>
+        </TouchableOpacity>
+      )}
+
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}>
+        {citySearchQuery.trim() ? (
+          /* Global search results */
+          searchCities(citySearchQuery).length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="search" size="3xl" color={Colors.text.tertiary} />
+              <Text style={styles.emptyText}>Aucun résultat</Text>
+            </View>
+          ) : (
+            searchCities(citySearchQuery).map(result => (
+              <TouchableOpacity
+                key={`${result.countryCode}-${result.name}`}
+                style={styles.cityItem}
+                onPress={() => {
+                  handleCitySelect(result.name);
+                }}>
+                <Text style={styles.countryFlag}>
+                  {COUNTRIES_CITIES.find(c => c.code === result.countryCode)?.flag}
+                </Text>
+                <View style={{flex: 1}}>
+                  <Text style={styles.cityName}>{result.name}</Text>
+                  <Text style={styles.cityCountry}>{result.country}</Text>
+                </View>
+                <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+              </TouchableOpacity>
+            ))
+          )
+        ) : showCountrySelector ? (
+          /* Country selection */
+          <>
+            {COUNTRIES_CITIES.map(country => (
+              <TouchableOpacity
+                key={country.code}
+                style={styles.countryItem}
+                onPress={() => {
+                  setSelectedLocationCountry(country);
+                  setShowCountrySelector(false);
+                  setCitySearchQuery('');
+                }}>
+                <Text style={styles.countryFlagLarge}>{country.flag}</Text>
+                <View style={{flex: 1}}>
+                  <Text style={styles.countryName}>{country.name}</Text>
+                  <Text style={styles.countryCityCount}>
+                    {country.cities.length} ville{country.cities.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        ) : selectedLocationCountry ? (
+          /* City selection for selected country */
+          selectedLocationCountry.cities.map(city => (
+            <TouchableOpacity
+              key={city}
+              style={styles.cityItem}
+              onPress={() => {
+                handleCitySelect(city);
+              }}>
+              <Icon name="map-pin" size="md" color={Colors.primary} />
+              <Text style={styles.cityName}>{city}</Text>
+              {selectedCity === city && (
+                <Icon name="check-circle" size="md" color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))
+        ) : null}
+      </ScrollView>
+
+      {/* Loading overlay */}
+      {isSaving && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Sauvegarde en cours...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -227,112 +232,135 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background.primary,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
   backButton: {
-    position: 'absolute',
-    top: Spacing.base,
-    left: Spacing.base,
-    zIndex: 10,
     width: 40,
     height: 40,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.sm,
-  },
-  header: {
-    padding: Spacing.xl,
-    paddingTop: Spacing['2xl'], // Extra top padding to avoid back button
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
-  },
-  headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.background.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.base,
+    marginRight: Spacing.base,
   },
   title: {
-    fontSize: Typography.fontSize['2xl'],
+    flex: 1,
+    fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
   },
-  subtitle: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  citiesGrid: {
-    padding: Spacing.base,
-  },
-  cityItem: {
-    flex: 1,
-    margin: Spacing.sm,
-    padding: Spacing.base,
-    borderRadius: BorderRadius.base,
-    borderWidth: 2,
-    borderColor: Colors.border.light,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 60,
-    backgroundColor: Colors.background.primary,
-  },
-  cityItemSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.background.secondary,
-  },
-  checkIcon: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 20,
-    height: 20,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cityText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-  },
-  cityTextSelected: {
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold,
-  },
-  footer: {
-    padding: Spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border.light,
-  },
-  continueButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.base,
-    padding: Spacing.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.md,
-  },
-  continueButtonDisabled: {
-    backgroundColor: Colors.border.medium,
-  },
-  buttonInner: {
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    margin: Spacing.base,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: Spacing.sm,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.primary,
+    padding: 0,
+  },
+  backToCountryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
     gap: Spacing.sm,
   },
-  continueButtonText: {
-    color: Colors.white,
+  backToCountryText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.primary,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.base,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing['3xl'],
+  },
+  emptyText: {
+    marginTop: Spacing.base,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.text.tertiary,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
+  },
+  countryFlagLarge: {
+    fontSize: 40,
+    marginRight: Spacing.base,
+  },
+  countryName: {
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+  },
+  countryCityCount: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  cityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    ...Shadows.sm,
+  },
+  countryFlag: {
+    fontSize: 32,
+  },
+  cityName: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.primary,
+  },
+  cityCountry: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.base,
+    fontSize: Typography.fontSize.base,
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.medium,
   },
 });

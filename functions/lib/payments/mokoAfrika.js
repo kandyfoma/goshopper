@@ -360,8 +360,8 @@ async function activateSubscription(userId, planId, payment) {
         }
         // Calculate remaining scans from previous subscription
         if (existingData.isSubscribed && existingData.status === 'active') {
-            const prevPlanLimit = existingData.planId === 'premium' ? 1000 :
-                existingData.planId === 'standard' ? 100 : 25;
+            const prevPlanLimit = existingData.planId === 'premium' ? 200 :
+                existingData.planId === 'standard' ? 50 : 20;
             const monthlyUsed = existingData.monthlyScansUsed || 0;
             const monthlyRemaining = Math.max(0, prevPlanLimit - monthlyUsed);
             bonusScans += monthlyRemaining;

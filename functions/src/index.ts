@@ -86,6 +86,9 @@ export {
   completeRegistration,
   checkIdentifierAvailability,
 } from './auth/verification';
+export {
+  getPhoneAuthToken,
+} from './auth/phoneAuth';
 
 // Phase 1.1 - Price Alerts functions
 export {

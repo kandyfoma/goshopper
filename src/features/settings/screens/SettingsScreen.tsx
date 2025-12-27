@@ -12,6 +12,9 @@ import {
   Linking,
   StatusBar,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -328,27 +331,14 @@ export function SettingsScreen() {
       // Use auth service to delete account (handles both Firebase Auth and phone users)
       await authService.deleteAccount(user!.uid, deletePassword);
 
-      // Sign out and navigate
-      await signOut();
-      
       setShowDeleteAccountModal(false);
       setDeletePassword('');
       
-      Alert.alert(
-        'Compte supprimé',
-        'Votre compte a été supprimé définitivement.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Welcome' }],
-              });
-            },
-          },
-        ],
-      );
+      // Show toast notification instead of alert
+      showToast('Votre compte a été supprimé définitivement.', 'success', 4000);
+      
+      // Sign out - this will automatically navigate to auth screens via RootNavigator
+      await signOut();
     } catch (error: any) {
       console.error('Error deleting account:', error);
       let errorMessage = 'Impossible de supprimer le compte';
@@ -849,104 +839,110 @@ export function SettingsScreen() {
         }}
         variant="bottom-sheet"
         overlayOpacity={0.5}>
-        <View style={styles.deleteModalWrapper}>
-          {/* Close button */}
-          <TouchableOpacity 
-            style={styles.deleteCloseButton} 
-            onPress={() => {
-              setShowDeleteAccountModal(false);
-              setDeletePassword('');
-              setShowPassword(false);
-            }}>
-            <Icon name="x" size="sm" color={Colors.text.tertiary} />
-          </TouchableOpacity>
-          
-          <ScrollView showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}>
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            style={styles.deleteModalScrollView}
+            contentContainerStyle={styles.deleteModalScrollContent}>
+            {/* Close button */}
+            <TouchableOpacity 
+              style={styles.deleteCloseButton} 
+              onPress={() => {
+                setShowDeleteAccountModal(false);
+                setDeletePassword('');
+                setShowPassword(false);
+              }}>
+              <Icon name="x" size="sm" color={Colors.text.tertiary} />
+            </TouchableOpacity>
+            
             <View style={styles.deleteModalContent}>
-            {/* Icon */}
-            <View style={styles.deleteIconContainer}>
-              <Icon name="alert-triangle" size="xl" color={Colors.white} />
-            </View>
-            
-            <Text style={styles.deleteModalTitle}>
-              Supprimer mon compte
-            </Text>
-            
-            <Text style={styles.deleteModalText}>
-              Cette action est <Text style={styles.deleteModalBold}>irréversible</Text>.
-              Toutes vos données seront définitivement supprimées :
-            </Text>
-            
-            <View style={styles.deleteModalList}>
-              <View style={styles.deleteModalListItem}>
-                <Icon name="check" size="sm" color={Colors.text.secondary} />
-                <Text style={styles.deleteModalListText}>Toutes vos factures</Text>
+              {/* Icon */}
+              <View style={styles.deleteIconContainer}>
+                <Icon name="alert-triangle" size="xl" color={Colors.white} />
               </View>
-              <View style={styles.deleteModalListItem}>
-                <Icon name="check" size="sm" color={Colors.text.secondary} />
-                <Text style={styles.deleteModalListText}>Vos listes de courses</Text>
-              </View>
-              <View style={styles.deleteModalListItem}>
-                <Icon name="check" size="sm" color={Colors.text.secondary} />
-                <Text style={styles.deleteModalListText}>Votre historique</Text>
-              </View>
-              <View style={styles.deleteModalListItem}>
-                <Icon name="check" size="sm" color={Colors.text.secondary} />
-                <Text style={styles.deleteModalListText}>Votre abonnement</Text>
-              </View>
-            </View>
-
-            <View style={styles.deleteModalInputContainer}>
-              <Text style={styles.deleteModalInputLabel}>
-                Pour confirmer, entrez votre mot de passe :
+              
+              <Text style={styles.deleteModalTitle}>
+                Supprimer mon compte
               </Text>
-              <Input
-                value={deletePassword}
-                onChangeText={setDeletePassword}
-                placeholder="Mot de passe"
-                secureTextEntry={!showPassword}
-                leftIcon="lock"
-                rightIcon={showPassword ? "eye-off" : "eye"}
-                onRightIconPress={() => setShowPassword(!showPassword)}
-                autoFocus
-                editable={!isDeletingAccount}
-                keyboardType="default"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+              
+              <Text style={styles.deleteModalText}>
+                Cette action est <Text style={styles.deleteModalBold}>irréversible</Text>.
+                Toutes vos données seront définitivement supprimées :
+              </Text>
+              
+              <View style={styles.deleteModalList}>
+                <View style={styles.deleteModalListItem}>
+                  <Icon name="check" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.deleteModalListText}>Toutes vos factures</Text>
+                </View>
+                <View style={styles.deleteModalListItem}>
+                  <Icon name="check" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.deleteModalListText}>Vos listes de courses</Text>
+                </View>
+                <View style={styles.deleteModalListItem}>
+                  <Icon name="check" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.deleteModalListText}>Votre historique</Text>
+                </View>
+                <View style={styles.deleteModalListItem}>
+                  <Icon name="check" size="sm" color={Colors.text.secondary} />
+                  <Text style={styles.deleteModalListText}>Votre abonnement</Text>
+                </View>
+              </View>
 
-            <View style={styles.deleteModalActions}>
-              <View style={{flex: 1}}>
-                <Button
-                  title="Annuler"
-                  onPress={() => {
-                    setShowDeleteAccountModal(false);
-                    setDeletePassword('');
-                    setShowPassword(false);
-                  }}
-                  variant="secondary"
-                  size="lg"
-                  disabled={isDeletingAccount}
+              <View style={styles.deleteModalInputContainer}>
+                <Text style={styles.deleteModalInputLabel}>
+                  Pour confirmer, entrez votre mot de passe :
+                </Text>
+                <Input
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  placeholder="Mot de passe"
+                  secureTextEntry={!showPassword}
+                  leftIcon="lock"
+                  rightIcon={showPassword ? "eye-off" : "eye"}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                  autoFocus
+                  editable={!isDeletingAccount}
+                  keyboardType="default"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
               </View>
-              <View style={{flex: 1}}>
-                <Button
-                  title="Supprimer"
-                  onPress={handleConfirmDeleteAccount}
-                  loading={isDeletingAccount}
-                  disabled={!deletePassword.trim() || isDeletingAccount}
-                  variant="danger"
-                  size="lg"
-                />
+
+              <View style={styles.deleteModalActions}>
+                <View style={{flex: 1}}>
+                  <Button
+                    title="Annuler"
+                    onPress={() => {
+                      setShowDeleteAccountModal(false);
+                      setDeletePassword('');
+                      setShowPassword(false);
+                    }}
+                    variant="secondary"
+                    size="lg"
+                    disabled={isDeletingAccount}
+                  />
+                </View>
+                <View style={{flex: 1}}>
+                  <Button
+                    title="Supprimer"
+                    onPress={handleConfirmDeleteAccount}
+                    loading={isDeletingAccount}
+                    disabled={!deletePassword.trim() || isDeletingAccount}
+                    variant="danger"
+                    size="lg"
+                  />
+                </View>
               </View>
             </View>
-          </View>
-        </ScrollView>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </AnimatedModal>
 
-      {/* Theme Modal */}
       <AnimatedModal
         visible={showThemeModal}
         onClose={() => setShowThemeModal(false)}
@@ -1493,8 +1489,11 @@ const styles = StyleSheet.create({
   },
 
   // Delete Account Modal
-  deleteModalWrapper: {
-    paddingTop: Spacing.md,
+  deleteModalScrollView: {
+    maxHeight: Dimensions.get('window').height * 0.8,
+  },
+  deleteModalScrollContent: {
+    paddingBottom: Spacing.xl,
   },
   deleteCloseButton: {
     position: 'absolute',

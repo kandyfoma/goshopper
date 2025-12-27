@@ -12,8 +12,7 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {ReceiptScanResult, Receipt} from '@/shared/types';
 import {pushNotificationService} from '@/shared/services/firebase';
-import notifee from '@notifee/react-native';
-import {Platform} from 'react-native';
+import {notificationActionsService} from '@/shared/services/notificationActions';
 
 const SCAN_PROCESSING_KEY = '@goshopperai/scan_processing_state';
 
@@ -190,33 +189,19 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
 
     // Send local push notification with receipt details
     try {
-      if (Platform.OS === 'android') {
-        const itemCount = receipt.items?.length || 0;
-        const storeName = receipt.storeName || 'Magasin inconnu';
-        const total = receipt.total || 0;
-        const currency = receipt.currency || 'CDF';
-        
-        // Format the total nicely
-        const formattedTotal = total.toLocaleString('fr-FR', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2,
-        });
-        
-        await notifee.displayNotification({
-          title: `✅ ${storeName}`,
-          body: `${itemCount} article${itemCount > 1 ? 's' : ''} • Total: ${formattedTotal} ${currency}`,
-          android: {
-            channelId: 'scan-completion',
-            pressAction: {
-              id: 'default',
-            },
-            style: {
-              type: 1, // BigTextStyle
-              text: `Reçu analysé avec succès!\n\n📍 Magasin: ${storeName}\n📦 Articles: ${itemCount}\n💰 Total: ${formattedTotal} ${currency}${receipt.date ? `\n📅 Date: ${receipt.date}` : ''}`,
-            },
-          },
-        });
-      }
+      const itemCount = receipt.items?.length || 0;
+      const storeName = receipt.storeName || 'Magasin inconnu';
+      const total = receipt.total || 0;
+      const currency = receipt.currency || 'CDF';
+      
+      await notificationActionsService.displayScanNotification({
+        storeName,
+        itemCount,
+        total,
+        currency,
+        date: receipt.date,
+        receiptId,
+      });
     } catch (error) {
       console.error('Error sending scan completion notification:', error);
     }
@@ -233,18 +218,10 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
 
     // Send local push notification for error
     try {
-      if (Platform.OS === 'android') {
-        await notifee.displayNotification({
-          title: '❌ Erreur d\'analyse',
-          body: error,
-          android: {
-            channelId: 'scan-completion',
-            pressAction: {
-              id: 'default',
-            },
-          },
-        });
-      }
+      await notificationActionsService.displayErrorNotification({
+        title: '❌ Erreur d\'analyse',
+        body: error,
+      });
     } catch (notifError) {
       console.error('Error sending scan error notification:', notifError);
     }

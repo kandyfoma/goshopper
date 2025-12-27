@@ -52,7 +52,7 @@ export default function ScanUsageWarning() {
 
   const handleBuyScanPack = () => {
     setShowWarning(false);
-    navigation.navigate('ScanPacks');
+    navigation.navigate('Subscription');
   };
 
   const handleUpgrade = () => {

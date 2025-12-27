@@ -439,17 +439,25 @@ class SubscriptionService {
       .doc(COLLECTIONS.subscription(user.uid))
       .onSnapshot(
         {includeMetadataChanges: true}, // Include metadata to detect cache vs server
-        doc => {
+        async doc => {
           const fromCache = doc.metadata.fromCache;
           
           if (doc.exists) {
             const data = doc.data()!;
             callback(this.mapSubscription(data));
           } else {
-            console.warn('⚠️ Subscription document does not exist for user:', user.uid);
-            console.warn('⚠️ User should complete onboarding or subscription needs to be created');
-            // Return default subscription (which will have status 'inactive')
-            callback(this.getDefaultSubscription(user.uid));
+            console.log('📋 Subscription document does not exist for user:', user.uid);
+            console.log('📋 Auto-creating trial subscription...');
+            // Auto-create subscription for new user
+            const subscription = this.getDefaultSubscription(user.uid);
+            try {
+              await this.initializeSubscription(user.uid, subscription);
+              console.log('✅ Trial subscription created for user:', user.uid);
+            } catch (initError) {
+              console.error('❌ Failed to create subscription:', initError);
+            }
+            // Return default subscription immediately (snapshot will update when doc is created)
+            callback(subscription);
           }
         },
         error => {

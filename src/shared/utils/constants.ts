@@ -7,7 +7,7 @@ export const APP_VERSION = '1.0.0';
 // Trial Configuration
 export const TRIAL_DURATION_DAYS = 30; // 1 month free trial
 export const TRIAL_EXTENSION_DAYS = 30; // 1 month extension available
-export const TRIAL_SCAN_LIMIT = 50; // Limited scans during trial
+export const TRIAL_SCAN_LIMIT = 10; // Limited scans during trial
 
 // API Limits
 export const RATE_LIMIT_PER_MINUTE = 10;

@@ -2,6 +2,7 @@
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import firebase from '@react-native-firebase/app';
+import functions from '@react-native-firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {appleAuth} from '@invertase/react-native-apple-authentication';
@@ -9,6 +10,7 @@ import {LoginManager, AccessToken, Settings} from 'react-native-fbsdk-next';
 import {User, UserProfile} from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
 import {safeToDate} from '@/shared/utils/helpers';
+import {biometricService} from '../biometric';
 
 const PHONE_USER_KEY = '@goshopperai_phone_user';
 
@@ -217,6 +219,28 @@ class AuthService {
       
       console.log('✅ [Phone Login] Password verified');
       
+      // Get Firebase Custom Token for this phone user
+      // This is REQUIRED for scanning to work
+      console.log('🔑 [Phone Login] Getting Firebase custom token...');
+      const functionsInstance = functions().httpsCallable('getPhoneAuthToken');
+      const tokenResult = await functionsInstance({
+        userId: userProfile.userId,
+        phoneNumber: phoneNumber,
+      });
+      
+      const responseData = tokenResult.data as {customToken?: string; success?: boolean};
+      console.log('🔑 [Phone Login] Token response:', JSON.stringify(responseData));
+      
+      if (responseData.customToken) {
+        // Sign in with custom token to Firebase Auth
+        await auth().signInWithCustomToken(responseData.customToken);
+        console.log('✅ [Phone Login] Signed in to Firebase Auth with custom token');
+        console.log('✅ [Phone Login] Current user UID:', auth().currentUser?.uid);
+      } else {
+        console.error('❌ [Phone Login] No custom token in response:', tokenResult);
+        throw new Error('Impossible d\'obtenir le token d\'authentification');
+      }
+      
       // Update last login timestamp
       try {
         await firestore()
@@ -233,7 +257,7 @@ class AuthService {
       
       console.log('✅ [Phone Login] Login successful');
       
-      // Return user data from Firestore (no Firebase Auth needed for phone login)
+      // Return user data from Firestore
       const user: User = {
         id: userProfile.userId,
         uid: userProfile.userId,
@@ -586,13 +610,41 @@ class AuthService {
   }
 
   /**
-   * Get stored phone user session
+   * Get stored phone user session and restore Firebase Auth
    */
   async getStoredPhoneUser(): Promise<User | null> {
     try {
       const stored = await AsyncStorage.getItem(PHONE_USER_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const user = JSON.parse(stored) as User;
+        
+        // Try to restore Firebase Auth session for phone user
+        if (user.uid && user.phoneNumber) {
+          try {
+            // Check if already signed in to Firebase Auth
+            const currentFirebaseUser = auth().currentUser;
+            if (!currentFirebaseUser || currentFirebaseUser.uid !== user.uid) {
+              console.log('🔑 [Session] Restoring Firebase Auth for phone user...');
+              const functionsInstance = functions().httpsCallable('getPhoneAuthToken');
+              const tokenResult = await functionsInstance({
+                userId: user.uid,
+                phoneNumber: user.phoneNumber,
+              });
+              
+              const {customToken} = tokenResult.data as {customToken: string; success: boolean};
+              
+              if (customToken) {
+                await auth().signInWithCustomToken(customToken);
+                console.log('✅ [Session] Firebase Auth restored for phone user');
+              }
+            }
+          } catch (tokenError) {
+            console.warn('⚠️ [Session] Could not restore Firebase Auth:', tokenError);
+            // Continue anyway - user can still use basic app features
+          }
+        }
+        
+        return user;
       }
     } catch (error) {
       console.error('Error getting stored phone user:', error);
@@ -828,10 +880,23 @@ class AuthService {
     try {
       const currentAuthUser = auth().currentUser;
       
-      // Check if this is a Firebase Auth user
+      // First verify password for phone users
+      const phoneUser = await this.getStoredPhoneUser();
+      const isPhoneUser = phoneUser && phoneUser.uid === userId;
+      
+      if (isPhoneUser) {
+        // Phone-based user - verify password first
+        const isValid = await this.verifyPassword(userId, password);
+        if (!isValid) {
+          throw new Error('Invalid password');
+        }
+        console.log('✅ Password verified for phone user');
+      }
+      
+      // Check if this is a Firebase Auth user with email (Google/Apple/Facebook login)
       if (currentAuthUser && currentAuthUser.uid === userId) {
-        // Firebase Auth user - need to reauthenticate
-        if (currentAuthUser.email) {
+        if (currentAuthUser.email && !isPhoneUser) {
+          // Email-based user - need to reauthenticate with email credential
           const credential = auth.EmailAuthProvider.credential(
             currentAuthUser.email,
             password
@@ -839,13 +904,19 @@ class AuthService {
           await currentAuthUser.reauthenticateWithCredential(credential);
         }
         
-        // Delete Firebase Auth account
-        await currentAuthUser.delete();
-      } else {
-        // Phone-based user - verify password first
-        const isValid = await this.verifyPassword(userId, password);
-        if (!isValid) {
-          throw new Error('Invalid password');
+        // Delete Firebase Auth account (for both email and phone users)
+        try {
+          await currentAuthUser.delete();
+          console.log('✅ Firebase Auth account deleted');
+        } catch (deleteError: any) {
+          // If requires-recent-login for phone user, we can proceed since we verified password
+          if (deleteError.code === 'auth/requires-recent-login' && isPhoneUser) {
+            console.log('⚠️ Requires recent login, but password verified - proceeding with Firestore cleanup');
+            // For phone users, we'll just sign out from Firebase Auth
+            // The important data deletion is in Firestore
+          } else {
+            throw deleteError;
+          }
         }
       }
       
@@ -856,20 +927,44 @@ class AuthService {
         .collection('users')
         .doc(userId)
         .delete();
+      console.log('✅ User document deleted from Firestore');
+      
+      // Delete subscription document
+      await firestore()
+        .collection('artifacts')
+        .doc(APP_ID)
+        .collection('subscriptions')
+        .doc(userId)
+        .delete();
+      console.log('✅ Subscription document deleted');
       
       // Delete user profile if exists
-      await firestore()
-        .collection('userProfiles')
-        .doc(userId)
-        .delete();
+      try {
+        await firestore()
+          .collection('userProfiles')
+          .doc(userId)
+          .delete();
+      } catch (e) {
+        // Profile might not exist, that's OK
+      }
       
       // Delete password document if exists
-      await firestore()
-        .collection('passwords')
-        .doc(userId)
-        .delete();
+      try {
+        await firestore()
+          .collection('passwords')
+          .doc(userId)
+          .delete();
+      } catch (e) {
+        // Password doc might not exist, that's OK
+      }
       
-      console.log('Account deleted successfully');
+      // Clear biometric data
+      await biometricService.clearAllData();
+      
+      // Clear phone user session
+      await this.clearPhoneUser();
+      
+      console.log('✅ Account deleted successfully');
     } catch (error) {
       console.error('Error deleting account:', error);
       throw error;
@@ -895,6 +990,7 @@ class AuthService {
       
       const userData = {
         phoneNumber,
+        city, // Required for Firestore rules
         defaultCity: city,
         countryCode,
         passwordHash: password, // In production, hash this properly
@@ -947,8 +1043,35 @@ class AuthService {
         lastLoginAt: new Date(),
       };
       
-      // Store user session for persistence
-      await this.storePhoneUser(user);
+      // Get Firebase Custom Token for this new phone user
+      // This is REQUIRED for scanning to work
+      console.log('🔑 [Registration] Getting Firebase custom token...');
+      
+      // Small delay to ensure Firestore document is fully written
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const functionsInstance = functions().httpsCallable('getPhoneAuthToken');
+      const tokenResult = await functionsInstance({
+        userId: userId,
+        phoneNumber: phoneNumber,
+      });
+      
+      const responseData = tokenResult.data as {customToken?: string; success?: boolean};
+      console.log('🔑 [Registration] Token response received:', responseData.success);
+      
+      if (responseData.customToken) {
+        // Sign in with custom token to Firebase Auth
+        await auth().signInWithCustomToken(responseData.customToken);
+        console.log('✅ [Registration] Signed in to Firebase Auth with custom token');
+        console.log('✅ [Registration] Current user UID:', auth().currentUser?.uid);
+      } else {
+        console.error('❌ [Registration] No custom token in response');
+        throw new Error('Impossible d\'obtenir le token d\'authentification');
+      }
+      
+      // DON'T store phone user here - let RegisterScreen handle it
+      // after the biometric modal is shown/dismissed
+      // await this.storePhoneUser(user);
       
       console.log('✅ User created successfully:', user.id);
       return user;

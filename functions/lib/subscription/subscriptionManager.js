@@ -51,9 +51,9 @@ const TRIAL_EXTENSION_DAYS = 30; // 1 month extension
 const GRACE_PERIOD_DAYS = 7; // 7 days to use remaining scans after expiration
 const PLAN_SCAN_LIMITS = {
     freemium: 3,
-    basic: 25,
-    standard: 100,
-    premium: 1000, // Fair use limit
+    basic: 20,
+    standard: 50,
+    premium: 200,
 };
 // Get current exchange rate from global settings
 async function getExchangeRate() {

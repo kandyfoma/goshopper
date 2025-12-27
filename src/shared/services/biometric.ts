@@ -453,6 +453,26 @@ class BiometricService {
         return 'fingerprint';
     }
   }
+
+  /**
+   * Clear all biometric data without authentication
+   * Used when deleting account or force logout
+   */
+  async clearAllData(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove([
+        BIOMETRIC_ENABLED_KEY,
+        BIOMETRIC_USER_ID_KEY,
+        BIOMETRIC_USER_EMAIL_KEY,
+        BIOMETRIC_USER_PHONE_KEY,
+        BIOMETRIC_PASSWORD_KEY,
+        BIOMETRIC_SETUP_COMPLETE_KEY,
+      ]);
+      console.log('✅ Biometric data cleared');
+    } catch (error) {
+      console.error('Failed to clear biometric data:', error);
+    }
+  }
 }
 
 export const biometricService = new BiometricService();

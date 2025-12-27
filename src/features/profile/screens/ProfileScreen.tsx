@@ -27,7 +27,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, AppFooter, Button, ConfirmationModal} from '@/shared/components';
+import {Icon, AppFooter, Button, AnimatedModal} from '@/shared/components';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {firebase} from '@react-native-firebase/functions';
@@ -200,6 +200,11 @@ export function ProfileScreen() {
 
   useEffect(() => {
     const fetchUserStats = async () => {
+      // Skip if user or userId is not available
+      if (!user?.uid) {
+        return;
+      }
+
       try {
         setUserStats(prev => ({...prev, loading: true, error: null}));
         // Call the getUserStats function in europe-west1 region
@@ -239,10 +244,19 @@ export function ProfileScreen() {
       }
     };
 
-    if (user) {
+    // Only fetch if user is authenticated
+    if (isAuthenticated && user?.uid) {
       fetchUserStats();
+    } else {
+      // Set defaults if not authenticated
+      setUserStats({
+        totalReceipts: 0,
+        totalSavings: 0,
+        loading: false,
+        error: null,
+      });
     }
-  }, [user]);
+  }, [user, isAuthenticated]);
 
   // Don't render anything if not authenticated or profile is loading
   if (!isAuthenticated || profileLoading) {
@@ -277,6 +291,12 @@ export function ProfileScreen() {
   };
 
   const handleRebuildItems = async () => {
+    // Ensure user is authenticated before calling cloud function
+    if (!isAuthenticated || !user?.uid) {
+      Alert.alert('Erreur', 'Vous devez être connecté pour effectuer cette action');
+      return;
+    }
+
     try {
       setRebuildingItems(true);
       console.log('🔄 Starting items aggregation rebuild...');
@@ -529,7 +549,7 @@ export function ProfileScreen() {
           title="Se déconnecter"
           onPress={handleSignOut}
           variant="danger"
-          size="lg"
+          size="md"
           icon={<Icon name="logout" size="sm" color={Colors.white} />}
           style={{marginTop: Spacing.xl, marginBottom: Spacing.xxl}}
         />
@@ -542,18 +562,49 @@ export function ProfileScreen() {
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
-      <ConfirmationModal
+      <AnimatedModal
         visible={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}
-        title="Déconnexion"
-        message="Êtes-vous sûr de vouloir vous déconnecter ?"
-        icon="logout"
-        variant="danger"
-        confirmText="Déconnecter"
-        cancelText="Annuler"
-        onConfirm={confirmSignOut}
-        onCancel={() => setShowLogoutModal(false)}
-      />
+        variant="centered"
+        overlayOpacity={0.4}>
+        {/* Close button */}
+        <TouchableOpacity 
+          style={styles.logoutCloseButton} 
+          onPress={() => setShowLogoutModal(false)}>
+          <Icon name="x" size="sm" color={Colors.text.tertiary} />
+        </TouchableOpacity>
+        
+        <View style={styles.logoutIconContainer}>
+          <Icon name="logout" size="xl" color={Colors.white} />
+        </View>
+        
+        <Text style={styles.logoutModalTitle}>
+          Déconnexion
+        </Text>
+        
+        <Text style={styles.logoutModalText}>
+          Êtes-vous sûr de vouloir vous déconnecter ?
+        </Text>
+
+        <View style={styles.logoutModalActions}>
+          <View style={{flex: 1}}>
+            <Button
+              title="Annuler"
+              onPress={() => setShowLogoutModal(false)}
+              variant="secondary"
+              size="lg"
+            />
+          </View>
+          <View style={{flex: 1}}>
+            <Button
+              title="OK"
+              onPress={confirmSignOut}
+              variant="primary"
+              size="lg"
+            />
+          </View>
+        </View>
+      </AnimatedModal>
     </SafeAreaView>
   );
 }
@@ -783,11 +834,55 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.08)',
     borderRadius: BorderRadius.xl,
     gap: Spacing.sm,
+    ...Shadows.sm,
   },
   signOutText: {
     fontSize: Typography.fontSize.base,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.status.error,
+  },
+
+  // Logout Modal
+  logoutCloseButton: {
+    position: 'absolute',
+    top: -Spacing.md,
+    right: -Spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  logoutIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  logoutModalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  logoutModalText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: Spacing.xl,
+  },
+  logoutModalActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
   },
 
   // Version

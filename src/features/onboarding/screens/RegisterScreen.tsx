@@ -43,7 +43,7 @@ type RegistrationStep = 'step1' | 'step2';
 
 export function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {signInWithGoogle, signInWithApple, setPhoneUser} = useAuth();
+  const {signInWithGoogle, signInWithApple, setPhoneUser, suppressAuthListener, enableAuthListener} = useAuth();
   const {showToast} = useToast();
   
   // Step management
@@ -256,6 +256,10 @@ export function RegisterScreen() {
         return;
       }
       
+      // Suppress auth listener during registration to prevent auto-navigation
+      // This allows biometric modal to show before navigation
+      suppressAuthListener();
+      
       // Create user directly without OTP verification
       // Phone verification can be done later from profile
       const user = await authService.createUserWithPhone({
@@ -301,6 +305,8 @@ export function RegisterScreen() {
         setShowBiometricModal(true);
       } else {
         console.log('🔐 Biometric NOT available, logging in user...');
+        // Re-enable auth listener before setting user
+        enableAuthListener();
         // Set user in AuthContext to log them in (this triggers navigation)
         setPhoneUser(user);
         console.log('✅ User set in AuthContext');
@@ -821,6 +827,9 @@ export function RegisterScreen() {
             setShowBiometricModal(false);
             setBiometricData(null);
             
+            // Re-enable auth listener before setting user
+            enableAuthListener();
+            
             // Now set the user in AuthContext (this triggers navigation to Main)
             if (pendingUser) {
               setPhoneUser(pendingUser);
@@ -835,6 +844,9 @@ export function RegisterScreen() {
         onDecline={() => {
           setShowBiometricModal(false);
           setBiometricData(null);
+          
+          // Re-enable auth listener before setting user
+          enableAuthListener();
           
           // Now set the user in AuthContext (this triggers navigation to Main)
           if (pendingUser) {

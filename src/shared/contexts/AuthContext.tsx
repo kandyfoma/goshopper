@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import {User, AuthState} from '@/shared/types';
@@ -18,6 +19,8 @@ interface AuthContextType extends AuthState {
   signInWithFacebook: () => Promise<User | null>;
   signOut: () => Promise<void>;
   setPhoneUser: (user: User) => void;
+  suppressAuthListener: () => void;
+  enableAuthListener: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +36,9 @@ export function AuthProvider({children}: AuthProviderProps) {
     isAuthenticated: false,
     error: null,
   });
+  
+  // Ref to suppress Firebase Auth listener during phone registration
+  const suppressListenerRef = useRef(false);
 
   // Listen to auth state changes
   useEffect(() => {
@@ -61,6 +67,16 @@ export function AuthProvider({children}: AuthProviderProps) {
         // Then, set up Firebase Auth listener (for Google/Apple/Facebook)
         const unsubscribe = authService.onAuthStateChanged(user => {
           if (!mounted) return;
+          
+          console.log('🔔 Auth listener fired - user:', user?.uid || 'null');
+          console.log('🔔 suppressListenerRef:', suppressListenerRef.current);
+          console.log('🔔 phoneUser:', phoneUser?.uid || 'null');
+          
+          // Skip if listener is suppressed (during phone registration)
+          if (suppressListenerRef.current) {
+            console.log('🔇 Auth listener suppressed, skipping state update');
+            return;
+          }
 
           // Track user authentication state
           if (user) {
@@ -76,12 +92,15 @@ export function AuthProvider({children}: AuthProviderProps) {
 
           // Only update state if no phone user was already restored
           if (!phoneUser) {
+            console.log('🔔 Updating state with Firebase Auth user');
             setState({
               user,
               isLoading: false,
               isAuthenticated: !!user,
               error: null,
             });
+          } else {
+            console.log('🔔 Skipping state update - phoneUser already exists');
           }
         });
 
@@ -222,6 +241,18 @@ export function AuthProvider({children}: AuthProviderProps) {
     });
   }, []);
 
+  // Suppress Firebase Auth listener (during phone registration to show biometric modal)
+  const suppressAuthListener = useCallback(() => {
+    console.log('🔇 Suppressing auth listener');
+    suppressListenerRef.current = true;
+  }, []);
+
+  // Re-enable Firebase Auth listener
+  const enableAuthListener = useCallback(() => {
+    console.log('🔊 Enabling auth listener');
+    suppressListenerRef.current = false;
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -231,6 +262,8 @@ export function AuthProvider({children}: AuthProviderProps) {
         signInWithFacebook,
         signOut,
         setPhoneUser,
+        suppressAuthListener,
+        enableAuthListener,
       }}>
       {children}
     </AuthContext.Provider>

@@ -30,7 +30,6 @@ import {
   ReceiptProcessingScreen,
 } from '@/features/scanner/screens';
 import {SubscriptionScreen, SubscriptionDetailsScreen, SubscriptionDurationScreen} from '@/features/subscription/screens';
-import ScanPacksScreen from '@/features/subscription/screens/ScanPacksScreen';
 import {MokoPaymentScreen} from '@/features/payment/screens/MokoPaymentScreen';
 import {SettingsScreen, DeveloperToolsScreen} from '@/features/settings/screens';
 import {UpdateProfileScreen, BudgetSettingsScreen, SupportScreen, ContactScreen, TermsScreen} from '@/features/profile/screens';
@@ -267,15 +266,6 @@ export function RootNavigator() {
           options={{
             animation: 'slide_from_bottom',
             presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
-          name="ScanPacks"
-          component={ScanPacksScreen}
-          options={{
-            animation: 'slide_from_bottom',
-            presentation: 'modal',
-            headerShown: false,
           }}
         />
         <Stack.Screen

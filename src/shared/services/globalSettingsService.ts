@@ -53,8 +53,10 @@ class GlobalSettingsService {
             },
           };
         } else {
-          // Settings don't exist yet, create with defaults
-          this.createDefaultSettings();
+          // Settings don't exist in Firestore - use in-memory defaults
+          // (Only admins/Cloud Functions can create config documents)
+          console.log('Global settings not found in Firestore, using defaults');
+          this.settings = DEFAULT_SETTINGS;
         }
 
         // Notify all listeners
@@ -66,23 +68,6 @@ class GlobalSettingsService {
         this.listeners.forEach(listener => listener(DEFAULT_SETTINGS));
       }
     );
-  }
-
-  private async createDefaultSettings() {
-    try {
-      const settingsRef = firebaseFirestore()
-        .collection('config')
-        .doc('globalSettings');
-
-      await settingsRef.set({
-        exchangeRates: {
-          usdToCdf: DEFAULT_EXCHANGE_RATE,
-          lastUpdated: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error('Error creating default settings:', error);
-    }
   }
 
   // Get current exchange rate
