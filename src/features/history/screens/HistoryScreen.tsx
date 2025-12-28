@@ -13,11 +13,12 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useNavigationState} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
-import {Receipt, RootStackParamList} from '@/shared/types';
+import {Receipt, RootStackParamList, MainTabParamList} from '@/shared/types';
 import {
   Colors,
   Typography,
@@ -26,6 +27,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn, EmptyState, SwipeToDelete, TabSelector} from '@/shared/components';
+import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
@@ -690,6 +692,7 @@ export function HistoryScreen() {
         contentContainerStyle={[
           styles.listContent,
           filteredReceipts.length === 0 && styles.listContentEmpty,
+          {paddingBottom: 100}, // Space for tab bar
         ]}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
@@ -700,6 +703,29 @@ export function HistoryScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+      />
+
+      {/* Main Footer Tabs */}
+      <ModernTabBar
+        state={{
+          index: 0,
+          routes: [
+            {key: 'Home', name: 'Home'},
+            {key: 'Items', name: 'Items'},
+            {key: 'Scanner', name: 'Scanner'},
+            {key: 'Stats', name: 'Stats'},
+            {key: 'Profile', name: 'Profile'},
+          ],
+        }}
+        descriptors={{
+          Home: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="home" label="Accueil" />}},
+          Items: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="shopping-bag" label="Articles" />}},
+          Scanner: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="camera" label="Scanner" />}},
+          Stats: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="bar-chart-2" label="Stats" />}},
+          Profile: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="user" label="Profil" />}},
+        }}
+        navigation={navigation}
+        badges={{}}
       />
     </SafeAreaView>
   );

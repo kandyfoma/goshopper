@@ -27,6 +27,7 @@ import {receiptStorageService, authService} from '@/shared/services/firebase';
 import {hapticService, shareService} from '@/shared/services';
 import {useAuth, useToast} from '@/shared/contexts';
 import {Spinner, Icon, TabSelector} from '@/shared/components';
+import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ReceiptDetailRouteProp = RouteProp<RootStackParamList, 'ReceiptDetail'>;
@@ -560,7 +561,33 @@ export function ReceiptDetailScreen() {
           </View>
           <Icon name="chevron-right" size="md" color={Colors.text.tertiary} />
         </TouchableOpacity>
+        
+        {/* Bottom padding for tab bar */}
+        <View style={{height: 100}} />
       </ScrollView>
+
+      {/* Main Footer Tabs */}
+      <ModernTabBar
+        state={{
+          index: 0,
+          routes: [
+            {key: 'Home', name: 'Home'},
+            {key: 'Items', name: 'Items'},
+            {key: 'Scanner', name: 'Scanner'},
+            {key: 'Stats', name: 'Stats'},
+            {key: 'Profile', name: 'Profile'},
+          ],
+        }}
+        descriptors={{
+          Home: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="home" label="Accueil" />}},
+          Items: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="shopping-bag" label="Articles" />}},
+          Scanner: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="camera" label="Scanner" />}},
+          Stats: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="bar-chart-2" label="Stats" />}},
+          Profile: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="user" label="Profil" />}},
+        }}
+        navigation={navigation}
+        badges={{}}
+      />
     </SafeAreaView>
   );
 }

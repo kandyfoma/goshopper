@@ -30,6 +30,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn, AppFooter, BackButton, Modal, Input, Button, ConfirmationModal, AnimatedModal} from '@/shared/components';
+import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {useDynamicType, useOffline} from '@/shared/hooks';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatDate} from '@/shared/utils/helpers';
@@ -734,7 +735,33 @@ export function SettingsScreen() {
         <FadeIn delay={700}>
           <AppFooter />
         </FadeIn>
+        
+        {/* Bottom padding for tab bar */}
+        <View style={{height: 100}} />
       </ScrollView>
+
+      {/* Main Footer Tabs */}
+      <ModernTabBar
+        state={{
+          index: 4, // Profile tab active
+          routes: [
+            {key: 'Home', name: 'Home'},
+            {key: 'Items', name: 'Items'},
+            {key: 'Scanner', name: 'Scanner'},
+            {key: 'Stats', name: 'Stats'},
+            {key: 'Profile', name: 'Profile'},
+          ],
+        }}
+        descriptors={{
+          Home: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="home" label="Accueil" />}},
+          Items: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="shopping-bag" label="Articles" />}},
+          Scanner: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="camera" label="Scanner" />}},
+          Stats: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="bar-chart-2" label="Stats" />}},
+          Profile: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="user" label="Profil" />}},
+        }}
+        navigation={navigation}
+        badges={{}}
+      />
 
       {/* Delete Data Modal */}
       <AnimatedModal

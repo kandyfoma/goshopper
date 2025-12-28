@@ -25,7 +25,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn, SubscriptionLimitModal} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, SubscriptionLimitModal, WatchItemButton} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription} from '@/shared/contexts';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
@@ -470,6 +470,15 @@ export function CityItemsScreen() {
                 </View>
               </View>
             </View>
+            {/* Watch Button for Price Alerts */}
+            <WatchItemButton
+              itemName={item.name}
+              itemNameNormalized={item.id}
+              city={userProfile?.defaultCity || ''}
+              currentPrice={item.minPrice}
+              currentStore={topStores[0]?.storeName}
+              size="small"
+            />
             {hasSavings && (
               <View style={styles.savingsBadge}>
                 <Icon

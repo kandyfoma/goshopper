@@ -87,3 +87,6 @@ export {GlobalPaymentProgressBanner} from './GlobalPaymentProgressBanner';
 
 // Subscription Components
 export {default as SubscriptionLimitModal} from './SubscriptionLimitModal';
+
+// Price Alert Components
+export {WatchItemButton} from './WatchItemButton';

@@ -35,8 +35,18 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import {config} from '../config';
 import {ReceiptItem} from '../types';
+import {initializeSpellChecker, fixOCRErrors} from '../utils/spellChecker';
 
 const db = admin.firestore();
+
+// Initialize spell checker on cold start
+let spellCheckerInitialized = false;
+async function ensureSpellChecker(): Promise<void> {
+  if (!spellCheckerInitialized) {
+    await initializeSpellChecker();
+    spellCheckerInitialized = true;
+  }
+}
 
 // ============ DATA INTERFACES ============
 
@@ -675,10 +685,30 @@ function getCanonicalName(name: string): string {
   };
 
   // Check if normalized name matches any synonym
+  // CRITICAL FIX: Only match COMPLETE WORDS, not substrings
+  // This prevents "castel lite" from matching "te" and becoming "the"
+  const normalizedWords = normalized.split(/\s+/);
+  const normalizedFull = normalized.replace(/\s+/g, ''); // For multi-word matches
+  
   for (const [canonical, variations] of Object.entries(synonyms)) {
-    if (variations.some(v => normalized.includes(v) || v.includes(normalized))) {
-      // Remove spaces from canonical name for consistent document IDs
-      return canonical.replace(/\s+/g, '');
+    for (const variation of variations) {
+      const variationNoSpaces = variation.replace(/\s+/g, '');
+      
+      // 1. Exact match (with or without spaces)
+      if (normalizedFull === variationNoSpaces) {
+        return canonical.replace(/\s+/g, '');
+      }
+      
+      // 2. Full word match - check if variation is a complete word in the normalized name
+      if (normalizedWords.includes(variation)) {
+        // Only match if the variation is the ONLY word or the MAIN word (first/last)
+        // This prevents "sprite" in "sprite 330ml" from matching, but allows "sprite" alone
+        if (normalizedWords.length === 1 || 
+            normalizedWords[0] === variation || 
+            normalizedWords[normalizedWords.length - 1] === variation) {
+          return canonical.replace(/\s+/g, '');
+        }
+      }
     }
   }
 
@@ -909,18 +939,28 @@ export const aggregateItemsOnReceipt = functions
         cityItemRef: FirebaseFirestore.DocumentReference | null;
       }> = [];
 
+      // Initialize spell checker for OCR error correction
+      await ensureSpellChecker();
+
       for (const item of items) {
         if (!item.name || !item.unitPrice || item.unitPrice <= 0) {
           continue;
         }
 
-        const itemNameNormalized = getCanonicalName(item.name);
+        // STEP 1: Fix OCR errors (spacing issues like "S prite" → "Sprite")
+        const correctedName = fixOCRErrors(item.name);
+        
+        // STEP 2: Get canonical name for grouping
+        const itemNameNormalized = getCanonicalName(correctedName);
 
         // Validate item name quality - skip low-quality/mistake names
-        if (!isValidItemName(item.name, itemNameNormalized)) {
-          console.log(`Skipping low-quality item name: "${item.name}" (normalized: "${itemNameNormalized}")`);
+        if (!isValidItemName(correctedName, itemNameNormalized)) {
+          console.log(`Skipping low-quality item name: "${item.name}" (corrected: "${correctedName}", normalized: "${itemNameNormalized}")`);
           continue;
         }
+
+        // Update item with corrected name for display
+        item.name = correctedName;
 
         const userItemRef = db.collection(userItemsPath).doc(itemNameNormalized);
         const cityItemRef = cityItemsPath ? db.collection(cityItemsPath).doc(itemNameNormalized) : null;
@@ -1100,6 +1140,46 @@ export const aggregateItemsOnReceipt = functions
               ([, a], [, b]) => b - a,
             )[0][0] as 'USD' | 'CDF';
 
+            // ===== ML/AI FEATURES =====
+            // Calculate price volatility (coefficient of variation)
+            const priceStdDev = Math.sqrt(
+              cityPriceValues.reduce((sum, p) => sum + Math.pow(p - avgPrice, 2), 0) / cityPriceValues.length
+            );
+            const priceVolatility = avgPrice > 0 ? (priceStdDev / avgPrice) * 100 : 0;
+
+            // Calculate price change percentage (last vs first price)
+            const oldestPrice = updatedCityPrices[updatedCityPrices.length - 1].price;
+            const latestPrice = updatedCityPrices[0].price;
+            const priceChangePercent = oldestPrice > 0 ? ((latestPrice - oldestPrice) / oldestPrice) * 100 : 0;
+
+            // Store-level aggregation for ML (per-store average prices)
+            const storeAggregation = updatedCityPrices.reduce((acc, p) => {
+              if (!acc[p.storeName]) {
+                acc[p.storeName] = { prices: [], count: 0, name: p.storeName };
+              }
+              acc[p.storeName].prices.push(p.price);
+              acc[p.storeName].count++;
+              return acc;
+            }, {} as Record<string, { prices: number[]; count: number; name: string }>);
+
+            const stores = Object.entries(storeAggregation).map(([name, data]) => ({
+              name,
+              avgPrice: data.prices.reduce((sum, p) => sum + p, 0) / data.prices.length,
+              minPrice: Math.min(...data.prices),
+              maxPrice: Math.max(...data.prices),
+              purchaseCount: data.count,
+            }));
+
+            // Time-based features
+            const firstSeenDate = cityData.createdAt?.toDate?.() || new Date();
+            const daysSinceFirstSeen = Math.floor((receiptDate.getTime() - firstSeenDate.getTime()) / (1000 * 60 * 60 * 24));
+            const weeklyPurchaseRate = daysSinceFirstSeen > 0 ? (updatedCityPrices.length / daysSinceFirstSeen) * 7 : 0;
+
+            // Popularity score (combines user count, purchase frequency, and recency)
+            const daysSinceLastPurchase = Math.floor((new Date().getTime() - receiptDate.getTime()) / (1000 * 60 * 60 * 24));
+            const recencyFactor = Math.max(0, 1 - (daysSinceLastPurchase / 365)); // Decay over 1 year
+            const popularityScore = (userIds.length * 10) + (weeklyPurchaseRate * 5) + (recencyFactor * 20);
+
             // Choose best display name
             const existingCityName = cityData.name || '';
             const newCityName = item.name || '';
@@ -1120,6 +1200,13 @@ export const aggregateItemsOnReceipt = functions
               lastPurchaseDate: receiptDate,
               city: userCity,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              // ML/AI Features
+              priceVolatility,
+              priceChangePercent,
+              stores,
+              daysSinceFirstSeen,
+              weeklyPurchaseRate,
+              popularityScore,
             };
             
             // Add category and searchKeywords if not already present
@@ -1157,6 +1244,19 @@ export const aggregateItemsOnReceipt = functions
               city: userCity,
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              // ML/AI Features (initial values for new item)
+              priceVolatility: 0, // No variation yet with single price
+              priceChangePercent: 0, // No change yet
+              stores: [{
+                name: storeName,
+                avgPrice: item.unitPrice,
+                minPrice: item.unitPrice,
+                maxPrice: item.unitPrice,
+                purchaseCount: 1,
+              }],
+              daysSinceFirstSeen: 0,
+              weeklyPurchaseRate: 0,
+              popularityScore: 10, // Base score for new item
             };
             
             // Add category if detected
