@@ -41,10 +41,6 @@ export {itemsService} from './itemsService';
 export type {AggregatedItem, ItemPrice} from './itemsService';
 export {migrateItemsAggregation, needsItemsMigration} from './itemsMigration';
 
-// Watched Items (Price Drop Alerts)
-export {watchedItemsService} from './watchedItems';
-export type {WatchedItem, WatchItemInput, AlertType} from './watchedItems';
-
 // Phase 1.2 Services
 export {shoppingListService} from './shoppingList';
 export {userBehaviorService} from './userBehaviorService';

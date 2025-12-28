@@ -152,11 +152,15 @@ export function CategoryDetailScreen() {
           const normalizedName = itemName.toLowerCase().trim();
           const totalPrice = item.totalPrice || 0;
           const quantity = item.quantity || 1;
+          const receiptCurrency = data.currency || 'USD';
+
+          // Create unique key with currency to avoid mixing USD and CDF
+          const itemKey = `${normalizedName}_${receiptCurrency}`;
 
           categoryTotal += totalPrice;
 
-          if (itemsMap.has(normalizedName)) {
-            const existing = itemsMap.get(normalizedName)!;
+          if (itemsMap.has(itemKey)) {
+            const existing = itemsMap.get(itemKey)!;
             existing.totalSpent += totalPrice;
             existing.quantity += quantity;
             existing.averagePrice = existing.totalSpent / existing.quantity;
@@ -179,13 +183,13 @@ export function CategoryDetailScreen() {
               existing.lastPurchaseDate = receiptDate;
             }
           } else {
-            itemsMap.set(normalizedName, {
-              id: normalizedName,
+            itemsMap.set(itemKey, {
+              id: itemKey,
               name: itemName,
               totalSpent: totalPrice,
               quantity: quantity,
               averagePrice: totalPrice / quantity,
-              currency: data.currency || 'USD',
+              currency: receiptCurrency,
               shops: [{
                 name: storeName,
                 count: 1,
