@@ -164,19 +164,19 @@ export function WatchItemButton({
     }
   };
 
-  // Size configurations
+  // Size configurations - made smaller for card integration
   const sizeConfig = {
-    small: {iconSize: 16, padding: 6, fontSize: 10},
-    medium: {iconSize: 20, padding: 8, fontSize: 12},
-    large: {iconSize: 24, padding: 12, fontSize: 14},
+    small: {iconSize: 14, size: 24},
+    medium: {iconSize: 16, size: 28},
+    large: {iconSize: 20, size: 36},
   };
 
   const config = sizeConfig[size];
 
   if (isLoading) {
     return (
-      <View style={[styles.buttonContainer, {padding: config.padding}]}>
-        <ActivityIndicator size="small" color={Colors.primary} />
+      <View style={[styles.buttonContainer, {width: config.size, height: config.size}]}>
+        <ActivityIndicator size={10} color={Colors.text.tertiary} />
       </View>
     );
   }
@@ -187,25 +187,15 @@ export function WatchItemButton({
         onPress={handlePress}
         style={[
           styles.buttonContainer,
-          {padding: config.padding},
+          {width: config.size, height: config.size},
           isWatching && styles.buttonActive,
         ]}
-        hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+        hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
         <Icon
           name={isWatching ? 'bell' : 'bell-off'}
-          size={config.iconSize as any}
-          color={isWatching ? Colors.primary : Colors.text.tertiary}
+          size={24}
+          color={'#111'}
         />
-        {showLabel && (
-          <Text
-            style={[
-              styles.buttonLabel,
-              {fontSize: config.fontSize},
-              isWatching && styles.buttonLabelActive,
-            ]}>
-            {isWatching ? 'Alerté' : 'Alerter'}
-          </Text>
-        )}
       </TouchableOpacity>
 
       {/* Alert Settings Modal */}
@@ -333,22 +323,16 @@ export function WatchItemButton({
 
 const styles = StyleSheet.create({
   buttonContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.background.tertiary,
     borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
   },
   buttonActive: {
-    backgroundColor: Colors.primaryLight + '20',
-  },
-  buttonLabel: {
-    color: Colors.text.tertiary,
-    fontFamily: Typography.fontFamily.medium,
-  },
-  buttonLabelActive: {
-    color: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
 
   // Modal

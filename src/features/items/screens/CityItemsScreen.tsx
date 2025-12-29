@@ -441,7 +441,7 @@ export function CityItemsScreen() {
           {/* Card Header */}
           <View style={styles.itemHeader}>
             <View style={styles.itemIconWrapper}>
-              <Icon name="users" size="md" color={Colors.text.inverse} />
+              <Icon name="shopping-bag" size="md" color={Colors.text.inverse} />
             </View>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName} numberOfLines={2}>
@@ -462,23 +462,8 @@ export function CityItemsScreen() {
                     {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
                   </Text>
                 </View>
-                <View style={styles.metaBadge}>
-                  <Icon name="users" size="xs" color={Colors.text.tertiary} />
-                  <Text style={styles.metaText}>
-                    {item.userCount} utilisateur{item.userCount > 1 ? 's' : ''}
-                  </Text>
-                </View>
               </View>
             </View>
-            {/* Watch Button for Price Alerts */}
-            <WatchItemButton
-              itemName={item.name}
-              itemNameNormalized={item.id}
-              city={userProfile?.defaultCity || ''}
-              currentPrice={item.minPrice}
-              currentStore={topStores[0]?.storeName}
-              size="small"
-            />
             {hasSavings && (
               <View style={styles.savingsBadge}>
                 <Icon
@@ -521,6 +506,15 @@ export function CityItemsScreen() {
               <View style={styles.storesTitleRow}>
                 <Icon name="award" size="xs" color={Colors.primary} />
                 <Text style={styles.storesTitle}>Meilleurs prix</Text>
+                <View style={styles.storesTitleSpacer} />
+                <WatchItemButton
+                  itemName={item.name}
+                  itemNameNormalized={item.id}
+                  city={userProfile?.defaultCity || ''}
+                  currentPrice={item.minPrice}
+                  currentStore={topStores[0]?.storeName}
+                  size="small"
+                />
               </View>
               {topStores.map((priceData, idx) => (
                 <View
@@ -961,7 +955,7 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: 100,
+    flexGrow: 0,
   },
 
   // Item Card Styles
@@ -1087,6 +1081,9 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.text.primary,
+  },
+  storesTitleSpacer: {
+    flex: 1,
   },
   storeRow: {
     flexDirection: 'row',
