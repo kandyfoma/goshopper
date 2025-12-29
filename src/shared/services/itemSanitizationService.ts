@@ -3,6 +3,7 @@
 // Handles edge cases: garbage text, returns, discounts, invalid prices, Lingala names
 
 import {ReceiptItem} from '@/shared/types';
+import {ocrCorrectionService} from './ocrCorrectionService';
 
 // Valid categories for items
 export const VALID_CATEGORIES = [
@@ -186,6 +187,11 @@ class ItemSanitizationService {
     const modifications: string[] = [];
     let sanitizedItem = { ...item };
 
+    // Log suspicious names for debugging
+    if (item.name && (item.name.includes('prite') || item.name.includes('mijito') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/))) {
+      console.log(`🔍 Processing suspicious item name: "${item.name}"`);
+    }
+
     // 1. Check if name is garbage
     if (this.isGarbageText(item.name)) {
       return {
@@ -213,14 +219,20 @@ class ItemSanitizationService {
     if (translatedName !== item.name) {
       sanitizedItem.name = translatedName;
       modifications.push(`Translated from local language: "${item.name}" → "${translatedName}"`);
+      if (item.name.includes('prite') || translatedName.includes('prite')) {
+        console.log(`🌍 Translation: "${item.name}" → "${translatedName}"`);
+      }
     }
 
     // 4. Clean up the item name
     const cleanedName = this.cleanItemName(sanitizedItem.name);
     if (cleanedName !== sanitizedItem.name) {
-      sanitizedItem.name = cleanedName;
-      modifications.push(`Cleaned name: "${item.name}" → "${cleanedName}"`);
+      modifications.push(`Cleaned name: "${sanitizedItem.name}" → "${cleanedName}"`);
+      if (sanitizedItem.name.includes('prite') || cleanedName.includes('prite')) {
+        console.log(`🧹 Name cleaning: "${sanitizedItem.name}" → "${cleanedName}"`);
+      }
     }
+    sanitizedItem.name = cleanedName;
 
     // 5. Validate item name isn't too short after cleaning
     if (sanitizedItem.name.length < 2) {
@@ -270,6 +282,9 @@ class ItemSanitizationService {
 
     // 9. Update normalized name
     sanitizedItem.nameNormalized = this.normalizeItemName(sanitizedItem.name);
+    if (sanitizedItem.name.includes('prite') || sanitizedItem.nameNormalized.includes('prite')) {
+      console.log(`📝 Final item name: "${item.name}" → "${sanitizedItem.name}" (normalized: "${sanitizedItem.nameNormalized}")`);
+    }
 
     return {
       isValid: true,
@@ -304,12 +319,154 @@ class ItemSanitizationService {
       }
     }
 
-    return { validItems, invalidItems, modifications: allModifications };
+    // Deduplicate items with same normalized name and similar prices
+    const deduplicatedItems = this.deduplicateItems(validItems, allModifications);
+
+    return { 
+      validItems: deduplicatedItems, 
+      invalidItems, 
+      modifications: allModifications 
+    };
   }
 
   /**
-   * Check if text is garbage/noise
+   * Deduplicate items with same normalized name and similar prices
    */
+  private deduplicateItems(items: ReceiptItem[], modifications: string[]): ReceiptItem[] {
+    const groups: { [key: string]: ReceiptItem[] } = {};
+
+    // Group items by normalized name
+    for (const item of items) {
+      const key = item.nameNormalized || this.normalizeItemName(item.name);
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(item);
+    }
+
+    const deduplicated: ReceiptItem[] = [];
+
+    for (const [normalizedName, groupItems] of Object.entries(groups)) {
+      if (groupItems.length === 1) {
+        // No duplicates for this item
+        deduplicated.push(groupItems[0]);
+        continue;
+      }
+
+      // Multiple items with same normalized name - check if they can be merged
+      const merged = this.mergeSimilarItems(groupItems, modifications);
+      deduplicated.push(...merged);
+    }
+
+    return deduplicated;
+  }
+
+  /**
+   * Merge items that are likely the same product
+   */
+  private mergeSimilarItems(items: ReceiptItem[], modifications: string[]): ReceiptItem[] {
+    if (items.length <= 1) return items;
+
+    // Sort by price to group similar prices together
+    const sortedItems = [...items].sort((a, b) => a.unitPrice - b.unitPrice);
+    const merged: ReceiptItem[] = [];
+    const processed = new Set<number>();
+
+    for (let i = 0; i < sortedItems.length; i++) {
+      if (processed.has(i)) continue;
+
+      const current = sortedItems[i];
+      const similar: ReceiptItem[] = [current];
+      processed.add(i);
+
+      // Find items with similar prices (within 10% or $1 difference)
+      for (let j = i + 1; j < sortedItems.length; j++) {
+        if (processed.has(j)) continue;
+
+        const other = sortedItems[j];
+        const priceDiff = Math.abs(current.unitPrice - other.unitPrice);
+        const priceThreshold = Math.max(current.unitPrice * 0.1, 1); // 10% or $1 minimum
+
+        if (priceDiff <= priceThreshold) {
+          similar.push(other);
+          processed.add(j);
+        }
+      }
+
+      if (similar.length === 1) {
+        // No similar items found
+        merged.push(current);
+      } else {
+        // Merge similar items
+        const totalQuantity = similar.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        const avgPrice = similar.reduce((sum, item) => sum + item.unitPrice, 0) / similar.length;
+
+        // Use the best name (prefer the one with spaces and proper capitalization)
+        const bestName = this.selectBestItemName(similar);
+
+        const mergedItem: ReceiptItem = {
+          ...current,
+          name: bestName,
+          quantity: totalQuantity,
+          unitPrice: avgPrice,
+          totalPrice: avgPrice * totalQuantity,
+        };
+
+        merged.push(mergedItem);
+
+        // Log the merge
+        const originalNames = similar.map(item => `"${item.name}"`).join(', ');
+        modifications.push(`Merged ${similar.length} duplicate items (${originalNames}) into "${bestName}" (qty: ${totalQuantity})`);
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Select the best item name from similar items
+   */
+  private selectBestItemName(items: ReceiptItem[]): string {
+    // Prefer names with spaces (not concatenated)
+    const withSpaces = items.filter(item => item.name.includes(' '));
+    if (withSpaces.length > 0) {
+      return withSpaces[0].name;
+    }
+
+    // Otherwise, prefer the first one
+    return items[0].name;
+  }
+
+  /**
+   * Check if a name appears to be corrupted
+   */
+  private isCorruptedName(name: string): boolean {
+    if (!name || name.length < 2) return false;
+
+    // Check for patterns that indicate corruption
+    // 1. Spaces between every character: "S p r i t e" (require 5+ consecutive spaced letters)
+    const spaceBetweenEveryChar = /\b[A-Za-z](?:\s[A-Za-z]){4,}\b/.test(name);
+
+    // 2. Mixed letters and numbers in strange patterns: "e30", "m l"
+    const strangePatterns = /\b[A-Za-z]\d+\s*[A-Za-z]\s*[A-Za-z]\b/.test(name);
+
+    // 3. Too many spaces relative to length (increased threshold)
+    const spaceRatio = (name.match(/\s/g) || []).length / name.length;
+    const tooManySpaces = spaceRatio > 0.4; // Increased from 0.3 to 0.4
+
+    // 4. Contains non-printable characters
+    const hasNonPrintable = /[\x00-\x1F\x7F-\x9F]/.test(name);
+
+    // 5. Exception: Allow some spaced patterns that might be legitimate OCR
+    const legitimateSpacedPattern = /\b[A-Z]\s+[A-Z]{1,3}\s+[a-z]/.test(name); // Like "B AG a"
+
+    if ((spaceBetweenEveryChar || strangePatterns || tooManySpaces || hasNonPrintable) && !legitimateSpacedPattern) {
+      console.warn(`🚨 Detected corrupted name pattern: "${name}" (spaces: ${spaceBetweenEveryChar}, strange: ${strangePatterns}, ratio: ${spaceRatio.toFixed(2)}, nonprint: ${hasNonPrintable}, exception: ${legitimateSpacedPattern})`);
+      return true;
+    }
+
+    return false;
+  }
   private isGarbageText(text: string): boolean {
     if (!text || typeof text !== 'string') return true;
     
@@ -375,7 +532,16 @@ class ItemSanitizationService {
    * Clean up item name
    */
   private cleanItemName(name: string): string {
-    let cleaned = name;
+    if (!name || typeof name !== 'string') {
+      return 'Article inconnu';
+    }
+
+    let cleaned = name.trim();
+
+    // Log original name for debugging
+    if (cleaned.includes('prite') || cleaned.includes('mijito')) {
+      console.log(`🧹 Cleaning item name: "${name}"`);
+    }
 
     // Remove product codes at start/end
     cleaned = cleaned
@@ -394,9 +560,46 @@ class ItemSanitizationService {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // Try OCR correction BEFORE capitalization (to preserve corruption patterns)
+    let ocrCorrected = ocrCorrectionService.cleanItemName(cleaned);
+    if (ocrCorrected !== cleaned) {
+      console.log(`🔧 OCR corrected before capitalization: "${cleaned}" → "${ocrCorrected}"`);
+      cleaned = ocrCorrected;
+    }
+
     // Capitalize first letter
     if (cleaned.length > 0) {
       cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+    }
+
+    // Always try reconstruction as a final step (for cases like "bAGALILACXL" that don't look corrupted)
+    const reconstructed = ocrCorrectionService.reconstructCorruptedName(cleaned);
+    if (reconstructed !== cleaned) {
+      console.log(`🔧 Final reconstruction: "${cleaned}" → "${reconstructed}"`);
+      cleaned = reconstructed;
+    }
+
+    // Validate the result - if it still looks corrupted after OCR correction, try reconstruction alone
+    if (this.isCorruptedName(cleaned)) {
+      // Try reconstruction alone as fallback
+      const reconstructed = ocrCorrectionService.reconstructCorruptedName(cleaned);
+      if (reconstructed !== cleaned && !this.isCorruptedName(reconstructed)) {
+        console.log(`🔧 Reconstructed corrupted name: "${cleaned}" → "${reconstructed}"`);
+        cleaned = reconstructed;
+        
+        if (name !== cleaned && (cleaned.includes('prite') || cleaned.includes('mijito'))) {
+          console.log(`🧹 Final cleaned item name: "${name}" → "${cleaned}"`);
+        }
+        return cleaned;
+      }
+      
+      // If all attempts failed, use fallback
+      console.warn(`🚨 Detected corrupted item name: "${name}" → "${cleaned}", using fallback`);
+      return 'Article inconnu';
+    }
+
+    if (name !== cleaned && (cleaned.includes('prite') || cleaned.includes('mijito'))) {
+      console.log(`🧹 Cleaned item name: "${name}" → "${cleaned}"`);
     }
 
     return cleaned;

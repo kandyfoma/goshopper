@@ -124,11 +124,11 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}}: Mode
             const routeBadge = badges[route.name] || 0;
 
             const onPress = () => {
-              const event = navigation.emit({
+              const event = navigation.emit ? navigation.emit({
                 type: 'tabPress',
                 target: route.key,
                 canPreventDefault: true,
-              });
+              }) : { defaultPrevented: false };
 
               if (!isFocused && !event.defaultPrevented) {
                 navigation.navigate(route.name, route.params);
@@ -136,10 +136,12 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}}: Mode
             };
 
             const onLongPress = () => {
-              navigation.emit({
-                type: 'tabLongPress',
-                target: route.key,
-              });
+              if (navigation.emit) {
+                navigation.emit({
+                  type: 'tabLongPress',
+                  target: route.key,
+                });
+              }
             };
 
             return (

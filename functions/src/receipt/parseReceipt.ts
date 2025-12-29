@@ -640,7 +640,151 @@ function cleanItemName(name: string): string {
   // === FIX 5: Clean up multiple spaces ===
   cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
   
+  // === FIX 6: Detect and fix corrupted names ===
+  if (isCorruptedName(cleaned)) {
+    console.warn(`🚨 Cloud Function detected corrupted item name: "${name}" → "${cleaned}", using fallback`);
+    return 'Article inconnu';
+  }
+  
+  // === FIX 7: Try to reconstruct corrupted names ===
+  cleaned = reconstructCorruptedName(cleaned);
+  
   return cleaned;
+}
+
+/**
+ * Check if a name appears to be corrupted
+ */
+function isCorruptedName(name: string): boolean {
+  if (!name || name.length < 2) return false;
+
+  // Check for patterns that indicate corruption
+  // 1. Spaces between every character: "S p r i t e"
+  const spaceBetweenEveryChar = /\b[A-Za-z](?:\s[A-Za-z]){3,}\b/.test(name);
+
+  // 2. Mixed letters and numbers in strange patterns: "e30", "m l"
+  const strangePatterns = /\b[A-Za-z]\d+\s*[A-Za-z]\s*[A-Za-z]\b/.test(name);
+
+  // 3. Too many spaces relative to length
+  const spaceRatio = (name.match(/\s/g) || []).length / name.length;
+  const tooManySpaces = spaceRatio > 0.3;
+
+  // 4. Contains non-printable characters
+  const hasNonPrintable = /[\x00-\x1F\x7F-\x9F]/.test(name);
+
+  if (spaceBetweenEveryChar || strangePatterns || tooManySpaces || hasNonPrintable) {
+    console.warn(`🚨 [Cloud Function] Detected corrupted name pattern: "${name}" (spaces: ${spaceBetweenEveryChar}, strange: ${strangePatterns}, ratio: ${spaceRatio.toFixed(2)}, nonprint: ${hasNonPrintable})`);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Try to reconstruct corrupted names like "S prite e30 m l" → "Sprite 330ml"
+ */
+function reconstructCorruptedName(name: string): string {
+  // Handle specific corruption patterns
+  const patterns = [
+    {
+      // Pattern: "S prite e30 m l" → "Sprite 330ml" (split word)
+      regex: /^([A-Za-z])\s+([A-Za-z]{4,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/i,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, firstLetter, word, corruptedDigit, number, unit1, unit2] = match;
+        const reconstructedWord = firstLetter + word;
+        // Fix common corruption: 'e' → '3', 'o' → '0', etc.
+        const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+        const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+        const reconstructedUnit = fixedDigit + number;
+        const reconstructedSize = (unit1 + unit2).toLowerCase();
+        return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
+      }
+    },
+    {
+      // Pattern: "Sprite e30 m l" → "Sprite 330ml" (word already reconstructed)
+      regex: /^([A-Za-z]{5,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, word, corruptedDigit, number, unit1, unit2] = match;
+        const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+        const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+        const reconstructedUnit = fixedDigit + number;
+        const reconstructedSize = (unit1 + unit2).toLowerCase();
+        return `${word} ${reconstructedUnit}${reconstructedSize}`;
+      }
+    },
+    {
+      // Pattern: "S prite 330 m l" → "Sprite 330ml"
+      regex: /^([A-Za-z])\s+([a-z]{4,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, firstLetter, word, number, unit1, unit2] = match;
+        const reconstructedWord = firstLetter + word;
+        const reconstructedSize = (unit1 + unit2).toLowerCase();
+        return `${reconstructedWord} ${number}${reconstructedSize}`;
+      }
+    },
+    {
+      // Pattern: "Sprite 330 m l" → "Sprite 330ml"
+      regex: /^([A-Za-z]{5,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, word, number, unit1, unit2] = match;
+        const reconstructedSize = (unit1 + unit2).toLowerCase();
+        return `${word} ${number}${reconstructedSize}`;
+      }
+    },
+    {
+      // General pattern for spaced words and numbers
+      regex: /^([A-Za-z])\s+([a-z]{3,})\s+(\d{2,3})\s*([a-z]{0,2})\s*([a-z]{0,2})$/,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, firstLetter, word, number, unit1, unit2] = match;
+        const reconstructedWord = firstLetter + word;
+        const reconstructedSize = ((unit1 || '') + (unit2 || '')).toLowerCase();
+        if (reconstructedSize) {
+          return `${reconstructedWord} ${number}${reconstructedSize}`;
+        }
+        return `${reconstructedWord} ${number}`;
+      }
+    },
+    {
+      // Pattern: "SPRITE330ML" → "Sprite 330ml" (concatenated product + size)
+      regex: /^SPRITE(\d{3})ML$/i,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, size] = match;
+        return `Sprite ${size}ml`;
+      }
+    },
+    {
+      // Pattern: "VIRGINMOJITO" → "Virgin Mojito" (concatenated drink name)
+      regex: /^VIRGINMOJITO$/i,
+      reconstruct: (match: RegExpMatchArray) => {
+        return `Virgin Mojito`;
+      }
+    },
+    {
+      // Pattern: "Castel lite e30 m l" or "Castel LITE e30 m L" → "Castel Lite 330ml" (two words + corrupted size)
+      regex: /^([A-Za-z]{3,})\s+([A-Za-z]{3,})\s+([a-z])(\d{2})\s+([a-z]{1,2})\s+([a-z])$/i,
+      reconstruct: (match: RegExpMatchArray) => {
+        const [, word1, word2, corruptedDigit, number, unit1, unit2] = match;
+        const reconstructedWord = word1.charAt(0).toUpperCase() + word1.slice(1).toLowerCase() + ' ' + word2.charAt(0).toUpperCase() + word2.slice(1).toLowerCase();
+        // Fix common corruption: 'e' → '3', 'o' → '0', etc.
+        const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+        const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+        const reconstructedUnit = fixedDigit + number;
+        const reconstructedSize = (unit1.toLowerCase() + unit2.toLowerCase()).replace(/ml/i, 'ml');
+        return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
+      }
+    }
+  ];
+
+  for (const { regex, reconstruct } of patterns) {
+    const match = name.match(regex);
+    if (match) {
+      const result = reconstruct(match);
+      console.log(`[Cloud Function] Reconstructed "${name}" → "${result}"`);
+      return result;
+    }
+  }
+
+  return name;
 }
 
 /**
@@ -1608,6 +1752,14 @@ export const parseReceipt = functions
 
       // Update user stats for achievements
       await updateUserStats(userId, parsedReceipt);
+
+      // Log suspicious items before returning
+      const suspiciousItems = parsedReceipt.items?.filter(item => 
+        item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/))
+      );
+      if (suspiciousItems && suspiciousItems.length > 0) {
+        console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
+      }
 
       return {
         success: true,

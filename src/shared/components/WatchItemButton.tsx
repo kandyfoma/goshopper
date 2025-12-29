@@ -192,9 +192,9 @@ export function WatchItemButton({
         ]}
         hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
         <Icon
-          name={isWatching ? 'bell' : 'bell-off'}
-          size={24}
-          color={'#111'}
+          name={isWatching ? 'check' : 'check'}
+          size={config.iconSize as any}
+          color={isWatching ? Colors.primary : Colors.text.tertiary}
         />
       </TouchableOpacity>
 

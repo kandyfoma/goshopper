@@ -594,6 +594,25 @@ export function UnifiedScannerScreen() {
 
     } catch (error: any) {
       console.error('Video scan error:', error);
+
+      // Check if this is a subscription limit error
+      const errorText = error.message || '';
+      const isSubscriptionLimitError = 
+        errorText.includes('Limite d\'essai atteinte') ||
+        errorText.includes('limite d\'essai') ||
+        errorText.includes('trial limit') ||
+        errorText.includes('RESOURCE_EXHAUSTED') ||
+        errorText.includes('Abonnez-vous pour continuer') ||
+        errorText.includes('Subscribe to continue');
+
+      if (isSubscriptionLimitError) {
+        console.log('📊 Video scan subscription limit reached, showing modal');
+        setShowLimitModal(true);
+        hapticService.error();
+        analyticsService.logCustomEvent('video_scan_subscription_limit');
+        return;
+      }
+
       scanProcessing.setError(error.message || 'Erreur lors de l\'analyse de la vidéo');
       hapticService.error();
 
@@ -743,23 +762,22 @@ export function UnifiedScannerScreen() {
         return processPhotoInBackground(photoUri, retryCount + 1);
       }
 
-      // Parse error message - improved extraction
-      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
-      
-      try {
-        // Try to extract JSON error from various formats
-        if (errorText.includes('{"error":{') || errorText.includes('"error":{')) {
-          const jsonMatch = errorText.match(/\{.*\}/s);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.error?.message) {
-              // Use the backend error message directly if it exists
-              userMessage = parsed.error.message;
-            }
-          }
-        }
-      } catch (parseError) {
-        console.error('Error parsing JSON:', parseError);
+      // Check if this is a subscription limit error
+      const isSubscriptionLimitError = 
+        errorText.includes('Limite d\'essai atteinte') ||
+        errorText.includes('limite d\'essai') ||
+        errorText.includes('trial limit') ||
+        errorText.includes('RESOURCE_EXHAUSTED') ||
+        errorText.includes('Abonnez-vous pour continuer') ||
+        errorText.includes('Subscribe to continue');
+
+      if (isSubscriptionLimitError) {
+        console.log('📊 Subscription limit reached, showing modal');
+        setShowLimitModal(true);
+        scanProcessing.setError(''); // Clear any error state
+        hapticService.error();
+        isProcessingRef.current = false;
+        return;
       }
 
       // Only override with generic messages if no specific error was extracted
@@ -927,32 +945,41 @@ export function UnifiedScannerScreen() {
             {/* Action Buttons */}
             <View style={styles.actionButtonsContainer}>
               <TouchableOpacity
-                style={styles.primaryActionButton}
+                style={[styles.primaryActionButton, !canScan && styles.disabledButton]}
                 onPress={() => handlePhotoCapture(false)}
-                activeOpacity={0.9}
+                activeOpacity={canScan ? 0.9 : 1}
+                disabled={!canScan}
               >
                 <Icon name="camera" size="md" color={Colors.white} />
-                <Text style={styles.primaryActionText}>Prendre une photo</Text>
+                <Text style={styles.primaryActionText}>
+                  {canScan ? 'Prendre une photo' : 'Limite atteinte'}
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.secondaryButtonsRow}>
                 <TouchableOpacity
-                  style={styles.secondaryActionButton}
+                  style={[styles.secondaryActionButton, !canScan && styles.disabledButton]}
                   onPress={() => handlePhotoCapture(true)}
-                  activeOpacity={0.9}
+                  activeOpacity={canScan ? 0.9 : 1}
+                  disabled={!canScan}
                 >
-                  <Icon name="image" size="sm" color={Colors.primary} />
-                  <Text style={styles.secondaryActionText}>Galerie</Text>
+                  <Icon name="image" size="sm" color={canScan ? Colors.primary : Colors.text.tertiary} />
+                  <Text style={[styles.secondaryActionText, !canScan && styles.disabledText]}>
+                    Galerie
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.secondaryActionButton, styles.videoButton]}
+                  style={[styles.secondaryActionButton, styles.videoButton, !canScan && styles.disabledButton]}
                   onPress={handleVideoScan}
-                  activeOpacity={0.9}
+                  activeOpacity={canScan ? 0.9 : 1}
+                  disabled={!canScan}
                 >
-                  <Icon name="video" size="sm" color={Colors.accent} />
-                  <Text style={[styles.secondaryActionText, {color: Colors.accent}]}>Vidéo</Text>
-                  <Text style={styles.videoHint}>(longs reçus)</Text>
+                  <Icon name="video" size="sm" color={canScan ? Colors.accent : Colors.text.tertiary} />
+                  <Text style={[styles.secondaryActionText, !canScan && styles.disabledText, {color: canScan ? Colors.accent : Colors.text.tertiary}]}>
+                    Vidéo
+                  </Text>
+                  <Text style={[styles.videoHint, !canScan && styles.disabledText]}>(longs reçus)</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1004,19 +1031,21 @@ export function UnifiedScannerScreen() {
 
             <View style={styles.errorActions}>
               <TouchableOpacity
-                style={styles.retryButton}
+                style={[styles.retryButton, !canScan && styles.disabledButton]}
                 onPress={() => handlePhotoCapture(false)}
+                disabled={!canScan}
               >
                 <Icon name="camera" size="sm" color={Colors.white} />
-                <Text style={styles.retryButtonText}>Réessayer</Text>
+                <Text style={[styles.retryButtonText, !canScan && styles.disabledText]}>Réessayer</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.newScanButton}
+                style={[styles.newScanButton, !canScan && styles.disabledButton]}
                 onPress={handleReset}
+                disabled={!canScan}
               >
                 <Icon name="refresh" size="sm" color={Colors.primary} />
-                <Text style={styles.newScanButtonText}>Recommencer</Text>
+                <Text style={[styles.newScanButtonText, !canScan && styles.disabledText]}>Recommencer</Text>
               </TouchableOpacity>
             </View>
 
@@ -1541,5 +1570,12 @@ const styles = StyleSheet.create({
   helpButtonText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.text.secondary,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: Colors.border.light,
+  },
+  disabledText: {
+    color: Colors.text.tertiary,
   },
 });

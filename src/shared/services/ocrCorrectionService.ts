@@ -7,6 +7,11 @@ interface CorrectionRule {
   description?: string;
 }
 
+interface ReconstructionRule {
+  regex: RegExp;
+  reconstruct: (match: RegExpMatchArray) => string;
+}
+
 class OcrCorrectionService {
   private correctionRules: CorrectionRule[] = [
     // French food items with accents
@@ -48,6 +53,11 @@ class OcrCorrectionService {
     { pattern: /\bonvalif\b/gi, replacement: 'invalid', description: 'invalid' },
     { pattern: /\btset\b/gi, replacement: 'test', description: 'test' },
     { pattern: /\binvalif\b/gi, replacement: 'invalid', description: 'invalid' },
+    // Common OCR misreads for food items
+    { pattern: /\bmijito\b/gi, replacement: 'mojito', description: 'mojito drink' },
+    { pattern: /\bvirginm\b/gi, replacement: 'virgin m', description: 'virgin drink prefix' },
+    { pattern: /\bvirgm\b/gi, replacement: 'virgin m', description: 'virgin drink prefix' },
+    { pattern: /\bvirg\b/gi, replacement: 'virgin', description: 'virgin drink' },
     { pattern: /\bstore\b/gi, replacement: 'store', description: 'store' },
     { pattern: /\bitem\b/gi, replacement: 'item', description: 'item' },
     { pattern: /\bprod\b/gi, replacement: 'product', description: 'product' },
@@ -225,8 +235,11 @@ class OcrCorrectionService {
       'biere': 'bière',
       'vinn': 'vin',
       'cafe': 'café',
-      'creme': 'crème',
-      // Add corrections for OCR errors
+      'creme': 'crème',      // Drink-specific corrections
+      'mijito': 'mojito',
+      'virginm': 'virgin m',
+      'virgm': 'virgin m',
+      'virg': 'virgin',      // Add corrections for OCR errors
       'ttesr store onvalif test item': 'test store invalid test item',
       'ttesr': 'test',
       'onvalif': 'invalid',
@@ -238,6 +251,10 @@ class OcrCorrectionService {
       'itm': 'item',
       'prodct': 'product',
       'artcle': 'article',
+      // Fix corrupted patterns
+      'prite': 'prite', // Keep as is, will be handled by word reconstruction
+      'e30': '330',     // Fix corrupted numbers
+      'm l': 'ml',      // Fix spaced units
     };
 
     // Check for exact matches first
@@ -255,12 +272,142 @@ class OcrCorrectionService {
       }
     }
 
+    // Try to reconstruct corrupted names
+    const reconstructed = this.reconstructCorruptedName(corrected);
+    if (reconstructed !== corrected) {
+      return reconstructed;
+    }
+
     return corrected;
   }
 
   /**
-   * Calculate Levenshtein distance for fuzzy matching
+   * Try to reconstruct corrupted names like "S prite e30 m l" → "Sprite 330ml"
+   * Public method for use by other services
    */
+  public reconstructCorruptedName(name: string): string {
+    const patterns: ReconstructionRule[] = [
+      {
+        // Pattern: "S prite e30 m l" → "Sprite 330ml" (split word)
+        regex: /^([A-Za-z])\s+([A-Za-z]{4,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/i,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, firstLetter, word, corruptedDigit, number, unit1, unit2] = match;
+          const reconstructedWord = firstLetter + word;
+          // Fix common corruption: 'e' → '3', 'o' → '0', etc.
+          const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+          const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+          const reconstructedUnit = fixedDigit + number;
+          const reconstructedSize = (unit1 + unit2).toLowerCase();
+          return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
+        }
+      },
+      {
+        // Pattern: "Sprite e30 m l" → "Sprite 330ml" (word already reconstructed)
+        regex: /^([A-Za-z]{5,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, word, corruptedDigit, number, unit1, unit2] = match;
+          const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+          const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+          const reconstructedUnit = fixedDigit + number;
+          const reconstructedSize = (unit1 + unit2).toLowerCase();
+          return `${word} ${reconstructedUnit}${reconstructedSize}`;
+        }
+      },
+      {
+        // Pattern: "S prite 330 m l" → "Sprite 330ml"
+        regex: /^([A-Za-z])\s+([a-z]{4,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, firstLetter, word, number, unit1, unit2] = match;
+          const reconstructedWord = firstLetter + word;
+          const reconstructedSize = (unit1 + unit2).toLowerCase();
+          return `${reconstructedWord} ${number}${reconstructedSize}`;
+        }
+      },
+      {
+        // Pattern: "Sprite 330 m l" → "Sprite 330ml"
+        regex: /^([A-Za-z]{5,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, word, number, unit1, unit2] = match;
+          const reconstructedSize = (unit1 + unit2).toLowerCase();
+          return `${word} ${number}${reconstructedSize}`;
+        }
+      },
+      {
+        // Pattern: "Castel lite e30 m l" or "Castel LITE e30 m L" → "Castel Lite 330ml" (two words + corrupted size)
+        regex: /^([A-Za-z]{3,})\s+([A-Za-z]{3,})\s+([a-z])(\d{2})\s+([a-z]{1,2})\s+([a-z])$/i,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, word1, word2, corruptedDigit, number, unit1, unit2] = match;
+          const reconstructedWord = word1.charAt(0).toUpperCase() + word1.slice(1).toLowerCase() + ' ' + word2.charAt(0).toUpperCase() + word2.slice(1).toLowerCase();
+          // Fix common corruption: 'e' → '3', 'o' → '0', etc.
+          const digitMap: Record<string, string> = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
+          const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
+          const reconstructedUnit = fixedDigit + number;
+          const reconstructedSize = (unit1.toLowerCase() + unit2.toLowerCase()).replace(/ml/i, 'ml');
+          return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
+        }
+      },
+      {
+        // Pattern: "BAGALILACXL" or "bAGALILACXL" → "Bag Alilac XL" (concatenated brand name)
+        regex: /^([a-zA-Z])AGALILACXL$/i,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, firstLetter] = match;
+          return `${firstLetter === firstLetter.toUpperCase() ? 'B' : 'B'}ag Alilac XL`;
+        }
+      },
+      {
+        // Pattern: "SPRITE330ML" → "Sprite 330ml" (concatenated product + size)
+        regex: /^SPRITE(\d{3})ML$/i,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, size] = match;
+          return `Sprite ${size}ml`;
+        }
+      },
+      {
+        // Pattern: "VIRGINMOJITO" → "Virgin Mojito" (concatenated drink name)
+        regex: /^VIRGINMOJITO$/i,
+        reconstruct: (match: RegExpMatchArray) => {
+          return `Virgin Mojito`;
+        }
+      },
+      {
+        // Pattern: "B AG a LILAC XL" or "b AG a LILAC XL" → "Bag Alilac XL" (spaced letters in brand names)
+        regex: /^([A-Za-z])\s+([A-Z]{1,3})\s+([a-z])\s+([A-Z]{3,})\s+([A-Z]{1,3})$/,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, firstLetter, brand, connector, word, suffix] = match;
+          // Reconstruct: "B" + "AG" + "a" + "LILAC" + "XL" → "Bag Alilac XL"
+          const reconstructed = firstLetter + brand.toLowerCase() + ' ' + connector + word.toLowerCase() + ' ' + suffix;
+          // Capitalize first letter of each word
+          return reconstructed.split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ');
+        }
+      },
+      {
+        // General pattern for spaced words and numbers
+        regex: /^([A-Za-z])\s+([a-z]{3,})\s+(\d{2,3})\s*([a-z]{0,2})\s*([a-z]{0,2})$/,
+        reconstruct: (match: RegExpMatchArray) => {
+          const [, firstLetter, word, number, unit1, unit2] = match;
+          const reconstructedWord = firstLetter + word;
+          const reconstructedSize = ((unit1 || '') + (unit2 || '')).toLowerCase();
+          if (reconstructedSize) {
+            return `${reconstructedWord} ${number}${reconstructedSize}`;
+          }
+          return `${reconstructedWord} ${number}`;
+        }
+      }
+    ];
+
+    for (const { regex, reconstruct } of patterns) {
+      const match = name.match(regex);
+      if (match) {
+        const result = reconstruct(match);
+        console.log(`Reconstructed "${name}" → "${result}"`);
+        return result;
+      }
+    }
+
+    return name;
+  }
   private levenshteinDistance(a: string, b: string): number {
     const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
 
@@ -293,6 +440,31 @@ class OcrCorrectionService {
    */
   getCorrectionRules(): CorrectionRule[] {
     return [...this.correctionRules];
+  }
+
+  /**
+   * Clean and correct an item name using all available corrections
+   */
+  public cleanItemName(name: string): string {
+    if (!name || typeof name !== 'string') {
+      return name;
+    }
+
+    let corrected = name;
+
+    // Try reconstruction FIRST (before general rules mess up the patterns)
+    const reconstructed = this.reconstructCorruptedName(corrected);
+    if (reconstructed !== corrected) {
+      console.log(`🔧 OCR reconstruction: "${corrected}" → "${reconstructed}"`);
+      corrected = reconstructed;
+    }
+
+    // Apply correction rules
+    for (const rule of this.correctionRules) {
+      corrected = corrected.replace(rule.pattern, rule.replacement);
+    }
+
+    return corrected;
   }
 }
 

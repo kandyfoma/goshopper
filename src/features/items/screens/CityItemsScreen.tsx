@@ -955,6 +955,7 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: Spacing.lg,
     paddingTop: Spacing.sm,
+    paddingBottom: 150,
     flexGrow: 0,
   },
 

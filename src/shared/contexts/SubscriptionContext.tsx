@@ -92,9 +92,10 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       };
 
       if (isTrialActive) {
-        // Trial users have limited scans
+        // Trial users have limited scans (no bonus or emergency scans)
         const trialLimit = PLAN_SCAN_LIMITS.free || 10;
-        scansRemaining = calculateScansWithBonus(trialLimit, subscription.trialScansUsed || 0);
+        const trialUsed = subscription.trialScansUsed || 0;
+        scansRemaining = Math.max(0, trialLimit - trialUsed); // Never go below 0
         canScan = scansRemaining > 0;
       } else if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
         // Freemium tier - auto-assigned when no active subscription

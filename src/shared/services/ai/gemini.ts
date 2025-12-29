@@ -50,6 +50,122 @@ class GeminiService {
   private readonly FAILURE_THRESHOLD = 5;
   private readonly HALF_OPEN_TIMEOUT = 30000; // 30s
   private readonly OPEN_TIMEOUT = 300000; // 5 minutes
+  
+  // Request queuing system
+  private requestQueue: Array<{
+    request: () => Promise<ReceiptScanResult>;
+    resolve: (result: ReceiptScanResult) => void;
+    reject: (error: any) => void;
+  }> = [];
+  private isProcessingQueue = false;
+  
+  // Retry configuration
+  private readonly MAX_RETRIES = 3;
+  private readonly BASE_RETRY_DELAY = 2000; // 2 seconds
+  
+  // Usage tracking
+  private requestCount = 0;
+  private lastResetTime = Date.now();
+  private readonly USAGE_WARNING_THRESHOLD = 10; // Warn after 10 requests in a short period
+
+  /**
+   * Process the request queue sequentially
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessingQueue || this.requestQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    while (this.requestQueue.length > 0) {
+      const { request, resolve, reject } = this.requestQueue.shift()!;
+      
+      try {
+        const result = await this.retryWithBackoff(request);
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+
+      // Small delay between requests to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  /**
+   * Retry a request with exponential backoff
+   */
+  private async retryWithBackoff(requestFn: () => Promise<ReceiptScanResult>): Promise<ReceiptScanResult> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        return await requestFn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // Don't retry on certain errors
+        if (error.message?.includes('Limite d\'essai atteinte') ||
+            error.message?.includes('Limite mensuelle atteinte') ||
+            error.message?.includes('Veuillez vous connecter')) {
+          throw error;
+        }
+        
+        // If this is the last attempt, throw the error
+        if (attempt === this.MAX_RETRIES) {
+          throw error;
+        }
+        
+        // Calculate delay with exponential backoff and jitter
+        const delay = this.BASE_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+        console.log(`Request failed (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}), retrying in ${Math.round(delay)}ms...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
+   * Add request to queue
+   */
+  private queueRequest(requestFn: () => Promise<ReceiptScanResult>): Promise<ReceiptScanResult> {
+    // Track usage
+    this.trackUsage();
+    
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({
+        request: requestFn,
+        resolve,
+        reject,
+      });
+      
+      // Start processing queue if not already running
+      this.processQueue();
+    });
+  }
+
+  /**
+   * Track API usage and show warnings
+   */
+  private trackUsage(): void {
+    this.requestCount++;
+    
+    // Reset counter every 5 minutes
+    if (Date.now() - this.lastResetTime > 5 * 60 * 1000) {
+      this.requestCount = 1;
+      this.lastResetTime = Date.now();
+    }
+    
+    // Show warning if approaching rate limits
+    if (this.requestCount >= this.USAGE_WARNING_THRESHOLD) {
+      console.warn(`⚠️ High API usage detected: ${this.requestCount} requests in the last 5 minutes. Consider spacing out your scans to avoid rate limits.`);
+    }
+  }
 
   /**
    * H5 FIX: Check and update circuit breaker state
@@ -104,6 +220,17 @@ class GeminiService {
    * Parse a receipt image using Gemini AI via Cloud Function
    */
   async parseReceipt(
+    imageBase64: string,
+    userId: string,
+    userCity?: string,
+  ): Promise<ReceiptScanResult> {
+    return this.queueRequest(() => this.processReceiptRequest(imageBase64, userId, userCity));
+  }
+
+  /**
+   * Internal method to process a single receipt request
+   */
+  private async processReceiptRequest(
     imageBase64: string,
     userId: string,
     userCity?: string,
@@ -188,6 +315,17 @@ class GeminiService {
         'Cloud Function response:',
         JSON.stringify(responseData).substring(0, 500),
       );
+
+      // Log any suspicious item names in the raw response
+      if (responseData.result?.receipt?.items || responseData.receipt?.items || responseData.data?.items) {
+        const items = responseData.result?.receipt?.items || responseData.receipt?.items || responseData.data?.items || [];
+        const suspiciousItems = items.filter((item: any) =>
+          item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/))
+        );
+        if (suspiciousItems.length > 0) {
+          console.log('🚨 Suspicious items in Cloud Function response:', suspiciousItems.map((item: any) => item.name));
+        }
+      }
 
       // Handle error in response
       if (responseData.error) {
@@ -304,9 +442,15 @@ class GeminiService {
 
     // Transform items - filter out undefined fields
     const rawItems: ReceiptItem[] = data.items.map((item, index) => {
+      // Apply OCR correction
+      const correctedName = ocrCorrectionService.correctProductName(item.name);
+      if (item.name.includes('prite') || correctedName.includes('prite')) {
+        console.log(`🔧 [Gemini] OCR correction: "${item.name}" → "${correctedName}"`);
+      }
+
       const receiptItem: any = {
         id: `${receiptId}-item-${index}`,
-        name: ocrCorrectionService.correctProductName(item.name),
+        name: correctedName,
         nameNormalized: this.normalizeProductName(item.name),
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice || 0,
@@ -385,6 +529,17 @@ class GeminiService {
    * Ideal for long receipts - user scans slowly down the receipt
    */
   async parseReceiptVideo(
+    videoBase64: string,
+    userId: string,
+    userCity?: string,
+  ): Promise<ReceiptScanResult> {
+    return this.queueRequest(() => this.processReceiptVideoRequest(videoBase64, userId, userCity));
+  }
+
+  /**
+   * Internal method to process a single receipt video request
+   */
+  private async processReceiptVideoRequest(
     videoBase64: string,
     userId: string,
     userCity?: string,
@@ -540,8 +695,23 @@ class GeminiService {
   }
 
   /**
-   * Normalize product name for comparison
+   * Get current usage statistics
    */
+  public getUsageStats(): {
+    requestCount: number;
+    isRateLimited: boolean;
+    rateLimitResetIn?: number;
+    circuitState: string;
+    queueLength: number;
+  } {
+    return {
+      requestCount: this.requestCount,
+      isRateLimited: this.rateLimitedUntil ? new Date() < this.rateLimitedUntil : false,
+      rateLimitResetIn: this.rateLimitedUntil ? Math.ceil((this.rateLimitedUntil.getTime() - Date.now()) / 1000) : undefined,
+      circuitState: this.circuitState,
+      queueLength: this.requestQueue.length,
+    };
+  }
   private normalizeProductName(name: string): string {
     return name
       .toLowerCase()
