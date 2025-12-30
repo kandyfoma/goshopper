@@ -26,6 +26,11 @@ export const BiometricModal: React.FC<BiometricModalProps> = ({
   onAccept,
   onDecline,
 }) => {
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🔐 [BiometricModal] Render state:', {visible, biometryType});
+  }, [visible, biometryType]);
+
   const getBiometricIcon = () => {
     switch (biometryType) {
       case 'FaceID':

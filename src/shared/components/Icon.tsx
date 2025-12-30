@@ -244,6 +244,48 @@ const iconPaths: Record<
     ),
   },
   // Actions
+  video: {
+    outline: (
+      <>
+        <Path
+          d="M23 7l-7 5 7 5V7z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Rect
+          x="1"
+          y="5"
+          width="15"
+          height="14"
+          rx="2"
+          ry="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+    filled: (
+      <>
+        <Path
+          d="M23 7l-7 5 7 5V7z"
+          fill="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Rect
+          x="1"
+          y="5"
+          width="15"
+          height="14"
+          rx="2"
+          ry="2"
+          fill="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   camera: {
     outline: (
       <>

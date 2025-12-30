@@ -35,6 +35,7 @@ interface ParseReceiptResponse {
     tax?: number;
     total: number;
     rawText?: string;
+    city?: string;
   };
   // Legacy support for data field
   data?: ParseReceiptResponse['receipt'];
@@ -89,7 +90,7 @@ class GeminiService {
       }
 
       // Small delay between requests to avoid overwhelming the API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 1000));
     }
 
     this.isProcessingQueue = false;
@@ -123,7 +124,7 @@ class GeminiService {
         const delay = this.BASE_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
         console.log(`Request failed (attempt ${attempt + 1}/${this.MAX_RETRIES + 1}), retrying in ${Math.round(delay)}ms...`);
         
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise<void>(resolve => setTimeout(() => resolve(), delay));
       }
     }
     
@@ -294,15 +295,37 @@ class GeminiService {
         
         // Handle rate limiting (429 Too Many Requests)
         if (response.status === 429) {
-          const retryAfter = response.headers.get('Retry-After');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 1 min
-          this.rateLimitedUntil = new Date(Date.now() + waitTime);
+          // Check if this is a subscription limit error (not a rate limit error)
+          let errorMessage = 'Trop de demandes. Veuillez réessayer dans une minute.';
+          
+          try {
+            // Try to parse the error response to get the actual message
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error && errorJson.error.message) {
+              // If it's a subscription limit error, use that message
+              if (errorJson.error.message.includes('Limite d\'essai') ||
+                  errorJson.error.message.includes('Limite mensuelle') ||
+                  errorJson.error.status === 'RESOURCE_EXHAUSTED') {
+                errorMessage = errorJson.error.message;
+              }
+            }
+          } catch (parseError) {
+            // If parsing fails, use default message
+            console.log('Could not parse 429 error response');
+          }
+          
+          // Only set rate limit timeout for actual rate limiting (not subscription limits)
+          if (!errorMessage.includes('Limite d\'essai') && !errorMessage.includes('Limite mensuelle')) {
+            const retryAfter = response.headers.get('Retry-After');
+            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 1 min
+            this.rateLimitedUntil = new Date(Date.now() + waitTime);
+          }
 
           this.recordFailure();
 
           return {
             success: false,
-            error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+            error: errorMessage,
           };
         }
 
@@ -607,13 +630,50 @@ class GeminiService {
           const errorText = await response.text();
           console.error('Video HTTP error:', response.status, errorText);
 
+          // Handle subscription limit error (403)
+          if (response.status === 403) {
+            try {
+              const errorJson = JSON.parse(errorText);
+              if (errorJson.error) {
+                // Preserve subscription limit message
+                this.recordFailure();
+                return {
+                  success: false,
+                  error: errorJson.error,
+                };
+              }
+            } catch {
+              // Fall through to generic handler
+            }
+          }
+
           if (response.status === 429) {
-            const waitTime = 60000;
-            this.rateLimitedUntil = new Date(Date.now() + waitTime);
+            // Check if this is a subscription limit error (not a rate limit error)
+            let errorMessage = 'Trop de demandes. Veuillez réessayer dans une minute.';
+            
+            try {
+              const errorJson = JSON.parse(errorText);
+              if (errorJson.error && errorJson.error.message) {
+                if (errorJson.error.message.includes('Limite d\'essai') ||
+                    errorJson.error.message.includes('Limite mensuelle') ||
+                    errorJson.error.status === 'RESOURCE_EXHAUSTED') {
+                  errorMessage = errorJson.error.message;
+                }
+              }
+            } catch (parseError) {
+              console.log('Could not parse video 429 error response');
+            }
+            
+            // Only set rate limit timeout for actual rate limiting
+            if (!errorMessage.includes('Limite d\'essai') && !errorMessage.includes('Limite mensuelle')) {
+              const waitTime = 60000;
+              this.rateLimitedUntil = new Date(Date.now() + waitTime);
+            }
+            
             this.recordFailure();
             return {
               success: false,
-              error: 'Trop de demandes. Veuillez réessayer dans une minute.',
+              error: errorMessage,
             };
           }
 

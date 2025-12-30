@@ -51,6 +51,7 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
 
   // Animate entrance
   useEffect(() => {
+    console.log('🔐 [AnimatedModal] Visibility changed:', visible);
     if (visible) {
       // Reset values before animating in
       slideAnim.setValue(variant === 'bottom-sheet' ? screenHeight : 50);

@@ -412,6 +412,8 @@ function canUserScan(subscription: {
   trialScansLimit?: number;
   monthlyScansUsed?: number;
   monthlyScansLimit?: number;
+  bonusScans?: number;
+  emergencyScansUsed?: number;
 }): {canScan: boolean; reason?: string} {
   // If subscribed, can always scan (subject to monthly limit if applicable)
   if (subscription.isSubscribed || subscription.status === 'active') {
@@ -427,16 +429,25 @@ function canUserScan(subscription: {
     };
   }
 
-  // Check trial limits
+  // Check trial limits - include bonus scans
   const trialLimit = subscription.trialScansLimit ?? config.app.trialScanLimit;
   const trialUsed = subscription.trialScansUsed || 0;
+  const bonusScans = subscription.bonusScans || 0;
+  const emergencyScansUsed = subscription.emergencyScansUsed || 0;
+  
+  // Calculate total available scans
+  const trialRemaining = Math.max(0, trialLimit - trialUsed);
+  const bonusRemaining = Math.max(0, bonusScans - emergencyScansUsed);
+  const totalAvailable = trialRemaining + bonusRemaining;
+  
+  console.log(`[canUserScan] Trial: ${trialUsed}/${trialLimit}, Bonus: ${bonusScans} (used: ${emergencyScansUsed}), Total available: ${totalAvailable}`);
   
   // Unlimited trial
   if (trialLimit === -1) {
     return {canScan: true};
   }
 
-  if (trialUsed < trialLimit) {
+  if (totalAvailable > 0) {
     return {canScan: true};
   }
 
@@ -946,12 +957,21 @@ async function parseVideoWithGemini(
   videoBase64: string,
   mimeType: string,
 ): Promise<ParsedReceipt> {
-  const MAX_RETRIES = 2; // Reduced from 3 to speed up failures
+  const MAX_RETRIES = 3; // More retries for video since it's more complex
   let lastError: Error | null = null;
 
   // Video-specific prompt for receipt extraction - enhanced with photo prompt's total extraction rules
   const VIDEO_PARSING_PROMPT = `You are an expert receipt scanner analyzing a video of a receipt from the Democratic Republic of Congo.
 The user has slowly scanned down the entire receipt. Extract ALL items visible throughout the video.
+
+🎬 VIDEO FRAME ANALYSIS STRATEGY:
+- The video shows a receipt being scanned from TOP to BOTTOM
+- FIRST few frames: Store name and header information
+- MIDDLE frames: Individual product items with prices
+- LAST few frames: Subtotal, taxes, TOTAL, and payment info
+- Focus on frames where text is SHARPEST and most readable
+- If a frame is blurry, look for the same info in adjacent frames
+- Items may appear in multiple frames - DON'T duplicate them
 
 CRITICAL VIDEO SCANNING INSTRUCTIONS:
 1. Watch the ENTIRE video from START to END
@@ -960,6 +980,12 @@ CRITICAL VIDEO SCANNING INSTRUCTIONS:
 4. Extract EVERY item, even if blurry - estimate the price if partially visible
 5. Prices are on the RIGHT side of each line
 6. ONLY read MACHINE-PRINTED text - IGNORE any handwritten text
+
+⚠️ CRITICAL: DO NOT FILTER OUT LEGITIMATE PRODUCTS
+- Products with size information like "500ml", "400gr", "1lt" are VALID items
+- Products with long names or foreign words are VALID items
+- Only skip obvious system lines like headers, footers, totals, payment info
+- If uncertain whether something is a product, INCLUDE IT
 
 ⚠️ CRITICAL: ITEM DELIMITERS - How to identify separate items:
 - Each item TYPICALLY appears on ONE line with product name on LEFT and price on RIGHT
@@ -1027,6 +1053,7 @@ VALIDATION BEFORE RESPONDING:
 1. Sum all item prices - does it roughly match your "total" field?
 2. Is the total next to a label like "TOTAL" or "MONTANT A PAYER"?
 3. Did you accidentally use a receipt number or customer ID as the total?
+4. Did you include ALL visible products (not filter out items with sizes)?
 
 Return a JSON object with this EXACT structure:
 {
@@ -1061,19 +1088,25 @@ CRITICAL OUTPUT RULES:
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // Use a more capable model for video processing
+      // gemini-2.0-flash-exp has better video understanding
+      const modelName = attempt === 0 ? 'gemini-2.0-flash-exp' : config.gemini.model;
+      
       const model = getGeminiAI().getGenerativeModel({
-        model: config.gemini.model,
+        model: modelName,
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 8192, // Reduced from 16384 - faster response
+          maxOutputTokens: 16384, // Increased for video - more items possible
           responseMimeType: 'application/json', // Force JSON response
         },
       });
 
-      // Reduced timeout for video processing - fail fast
+      console.log(`[Video] Attempt ${attempt + 1}/${MAX_RETRIES + 1} using model: ${modelName}`);
+
+      // Timeout for video processing - longer for better accuracy
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 60000),
-      ); // 60s timeout (reduced from 90s)
+        setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 90000),
+      ); // 90s timeout for video
 
       const resultPromise = model.generateContent([
         VIDEO_PARSING_PROMPT,
@@ -1274,9 +1307,9 @@ CRITICAL OUTPUT RULES:
       console.error(`Video parse attempt ${attempt + 1} failed:`, lastError.message);
 
       if (attempt < MAX_RETRIES) {
-        // Shorter backoff for faster retries
-        const delay = Math.min(1000 * (attempt + 1), 3000);
-        console.log(`Retrying video parse in ${delay}ms...`);
+        // Progressive backoff: 2s, 4s, 6s for video
+        const delay = Math.min(2000 * (attempt + 1), 6000);
+        console.log(`Retrying video parse in ${delay}ms with ${attempt === 0 ? 'fallback model' : 'same model'}...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -1657,27 +1690,40 @@ export const parseReceipt = functions
           transaction.set(subscriptionRef, subscription);
         }
 
-        // Check if user can scan (skip if limit is -1 for unlimited)
-        const isUnlimited =
-          config.app.trialScanLimit === -1 ||
-          subscription.trialScansLimit === -1;
-        const canScan =
-          subscription.isSubscribed ||
-          isUnlimited ||
-          subscription.trialScansUsed < subscription.trialScansLimit;
-
-        if (!canScan) {
+        // Check if user can scan using the centralized function
+        const scanCheck = canUserScan(subscription);
+        
+        if (!scanCheck.canScan) {
           throw new functions.https.HttpsError(
             'resource-exhausted',
-            `Limite d'essai atteinte (${subscription.trialScansUsed}/${subscription.trialScansLimit}). Abonnez-vous pour continuer.`,
+            scanCheck.reason || 'Limite de scans atteinte',
           );
         }
 
         // Atomically increment scan count within transaction
-        transaction.update(subscriptionRef, {
-          trialScansUsed: admin.firestore.FieldValue.increment(1),
+        // For trial users with bonus scans, use emergency scans first
+        const updateData: any = {
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        };
+        
+        if (!subscription.isSubscribed && subscription.status !== 'active') {
+          // Trial user - check if using trial or bonus scans
+          const trialLimit = subscription.trialScansLimit ?? config.app.trialScanLimit;
+          const trialUsed = subscription.trialScansUsed || 0;
+          
+          if (trialUsed < trialLimit) {
+            // Still have trial scans
+            updateData.trialScansUsed = admin.firestore.FieldValue.increment(1);
+          } else {
+            // Using bonus/emergency scans
+            updateData.emergencyScansUsed = admin.firestore.FieldValue.increment(1);
+          }
+        } else {
+          // Subscribed user - increment monthly usage
+          updateData.monthlyScansUsed = admin.firestore.FieldValue.increment(1);
+        }
+        
+        transaction.update(subscriptionRef, updateData);
       });
 
       // Now parse receipt - scan limit already reserved

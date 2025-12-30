@@ -556,22 +556,43 @@ export function UnifiedScannerScreen() {
       return;
     }
 
-    setState('capturing');
-    showToast('Scannez lentement du haut vers le bas (max 10s)', 'info');
+    // Show video quality tips before recording
+    Alert.alert(
+      '📹 Conseils pour le scan vidéo',
+      '• Tenez le téléphone stable\n' +
+      '• Bonne luminosité requise\n' +
+      '• Scannez LENTEMENT du haut vers le bas\n' +
+      '• Gardez le reçu bien visible\n' +
+      '• Max 10 secondes\n\n' +
+      '💡 Le mode PHOTO est plus précis pour les reçus courts.',
+      [
+        {text: 'Annuler', style: 'cancel'},
+        {text: 'Prendre une photo', onPress: handlePhotoCapture},
+        {text: 'Enregistrer vidéo', style: 'default', onPress: async () => {
+          setState('capturing');
+          showToast('Scannez lentement du haut vers le bas...', 'info');
+          
+          const result = await cameraService.recordVideo();
 
-    const result = await cameraService.recordVideo();
+          if (!result.success || !result.base64) {
+            setState('idle');
+            if (result.error && result.error !== 'Capture annulée') {
+              showToast(result.error, 'error');
+            }
+            return;
+          }
 
-    if (!result.success || !result.base64) {
-      setState('idle');
-      if (result.error && result.error !== 'Capture annulée') {
-        showToast(result.error, 'error');
-      }
-      return;
-    }
+          startVideoProcessing(result);
+        }},
+      ]
+    );
+  }, [canScan, profile?.defaultCity, navigation, showToast, handlePhotoCapture]);
 
+  // Separate function for video processing
+  const startVideoProcessing = useCallback(async (result: any) => {
     // Use background processing for video
     scanProcessing.startProcessing(1);
-    scanProcessing.updateProgress(10, 'Analyse de la vidéo...');
+    scanProcessing.updateProgress(5, 'Préparation de la vidéo...');
     setState('idle'); // Go back to idle, processing happens in background
 
     analyticsService.logCustomEvent('video_scan_started', {
@@ -579,13 +600,24 @@ export function UnifiedScannerScreen() {
     });
 
     try {
-      scanProcessing.updateProgress(30, 'Extraction des articles...');
+      scanProcessing.updateProgress(15, 'Analyse des images clés...');
+      
+      // Video progress simulation for better UX
+      const progressInterval = setInterval(() => {
+        // Random progress between current and 60% while waiting for API
+        scanProcessing.updateProgress(
+          Math.min(55, 15 + Math.random() * 40),
+          'Lecture du contenu du reçu...'
+        );
+      }, 3000);
       
       const parseResult = await geminiService.parseReceiptVideo(
         result.base64,
         user?.uid || '',
         profile?.defaultCity,
       );
+      
+      clearInterval(progressInterval);
 
       if (!parseResult.success || !parseResult.receipt) {
         throw new Error(parseResult.error || 'Échec de l\'analyse de la vidéo');
@@ -646,14 +678,40 @@ export function UnifiedScannerScreen() {
         return;
       }
 
-      scanProcessing.setError(error.message || 'Erreur lors de l\'analyse de la vidéo');
+      // Hybrid approach: Suggest photo mode on video failure
+      const isVideoQualityError = 
+        errorText.includes('Aucun article détecté') ||
+        errorText.includes('trop longue') ||
+        errorText.includes('complexe') ||
+        errorText.includes('lentement') ||
+        errorText.includes('truncated') ||
+        errorText.includes('Incomplete');
+      
+      if (isVideoQualityError) {
+        // Suggest using photo mode instead
+        scanProcessing.setError(
+          'La vidéo n\'a pas pu être analysée correctement.\n\n' +
+          '💡 Conseil: Essayez le mode PHOTO pour de meilleurs résultats.\n' +
+          'Prenez une photo claire du reçu entier.'
+        );
+        hapticService.error();
+        analyticsService.logCustomEvent('video_scan_suggest_photo', {
+          error: error.message,
+        });
+        return;
+      }
+
+      scanProcessing.setError(
+        (error.message || 'Erreur lors de l\'analyse de la vidéo') +
+        '\n\n💡 Conseil: Le mode photo est souvent plus précis.'
+      );
       hapticService.error();
 
       analyticsService.logCustomEvent('video_scan_error', {
         error: error.message,
       });
     }
-  }, [canScan, user?.uid, profile?.defaultCity, showToast, scanProcessing, recordScan]);
+  }, [user?.uid, profile?.defaultCity, scanProcessing]);
 
   // Background process single photo - runs in background while user can navigate away
   const processPhotoInBackground = useCallback(async (photoUri: string, retryCount: number = 0): Promise<void> => {

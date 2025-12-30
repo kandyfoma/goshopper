@@ -102,6 +102,7 @@ export function UpdateProfileScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [showVerifyComingSoonModal, setShowVerifyComingSoonModal] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -636,6 +637,15 @@ export function UpdateProfileScreen() {
                   <Text style={styles.verifiedText}>Numéro vérifié</Text>
                 </View>
               )}
+              {!profile?.phoneVerified && formData.phoneNumber && (
+                <TouchableOpacity
+                  style={styles.verifyButton}
+                  onPress={() => setShowVerifyComingSoonModal(true)}
+                  activeOpacity={0.7}>
+                  <Icon name="shield-check" size="xs" color={Colors.primary} />
+                  <Text style={styles.verifyButtonText}>Vérifier le numéro</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Email Input */}
@@ -738,6 +748,36 @@ export function UpdateProfileScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Verify Number Coming Soon Modal */}
+      <Modal
+        visible={showVerifyComingSoonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowVerifyComingSoonModal(false)}>
+        <TouchableOpacity 
+          style={styles.comingSoonOverlay}
+          activeOpacity={1}
+          onPress={() => setShowVerifyComingSoonModal(false)}>
+          <View 
+            style={styles.comingSoonModal}
+            onStartShouldSetResponder={() => true}>
+            <View style={styles.comingSoonIconContainer}>
+              <Icon name="clock" size="xl" color={Colors.accent} />
+            </View>
+            <Text style={styles.comingSoonTitle}>Bientôt disponible</Text>
+            <Text style={styles.comingSoonText}>
+              La vérification du numéro de téléphone sera disponible dans une prochaine mise à jour.
+            </Text>
+            <TouchableOpacity
+              style={styles.comingSoonButton}
+              onPress={() => setShowVerifyComingSoonModal(false)}
+              activeOpacity={0.7}>
+              <Text style={styles.comingSoonButtonText}>Compris</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1067,6 +1107,18 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     color: '#10B981',
   },
+  verifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  verifyButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.primary,
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.background.primary,
@@ -1113,5 +1165,59 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
+  },
+  // Coming Soon Modal Styles
+  comingSoonOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  comingSoonModal: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    marginHorizontal: Spacing.lg,
+    maxWidth: 340,
+    alignItems: 'center',
+    ...Shadows.lg,
+  },
+  comingSoonIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.card.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  comingSoonTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  comingSoonText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
+  },
+  comingSoonButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.base,
+    paddingHorizontal: Spacing['2xl'],
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  comingSoonButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.white,
   },
 });

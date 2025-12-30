@@ -120,6 +120,11 @@ export function LoginScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Debug: Track showBiometricModal state changes
+  useEffect(() => {
+    console.log('🔐 [LoginScreen] showBiometricModal state changed:', showBiometricModal);
+  }, [showBiometricModal]);
+
   // Animations on mount
   useEffect(() => {
     Animated.parallel([
@@ -295,24 +300,37 @@ export function LoginScreen() {
       // Record successful login
       await loginSecurityService.recordAttempt(formattedPhone, true);
       
-      // Set user in AuthContext (this triggers navigation to main app)
-      setPhoneUser(userCredential);
-      console.log('✅ User logged in and set in AuthContext:', userCredential.uid);
-      
       showToast('Connexion réussie!', 'success', 3000);
 
       // Check if biometric is available but not enabled
       const biometricStatus = await biometricService.getStatus();
       const isSetupComplete = await biometricService.isSetupComplete();
       
+      console.log('🔐 Biometric check:', {
+        isAvailable: biometricStatus.isAvailable,
+        isEnabled: biometricStatus.isEnabled,
+        isSetupComplete,
+        biometryType: biometricStatus.biometryType,
+      });
+      
       if (biometricStatus.isAvailable && !biometricStatus.isEnabled && !isSetupComplete) {
-        // Prompt user to enable biometric login
-        setTimeout(() => {
-          showBiometricPrompt(userCredential.uid, {
-            phoneNumber: formattedPhone,
-            password: password,
-          });
-        }, 1000);
+        console.log('🔐 Showing biometric prompt BEFORE navigation...');
+        // Show biometric prompt BEFORE setting user (which triggers navigation)
+        // Pass userCredential to be set after modal is dismissed
+        showBiometricPrompt(userCredential.uid, {
+          phoneNumber: formattedPhone,
+          password: password,
+        }, userCredential);
+        // Don't set user here - it will be set after biometric modal is dismissed
+      } else {
+        console.log('🔐 Not showing biometric prompt, navigating directly:', {
+          available: biometricStatus.isAvailable,
+          enabled: biometricStatus.isEnabled,
+          setupComplete: isSetupComplete,
+        });
+        // Set user in AuthContext (this triggers navigation to main app)
+        setPhoneUser(userCredential);
+        console.log('✅ User logged in and set in AuthContext:', userCredential.uid);
       }
     } catch (err: any) {
       // Record failed login attempt
@@ -361,19 +379,41 @@ export function LoginScreen() {
     email?: string;
     phoneNumber?: string;
     password?: string;
-  }) => {
+  }, userCredential?: any) => {
+    console.log('🔐 [showBiometricPrompt] Setting modal state to true', {userId, hasCredentials: !!credentials});
     setBiometricPromptData({userId, credentials});
+    // Store the user credential to set after modal is dismissed
+    pendingUserCredentialRef.current = userCredential || null;
     setShowBiometricModal(true);
+    console.log('🔐 [showBiometricPrompt] Modal state set, biometryType:', biometricStatus?.biometryType);
   };
+
+  // Ref to store pending user credential (to set after biometric modal)
+  const pendingUserCredentialRef = useRef<any>(null);
 
   const handleBiometricAccept = async () => {
     if (!biometricPromptData) return;
 
     setShowBiometricModal(false);
     
+    const credentials = biometricPromptData.credentials;
+    // Ensure password exists before enabling biometric
+    if (!credentials.password) {
+      showToast('Informations de connexion incomplètes', 'error', 3000);
+      if (pendingUserCredentialRef.current) {
+        setPhoneUser(pendingUserCredentialRef.current);
+        pendingUserCredentialRef.current = null;
+      }
+      setBiometricPromptData(null);
+      return;
+    }
+    
     const result = await biometricService.enable(
       biometricPromptData.userId,
-      biometricPromptData.credentials,
+      {
+        ...credentials,
+        password: credentials.password,
+      },
     );
     
     if (result.success) {
@@ -388,12 +428,25 @@ export function LoginScreen() {
       );
     }
     
+    // Now set the user to trigger navigation (after modal is handled)
+    if (pendingUserCredentialRef.current) {
+      setPhoneUser(pendingUserCredentialRef.current);
+      pendingUserCredentialRef.current = null;
+    }
+    
     setBiometricPromptData(null);
   };
 
   const handleBiometricDecline = async () => {
     setShowBiometricModal(false);
     await biometricService.markSetupComplete();
+    
+    // Now set the user to trigger navigation (after modal is handled)
+    if (pendingUserCredentialRef.current) {
+      setPhoneUser(pendingUserCredentialRef.current);
+      pendingUserCredentialRef.current = null;
+    }
+    
     setBiometricPromptData(null);
   };
 
