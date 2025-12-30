@@ -402,37 +402,66 @@ const PARSING_PROMPT = `You are an expert receipt/invoice OCR and data extractio
 4. Focus ONLY on printed receipts from cash registers or printers
 5. If you see both printed and handwritten totals, USE ONLY THE PRINTED ONE
 
+⚠️ CRITICAL: ITEM DELIMITERS - How to identify separate items:
+6. Each item TYPICALLY appears on ONE line with product name on LEFT and price on RIGHT
+7. A NEW ITEM starts when you see a NEW product name followed by a NEW price
+8. LOOK FOR: Product names that are followed by numbers/prices on the same line or next line
+9. SEPARATE items when you see: Different product names + different prices
+10. DO NOT separate items when you see: Size info ("1lt", "500g", "18.9 L") without a new product name
+11. Items are usually separated by: Blank lines, different alignment, or clear product name changes
+
+⚠️ CRITICAL: PRICE vs SIZE DISTINCTION:
+12. PRICES are usually: 500, 1000, 5000, 10000, 50000, 100000 (CDF) or 1.00, 5.00, 10.00 (USD)
+13. SIZES are usually: 1lt, 500g, 18.9L, 330ml, 1kg, 2pcs
+14. If a number looks like a SIZE (contains units like lt/ml/kg/g/L/pcs), it's NOT a price
+15. If a number looks like a PRICE (large round numbers, currency symbols), it's a price
+16. NEVER treat size numbers as separate items with their own prices
+
+⚠️ CRITICAL: MULTI-LINE ITEMS - Items can span 2-3 lines:
+6. If you see an item name on one line and size/quantity info on the next line(s), COMBINE them into ONE item
+7. Example: "Crene Glace Caramel" on line 1, "1lt(lb)" on line 2 = ONE item: "Crene Glace Caramel 1lt(lb)"
+8. Example: "Virgin Mojito" on line 1, "330ml" on line 2 = ONE item: "Virgin Mojito 330ml"
+9. Example: "Dasani Eau de Table" on line 1, "18.9 L Recharge" on line 2 = ONE item: "Dasani Eau de Table 18.9 L Recharge"
+10. Example: "Sprite" on line 1, "2L" on line 2 = ONE item: "Sprite 2L"
+11. The price appears on the RIGHTMOST side, usually aligned with the last line of the item
+12. DO NOT create separate items for size/quantity information - merge them with the product name above
+13. Look for items where the price is on a line by itself or with minimal text
+14. If a line contains only numbers and size units (like "18.9 L", "500g", "1kg"), it's probably a continuation of the previous iteme of the item
+12. DO NOT create separate items for size/quantity information - merge them with the product name above
+13. Look for items where the price is on a line by itself or with minimal text
+14. If a line contains only numbers and size units (like "18.9 L", "500g", "1kg"), it's probably a continuation of the previous item
+
 ⚠️ CRITICAL: TEXT SPACING:
-6. DO NOT add extra spaces within words
-7. "BAG" should be "BAG", NOT "B AG" or "B A G"
-8. "TOMATES" should be "TOMATES", NOT "TOMATE S" or "T OMATES"
-9. Keep product names as continuous words WITHOUT artificial spacing
-10. Only use spaces between SEPARATE words, not within a single word
+21. DO NOT add extra spaces within words
+22. "BAG" should be "BAG", NOT "B AG" or "B A G"
+23. "TOMATES" should be "TOMATES", NOT "TOMATE S" or "T OMATES"
+24. Keep product names as continuous words WITHOUT artificial spacing
+25. Only use spaces between SEPARATE words, not within a single word
 
 ⚠️ HANDLING INVISIBLE/FADED ITEMS:
-11. If item name is invisible/faded BUT price is visible → Use "Unavailable name" as item name
-12. If BOTH item name AND price are invisible/faded → SKIP that item entirely
-13. Always ensure the total amount matches the receipt, even if some items are skipped
+26. If item name is invisible/faded BUT price is visible → Use "Unavailable name" as item name
+27. If BOTH item name AND price are invisible/faded → SKIP that item entirely
+28. Always ensure the total amount matches the receipt, even if some items are skipped
 
 ⚠️ CRITICAL: FINDING THE CORRECT TOTAL AMOUNT:
-14. DO NOT just take the last number at the bottom of the receipt
-15. LOOK FOR TEXT LABELS that indicate the total amount:
+29. DO NOT just take the last number at the bottom of the receipt
+30. LOOK FOR TEXT LABELS that indicate the total amount:
    - "TOTAL" or "Total" or "total"
    - "MONTANT A PAYER" or "Montant à payer" 
    - "TOTAL A PAYER" or "Total à payer"
    - "NET A PAYER" or "Net à payer"
    - "AMOUNT DUE" or "Amount Due"
    - "GRAND TOTAL"
-16. The number next to or below these labels is the ACTUAL TOTAL
-17. IGNORE other numbers at the bottom like:
+31. The number next to or below these labels is the ACTUAL TOTAL
+32. IGNORE other numbers at the bottom like:
    - Customer numbers
    - Transaction IDs
    - Receipt numbers
    - Payment reference numbers
    - Change given ("Monnaie")
    - Amount tendered ("Montant reçu")
-18. If you see "Subtotal" and "Total", use the "Total" (which includes tax)
-19. The total MUST match the sum of all item prices (within small rounding tolerance)
+33. If you see "Subtotal" and "Total", use the "Total" (which includes tax)
+34. The total MUST match the sum of all item prices (within small rounding tolerance)
 
 You MUST extract the ACTUAL machine-printed text visible in the image. DO NOT use placeholder text like "Test Store", "Item 1", "Item 2", etc.
 
@@ -856,6 +885,67 @@ function areProductNamesSimilar(name1: string, name2: string): boolean {
 }
 
 /**
+ * Merge multi-line items that were incorrectly split
+ * Looks for size/quantity-only items and merges them with the previous item
+ */
+function mergeMultiLineItems(items: ReceiptItem[]): ReceiptItem[] {
+  const mergedItems: ReceiptItem[] = [];
+  
+  for (let i = 0; i < items.length; i++) {
+    const currentItem = items[i];
+    
+    // Check if this item looks like a size/quantity continuation
+    // Expanded patterns to catch more cases like "18.9 recharde", "1lt(lb)", "330ml", etc.
+    const isSizeOnly = 
+      // Standard size patterns: "1lt(lb)", "330ml", "500g", "1kg", "18.9l", etc.
+      /^(\d+(\.\d+)?\s*(lt|ml|kg|g|cl|l|lb|pieces?|pcs?|recharde|recharge)\s*\(?[^)]*\)?)$/i.test(currentItem.name.trim()) ||
+      // Parenthetical sizes: "(1lt)", "(330ml)", "(18.9l)", etc.
+      /^(\d+(\.\d+)?\s*\([^)]*(lt|ml|kg|g|cl|l|lb|pieces?|pcs?|recharde|recharge)[^)]*\))$/i.test(currentItem.name.trim()) ||
+      // Size with text: "18.9 recharde", "1 litre", "500 grammes", etc.
+      /^(\d+(\.\d+)?\s*(litre|liter|gramme|gram|kilo|piece|recharde|recharge)s?\s*\(?[^)]*\)?)$/i.test(currentItem.name.trim()) ||
+      // Short corrupted sizes: "18.9l", "500g", "1kg", etc.
+      /^(\d+(\.\d+)?\s*[a-z]{1,3}(\s*\([^)]*\))?)$/i.test(currentItem.name.trim()) ||
+      // Size indicators with numbers: "1 lt", "18.9 l", "500 gr", etc.
+      /^(\d+(\.\d+)?\s+(lt|ml|kg|g|cl|l|lb|gr|recharde|recharge)(\s*\([^)]*\))?)$/i.test(currentItem.name.trim());
+    
+    // Additional check: very short names that look like sizes or quantities
+    const isVeryShortSize = currentItem.name.trim().length <= 12 && 
+                           /^\d+(\.\d+)?\s*[a-z\s\(\)]{0,8}$/i.test(currentItem.name.trim()) &&
+                           !/\b(article|total|subtotal|tax|montant)\b/i.test(currentItem.name.trim());
+    
+    // If it's a size-only item and we have a previous item, merge them
+    if ((isSizeOnly || isVeryShortSize) && mergedItems.length > 0) {
+      const previousItem = mergedItems[mergedItems.length - 1];
+      
+      // More lenient merging: merge if prices are similar (within 10%) or if current item has reasonable price
+      const priceRatio = previousItem.unitPrice > 0 ? Math.abs(previousItem.unitPrice - currentItem.unitPrice) / previousItem.unitPrice : 0;
+      const pricesSimilar = priceRatio < 0.1 || Math.abs(previousItem.unitPrice - currentItem.unitPrice) < 100;
+      const currentHasReasonablePrice = currentItem.unitPrice > 0 && currentItem.unitPrice < 100000; // Reasonable CDF price range
+      
+      if (pricesSimilar || currentHasReasonablePrice || previousItem.unitPrice === 0) {
+        // Merge the size into the previous item's name
+        const mergedName = `${previousItem.name} ${currentItem.name}`.trim();
+        mergedItems[mergedItems.length - 1] = {
+          ...previousItem,
+          name: mergedName,
+          nameNormalized: normalizeProductName(mergedName),
+          // Keep the better price (prefer the one from the main item)
+          unitPrice: previousItem.unitPrice > 0 ? previousItem.unitPrice : currentItem.unitPrice,
+          totalPrice: previousItem.totalPrice > 0 ? previousItem.totalPrice : currentItem.totalPrice,
+        };
+        console.log(`🔗 Merged multi-line item: "${previousItem.name}" + "${currentItem.name}" → "${mergedName}"`);
+        continue; // Skip adding current item separately
+      }
+    }
+    
+    // Add current item to merged list
+    mergedItems.push(currentItem);
+  }
+  
+  return mergedItems;
+}
+
+/**
  * Deduplicate items by similar name + same/similar price
  */
 function deduplicateItems(items: ReceiptItem[]): ReceiptItem[] {
@@ -1005,6 +1095,29 @@ CRITICAL VIDEO SCANNING INSTRUCTIONS:
 4. Extract EVERY item, even if blurry - estimate the price if partially visible
 5. Prices are on the RIGHT side of each line
 6. ONLY read MACHINE-PRINTED text - IGNORE any handwritten text
+
+⚠️ CRITICAL: ITEM DELIMITERS - How to identify separate items:
+- Each item TYPICALLY appears on ONE line with product name on LEFT and price on RIGHT
+- A NEW ITEM starts when you see a NEW product name followed by a NEW price
+- LOOK FOR: Product names that are followed by numbers/prices on the same line or next line
+- SEPARATE items when you see: Different product names + different prices
+- DO NOT separate items when you see: Size info ("1lt", "500g", "18.9 L") without a new product name
+- Items are usually separated by: Blank lines, different alignment, or clear product name changes
+
+⚠️ CRITICAL: PRICE vs SIZE DISTINCTION:
+- PRICES are usually: 500, 1000, 5000, 10000, 50000, 100000 (CDF) or 1.00, 5.00, 10.00 (USD)
+- SIZES are usually: 1lt, 500g, 18.9L, 330ml, 1kg, 2pcs
+- If a number looks like a SIZE (contains units like lt/ml/kg/g/L/pcs), it's NOT a price
+- If a number looks like a PRICE (large round numbers, currency symbols), it's a price
+- NEVER treat size numbers as separate items with their own prices
+
+⚠️ CRITICAL: MULTI-LINE ITEMS - Items can span 2-3 lines:
+- If you see an item name on one line and size/quantity info on the next line(s), COMBINE them into ONE item
+- Example: "Crene Glace Caramel" on line 1, "1lt(lb)" on line 2 = ONE item: "Crene Glace Caramel 1lt(lb)"
+- Example: "Virgin Mojito" on line 1, "330ml" on line 2 = ONE item: "Virgin Mojito 330ml"
+- The price appears on the RIGHTMOST side, usually aligned with the last line of the item
+- DO NOT create separate items for size/quantity information - merge them with the product name above
+- Look for items where the price is on a line by itself or with minimal text
 
 ⚠️ CRITICAL: TEXT SPACING - DO NOT ADD EXTRA SPACES:
 - "BAG" should be "BAG", NOT "B AG" or "B A G"
@@ -1222,9 +1335,12 @@ CRITICAL OUTPUT RULES:
         };
       });
       
+      // Merge multi-line items first
+      const mergedItems = mergeMultiLineItems(rawItems);
+      
       // Deduplicate items
-      const deduplicatedItems = deduplicateItems(rawItems);
-      console.log(`📦 Video deduplication: ${rawItems.length} items -> ${deduplicatedItems.length} unique items`);
+      const deduplicatedItems = deduplicateItems(mergedItems);
+      console.log(`📦 Video processing: ${rawItems.length} items -> ${mergedItems.length} merged -> ${deduplicatedItems.length} unique items`);
       
       const receipt: ParsedReceipt = {
         storeName: storeName,
@@ -1460,9 +1576,12 @@ async function parseWithGemini(
         },
       );
 
+      // Merge multi-line items first
+      const mergedItems = mergeMultiLineItems(items);
+
       // Deduplicate items by similar name + same price
-      const deduplicatedItems = deduplicateItems(items);
-      console.log(`📦 Deduplication: ${items.length} items -> ${deduplicatedItems.length} unique items`);
+      const deduplicatedItems = deduplicateItems(mergedItems);
+      console.log(`📦 Processing: ${items.length} items -> ${mergedItems.length} merged -> ${deduplicatedItems.length} unique items`);
 
       // Build parsed receipt - exclude undefined fields for Firestore compatibility
       // Handle cases where Gemini returns "null" as a string
