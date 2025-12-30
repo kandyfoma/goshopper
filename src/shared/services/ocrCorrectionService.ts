@@ -452,7 +452,10 @@ class OcrCorrectionService {
 
     let corrected = name;
 
-    // Try reconstruction FIRST (before general rules mess up the patterns)
+    // Apply OCR number corrections FIRST (before other processing)
+    corrected = this.fixOcrNumberConfusions(corrected);
+
+    // Try reconstruction (after number fixes)
     const reconstructed = this.reconstructCorruptedName(corrected);
     if (reconstructed !== corrected) {
       console.log(`🔧 OCR reconstruction: "${corrected}" → "${reconstructed}"`);
@@ -462,6 +465,86 @@ class OcrCorrectionService {
     // Apply correction rules
     for (const rule of this.correctionRules) {
       corrected = corrected.replace(rule.pattern, rule.replacement);
+    }
+
+    return corrected;
+  }
+
+  /**
+   * Fix common OCR confusions where letters are misread as numbers and vice versa
+   * Common OCR errors:
+   * - 's' misread as '5' (so "500ml" becomes "s00ml")
+   * - 'a' misread as '4' (so "400gr" becomes "a00gr")
+   * - 'e' misread as '3' (so "300g" becomes "e00g")
+   * - 'l' or 'i' misread as '1' (so "100ml" becomes "l00ml")
+   * - 'o' misread as '0' (so "100" becomes "1o0")
+   * - 'mi' misread instead of 'ml' (i looks like l)
+   */
+  private fixOcrNumberConfusions(text: string): string {
+    let corrected = text;
+
+    // === OCR NUMBER CORRECTIONS IN SIZE LABELS ===
+    // 's' misread as '5' in sizes: s00 → 500, s50 → 550
+    corrected = corrected.replace(/\bs(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => 
+      `5${num}${unit.toLowerCase() === 'mi' ? 'ml' : unit}`
+    );
+    
+    // 'a' misread as '4' in sizes: a00 → 400, a50 → 450
+    corrected = corrected.replace(/\ba(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => 
+      `4${num}${unit.toLowerCase() === 'mi' ? 'ml' : unit}`
+    );
+    
+    // 'e' misread as '3' in sizes: e00 → 300, e30 → 330
+    corrected = corrected.replace(/\be(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => 
+      `3${num}${unit.toLowerCase() === 'mi' ? 'ml' : unit}`
+    );
+    
+    // 'o' misread as '0' in sizes: o00 → 000
+    corrected = corrected.replace(/\bo(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => 
+      `0${num}${unit.toLowerCase() === 'mi' ? 'ml' : unit}`
+    );
+    
+    // 'l' or 'i' misread as '1' in sizes: l00 → 100, i50 → 150
+    corrected = corrected.replace(/\b[li](\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => 
+      `1${num}${unit.toLowerCase() === 'mi' ? 'ml' : unit}`
+    );
+
+    // === OCR UNIT CORRECTIONS ===
+    // 'mi' misread as 'ml': 500mi → 500ml
+    corrected = corrected.replace(/(\d+)mi\b/gi, '$1ml');
+    
+    // 'gf' or 'qr' misread as 'gr': 400gf → 400gr
+    corrected = corrected.replace(/(\d+)(gf|qr)\b/gi, '$1gr');
+
+    // === FIX NUMBERS IN PARENTHESES ===
+    // '(e0)' → '(30)' - e is misread 3
+    corrected = corrected.replace(/\(e(\d)\)/gi, '(3$1)');
+    
+    // '(l0)' or '(i0)' → '(10)' - l/i is misread 1
+    corrected = corrected.replace(/\([li](\d)\)/gi, '(1$1)');
+    
+    // '(s0)' → '(50)' - s is misread 5
+    corrected = corrected.replace(/\(s(\d)\)/gi, '(5$1)');
+    
+    // '(a0)' → '(40)' - a is misread 4
+    corrected = corrected.replace(/\(a(\d)\)/gi, '(4$1)');
+
+    // === FIX STANDALONE NUMBERS IN DESCRIPTIONS ===
+    // '+/- a50' → '+/- 450' (common in "450g" type descriptions)
+    corrected = corrected.replace(/\+\/-\s*a(\d+)/gi, '+/- 4$1');
+    corrected = corrected.replace(/\+\/-\s*s(\d+)/gi, '+/- 5$1');
+    corrected = corrected.replace(/\+\/-\s*e(\d+)/gi, '+/- 3$1');
+    corrected = corrected.replace(/\+\/-\s*[li](\d+)/gi, '+/- 1$1');
+
+    // === REMOVE CORRUPTED TRAILING CODES ===
+    // Remove trailing corrupted parentheses like "(z4)", "(l0)"
+    corrected = corrected.replace(/\s*\([a-z]\d+\)\s*$/gi, '');
+    
+    // Remove 'z' prefix from numbers
+    corrected = corrected.replace(/\bz(\d+)\b/gi, '$1');
+
+    if (corrected !== text) {
+      console.log(`🔢 OCR number fix: "${text}" → "${corrected}"`);
     }
 
     return corrected;

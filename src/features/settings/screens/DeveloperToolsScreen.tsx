@@ -36,6 +36,7 @@ export function DeveloperToolsScreen() {
   const scanProcessing = useScanProcessing();
   const [isMigrating, setIsMigrating] = useState(false);
   const [isDeletingCityItems, setIsDeletingCityItems] = useState(false);
+  const [isAddingTestScans, setIsAddingTestScans] = useState(false);
   const [isActivatingTestPremium, setIsActivatingTestPremium] = useState(false);
 
   // Check if user is authorized (admin)
@@ -267,6 +268,52 @@ export function DeveloperToolsScreen() {
     );
   };
 
+  const handleAddTestScans = async () => {
+    Alert.alert(
+      'Add Test Scans',
+      'This will add 10 bonus scans for testing purposes. Continue?',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsAddingTestScans(true);
+
+              // Add bonus scans for testing
+              const subscriptionRef = firestore()
+                .doc(COLLECTIONS.subscription(user?.uid));
+
+              await subscriptionRef.update({
+                bonusScans: firestore.FieldValue.increment(10), // Add 10 bonus scans for testing
+                updatedAt: firestore.FieldValue.serverTimestamp()
+              });
+
+              // Refresh subscription to update UI
+              await refreshSubscription();
+
+              Alert.alert(
+                'Test Scans Added!',
+                '10 bonus scans have been added to your account for testing purposes.',
+                [{text: 'OK'}],
+              );
+            } catch (error) {
+              console.error('Reset scans error:', error);
+              Alert.alert(
+                'Error',
+                'Failed to reset scan count. Please try again.',
+                [{text: 'OK'}],
+              );
+            } finally {
+              setIsAddingTestScans(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleClearCityItems = async () => {
     Alert.alert(
       'Clear All City Items',
@@ -409,9 +456,9 @@ export function DeveloperToolsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Items Aggregation</Text>
+          <Text style={styles.sectionTitle}>Scan Management</Text>
           <Text style={styles.sectionDescription}>
-            Tools for managing item statistics and aggregation
+            Tools for managing scan limits and processing
           </Text>
 
           <TouchableOpacity
@@ -429,6 +476,36 @@ export function DeveloperToolsScreen() {
             </View>
             <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolButton, styles.dangerButton, isAddingTestScans && styles.toolButtonDisabled]}
+            onPress={handleAddTestScans}
+            disabled={isAddingTestScans}
+            activeOpacity={0.8}>
+            <View style={[styles.toolIcon, styles.dangerIcon]}>
+              {isAddingTestScans ? (
+                <ActivityIndicator size="small" color={Colors.status.error} />
+              ) : (
+                <Icon name="plus" size="md" color={Colors.status.error} />
+              )}
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={[styles.toolTitle, styles.dangerText]}>Add Test Scans</Text>
+              <Text style={styles.toolDescription}>
+                {isAddingTestScans
+                  ? 'Adding test scans...'
+                  : 'Add 10 bonus scans for testing'}
+              </Text>
+            </View>
+            <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Items Aggregation</Text>
+          <Text style={styles.sectionDescription}>
+            Tools for managing item statistics and aggregation
+          </Text>
 
           <TouchableOpacity
             style={[styles.toolButton, isMigrating && styles.toolButtonDisabled]}

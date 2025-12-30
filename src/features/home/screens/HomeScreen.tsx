@@ -28,7 +28,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Button, SubscriptionLimitModal} from '@/shared/components';
+import {Icon, Button} from '@/shared/components';
 import {analyticsService, hapticService, widgetDataService} from '@/shared/services';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import firestore from '@react-native-firebase/firestore';
@@ -280,7 +280,7 @@ const ScanButton = ({
         <LinearGradient
           colors={
             noScansLeft
-              ? ['#FDB913', '#F59E0B']
+              ? [Colors.border.light, Colors.background.secondary] // Grey instead of yellow
               : disabled
               ? [Colors.border.light, Colors.background.secondary]
               : [Colors.card.crimson, Colors.card.red]
@@ -302,7 +302,7 @@ const ScanButton = ({
                 <Icon 
                   name={noScansLeft ? "star" : "camera"} 
                   size="xl" 
-                  color={noScansLeft ? "#FDB913" : Colors.card.crimson} 
+                  color={noScansLeft ? Colors.text.tertiary : Colors.card.crimson} 
                 />
               </View>
               <View style={styles.scanIconRing} />
@@ -385,7 +385,6 @@ export function HomeScreen() {
   const [itemsCount, setItemsCount] = useState(0);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentBudget, setCurrentBudget] = useState(0);
-  const [showLimitModal, setShowLimitModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Determine display currency: use preferred currency if budget is set, otherwise USD
@@ -598,7 +597,7 @@ export function HomeScreen() {
   const handleScanPress = () => {
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
-      setShowLimitModal(true);
+      navigation.navigate('Subscription');
       return;
     }
 
@@ -922,13 +921,6 @@ export function HomeScreen() {
           />
         </View>
       </ScrollView>
-
-      {/* Subscription Limit Modal - for scan limit */}
-      <SubscriptionLimitModal
-        visible={showLimitModal}
-        onClose={() => setShowLimitModal(false)}
-        limitType="scan"
-      />
     </SafeAreaView>
   );
 }

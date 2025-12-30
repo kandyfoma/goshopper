@@ -215,6 +215,10 @@ export function UnifiedScannerScreen() {
   // Subscription Limit Modal State
   const [showLimitModal, setShowLimitModal] = useState(false);
 
+  // Pending scan state for auto-retry after subscription update
+  const pendingScanPhotoRef = useRef<string | null>(null);
+  const previousScansRemainingRef = useRef<number>(scansRemaining);
+
   // Debouncing state for preventing rapid scans
   const lastScanTimeRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
@@ -326,6 +330,35 @@ export function UnifiedScannerScreen() {
       offlineQueueService.cleanup();
     };
   }, []);
+
+  // Auto-retry scan when subscription is updated (e.g., after adding scans via developer tools or purchase)
+  useEffect(() => {
+    // Check if scans increased (user added more scans)
+    const scansIncreased = scansRemaining > previousScansRemainingRef.current;
+    
+    // If scans increased and we have a pending photo, automatically retry
+    if (scansIncreased && pendingScanPhotoRef.current && !isProcessingRef.current) {
+      const pendingPhoto = pendingScanPhotoRef.current;
+      console.log('📊 Subscription updated with more scans available. Auto-retrying pending scan...');
+      
+      // Close limit modal if it's open
+      setShowLimitModal(false);
+      
+      // Clear pending scan
+      pendingScanPhotoRef.current = null;
+      
+      // Show toast notification
+      showToast('✅ Scans ajoutés! Reprise automatique...', 'success');
+      
+      // Retry the scan after a brief delay
+      setTimeout(() => {
+        processPhotoInBackground(pendingPhoto);
+      }, 500);
+    }
+    
+    // Update previous scans remaining
+    previousScansRemainingRef.current = scansRemaining;
+  }, [scansRemaining, showToast]);
 
   // Loading message cycling
   useEffect(() => {
@@ -772,7 +805,9 @@ export function UnifiedScannerScreen() {
         errorText.includes('Subscribe to continue');
 
       if (isSubscriptionLimitError) {
-        console.log('📊 Subscription limit reached, showing modal');
+        console.log('📊 Subscription limit reached, saving pending scan for auto-retry');
+        // Save the photo for auto-retry when scans are added
+        pendingScanPhotoRef.current = photoUri;
         setShowLimitModal(true);
         scanProcessing.setError(''); // Clear any error state
         hapticService.error();
@@ -780,9 +815,30 @@ export function UnifiedScannerScreen() {
         return;
       }
 
+      // Extract error message from JSON responses (like Cloud Function errors)
+      let extractedErrorMessage = errorText;
+      try {
+        // Try to parse JSON error responses
+        if (errorText.includes('{') && errorText.includes('}')) {
+          const jsonMatch = errorText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const errorJson = JSON.parse(jsonMatch[0]);
+            if (errorJson.error && errorJson.error.message) {
+              extractedErrorMessage = errorJson.error.message;
+            }
+          }
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, use the original error text
+        console.log('Failed to parse error JSON, using original text');
+      }
+
+      // Use extracted message for further processing
+      errorText = extractedErrorMessage;
+
       // Only override with generic messages if no specific error was extracted
       if (userMessage === 'Une erreur est survenue lors de l\'analyse.') {
-        if (errorText.includes('ne semble pas être un reçu') || 
+        if (errorText.includes('ne semble pas être un reçu') ||
             errorText.includes('not a receipt')) {
           userMessage = 'Cette image ne semble pas être un reçu.';
         } else if (errorText.includes('Unable to detect receipt')) {
@@ -797,7 +853,7 @@ export function UnifiedScannerScreen() {
           } else {
             userMessage = 'Pas de connexion internet. Mettez à niveau vers Standard ou Premium pour scanner hors ligne.';
           }
-        } else if (errorText.includes('floue') || errorText.includes('sombre') || 
+        } else if (errorText.includes('floue') || errorText.includes('sombre') ||
                    errorText.includes('blur') || errorText.includes('dark')) {
           // Use the extracted message if it's about image quality
           userMessage = errorText;
@@ -1093,7 +1149,11 @@ export function UnifiedScannerScreen() {
       {/* Subscription Limit Modal */}
       <SubscriptionLimitModal
         visible={showLimitModal}
-        onClose={() => setShowLimitModal(false)}
+        onClose={() => {
+          setShowLimitModal(false);
+          // Clear pending scan if user dismisses without adding scans
+          pendingScanPhotoRef.current = null;
+        }}
         limitType="scan"
         isTrialActive={isTrialActive}
       />

@@ -75,6 +75,15 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
         const bonusScans = subscription.bonusScans || 0;
         const emergencyUsed = subscription.emergencyScansUsed || 0;
         
+        console.log('📊 calculateScansWithBonus:', {
+          planLimit,
+          monthlyUsed,
+          bonusScans,
+          emergencyUsed,
+          subscriptionStatus: subscription.status,
+          isTrialActive
+        });
+        
         // First, check plan scans
         const planRemaining = planLimit - monthlyUsed;
         if (planRemaining > 0) {
@@ -92,11 +101,24 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
       };
 
       if (isTrialActive) {
-        // Trial users have limited scans (no bonus or emergency scans)
+        // Trial users have limited scans BUT can use bonus scans
         const trialLimit = PLAN_SCAN_LIMITS.free || 10;
         const trialUsed = subscription.trialScansUsed || 0;
-        scansRemaining = Math.max(0, trialLimit - trialUsed); // Never go below 0
+        const bonusScans = subscription.bonusScans || 0;
+        
+        // Trial scans remaining + bonus scans
+        const trialRemaining = Math.max(0, trialLimit - trialUsed);
+        scansRemaining = trialRemaining + bonusScans;
         canScan = scansRemaining > 0;
+        
+        console.log('📊 Trial user scans:', {
+          trialLimit,
+          trialUsed,
+          trialRemaining,
+          bonusScans,
+          totalRemaining: scansRemaining,
+          canScan
+        });
       } else if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
         // Freemium tier - auto-assigned when no active subscription
         const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;
@@ -211,11 +233,19 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
   }, [isAuthenticated, user, calculateState]);
 
   const refreshSubscription = useCallback(async () => {
+    console.log('🔄 refreshSubscription called');
     setState(prev => ({...prev, isLoading: true}));
     try {
       const subscription = await subscriptionService.getStatus();
+      console.log('🔄 refreshSubscription got subscription:', {
+        bonusScans: subscription.bonusScans,
+        monthlyScansUsed: subscription.monthlyScansUsed,
+        status: subscription.status,
+        planId: subscription.planId
+      });
       setState(calculateState(subscription));
     } catch (error: any) {
+      console.error('❌ refreshSubscription error:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,

@@ -561,6 +561,9 @@ class SubscriptionService {
       currentBillingPeriodEnd:
         data.currentBillingPeriodEnd?.toDate?.() ||
         data.currentBillingPeriodEnd,
+      bonusScans: data.bonusScans || 0,
+      bonusScansCarriedOver: data.bonusScansCarriedOver || 0,
+      emergencyScansUsed: data.emergencyScansUsed || 0,
       isSubscribed: data.isSubscribed || false,
       planId: data.planId || data.plan,
       plan: data.plan || data.planId,

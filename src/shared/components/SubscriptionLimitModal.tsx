@@ -124,70 +124,78 @@ export default function SubscriptionLimitModal({
       onClose={handleGoBack}
       variant="centered"
       overlayOpacity={0.6}>
-      <View style={styles.modal}>
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            <View style={styles.iconOuter}>
-              <View style={styles.iconInner}>
-                <Icon name={content.icon} size="xl" color={Colors.accent} />
+      <View style={styles.outerContainer}>
+        <View style={styles.modal}>
+            {/* Icon */}
+            <View style={styles.iconContainer}>
+              <View style={styles.iconOuter}>
+                <View style={styles.iconInner}>
+                  <Icon name={content.icon} size="xl" color={Colors.primary} />
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Title */}
-          <Text style={styles.title}>{title}</Text>
+            {/* Title */}
+            <Text style={styles.title}>{title}</Text>
 
-          {/* Message */}
-          <Text style={styles.message}>{message}</Text>
+            {/* Message */}
+            <Text style={styles.message}>{message}</Text>
 
-          {/* Premium benefits preview */}
-          <View style={styles.benefitsContainer}>
-            <View style={styles.benefitRow}>
-              <Icon name="check-circle" size="sm" color={Colors.status.success} />
-              <Text style={styles.benefitText}>Scans illimités</Text>
+            {/* Premium benefits preview */}
+            <View style={styles.benefitsContainer}>
+              <View style={styles.benefitRow}>
+                <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                <Text style={styles.benefitText}>Scans illimités</Text>
+              </View>
+              <View style={styles.benefitRow}>
+                <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                <Text style={styles.benefitText}>Listes de courses illimitées</Text>
+              </View>
+              <View style={styles.benefitRow}>
+                <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                <Text style={styles.benefitText}>Comparaison de prix avancée</Text>
+              </View>
             </View>
-            <View style={styles.benefitRow}>
-              <Icon name="check-circle" size="sm" color={Colors.status.success} />
-              <Text style={styles.benefitText}>Listes de courses illimitées</Text>
-            </View>
-            <View style={styles.benefitRow}>
-              <Icon name="check-circle" size="sm" color={Colors.status.success} />
-              <Text style={styles.benefitText}>Comparaison de prix avancée</Text>
-            </View>
-          </View>
 
-          {/* Buy Scans Option - for scan limit */}
-          {showBuyScansOption && (
-            <TouchableOpacity style={styles.buyScansButton} onPress={handleBuyScans}>
-              <Icon name="zap" size="sm" color={Colors.white} />
-              <Text style={styles.buyScansButtonText}>Acheter des Scans</Text>
+            {/* Buy Scans Option - for scan limit */}
+            {showBuyScansOption && (
+              <TouchableOpacity style={styles.buyScansButton} onPress={handleBuyScans}>
+                <Icon name="zap" size="sm" color={Colors.white} />
+                <Text style={styles.buyScansButtonText}>Acheter des Scans</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Primary Action - Upgrade */}
+            <TouchableOpacity style={[styles.primaryButton, showBuyScansOption && styles.primaryButtonAlt]} onPress={handleUpgrade}>
+              <Icon name="crown" size="sm" color={showBuyScansOption ? Colors.primary : Colors.white} />
+              <Text style={[styles.primaryButtonText, showBuyScansOption && styles.primaryButtonTextAlt]}>
+                {showBuyScansOption ? 'Ou mettre à niveau' : 'Mettre à niveau'}
+              </Text>
             </TouchableOpacity>
-          )}
 
-          {/* Primary Action - Upgrade */}
-          <TouchableOpacity style={[styles.primaryButton, showBuyScansOption && styles.primaryButtonAlt]} onPress={handleUpgrade}>
-            <Icon name="crown" size="sm" color={showBuyScansOption ? Colors.accent : Colors.white} />
-            <Text style={[styles.primaryButtonText, showBuyScansOption && styles.primaryButtonTextAlt]}>
-              {showBuyScansOption ? 'Ou mettre à niveau' : 'Mettre à niveau'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Secondary Action - Go Back */}
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleGoBack}>
-            <Text style={styles.secondaryButtonText}>Plus tard</Text>
-          </TouchableOpacity>
+            {/* Secondary Action - Go Back */}
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleGoBack}>
+              <Text style={styles.secondaryButtonText}>Plus tard</Text>
+            </TouchableOpacity>
+        </View>
       </View>
     </AnimatedModal>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    backgroundColor: '#003049', // Cosmos Blue
+    borderRadius: 28,
+    padding: 4,
+    width: '100%',
+    maxWidth: 388,
+  },
   modal: {
     backgroundColor: Colors.white,
     borderRadius: 24,
     padding: 28,
     width: '100%',
-    maxWidth: 380,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -202,17 +210,17 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.background.secondary, // Warm cream
+    backgroundColor: '#003049', // Cosmos Blue
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: Colors.accentLight, // Light blue
+    borderColor: '#C1121F', // Crimson Blaze
   },
   iconInner: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: Colors.accentLight, // Light blue
+    backgroundColor: '#C1121F', // Crimson Blaze
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -250,7 +258,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   primaryButton: {
-    backgroundColor: Colors.accent, // Deep blue
+    backgroundColor: '#C1121F', // Crimson Blaze
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -260,7 +268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 12,
-    shadowColor: Colors.accent,
+    shadowColor: '#C1121F',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -269,7 +277,7 @@ const styles = StyleSheet.create({
   primaryButtonAlt: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: Colors.accent,
+    borderColor: '#C1121F', // Crimson Blaze
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -279,10 +287,10 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   primaryButtonTextAlt: {
-    color: Colors.accent,
+    color: '#C1121F', // Crimson Blaze
   },
   buyScansButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#780000', // Gochujang Red
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -292,7 +300,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 12,
-    shadowColor: '#FF6B35',
+    shadowColor: '#780000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

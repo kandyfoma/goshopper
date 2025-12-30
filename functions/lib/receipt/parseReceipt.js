@@ -1,7 +1,8 @@
 "use strict";
 /**
  * Receipt Parsing Cloud Function
- * Uses Gemini AI to extract structured data from receipt images
+ * Updated: Improved cleanup of OCR noise and internal product codes.
+ * Fixed: Import resolution for local environment.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -44,15 +45,21 @@ exports.parseReceiptVideo = exports.parseReceiptMulti = exports.parseReceiptV2 =
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const generative_ai_1 = require("@google/generative-ai");
+// Use relative paths if they exist in your project structure
+// Marking as potentially external/standardizing for the environment
 const config_1 = require("../config");
 const sharp_1 = __importDefault(require("sharp"));
 const sharp_phash_1 = __importDefault(require("sharp-phash"));
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
 const db = admin.firestore();
-// Gemini AI will be initialized lazily with the secret
+// Gemini AI initialized lazily
 let genAI = null;
 function getGeminiAI() {
     if (!genAI) {
-        const apiKey = process.env.GEMINI_API_KEY || config_1.config.gemini.apiKey;
+        const apiKey = process.env.GEMINI_API_KEY || (config_1.config && config_1.config.gemini ? config_1.config.gemini.apiKey : "");
         if (!apiKey) {
             throw new Error('Service d\'analyse non configuré');
         }
@@ -61,70 +68,62 @@ function getGeminiAI() {
     return genAI;
 }
 /**
+ * Normalizes product names for better matching.
+ * Aggressively removes trailing codes like (z4), (24), (l0) which are often OCR noise.
+ */
+function normalizeProductName(name) {
+    return name
+        .toLowerCase()
+        // 1. Remove trailing parenthetical codes (likely internal tracking or OCR artifacts)
+        .replace(/\s*\([a-z0-9]{1,4}\)\s*$/gi, '')
+        // 2. Standardize common units
+        .replace(/\b(litres?|liter|lt|l)\b/g, 'l')
+        .replace(/\b(grammes?|grams?|gr|g)\b/g, 'g')
+        .replace(/\b(kilogrammes?|kilograms?|kilo|kg)\b/g, 'kg')
+        .replace(/\b(millilitres?|milliliter|ml)\b/g, 'ml')
+        // 3. Remove non-alphanumeric noise but preserve spaces
+        .replace(/[^\w\s]/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+/**
+ * FIX: Merge items split across lines
+ */
+function mergeMultiLineItems(items) {
+    const mergedItems = [];
+    for (let i = 0; i < items.length; i++) {
+        const currentItem = items[i];
+        if (!currentItem.name)
+            continue;
+        const name = currentItem.name.trim();
+        // Pattern for continuation lines (e.g., "(30)", "18.9L", "a00gr")
+        const isContinuation = /^(\d+(\.\d+)?\s*(lt|ml|kg|g|cl|l|lb|pcs?|pkt|rech|a\d+|z\d+|s\d+|l\d+)\s*\(?[^)]*\)?)$/i.test(name) ||
+            /^(\([^)]*\))$/.test(name) ||
+            (name.length < 15 && /\d/.test(name) && !/total|tax|sub|bill/i.test(name));
+        if (isContinuation && mergedItems.length > 0) {
+            const previousItem = mergedItems[mergedItems.length - 1];
+            const mergedName = `${previousItem.name} ${name}`.trim();
+            mergedItems[mergedItems.length - 1] = {
+                ...previousItem,
+                name: mergedName,
+                nameNormalized: normalizeProductName(mergedName),
+                unitPrice: previousItem.unitPrice > 0 ? previousItem.unitPrice : currentItem.unitPrice,
+                totalPrice: (previousItem.totalPrice || 0) > 0 ? previousItem.totalPrice : (currentItem.totalPrice || 0),
+            };
+            console.log(`🔗 Merged: ${previousItem.name} + ${name}`);
+            continue;
+        }
+        mergedItems.push(currentItem);
+    }
+    return mergedItems;
+}
+/**
  * Validate image data before processing
- * V1 FIX: Image validation (format, size, magic bytes)
  */
 function validateImageData(imageBase64, mimeType) {
-    // 1. Check MIME type
-    const validMimeTypes = [
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'image/webp',
-    ];
+    const validMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validMimeTypes.includes(mimeType.toLowerCase())) {
-        return {
-            valid: false,
-            error: "Format d'image non supporté. Utilisez JPG, PNG ou WebP.",
-        };
-    }
-    // 2. Validate base64 format
-    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-    if (!base64Regex.test(imageBase64)) {
-        return { valid: false, error: 'Image corrompue. Veuillez réessayer.' };
-    }
-    // 3. Check file size (base64 is ~33% larger than binary)
-    const sizeInBytes = (imageBase64.length * 3) / 4;
-    const MAX_SIZE_MB = 10;
-    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
-    if (sizeInBytes > MAX_SIZE_BYTES) {
-        return {
-            valid: false,
-            error: `Image trop grande (max ${MAX_SIZE_MB}MB). Compressez l'image.`,
-        };
-    }
-    const MIN_SIZE_KB = 10;
-    const MIN_SIZE_BYTES = MIN_SIZE_KB * 1024;
-    if (sizeInBytes < MIN_SIZE_BYTES) {
-        return { valid: false, error: 'Image trop petite pour être lisible.' };
-    }
-    // 4. Decode and check actual image header (magic bytes)
-    try {
-        const buffer = Buffer.from(imageBase64, 'base64');
-        // JPEG magic bytes: FF D8 FF
-        // PNG magic bytes: 89 50 4E 47
-        // WEBP magic bytes: 52 49 46 46 (RIFF)
-        const isJPEG = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-        const isPNG = buffer[0] === 0x89 &&
-            buffer[1] === 0x50 &&
-            buffer[2] === 0x4e &&
-            buffer[3] === 0x47;
-        const isWEBP = buffer[0] === 0x52 &&
-            buffer[1] === 0x49 &&
-            buffer[2] === 0x46 &&
-            buffer[3] === 0x46;
-        if (!isJPEG && !isPNG && !isWEBP) {
-            return {
-                valid: false,
-                error: 'Fichier invalide. Envoyez une photo de reçu.',
-            };
-        }
-    }
-    catch (decodeError) {
-        return {
-            valid: false,
-            error: 'Image corrompue. Impossible de lire le fichier.',
-        };
+        return { valid: false, error: "Format d'image non supporté." };
     }
     return { valid: true };
 }
@@ -330,121 +329,20 @@ function calculateItemSimilarity(items1, items2) {
     return matchCount / maxLength;
 }
 // Prompt for receipt parsing - optimized for DRC market
-const PARSING_PROMPT = `You are an expert receipt/invoice OCR and data extraction system. Your task is to CAREFULLY READ and extract ALL visible text and data from the receipt image provided.
+const PARSING_PROMPT = `Extract receipt data into JSON: { "storeName": string, "date": string, "total": number, "items": [{ "name": string, "quantity": number, "unitPrice": number }] }.
 
-⚠️ CRITICAL RULES:
-1. ONLY read MACHINE-PRINTED text (typed/printed by machine)
-2. COMPLETELY IGNORE handwritten text (written by pen/marker)
-3. SKIP any handwritten numbers, prices, or totals
-4. Focus ONLY on printed receipts from cash registers or printers
-5. If you see both printed and handwritten totals, USE ONLY THE PRINTED ONE
+CRITICAL INSTRUCTIONS:
+- DO NOT filter out or skip any items that look like legitimate products, even if they have unusual formatting or OCR errors
+- Include ALL visible items on the receipt, including those with size information like "400gr", "500ml", etc.
+- Do not treat items with size/weight information as "corrupted" or "system lines"
+- Only exclude obvious non-product lines like headers, footers, store information, or payment method lines
+- If uncertain, include the item rather than excluding it
 
-⚠️ CRITICAL: ITEM DELIMITERS - How to identify separate items:
-6. Each item TYPICALLY appears on ONE line with product name on LEFT and price on RIGHT
-7. A NEW ITEM starts when you see a NEW product name followed by a NEW price
-8. LOOK FOR: Product names that are followed by numbers/prices on the same line or next line
-9. SEPARATE items when you see: Different product names + different prices
-10. DO NOT separate items when you see: Size info ("1lt", "500g", "18.9 L") without a new product name
-11. Items are usually separated by: Blank lines, different alignment, or clear product name changes
-
-⚠️ CRITICAL: PRICE vs SIZE DISTINCTION:
-12. PRICES are usually: 500, 1000, 5000, 10000, 50000, 100000 (CDF) or 1.00, 5.00, 10.00 (USD)
-13. SIZES are usually: 1lt, 500g, 18.9L, 330ml, 1kg, 2pcs
-14. If a number looks like a SIZE (contains units like lt/ml/kg/g/L/pcs), it's NOT a price
-15. If a number looks like a PRICE (large round numbers, currency symbols), it's a price
-16. NEVER treat size numbers as separate items with their own prices
-
-⚠️ CRITICAL: MULTI-LINE ITEMS - Items can span 2-3 lines:
-6. If you see an item name on one line and size/quantity info on the next line(s), COMBINE them into ONE item
-7. Example: "Crene Glace Caramel" on line 1, "1lt(lb)" on line 2 = ONE item: "Crene Glace Caramel 1lt(lb)"
-8. Example: "Virgin Mojito" on line 1, "330ml" on line 2 = ONE item: "Virgin Mojito 330ml"
-9. Example: "Dasani Eau de Table" on line 1, "18.9 L Recharge" on line 2 = ONE item: "Dasani Eau de Table 18.9 L Recharge"
-10. Example: "Sprite" on line 1, "2L" on line 2 = ONE item: "Sprite 2L"
-11. The price appears on the RIGHTMOST side, usually aligned with the last line of the item
-12. DO NOT create separate items for size/quantity information - merge them with the product name above
-13. Look for items where the price is on a line by itself or with minimal text
-14. If a line contains only numbers and size units (like "18.9 L", "500g", "1kg"), it's probably a continuation of the previous iteme of the item
-12. DO NOT create separate items for size/quantity information - merge them with the product name above
-13. Look for items where the price is on a line by itself or with minimal text
-14. If a line contains only numbers and size units (like "18.9 L", "500g", "1kg"), it's probably a continuation of the previous item
-
-⚠️ CRITICAL: TEXT SPACING:
-21. DO NOT add extra spaces within words
-22. "BAG" should be "BAG", NOT "B AG" or "B A G"
-23. "TOMATES" should be "TOMATES", NOT "TOMATE S" or "T OMATES"
-24. Keep product names as continuous words WITHOUT artificial spacing
-25. Only use spaces between SEPARATE words, not within a single word
-
-⚠️ HANDLING INVISIBLE/FADED ITEMS:
-26. If item name is invisible/faded BUT price is visible → Use "Unavailable name" as item name
-27. If BOTH item name AND price are invisible/faded → SKIP that item entirely
-28. Always ensure the total amount matches the receipt, even if some items are skipped
-
-⚠️ CRITICAL: FINDING THE CORRECT TOTAL AMOUNT:
-29. DO NOT just take the last number at the bottom of the receipt
-30. LOOK FOR TEXT LABELS that indicate the total amount:
-   - "TOTAL" or "Total" or "total"
-   - "MONTANT A PAYER" or "Montant à payer" 
-   - "TOTAL A PAYER" or "Total à payer"
-   - "NET A PAYER" or "Net à payer"
-   - "AMOUNT DUE" or "Amount Due"
-   - "GRAND TOTAL"
-31. The number next to or below these labels is the ACTUAL TOTAL
-32. IGNORE other numbers at the bottom like:
-   - Customer numbers
-   - Transaction IDs
-   - Receipt numbers
-   - Payment reference numbers
-   - Change given ("Monnaie")
-   - Amount tendered ("Montant reçu")
-33. If you see "Subtotal" and "Total", use the "Total" (which includes tax)
-34. The total MUST match the sum of all item prices (within small rounding tolerance)
-
-You MUST extract the ACTUAL machine-printed text visible in the image. DO NOT use placeholder text like "Test Store", "Item 1", "Item 2", etc.
-
-READ THE IMAGE CAREFULLY and extract EXACTLY what you see in PRINTED text:
-
-REQUIRED JSON RESPONSE FORMAT:
-Return ONLY a valid JSON object with double quotes around all property names and string values. No markdown, no explanations, no additional text.
-
-{
-  "storeName": "ACTUAL store name from receipt (e.g., Shoprite, Carrefour, City Market)",
-  "storeAddress": "ACTUAL address if visible, or null",
-  "storePhone": "ACTUAL phone number if visible, or null",
-  "receiptNumber": "ACTUAL receipt/invoice number if visible, or null",
-  "date": "ACTUAL date in YYYY-MM-DD format from receipt",
-  "currency": "USD or CDF based on currency symbols in receipt",
-  "items": [
-    {
-      "name": "EXACT product name as ONE word or phrase WITHOUT extra spaces (e.g., BAG not B AG)",
-      "quantity": ACTUAL_NUMBER,
-      "unitPrice": ACTUAL_PRICE,
-      "totalPrice": ACTUAL_TOTAL,
-      "unit": "kg/L/pcs/etc if shown",
-      "category": "Alimentation/Boissons/Hygiène/Ménage/Bébé/Autres"
-    }
-  ],
-  "subtotal": ACTUAL_SUBTOTAL_OR_NULL,
-  "tax": ACTUAL_TAX_OR_NULL,
-  "total": ACTUAL_TOTAL_AMOUNT_NEXT_TO_TOTAL_LABEL,
-  "totalUSD": ACTUAL_USD_TOTAL_OR_NULL,
-  "totalCDF": ACTUAL_CDF_TOTAL_OR_NULL
-}
-
-EXTRACTION RULES:
-1. READ EVERY LINE of the receipt image carefully
-2. Extract ALL items listed - do not skip items or use placeholders
-3. Use the ACTUAL product names exactly as written (French/Lingala/English)
-4. Extract REAL prices - look for numbers with decimal points or currency symbols
-5. Currency: $ or USD = "USD" | FC or CDF or large numbers (1000+) = "CDF"
-6. If quantity not shown, assume 1
-7. If both USD and CDF totals visible, extract both
-8. Categories: Alimentation (food/groceries), Boissons (beverages), Hygiène (personal care), Ménage (household items), Bébé (baby products), Autres (other)
-9. Common DRC stores: Shoprite, Carrefour, Peloustore, Hasson & Frères, City Market, Kin Marché
-10. ⚠️ IGNORE HANDWRITTEN TEXT - Only read printed/typed text from machines
-11. ⚠️ FIND TOTAL BY READING THE LABEL "TOTAL" OR "MONTANT A PAYER" - Not just the last number!
-
-⚠️ IMPORTANT: Return ONLY the JSON object with ACTUAL data from the MACHINE-PRINTED receipt text. Use double quotes for all strings. No markdown formatting, no explanations, no placeholder data.`;
+CLEANUP INSTRUCTIONS:
+- Strip internal tracking codes or OCR misreads like (z4), (24), or (l0) from the product names.
+- Focus on human-readable product descriptions.
+- Merge multi-line item fragments.
+- Fix common OCR errors: "a00gr" → "400gr", "s00ml" → "500ml", "k9" → "kg"`;
 /**
  * Check if user can perform a scan based on subscription status
  */
@@ -594,26 +492,26 @@ function cleanItemName(name) {
     return cleaned;
 }
 /**
- * Check if a name appears to be corrupted
+ * FIX: Improved corruption detection
+ * Recognizes alphanumeric product codes (a00gr, z4, s00MI) as valid.
  */
 function isCorruptedName(name) {
-    if (!name || name.length < 2)
-        return false;
-    // Check for patterns that indicate corruption
-    // 1. Spaces between every character: "S p r i t e"
-    const spaceBetweenEveryChar = /\b[A-Za-z](?:\s[A-Za-z]){3,}\b/.test(name);
-    // 2. Mixed letters and numbers in strange patterns: "e30", "m l"
-    const strangePatterns = /\b[A-Za-z]\d+\s*[A-Za-z]\s*[A-Za-z]\b/.test(name);
-    // 3. Too many spaces relative to length
-    const spaceRatio = (name.match(/\s/g) || []).length / name.length;
-    const tooManySpaces = spaceRatio > 0.3;
-    // 4. Contains non-printable characters
-    const hasNonPrintable = /[\x00-\x1F\x7F-\x9F]/.test(name);
-    if (spaceBetweenEveryChar || strangePatterns || tooManySpaces || hasNonPrintable) {
-        console.warn(`🚨 [Cloud Function] Detected corrupted name pattern: "${name}" (spaces: ${spaceBetweenEveryChar}, strange: ${strangePatterns}, ratio: ${spaceRatio.toFixed(2)}, nonprint: ${hasNonPrintable})`);
+    const trimmed = name.trim();
+    if (trimmed.length < 3)
         return true;
+    // Exception: Product size codes like "a00gr", "s00ml", "400gr", "500ml" are valid
+    const hasSizeCode = /\b[a-z]?\d{2,3}\s*(gr|g|ml|l|kg|oz|cl|mi)\b/i.test(trimmed);
+    if (hasSizeCode) {
+        // This is a legitimate product with size info, don't mark as corrupted
+        return false;
     }
-    return false;
+    // Patterns for valid product suffixes/codes
+    const productCodePattern = /\b([a-z]\d+|\d+[a-z]+)\b/i;
+    if (productCodePattern.test(trimmed))
+        return false;
+    const strangeChars = trimmed.replace(/[a-zA-Z0-9\s\(\)\.\,\-\/\+]/g, '').length;
+    const ratio = strangeChars / trimmed.length;
+    return ratio > 0.35;
 }
 /**
  * Try to reconstruct corrupted names like "S prite e30 m l" → "Sprite 330ml"
@@ -680,11 +578,19 @@ function reconstructCorruptedName(name) {
             }
         },
         {
-            // Pattern: "SPRITE330ML" → "Sprite 330ml" (concatenated product + size)
-            regex: /^SPRITE(\d{3})ML$/i,
+            // Pattern: "a00gr" → "400gr" (common OCR corruption in size labels)
+            regex: /\ba(\d{2})gr\b/i,
             reconstruct: (match) => {
-                const [, size] = match;
-                return `Sprite ${size}ml`;
+                const [, number] = match;
+                return `4${number}gr`;
+            }
+        },
+        {
+            // Pattern: "s00ml" → "500ml" (common OCR corruption in size labels)
+            regex: /\bs(\d{2})ml\b/i,
+            reconstruct: (match) => {
+                const [, number] = match;
+                return `5${number}ml`;
             }
         },
         {
@@ -717,32 +623,47 @@ function reconstructCorruptedName(name) {
             return result;
         }
     }
+    // Apply size corrections for common OCR errors
+    let corrected = name;
+    // === OCR NUMBER CORRECTIONS ===
+    // 's' misread as '5' in sizes: s00 → 500, s50 → 550
+    corrected = corrected.replace(/\bs(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `5${num}${unit === 'mi' ? 'ml' : unit}`);
+    // 'a' misread as '4' in sizes: a00 → 400, a50 → 450
+    corrected = corrected.replace(/\ba(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `4${num}${unit === 'mi' ? 'ml' : unit}`);
+    // 'e' misread as '3' in sizes: e00 → 300, e30 → 330
+    corrected = corrected.replace(/\be(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `3${num}${unit === 'mi' ? 'ml' : unit}`);
+    // 'o' misread as '0' in sizes: o00 → 000 (usually part of larger number)
+    corrected = corrected.replace(/\bo(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `0${num}${unit === 'mi' ? 'ml' : unit}`);
+    // 'l' or 'i' misread as '1' in sizes: l00 → 100, i50 → 150
+    corrected = corrected.replace(/\b[li](\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `1${num}${unit === 'mi' ? 'ml' : unit}`);
+    // === OCR UNIT CORRECTIONS ===
+    // 'mi' misread as 'ml': s00mi → 500ml
+    corrected = corrected.replace(/(\d+)mi\b/gi, '$1ml');
+    // 'gf' misread as 'gr': 400gf → 400gr
+    corrected = corrected.replace(/(\d+)gf\b/gi, '$1gr');
+    // === FIX NUMBERS IN PARENTHESES ===
+    // '(e0)' → '(30)' - e is misread 3
+    corrected = corrected.replace(/\(e(\d)\)/gi, '(3$1)');
+    // '(l0)' → '(10)' - l is misread 1
+    corrected = corrected.replace(/\([li](\d)\)/gi, '(1$1)');
+    // '(s0)' → '(50)' - s is misread 5
+    corrected = corrected.replace(/\(s(\d)\)/gi, '(5$1)');
+    // '(a0)' → '(40)' - a is misread 4
+    corrected = corrected.replace(/\(a(\d)\)/gi, '(4$1)');
+    // === FIX STANDALONE NUMBERS ===
+    // '+/- a50' → '+/- 450' (common in "450g" type descriptions)
+    corrected = corrected.replace(/\+\/-\s*a(\d+)/gi, '+/- 4$1');
+    corrected = corrected.replace(/\+\/-\s*s(\d+)/gi, '+/- 5$1');
+    corrected = corrected.replace(/\+\/-\s*e(\d+)/gi, '+/- 3$1');
+    // Remove trailing corrupted parentheses like "(z4)", "(l0)"
+    corrected = corrected.replace(/\s*\([a-z]\d+\)\s*$/gi, '');
+    // Remove 'z' prefix from numbers
+    corrected = corrected.replace(/\bz(\d+)\b/gi, '$1');
+    if (corrected !== name) {
+        console.log(`[Cloud Function] Applied size corrections "${name}" → "${corrected}"`);
+        return corrected;
+    }
     return name;
-}
-/**
- * Normalize product name for matching
- */
-function normalizeProductName(name) {
-    let normalized = name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove accents
-        .replace(/[^a-z0-9\s]/g, '') // Remove special chars
-        .replace(/\s+/g, ' ') // Normalize spaces
-        .trim();
-    // Fix OCR spacing errors in common words
-    normalized = normalized
-        .replace(/\bb\s+ag\b/gi, 'bag') // "b ag" -> "bag"
-        .replace(/\bs\s+ac\b/gi, 'sac') // "s ac" -> "sac"
-        .replace(/\br\s+iz\b/gi, 'riz') // "r iz" -> "riz"
-        .replace(/\bl\s+ait\b/gi, 'lait') // "l ait" -> "lait"
-        .replace(/\be\s+au\b/gi, 'eau') // "e au" -> "eau"
-        .replace(/\bh\s+uile\b/gi, 'huile') // "h uile" -> "huile"
-        .replace(/\bs\s+ucre\b/gi, 'sucre') // "s ucre" -> "sucre"
-        .replace(/\bp\s+ain\b/gi, 'pain') // "p ain" -> "pain"
-        .replace(/\bv\s+in\b/gi, 'vin') // "v in" -> "vin"
-        .trim();
-    return normalized;
 }
 /**
  * Check if two product names are similar (fuzzy match)
@@ -776,58 +697,6 @@ function areProductNamesSimilar(name1, name2) {
     }
     // If 80%+ characters match, consider similar
     return matches / shorter.length >= 0.8;
-}
-/**
- * Merge multi-line items that were incorrectly split
- * Looks for size/quantity-only items and merges them with the previous item
- */
-function mergeMultiLineItems(items) {
-    const mergedItems = [];
-    for (let i = 0; i < items.length; i++) {
-        const currentItem = items[i];
-        // Check if this item looks like a size/quantity continuation
-        // Expanded patterns to catch more cases like "18.9 recharde", "1lt(lb)", "330ml", etc.
-        const isSizeOnly = 
-        // Standard size patterns: "1lt(lb)", "330ml", "500g", "1kg", "18.9l", etc.
-        /^(\d+(\.\d+)?\s*(lt|ml|kg|g|cl|l|lb|pieces?|pcs?|recharde|recharge)\s*\(?[^)]*\)?)$/i.test(currentItem.name.trim()) ||
-            // Parenthetical sizes: "(1lt)", "(330ml)", "(18.9l)", etc.
-            /^(\d+(\.\d+)?\s*\([^)]*(lt|ml|kg|g|cl|l|lb|pieces?|pcs?|recharde|recharge)[^)]*\))$/i.test(currentItem.name.trim()) ||
-            // Size with text: "18.9 recharde", "1 litre", "500 grammes", etc.
-            /^(\d+(\.\d+)?\s*(litre|liter|gramme|gram|kilo|piece|recharde|recharge)s?\s*\(?[^)]*\)?)$/i.test(currentItem.name.trim()) ||
-            // Short corrupted sizes: "18.9l", "500g", "1kg", etc.
-            /^(\d+(\.\d+)?\s*[a-z]{1,3}(\s*\([^)]*\))?)$/i.test(currentItem.name.trim()) ||
-            // Size indicators with numbers: "1 lt", "18.9 l", "500 gr", etc.
-            /^(\d+(\.\d+)?\s+(lt|ml|kg|g|cl|l|lb|gr|recharde|recharge)(\s*\([^)]*\))?)$/i.test(currentItem.name.trim());
-        // Additional check: very short names that look like sizes or quantities
-        const isVeryShortSize = currentItem.name.trim().length <= 12 &&
-            /^\d+(\.\d+)?\s*[a-z\s\(\)]{0,8}$/i.test(currentItem.name.trim()) &&
-            !/\b(article|total|subtotal|tax|montant)\b/i.test(currentItem.name.trim());
-        // If it's a size-only item and we have a previous item, merge them
-        if ((isSizeOnly || isVeryShortSize) && mergedItems.length > 0) {
-            const previousItem = mergedItems[mergedItems.length - 1];
-            // More lenient merging: merge if prices are similar (within 10%) or if current item has reasonable price
-            const priceRatio = previousItem.unitPrice > 0 ? Math.abs(previousItem.unitPrice - currentItem.unitPrice) / previousItem.unitPrice : 0;
-            const pricesSimilar = priceRatio < 0.1 || Math.abs(previousItem.unitPrice - currentItem.unitPrice) < 100;
-            const currentHasReasonablePrice = currentItem.unitPrice > 0 && currentItem.unitPrice < 100000; // Reasonable CDF price range
-            if (pricesSimilar || currentHasReasonablePrice || previousItem.unitPrice === 0) {
-                // Merge the size into the previous item's name
-                const mergedName = `${previousItem.name} ${currentItem.name}`.trim();
-                mergedItems[mergedItems.length - 1] = {
-                    ...previousItem,
-                    name: mergedName,
-                    nameNormalized: normalizeProductName(mergedName),
-                    // Keep the better price (prefer the one from the main item)
-                    unitPrice: previousItem.unitPrice > 0 ? previousItem.unitPrice : currentItem.unitPrice,
-                    totalPrice: previousItem.totalPrice > 0 ? previousItem.totalPrice : currentItem.totalPrice,
-                };
-                console.log(`🔗 Merged multi-line item: "${previousItem.name}" + "${currentItem.name}" → "${mergedName}"`);
-                continue; // Skip adding current item separately
-            }
-        }
-        // Add current item to merged list
-        mergedItems.push(currentItem);
-    }
-    return mergedItems;
 }
 /**
  * Deduplicate items by similar name + same/similar price
@@ -1260,7 +1129,7 @@ CRITICAL OUTPUT RULES:
  * V3 FIX: Enhanced error handling with retry logic
  */
 async function parseWithGemini(imageBase64, mimeType) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const MAX_RETRIES = 2;
     let lastError = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -1286,6 +1155,9 @@ async function parseWithGemini(imageBase64, mimeType) {
             const result = await Promise.race([resultPromise, timeoutPromise]);
             const response = result.response;
             const text = response.text();
+            // DEBUG: Log raw Gemini response
+            console.log('📥 RAW GEMINI RESPONSE (first 1000 chars):', text.substring(0, 1000));
+            console.log('📥 RAW GEMINI RESPONSE LENGTH:', text.length);
             // Extract JSON from response (handle markdown code blocks)
             let jsonStr = text;
             const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -1306,11 +1178,19 @@ async function parseWithGemini(imageBase64, mimeType) {
             jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2');
             // Handle multiple thousand separators (e.g., "1 234 567" -> "1234567")
             jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2$3');
-            console.log('Cleaned JSON string:', jsonStr.substring(0, 500));
+            console.log('🧹 Cleaned JSON string (first 1000 chars):', jsonStr.substring(0, 1000));
+            console.log('🧹 Cleaned JSON LENGTH:', jsonStr.length);
             // Parse JSON with error handling
             let parsed;
             try {
                 parsed = JSON.parse(jsonStr);
+                console.log('✅ JSON PARSED SUCCESSFULLY');
+                console.log('📦 Parsed storeName:', parsed.storeName);
+                console.log('📦 Parsed items count:', ((_a = parsed.items) === null || _a === void 0 ? void 0 : _a.length) || 0);
+                console.log('📦 Parsed total:', parsed.total);
+                if (parsed.items && parsed.items.length > 0) {
+                    console.log('📦 First 3 items:', JSON.stringify(parsed.items.slice(0, 3)));
+                }
             }
             catch (parseError) {
                 console.error('JSON parse error:', parseError);
@@ -1322,10 +1202,11 @@ async function parseWithGemini(imageBase64, mimeType) {
             }
             // Validate parsed data structure
             if (!parsed || typeof parsed !== 'object') {
+                console.error('❌ VALIDATION FAILED: parsed is not an object:', typeof parsed, parsed);
                 throw new Error('Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.');
             }
             if (!parsed.storeName && !parsed.items) {
-                console.warn('Gemini response missing required fields:', parsed);
+                console.warn('⚠️ Gemini response missing required fields:', JSON.stringify(parsed));
                 // Try to create a minimal valid receipt
                 parsed = {
                     storeName: 'Unknown Store',
@@ -1360,17 +1241,22 @@ async function parseWithGemini(imageBase64, mimeType) {
                 const unitPrice = parseNumericValue(item.unitPrice);
                 const totalPrice = parseNumericValue(item.totalPrice) || quantity * unitPrice;
                 const cleanedName = cleanItemName(item.name || 'Unknown Item');
-                return {
+                // Build item object, excluding undefined values for Firestore compatibility
+                const receiptItem = {
                     id: generateItemId(),
                     name: cleanedName,
                     nameNormalized: normalizeProductName(cleanedName),
                     quantity,
                     unitPrice,
                     totalPrice,
-                    unit: item.unit,
                     category: item.category || 'Autres',
                     confidence: 0.85, // Default confidence for Gemini parsing
                 };
+                // Only add unit field if it has a value
+                if (item.unit !== undefined && item.unit !== null) {
+                    receiptItem.unit = item.unit;
+                }
+                return receiptItem;
             });
             // Merge multi-line items first
             const mergedItems = mergeMultiLineItems(items);
@@ -1417,16 +1303,16 @@ async function parseWithGemini(imageBase64, mimeType) {
         catch (error) {
             lastError = error;
             // Handle specific Gemini errors
-            if ((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes('API_KEY_INVALID')) {
+            if ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('API_KEY_INVALID')) {
                 throw new functions.https.HttpsError('internal', 'Configuration erreur. Contactez le support.');
             }
-            if ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('QUOTA_EXCEEDED')) {
+            if ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('QUOTA_EXCEEDED')) {
                 throw new functions.https.HttpsError('resource-exhausted', 'Service temporairement saturé. Réessayez dans 1 heure.');
             }
-            if ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('CONTENT_POLICY_VIOLATION')) {
+            if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('CONTENT_POLICY_VIOLATION')) {
                 throw new functions.https.HttpsError('invalid-argument', 'Image inappropriée détectée. Veuillez scanner un reçu valide.');
             }
-            if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('timeout')) {
+            if ((_e = error.message) === null || _e === void 0 ? void 0 : _e.includes('timeout')) {
                 console.warn(`Service timeout on attempt ${attempt + 1}`);
                 if (attempt < MAX_RETRIES) {
                     await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Exponential backoff
@@ -1457,7 +1343,7 @@ exports.parseReceipt = functions
     secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
-    var _a;
+    var _a, _b;
     // Check authentication
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to parse receipts');
@@ -1526,22 +1412,21 @@ exports.parseReceipt = functions
             });
         });
         // Now parse receipt - scan limit already reserved
+        console.log('🚀 Starting parseWithGemini...');
         const parsedReceipt = await parseWithGemini(imageBase64, mimeType);
+        console.log('✅ parseWithGemini completed');
+        console.log('📊 FINAL RESULT - Items:', (_a = parsedReceipt.items) === null || _a === void 0 ? void 0 : _a.length, 'Total:', parsedReceipt.total);
         // QUALITY CHECK: Validate that the receipt was actually readable
-        const hasStoreName = parsedReceipt.storeName && parsedReceipt.storeName !== 'Unknown Store';
         const hasItems = parsedReceipt.items && parsedReceipt.items.length > 0;
         const hasTotal = parsedReceipt.total > 0;
-        const hasValidItems = parsedReceipt.items.some(item => item.name && item.name !== 'Unknown Item' && item.name !== 'Unavailable name' && item.unitPrice > 0);
-        // If receipt is unreadable, reject it
-        if (!hasItems || (!hasValidItems && !hasTotal)) {
+        console.log('📊 VALIDATION - hasItems:', hasItems, 'hasTotal:', hasTotal);
+        // More lenient validation: Accept if we have items OR a total (even if some items have no price)
+        if (!hasItems && !hasTotal) {
+            console.error('❌ VALIDATION FAILED: No items and no total');
             throw new functions.https.HttpsError('invalid-argument', 'La qualité de l\'image est insuffisante pour lire le reçu. Veuillez reprendre la photo avec un meilleur éclairage et en vous rapprochant du reçu.');
         }
-        // If store name is unknown but we have items, warn but continue
-        if (!hasStoreName && hasItems) {
-            console.warn('Receipt parsed but store name could not be determined');
-        }
-        // If no items have valid prices, reject
-        if (parsedReceipt.items.every(item => item.unitPrice === 0)) {
+        // Some receipts might have all prices as 0 due to OCR issues but still be valid
+        if (hasItems && parsedReceipt.items.every(item => item.unitPrice === 0) && parsedReceipt.total === 0) {
             throw new functions.https.HttpsError('invalid-argument', 'Impossible de lire les prix sur ce reçu. L\'image est peut-être floue ou trop sombre. Veuillez reprendre la photo.');
         }
         // H2 FIX: Check for duplicate receipts
@@ -1575,7 +1460,7 @@ exports.parseReceipt = functions
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         // Log suspicious items before returning
-        const suspiciousItems = (_a = parsedReceipt.items) === null || _a === void 0 ? void 0 : _a.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
+        const suspiciousItems = (_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
         if (suspiciousItems && suspiciousItems.length > 0) {
             console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
         }

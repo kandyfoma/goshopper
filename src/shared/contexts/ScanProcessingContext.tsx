@@ -214,7 +214,16 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       progress: 0,
       message: error,
       error,
+      startedAt: undefined, // Clear the started timestamp to prevent stuck detection
     }));
+
+    // Immediately clear persisted state when error occurs
+    try {
+      await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+      console.log('🧹 Cleared persisted scan state after error');
+    } catch (storageError) {
+      console.error('Error clearing scan processing state:', storageError);
+    }
 
     // Send local push notification for error
     try {
@@ -243,14 +252,34 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       await saveReceiptCallbackRef.current();
     }
     setState(defaultState);
+    // Clear persisted state
+    try {
+      await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+    } catch (error) {
+      console.error('Error clearing scan state:', error);
+    }
   }, []);
   
-  const dismiss = useCallback(() => {
+  const dismiss = useCallback(async () => {
     setState(defaultState);
+    // Clear persisted state
+    try {
+      await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+      console.log('🧹 Cleared persisted scan state on dismiss');
+    } catch (error) {
+      console.error('Error clearing scan state:', error);
+    }
   }, []);
   
-  const reset = useCallback(() => {
+  const reset = useCallback(async () => {
     setState(defaultState);
+    // Clear persisted state
+    try {
+      await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+      console.log('🧹 Cleared persisted scan state on reset');
+    } catch (error) {
+      console.error('Error clearing scan state:', error);
+    }
   }, []);
   
   const isProcessing = state.status === 'processing';

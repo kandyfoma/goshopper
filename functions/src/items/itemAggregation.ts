@@ -1081,11 +1081,30 @@ export const aggregateItemsOnReceipt = functions
                              isFinite(priceValue) && 
                              priceValue > 0;
 
+        // CRITICAL: Never save "Article inconnu" or items from "Magasin inconnu" to cityItems
+        const itemNameLower = item.name?.toLowerCase() || '';
+        const storeNameLower = storeName?.toLowerCase() || '';
+        const isUnknownItem = itemNameLower.includes('article inconnu') || 
+                              itemNameLower.includes('unknown item') ||
+                              itemNameLower.includes('unavailable name');
+        const isUnknownStore = storeNameLower.includes('magasin inconnu') ||
+                               storeNameLower.includes('magazin inconnu') ||
+                               storeNameLower.includes('unknown store') ||
+                               storeNameLower.includes('magasin unknown');
+
         if (!isValidPrice && cityItemRef) {
           console.log(`Skipping cityItem save for "${itemNameNormalized}": invalid price ${priceValue}`);
         }
 
-        if (cityItemRef && cityItemDoc && isValidPrice) {
+        if (isUnknownItem && cityItemRef) {
+          console.log(`Skipping cityItem save for "${itemNameNormalized}": item name is "Article inconnu" or similar`);
+        }
+
+        if (isUnknownStore && cityItemRef) {
+          console.log(`Skipping cityItem save for "${itemNameNormalized}": store is "Magasin inconnu" or similar`);
+        }
+
+        if (cityItemRef && cityItemDoc && isValidPrice && !isUnknownItem && !isUnknownStore) {
           // Price entry includes userId for tracking which users have this item
           const cityPrice: ItemPrice & { userId: string } = {
             ...newPrice,

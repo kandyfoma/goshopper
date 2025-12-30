@@ -443,12 +443,21 @@ class ItemSanitizationService {
   private isCorruptedName(name: string): boolean {
     if (!name || name.length < 2) return false;
 
+    // Exception: Product size codes like "a00gr", "s00ml", "400gr", "500ml" are valid
+    const hasSizeCode = /\b[a-z]?\d{2,3}\s*(gr|g|ml|l|kg|oz|cl)\b/i.test(name);
+    if (hasSizeCode) {
+      // This is a legitimate product with size info, don't mark as corrupted
+      return false;
+    }
+
     // Check for patterns that indicate corruption
     // 1. Spaces between every character: "S p r i t e" (require 5+ consecutive spaced letters)
     const spaceBetweenEveryChar = /\b[A-Za-z](?:\s[A-Za-z]){4,}\b/.test(name);
 
-    // 2. Mixed letters and numbers in strange patterns: "e30", "m l"
-    const strangePatterns = /\b[A-Za-z]\d+\s*[A-Za-z]\s*[A-Za-z]\b/.test(name);
+    // 2. Mixed letters and numbers in TRULY strange patterns (not size codes)
+    // Exclude patterns like "a00gr", "s00ml" which are OCR errors for "400gr", "500ml"
+    // Only flag patterns like "e30 m l" where there's spaces between unit letters
+    const strangePatterns = /\b[A-Za-z]\d+\s+[A-Za-z]\s+[A-Za-z]\b/.test(name);
 
     // 3. Too many spaces relative to length (increased threshold)
     const spaceRatio = (name.match(/\s/g) || []).length / name.length;
@@ -491,9 +500,31 @@ class ItemSanitizationService {
   private isDiscountOrReturnLine(text: string): boolean {
     const lowerText = text.toLowerCase();
     
-    // Check discount keywords
+    // First check if this looks like a legitimate product name
+    // Products with sizes like "s00MI", "a00gr", "Uht", "Long Life" are not discount lines
+    const hasProductSizeCode = /\b[a-z]?\d{2,3}\s*(gr|g|ml|l|kg|oz|cl|mi)\b/i.test(text);
+    const hasUHT = /\buht\b/i.test(text);  // UHT milk products
+    const hasLongLife = /long\s*life/i.test(text);  // Long life products
+    const hasCream = /\bcream\b/i.test(text);  // Cream products
+    const hasMushroom = /\bmushroom\b/i.test(text);  // Mushroom products
+    
+    // If it looks like a product, don't filter it as a discount line
+    if (hasProductSizeCode || hasUHT || hasLongLife || hasCream || hasMushroom) {
+      return false;
+    }
+    
+    // Check discount keywords - use word boundaries to avoid matching inside words
+    // For example, don't match "ht" inside "Uht"
     for (const keyword of DISCOUNT_KEYWORDS) {
-      if (lowerText.includes(keyword)) return true;
+      // Use word boundary check for short keywords that might appear inside product names
+      if (keyword.length <= 3) {
+        // For short keywords like "ht", "tva", "ttc", use word boundary
+        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i');
+        if (wordBoundaryRegex.test(lowerText)) return true;
+      } else {
+        // For longer keywords, includes() is fine
+        if (lowerText.includes(keyword)) return true;
+      }
     }
 
     // Check for percentage patterns (e.g., "10%", "-15%")
