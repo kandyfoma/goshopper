@@ -90,3 +90,5 @@ export {default as SubscriptionLimitModal} from './SubscriptionLimitModal';
 
 // Price Alert Components
 export {WatchItemButton} from './WatchItemButton';
+// Error Handling Components
+export {ErrorBoundary, withErrorBoundary} from './ErrorBoundary';

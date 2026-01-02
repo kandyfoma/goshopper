@@ -85,7 +85,9 @@ async function checkProcessedReceiptDuplicate(
 
     // Check for exact matches
     for (const doc of receiptsSnapshot.docs) {
+      if (!doc.exists) continue;
       const existingReceipt = doc.data();
+      if (!existingReceipt) continue;
       
       // ========== 1. RECEIPT NUMBER MATCH (strongest indicator) ==========
       // If both have receipt numbers and they match exactly, it's definitely a duplicate
@@ -437,11 +439,15 @@ export function UnifiedScannerScreen() {
           anim.reset && anim.reset();
         });
         
-        // Reset all animated values to free memory
-        pulseAnim.setValue(1);
-        rotateAnim.setValue(0);
-        scanLineAnim.setValue(0);
-        progressAnim.setValue(0);
+        // Reset all animated values to free memory safely
+        try {
+          pulseAnim.setValue(1);
+          rotateAnim.setValue(0);
+          scanLineAnim.setValue(0);
+          progressAnim.setValue(0);
+        } catch (error) {
+          console.warn('Error resetting animation values:', error);
+        }
       };
     }
   }, [state, pulseAnim, rotateAnim, scanLineAnim, progressAnim]);
@@ -558,17 +564,26 @@ export function UnifiedScannerScreen() {
 
     // Show video quality tips before recording
     Alert.alert(
-      '📹 Conseils pour le scan vidéo',
-      '• Tenez le téléphone stable\n' +
-      '• Bonne luminosité requise\n' +
-      '• Scannez LENTEMENT du haut vers le bas\n' +
-      '• Gardez le reçu bien visible\n' +
-      '• Max 10 secondes\n\n' +
-      '💡 Le mode PHOTO est plus précis pour les reçus courts.',
+      '📹 Comment scanner en vidéo',
+      '🐌 RÈGLE #1: SCANNEZ TRÈS LENTEMENT!\n' +
+      'Prenez 10-15 secondes pour tout le reçu.\n\n' +
+      
+      '📱 RÈGLE #2: SÉQUENCE CORRECTE\n' +
+      '1️⃣ Commencez 5cm AU-DESSUS du nom du magasin\n' +
+      '2️⃣ Descendez LENTEMENT ligne par ligne (1-2s par section)\n' +
+      '3️⃣ Terminez 5cm APRÈS le total\n\n' +
+      
+      '💡 RÈGLE #3: QUALITÉ\n' +
+      '• Utilisez les DEUX mains pour stabilité\n' +
+      '• Bonne lumière (près d\'une fenêtre)\n' +
+      '• Distance: 20-30cm du reçu\n\n' +
+      
+      '⚠️ ASTUCE: Reçu court (< 10 articles)?\n' +
+      'Le mode PHOTO est plus précis et plus rapide!',
       [
         {text: 'Annuler', style: 'cancel'},
-        {text: 'Prendre une photo', onPress: handlePhotoCapture},
-        {text: 'Enregistrer vidéo', style: 'default', onPress: async () => {
+        {text: 'Utiliser PHOTO', onPress: handlePhotoCapture},
+        {text: 'OK, compris', style: 'default', onPress: async () => {
           setState('capturing');
           showToast('Scannez lentement du haut vers le bas...', 'info');
           
@@ -579,6 +594,38 @@ export function UnifiedScannerScreen() {
             if (result.error && result.error !== 'Capture annulée') {
               showToast(result.error, 'error');
             }
+            return;
+          }
+
+          // Validate video duration
+          if (result.duration && result.duration < 5000) {
+            Alert.alert(
+              '⚠️ Vidéo trop rapide',
+              `Votre scan a duré ${(result.duration / 1000).toFixed(1)} secondes.\n\n` +
+              'Pour de MEILLEURS RÉSULTATS:\n' +
+              '• Scannez pendant 10-15 secondes\n' +
+              '• Bougez LENTEMENT du haut vers le bas\n' +
+              '• Prenez votre temps sur chaque section\n\n' +
+              'Voulez-vous réessayer plus lentement?',
+              [
+                {text: 'Recommencer', onPress: () => {
+                  // Restart video recording
+                  setTimeout(() => {
+                    Alert.alert(
+                      '📹 Rappel: Scannez LENTEMENT',
+                      'Prenez 10-15 secondes. Qualité > Vitesse!',
+                      [{text: 'OK', onPress: async () => {
+                        const retryResult = await cameraService.recordVideo();
+                        if (retryResult.success && retryResult.base64) {
+                          startVideoProcessing(retryResult);
+                        }
+                      }}]
+                    );
+                  }, 500);
+                }},
+                {text: 'Continuer quand même', style: 'default', onPress: () => startVideoProcessing(result)},
+              ]
+            );
             return;
           }
 
@@ -625,16 +672,57 @@ export function UnifiedScannerScreen() {
 
       scanProcessing.updateProgress(70, 'Vérification des données...');
 
-      // Validate receipt
+      // Enhanced receipt validation
       const total = parseResult.receipt.total;
+      
+      // Check for null, undefined, or zero total
       if (total === null || total === undefined || total === 0) {
         scanProcessing.setError('Reçu invalide: Aucun montant détecté.\nScannez plus lentement.');
         return;
       }
+      
+      // Check for negative totals
+      if (total < 0) {
+        scanProcessing.setError('Reçu invalide: Montant négatif détecté.');
+        return;
+      }
+      
+      // Check for unreasonably large totals (> 1,000,000)
+      if (total > 1000000 || !Number.isFinite(total)) {
+        scanProcessing.setError('Reçu invalide: Montant trop élevé ou invalide.');
+        return;
+      }
 
+      // Validate items exist and are an array
       if (!parseResult.receipt.items || parseResult.receipt.items.length === 0) {
         scanProcessing.setError('Aucun article détecté.\nScannez plus lentement.');
         return;
+      }
+      
+      // Validate item prices
+      const invalidItems = parseResult.receipt.items.filter(item => 
+        !item || 
+        typeof item.unitPrice !== 'number' || 
+        item.unitPrice < 0 || 
+        !Number.isFinite(item.unitPrice) ||
+        (item.totalPrice !== undefined && (item.totalPrice < 0 || !Number.isFinite(item.totalPrice)))
+      );
+      
+      if (invalidItems.length > 0) {
+        console.warn('Invalid items detected:', invalidItems);
+        scanProcessing.setError('Articles invalides détectés dans le reçu.');
+        return;
+      }
+      
+      // Validate receipt date
+      if (parseResult.receipt.date) {
+        const receiptDate = new Date(parseResult.receipt.date);
+        if (isNaN(receiptDate.getTime()) || 
+            receiptDate > new Date() || 
+            receiptDate < new Date('1900-01-01')) {
+          console.warn('Invalid receipt date:', parseResult.receipt.date);
+          parseResult.receipt.date = new Date().toISOString(); // Use today
+        }
       }
 
       // Note: Scan usage is already recorded atomically by the Cloud Function
@@ -743,20 +831,66 @@ export function UnifiedScannerScreen() {
       );
 
       if (response.success && response.receipt) {
-        // Validation checks
+        // Enhanced validation checks
         const total = response.receipt.total;
+        
+        // Check for null, undefined, or zero total
         if (total === null || total === undefined || total === 0) {
           isProcessingRef.current = false;
           scanProcessing.setError('Reçu invalide: Aucun montant détecté.\\nVeuillez scanner un reçu valide avec des prix.');
           return;
         }
         
+        // Check for negative totals
+        if (total < 0) {
+          isProcessingRef.current = false;
+          scanProcessing.setError('Reçu invalide: Montant négatif détecté.');
+          return;
+        }
+        
+        // Check for unreasonably large totals
+        if (total > 1000000 || !Number.isFinite(total)) {
+          isProcessingRef.current = false;
+          scanProcessing.setError('Reçu invalide: Montant trop élevé ou invalide.');
+          return;
+        }
+        
+        // Validate items exist and are valid
         if (!response.receipt.items || response.receipt.items.length === 0) {
+          isProcessingRef.current = false;
           scanProcessing.setError('Image invalide: Ceci n\'est pas un reçu.\nVeuillez scanner un reçu valide.');
           return;
         }
         
+        // Validate item prices
+        const invalidItems = response.receipt.items.filter(item => 
+          !item || 
+          typeof item.unitPrice !== 'number' || 
+          item.unitPrice < 0 || 
+          !Number.isFinite(item.unitPrice) ||
+          (item.totalPrice !== undefined && (item.totalPrice < 0 || !Number.isFinite(item.totalPrice)))
+        );
+        
+        if (invalidItems.length > 0) {
+          console.warn('Invalid items detected in photo scan:', invalidItems);
+          isProcessingRef.current = false;
+          scanProcessing.setError('Articles invalides détectés dans le reçu.');
+          return;
+        }
+        
+        // Validate receipt date
+        if (response.receipt.date) {
+          const receiptDate = new Date(response.receipt.date);
+          if (isNaN(receiptDate.getTime()) || 
+              receiptDate > new Date() || 
+              receiptDate < new Date('1900-01-01')) {
+            console.warn('Invalid receipt date in photo scan:', response.receipt.date);
+            response.receipt.date = new Date().toISOString(); // Use today
+          }
+        }
+        
         if (!response.receipt.storeName && !response.receipt.date) {
+          isProcessingRef.current = false;
           scanProcessing.setError('Image invalide: Ceci ne semble pas être un reçu.');
           return;
         }
@@ -893,6 +1027,9 @@ export function UnifiedScannerScreen() {
 
       // Use extracted message for further processing
       errorText = extractedErrorMessage;
+
+      // Define the user-facing error message
+      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
 
       // Only override with generic messages if no specific error was extracted
       if (userMessage === 'Une erreur est survenue lors de l\'analyse.') {

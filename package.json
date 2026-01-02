@@ -11,6 +11,7 @@
     "clean": "cd android && ./gradlew clean && cd ..",
     "clean:all": "npm run clean && cd ios && pod deintegrate && pod install && cd ..",
     "pod-install": "cd ios && pod install && cd ..",
+    "validate": "powershell -ExecutionPolicy Bypass -File scripts/validate-pre-release.ps1",
     "build:ios": "bash scripts/build-ios-release.sh",
     "build:android:mac": "bash scripts/build-android-release.sh",
     "build:android:windows": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1",

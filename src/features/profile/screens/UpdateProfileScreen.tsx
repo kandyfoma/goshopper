@@ -103,6 +103,11 @@ export function UpdateProfileScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showVerifyComingSoonModal, setShowVerifyComingSoonModal] = useState(false);
+  
+  // Date input fields
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -133,10 +138,43 @@ export function UpdateProfileScreen() {
         });
       }
 
+      // Extract phone number without country code
+      let localPhoneNumber = profile.phoneNumber || '';
+      let detectedCountry = countryCodeList[0]; // Default to RDC
+      
+      if (localPhoneNumber) {
+        // Find matching country code
+        for (const country of countryCodeList) {
+          if (localPhoneNumber.startsWith(country.code)) {
+            detectedCountry = country;
+            // Remove country code to get local number
+            localPhoneNumber = localPhoneNumber.substring(country.code.length);
+            break;
+          }
+        }
+        setSelectedCountry(detectedCountry);
+        console.log('📝 UpdateProfileScreen: Detected country:', detectedCountry.name, 'Local number:', localPhoneNumber);
+      }
+
+      // Parse date of birth into day, month, year
+      if (profile.dateOfBirth) {
+        try {
+          const existingDate = new Date(profile.dateOfBirth);
+          if (!isNaN(existingDate.getTime())) {
+            setSelectedDate(existingDate);
+            setBirthDay(String(existingDate.getDate()).padStart(2, '0'));
+            setBirthMonth(String(existingDate.getMonth() + 1).padStart(2, '0'));
+            setBirthYear(String(existingDate.getFullYear()));
+          }
+        } catch (e) {
+          console.log('📝 UpdateProfileScreen: Invalid dateOfBirth format:', profile.dateOfBirth);
+        }
+      }
+
       console.log('📝 UpdateProfileScreen: Populating form with profile data:', {
         name: parsedName,
         surname: parsedSurname,
-        phoneNumber: profile.phoneNumber,
+        phoneNumber: localPhoneNumber,
         phoneVerified: profile.phoneVerified,
         email: profile.email,
         city: profile.defaultCity,
@@ -147,23 +185,10 @@ export function UpdateProfileScreen() {
         surname: parsedSurname,
         dateOfBirth: profile.dateOfBirth || '',
         sex: profile.sex || '',
-        phoneNumber: profile.phoneNumber || '',
+        phoneNumber: localPhoneNumber,
         email: profile.email || '',
         city: profile.defaultCity || '',
       });
-
-      // Set the selected date for the picker if dateOfBirth exists
-      if (profile.dateOfBirth) {
-        try {
-          const existingDate = new Date(profile.dateOfBirth);
-          if (!isNaN(existingDate.getTime())) {
-            setSelectedDate(existingDate);
-          }
-        } catch (e) {
-          // If invalid date, keep the default
-          console.log('📝 UpdateProfileScreen: Invalid dateOfBirth format:', profile.dateOfBirth);
-        }
-      }
     }
   }, [profile, user?.displayName]);
 
@@ -196,27 +221,76 @@ export function UpdateProfileScreen() {
     return `${year}-${month}-${day}`;
   };
 
+  const handleDateInputChange = (field: 'day' | 'month' | 'year', value: string) => {
+    // Only allow numeric input
+    const numericValue = value.replace(/[^0-9]/g, '');
+    
+    if (field === 'day') {
+      // Limit to 2 digits and max value of 31
+      const dayNum = parseInt(numericValue.substring(0, 2) || '0');
+      const validDay = Math.min(Math.max(dayNum, 0), 31);
+      setBirthDay(numericValue.substring(0, 2));
+      
+      // Update formData if all fields are filled
+      if (numericValue.length === 2 && birthMonth && birthYear) {
+        const dateStr = `${birthYear}-${birthMonth}-${numericValue}`;
+        setFormData(prev => ({...prev, dateOfBirth: dateStr}));
+      }
+    } else if (field === 'month') {
+      // Limit to 2 digits and max value of 12
+      const monthNum = parseInt(numericValue.substring(0, 2) || '0');
+      const validMonth = Math.min(Math.max(monthNum, 0), 12);
+      setBirthMonth(numericValue.substring(0, 2));
+      
+      // Update formData if all fields are filled
+      if (numericValue.length === 2 && birthDay && birthYear) {
+        const dateStr = `${birthYear}-${numericValue}-${birthDay}`;
+        setFormData(prev => ({...prev, dateOfBirth: dateStr}));
+      }
+    } else if (field === 'year') {
+      // Limit to 4 digits
+      setBirthYear(numericValue.substring(0, 4));
+      
+      // Update formData if all fields are filled
+      if (numericValue.length === 4 && birthDay && birthMonth) {
+        const dateStr = `${numericValue}-${birthMonth}-${birthDay}`;
+        setFormData(prev => ({...prev, dateOfBirth: dateStr}));
+      }
+    }
+  };
+
   const handleDatePickerOpen = () => {
-    // If there's already a date in the form, use it. Otherwise use a default date (18 years ago)
+    // Determine the initial date
+    let initialDate = new Date();
+    initialDate.setFullYear(initialDate.getFullYear() - 18); // Default to 18 years ago
+    
     if (formData.dateOfBirth) {
       try {
         const existingDate = new Date(formData.dateOfBirth);
         if (!isNaN(existingDate.getTime())) {
-          setSelectedDate(existingDate);
+          initialDate = existingDate;
         }
       } catch (e) {
-        // If invalid date, use default
-        const defaultDate = new Date();
-        defaultDate.setFullYear(defaultDate.getFullYear() - 18);
-        setSelectedDate(defaultDate);
+        // If invalid date, keep default
+        console.log('Invalid dateOfBirth format:', formData.dateOfBirth);
       }
-    } else {
-      // Default to 18 years ago
-      const defaultDate = new Date();
-      defaultDate.setFullYear(defaultDate.getFullYear() - 18);
-      setSelectedDate(defaultDate);
     }
-    setShowDatePicker(true);
+    
+    setSelectedDate(initialDate);
+    
+    // For Android, use DateTimePickerAndroid.open()
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        mode: 'date',
+        maximumDate: new Date(),
+        minimumDate: new Date(1900, 0, 1),
+        onChange: handleDatePickerChange,
+      });
+    } else {
+      // For iOS, show modal
+      setShowDatePicker(true);
+    }
   };
 
   const handleDatePickerChange = (event: any, date?: Date) => {
@@ -249,12 +323,18 @@ export function UpdateProfileScreen() {
     try {
       const updateData: any = {};
 
-      if (formData.name.trim()) {
-        updateData.name = formData.name.trim();
+      // Handle name and surname - always update even if empty to clear old values
+      updateData.name = formData.name.trim();
+      updateData.surname = formData.surname.trim();
+      
+      // Update displayName to match name + surname
+      const displayName = [formData.name.trim(), formData.surname.trim()]
+        .filter(Boolean)
+        .join(' ');
+      if (displayName) {
+        updateData.displayName = displayName;
       }
-      if (formData.surname.trim()) {
-        updateData.surname = formData.surname.trim();
-      }
+      
       if (formData.dateOfBirth.trim()) {
         // Validate date format and minimum age of 15
         const dob = new Date(formData.dateOfBirth.trim());
@@ -273,37 +353,50 @@ export function UpdateProfileScreen() {
         updateData.dateOfBirth = formData.dateOfBirth.trim();
         updateData.age = actualAge; // Store calculated age for backwards compatibility
       }
-      if (formData.sex) {
-        updateData.sex = formData.sex;
-      }
+      
+      // Always update sex field (including empty string for \"not specified\")
+      updateData.sex = formData.sex;
+      
       if (formData.phoneNumber.trim()) {
-        // Format and validate phone number with country code
-        const phoneNumber = formData.phoneNumber.trim();
-        const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
-        
-        if (!PhoneService.validatePhoneNumber(formattedPhone)) {
-          Alert.alert('Erreur', 'Numéro de téléphone invalide pour ' + selectedCountry.name);
+        try {
+          // Format and validate phone number with country code
+          const phoneNumber = formData.phoneNumber.trim();
+          const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
+          
+          if (!PhoneService.validatePhoneNumber(formattedPhone)) {
+            Alert.alert('Erreur', 'Numéro de téléphone invalide pour ' + selectedCountry.name);
+            setIsLoading(false);
+            return;
+          }
+          
+          updateData.phoneNumber = formattedPhone;
+          updateData.countryCode = selectedCountry.code;
+        } catch (error) {
+          console.error('Phone validation error:', error);
+          Alert.alert(
+            'Erreur',
+            'Impossible de valider le numéro de téléphone. Veuillez vérifier le format.'
+          );
           setIsLoading(false);
           return;
         }
-        
-        updateData.phoneNumber = formattedPhone;
-        updateData.countryCode = selectedCountry.code;
       }
+      
+      // Always update email - validate only if not empty
       if (formData.email.trim()) {
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (emailRegex.test(formData.email.trim())) {
-          updateData.email = formData.email.trim();
-        } else {
+        if (!emailRegex.test(formData.email.trim())) {
           Alert.alert('Erreur', 'Format d\'email invalide');
           setIsLoading(false);
           return;
         }
+        updateData.email = formData.email.trim();
+      } else {
+        updateData.email = ''; // Clear email if removed
       }
-      if (formData.city.trim()) {
-        updateData.defaultCity = formData.city.trim();
-      }
+      
+      // Always update city
+      updateData.defaultCity = formData.city.trim();
 
       updateData.updatedAt = firestore.FieldValue.serverTimestamp();
 
@@ -325,8 +418,8 @@ export function UpdateProfileScreen() {
         has_city: !!updateData.defaultCity,
       });
 
-      Alert.alert('Succès', 'Votre profil a été mis à jour avec succès!');
       showToast('Profil mis à jour avec succès!', 'success', 3000);
+      // Go back to previous screen (ProfileScreen)
       navigation.goBack();
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -547,26 +640,48 @@ export function UpdateProfileScreen() {
               </View>
             </View>
 
-            {/* Date of Birth Input */}
+            {/* Date of Birth Input - Manual Entry */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Date de naissance</Text>
-              <TouchableOpacity 
-                style={styles.inputWrapper} 
-                onPress={handleDatePickerOpen}
-                activeOpacity={0.7}>
-                <Icon name="calendar" size="sm" color={Colors.text.tertiary} />
-                <Text style={[
-                  styles.input,
-                  {
-                    paddingVertical: Platform.OS === 'ios' ? 16 : 12,
-                    color: formData.dateOfBirth ? Colors.text.primary : Colors.text.tertiary,
-                  }
-                ]}>
-                  {formData.dateOfBirth || 'Sélectionnez votre date de naissance'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.dateInputRow}>
+                <View style={[styles.inputWrapper, {flex: 1, marginRight: Spacing.sm}]}>
+                  <TextInput
+                    style={[styles.input, {textAlign: 'center'}]}
+                    value={birthDay}
+                    onChangeText={value => handleDateInputChange('day', value)}
+                    placeholder="JJ"
+                    placeholderTextColor={Colors.text.tertiary}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                </View>
+                <Text style={styles.dateSeparator}>/</Text>
+                <View style={[styles.inputWrapper, {flex: 1, marginHorizontal: Spacing.sm}]}>
+                  <TextInput
+                    style={[styles.input, {textAlign: 'center'}]}
+                    value={birthMonth}
+                    onChangeText={value => handleDateInputChange('month', value)}
+                    placeholder="MM"
+                    placeholderTextColor={Colors.text.tertiary}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                </View>
+                <Text style={styles.dateSeparator}>/</Text>
+                <View style={[styles.inputWrapper, {flex: 2, marginLeft: Spacing.sm}]}>
+                  <TextInput
+                    style={[styles.input, {textAlign: 'center'}]}
+                    value={birthYear}
+                    onChangeText={value => handleDateInputChange('year', value)}
+                    placeholder="AAAA"
+                    placeholderTextColor={Colors.text.tertiary}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                  />
+                </View>
+              </View>
               <Text style={styles.inputHint}>
-                Vous devez avoir au moins 15 ans
+                Format: Jour / Mois / Année (ex: 15/03/1995) - Vous devez avoir au moins 15 ans
               </Text>
             </View>
 
@@ -921,6 +1036,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.text.tertiary,
+  },
+  
+  // Date Input Row
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateSeparator: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+    marginHorizontal: Spacing.xs,
   },
 
   // Options Row (Sex selection)

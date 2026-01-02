@@ -329,7 +329,7 @@ function calculateItemSimilarity(items1, items2) {
     return matchCount / maxLength;
 }
 // Prompt for receipt parsing - optimized for DRC market
-const PARSING_PROMPT = `Extract receipt data into JSON: { "storeName": string, "date": string, "total": number, "items": [{ "name": string, "quantity": number, "unitPrice": number }] }.
+const PARSING_PROMPT = `Extract receipt data into JSON: { "storeName": string, "date": string, "currency": string, "total": number, "items": [{ "name": string, "quantity": number, "unitPrice": number }] }.
 
 CRITICAL INSTRUCTIONS:
 - DO NOT filter out or skip any items that look like legitimate products, even if they have unusual formatting or OCR errors
@@ -337,6 +337,23 @@ CRITICAL INSTRUCTIONS:
 - Do not treat items with size/weight information as "corrupted" or "system lines"
 - Only exclude obvious non-product lines like headers, footers, store information, or payment method lines
 - If uncertain, include the item rather than excluding it
+
+CURRENCY RULES (VERY IMPORTANT):
+- **DEFAULT is ALWAYS "CDF" (Congolese Franc / FC)** - prices in DRC are usually large numbers: 1000+
+- **ONLY use "USD" if you CLEARLY see:**
+  * Dollar sign ($) before or after prices
+  * The word "USD" or "dollars" explicitly written on the receipt
+  * Prices with decimal points AND small values (like $1.50, $10.00, $25.99)
+- **Use "CDF" (NOT "USD") when you see:**
+  * "FC" (Franc Congolais) written on receipt
+  * "CDF" written on receipt
+  * Large round numbers: 500, 1000, 2500, 5000, 10000, 15000, 50000, 100000
+  * Prices WITHOUT dollar signs or "USD" text
+  * NO explicit currency indicators (default is CDF for DRC)
+- **Price magnitude matters:**
+  * If item prices are 1000+ → almost certainly CDF
+  * If item prices are 0.50-100.00 with decimals → likely USD
+- **When in doubt: choose "CDF"** (it's the default currency in DRC)
 
 CLEANUP INSTRUCTIONS:
 - Strip internal tracking codes or OCR misreads like (z4), (24), or (l0) from the product names.
@@ -824,12 +841,33 @@ The user has slowly scanned down the entire receipt. Extract ALL items visible t
 
 🎬 VIDEO FRAME ANALYSIS STRATEGY:
 - The video shows a receipt being scanned from TOP to BOTTOM
-- FIRST few frames: Store name and header information
-- MIDDLE frames: Individual product items with prices
-- LAST few frames: Subtotal, taxes, TOTAL, and payment info
+- FIRST few frames (0-2 seconds): Store name and header information
+- MIDDLE frames (2-8 seconds): Individual product items with prices
+- LAST few frames (8-10 seconds): Subtotal, taxes, TOTAL, and payment info
 - Focus on frames where text is SHARPEST and most readable
 - If a frame is blurry, look for the same info in adjacent frames
 - Items may appear in multiple frames - DON'T duplicate them
+
+⚠️ CRITICAL: STORE NAME DETECTION (HIGHEST PRIORITY)
+- The STORE NAME appears in the VERY FIRST 2-3 FRAMES at the TOP of receipt
+- These frames might be SLIGHTLY BLURRY during camera focusing - that's NORMAL
+- Look for LARGE, BOLD, PROMINENT text at the receipt top
+- If frame 1 is unclear, CHECK frames 2, 3, and even 4 for the store name
+- Common DRC stores: Peloustore, Shoprite, Carrefour, Hasson & Frères, Kin Marché, Dakar Market, City Market, Makro
+- If you see ANY recognizable store name in ANY of the first frames, USE IT
+- DON'T leave storeName as null if you see ANY text that could be a store name
+- Store names are usually: ALL CAPS, centered, or largest font on receipt
+- Even if partially visible or slightly blurred, extract the store name
+
+⚠️ CRITICAL: DON'T SKIP ANY ITEMS
+- Process frames SEQUENTIALLY from start to end - DON'T jump ahead
+- Review EVERY SINGLE FRAME for items, even if some frames are blurry
+- If text is blurry in one frame, the NEXT or PREVIOUS frame might be clearer
+- Keep a MENTAL COUNT of items as you scan: "Item 1, Item 2, Item 3..."
+- Verify each item has: name + price + quantity before moving to next item
+- If you detect text that looks like an item name, FIND its price before continuing
+- DON'T move past an item until you've captured its complete information
+- At the end, verify: "Did I output the same number of items I counted?"
 
 CRITICAL VIDEO SCANNING INSTRUCTIONS:
 1. Watch the ENTIRE video from START to END
@@ -896,16 +934,47 @@ CRITICAL VIDEO SCANNING INSTRUCTIONS:
 - The total MUST approximately match the SUM of all item prices
 - If your calculated sum of items is CLOSE to a number labeled "TOTAL", use the labeled number
 
+⚠️ ITEM EXTRACTION VERIFICATION CHECKLIST:
+Before finalizing your response, verify:
+□ Did I analyze frames 0-2 for store name? (Is storeName filled?)
+□ Did I scan through ALL middle frames (2-8) for items?
+□ Did I check if any frames with text were skipped?
+□ Does each item have BOTH a name AND a price?
+□ Did I look for items in blurry frames by checking adjacent frames?
+□ Is my item count reasonable for the receipt length?
+□ Did I check frames 8-10 for the total amount?
+□ Does the sum of item prices approximately match the total?
+
+FRAME-BY-FRAME ITEM EXTRACTION STRATEGY:
+1. Start at frame 0 (top of receipt) - capture store name
+2. Move to frame 1 - check if store name is clearer, also look for items
+3. Frame 2-3 - usually first items start appearing
+4. Frame 4-6 - middle section with most items
+5. Frame 7-8 - last items before totals section
+6. Frame 9-10 - totals, taxes, payment info
+7. DON'T jump from frame 2 to frame 7 - analyze EVERY frame sequentially
+
 STORE NAME DETECTION:
 - Look at the TOP of the receipt in the FIRST frames
-- Common DRC stores: Peloustore, Shoprite, Carrefour, Hasson & Frères
+- Common DRC stores: Peloustore, Shoprite, Carrefour, Hasson & Frères, Kin Marché, Dakar Market
 - Store name is usually the LARGEST text at the top
 
-CURRENCY RULES:
-- Default is CDF (Congolese Franc) - prices are usually 1000+
-- Only use USD if you clearly see $ or "USD" or "dollars"
-- CDF prices: 500, 1000, 5000, 10000, 50000, 100000...
-- USD prices: 1.00, 5.00, 10.00, 50.00...
+CURRENCY RULES (VERY IMPORTANT):
+- **DEFAULT is ALWAYS CDF (Congolese Franc / FC)** - prices are usually large numbers: 1000+
+- **ONLY use "USD" if you CLEARLY see:**
+  * Dollar sign ($) before or after prices
+  * The word "USD" or "dollars" explicitly written on the receipt
+  * Prices with decimal points AND small values (like $1.50, $10.00, $25.99)
+- **Use "CDF" (NOT "USD") when you see:**
+  * "FC" (Franc Congolais) written on receipt
+  * "CDF" written on receipt
+  * Large round numbers: 500, 1000, 2500, 5000, 10000, 15000, 50000, 100000
+  * Prices WITHOUT dollar signs or "USD" text
+  * NO explicit currency indicators (default is CDF for DRC)
+- **Price magnitude matters:**
+  * If item prices are 1000+ → almost certainly CDF
+  * If item prices are 0.50-100.00 with decimals → likely USD
+- **When in doubt: choose CDF** (it's the default currency in DRC)
 
 VALIDATION BEFORE RESPONDING:
 1. Sum all item prices - does it roughly match your "total" field?
@@ -1081,7 +1150,9 @@ CRITICAL OUTPUT RULES:
                 storePhone: parsed.storePhone,
                 receiptNumber: parsed.receiptNumber,
                 date: parsed.date || new Date().toISOString().split('T')[0],
-                currency: parsed.currency === 'USD' ? 'USD' : 'CDF',
+                // Fix: Default to CDF (Franc Congolais) unless explicitly USD
+                // DRC uses FC (Franc Congolais = CDF) as default currency
+                currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
                 items: deduplicatedItems,
                 subtotal: parsed.subtotal ? Number(parsed.subtotal) : undefined,
                 tax: parsed.tax ? Number(parsed.tax) : undefined,
@@ -1303,7 +1374,9 @@ async function parseWithGemini(imageBase64, mimeType) {
                 storePhone: parsed.storePhone || null,
                 receiptNumber: parsed.receiptNumber || null,
                 date: parsed.date || new Date().toISOString().split('T')[0],
-                currency: parsed.currency === 'CDF' ? 'CDF' : 'USD',
+                // Fix: Default to CDF (Franc Congolais) unless explicitly USD
+                // DRC uses FC (Franc Congolais = CDF) as default currency
+                currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
                 items: deduplicatedItems,
                 total: parseNumericValue(parsed.total) ||
                     deduplicatedItems.reduce((sum, item) => sum + item.totalPrice, 0),

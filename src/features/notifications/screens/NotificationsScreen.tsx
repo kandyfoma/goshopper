@@ -53,11 +53,13 @@ export function NotificationsScreen() {
       .limit(50)
       .onSnapshot(
         snapshot => {
-          const notifs: Notification[] = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: safeToDate(doc.data().timestamp) || new Date(),
-          })) as Notification[];
+          const notifs: Notification[] = snapshot.docs
+            .filter(doc => doc.exists && doc.data())
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              timestamp: safeToDate(doc.data()!.timestamp) || new Date(),
+            })) as Notification[];
           setNotifications(notifs);
           setLoading(false);
         },

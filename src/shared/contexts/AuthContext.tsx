@@ -123,7 +123,18 @@ export function AuthProvider({children}: AuthProviderProps) {
 
     return () => {
       mounted = false;
-      unsubscribePromise.then(unsub => unsub());
+      // Wait for the promise to resolve, then call unsubscribe
+      unsubscribePromise.then(unsub => {
+        if (unsub && typeof unsub === 'function') {
+          try {
+            unsub();
+          } catch (error) {
+            console.warn('Error unsubscribing from auth:', error);
+          }
+        }
+      }).catch(error => {
+        console.warn('Error in cleanup:', error);
+      });
     };
   }, []);
 

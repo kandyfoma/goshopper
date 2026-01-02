@@ -56,6 +56,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>processing</string>
+	</array>
 	<key>NSMotionUsageDescription</key>
 	<string>Nous utilisons les mouvements de l'appareil pour des animations interactives dans l'écran d'accueil</string>
 	<key>UIApplicationShortcutItems</key>

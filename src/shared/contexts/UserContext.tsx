@@ -140,14 +140,21 @@ export function UserProvider({children}: UserProviderProps) {
   // Create default profile for new users
   const createDefaultProfile = async (userId: string, authUser?: typeof user) => {
     try {
-      // Check if the user document exists in Firestore first
+      // Check if the user document exists in Firestore first with timeout
       // This prevents creating a profile for a deleted user
-      const userDoc = await firestore()
+      const userDocPromise = firestore()
         .collection('artifacts')
         .doc('goshopper')
         .collection('users')
         .doc(userId)
         .get();
+      
+      // Add 10 second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Profile creation timeout')), 10000)
+      );
+      
+      const userDoc = await Promise.race([userDocPromise, timeoutPromise]);
       
       if (!userDoc.exists) {
         console.log('User document does not exist, skipping profile creation');

@@ -1,4 +1,12 @@
 // Push Notifications Service - FCM Integration
+// 
+// BACKGROUND NOTIFICATIONS:
+// This service handles notifications when the app is in foreground.
+// For background/killed app notifications:
+// - Android & iOS: See messaging().setBackgroundMessageHandler() in index.js
+// - This handler displays notifications even when the app is completely closed
+// - iOS also requires UIBackgroundModes in Info.plist (already configured)
+//
 import messaging, {
   FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
@@ -65,6 +73,12 @@ class PushNotificationService {
       if (!hasPermission) {
         console.log('[PushNotifications] Permission not granted');
         return;
+      }
+
+      // iOS: Register for remote notifications (required for background notifications)
+      if (Platform.OS === 'ios') {
+        await messaging().registerDeviceForRemoteMessages();
+        console.log('[PushNotifications] iOS registered for remote messages');
       }
 
       // Get and save FCM token

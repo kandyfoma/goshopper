@@ -56,6 +56,9 @@ interface ScanProcessingContextType {
   // Reset to idle
   reset: () => void;
   
+  // Force reset - use when scan gets stuck
+  forceReset: () => Promise<void>;
+  
   // Check if processing is active
   isProcessing: boolean;
   
@@ -208,14 +211,24 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
   }, []);
   
   const setError = useCallback(async (error: string) => {
-    setState(prev => ({
-      ...prev,
+    // If error is empty string, just reset to default state (used for subscription limit modal)
+    if (error === '') {
+      setState(defaultState);
+      try {
+        await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+        console.log('🧹 Cleared persisted scan state (empty error - modal shown)');
+      } catch (storageError) {
+        console.error('Error clearing scan processing state:', storageError);
+      }
+      return;
+    }
+
+    setState({
+      ...defaultState, // Reset ALL state to default first
       status: 'error',
-      progress: 0,
       message: error,
       error,
-      startedAt: undefined, // Clear the started timestamp to prevent stuck detection
-    }));
+    });
 
     // Immediately clear persisted state when error occurs
     try {
@@ -225,7 +238,7 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       console.error('Error clearing scan processing state:', storageError);
     }
 
-    // Send local push notification for error
+    // Send local push notification for error (only for non-empty errors)
     try {
       await notificationActionsService.displayErrorNotification({
         title: '❌ Erreur d\'analyse',
@@ -235,7 +248,7 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       console.error('Error sending scan error notification:', notifError);
     }
 
-    // Auto-dismiss error banner after 5 seconds
+    // Auto-dismiss error banner after 5 seconds and fully reset state
     setTimeout(() => {
       setState(prev => {
         // Only dismiss if still in error state
@@ -281,6 +294,22 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       console.error('Error clearing scan state:', error);
     }
   }, []);
+
+  // Force reset - more aggressive reset that clears everything regardless of state
+  // Use this when the scan gets stuck and user needs to retry
+  const forceReset = useCallback(async () => {
+    console.log('🔄 Force resetting scan processing state');
+    setState(defaultState);
+    // Clear all persisted state
+    try {
+      await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+      // Also try to clear any potentially stuck state
+      await AsyncStorage.removeItem('@goshopperai/scan_processing_state');
+      console.log('🧹 Force cleared all persisted scan state');
+    } catch (error) {
+      console.error('Error force clearing scan state:', error);
+    }
+  }, []);
   
   const isProcessing = state.status === 'processing';
   const isAwaitingConfirmation = state.status === 'success' && !!state.receipt;
@@ -296,6 +325,7 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
         confirmAndSave,
         dismiss,
         reset,
+        forceReset,
         isProcessing,
         isAwaitingConfirmation,
       }}>

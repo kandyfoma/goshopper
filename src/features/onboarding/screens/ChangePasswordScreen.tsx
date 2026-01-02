@@ -125,7 +125,7 @@ export function ChangePasswordScreen() {
     );
     
     if (!validation.isValid) {
-      setNewPasswordError(validation.errors[0]);
+      setNewPasswordError(validation.errors?.[0] || 'Mot de passe invalide');
       return false;
     }
     

@@ -8,7 +8,7 @@ import {APP_ID} from '@/shared/services/firebase/config';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
 import {Colors} from '@/shared/theme/theme';
-import {AppStateTracker} from '@/shared/components';
+import {AppStateTracker, ErrorBoundary} from '@/shared/components';
 
 // Screens
 import {MainTabNavigator} from './MainTabNavigator';
@@ -52,6 +52,19 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const ONBOARDING_KEY = '@goshopperai_onboarding_complete';
 
+// Wrap critical screens with Error Boundary for better error handling
+const ScannerWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <UnifiedScannerScreen />
+  </ErrorBoundary>
+);
+
+const ReceiptDetailWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <ReceiptDetailScreen />
+  </ErrorBoundary>
+);
+
 export function RootNavigator() {
   const {isAuthenticated, isLoading, user} = useAuth();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
@@ -93,6 +106,14 @@ export function RootNavigator() {
           .get();
 
         const userData = userDoc.data();
+        
+        // Safety check - if doc doesn't exist or has no data, profile is incomplete
+        if (!userDoc.exists || !userData) {
+          console.log('📝 RootNavigator: User document not found or empty');
+          setInitialRoute('UpdateProfile');
+          setIsCheckingProfile(false);
+          return;
+        }
         
         // Profile is complete if:
         // 1. profileCompleted flag is true, OR
@@ -210,7 +231,7 @@ export function RootNavigator() {
         />
         <Stack.Screen
           name="Scanner"
-          component={UnifiedScannerScreen}
+          component={ScannerWithErrorBoundary}
           options={{
             animation: 'slide_from_bottom',
             presentation: 'fullScreenModal',
@@ -244,7 +265,7 @@ export function RootNavigator() {
 
         <Stack.Screen
           name="ReceiptDetail"
-          component={ReceiptDetailScreen}
+          component={ReceiptDetailWithErrorBoundary}
           options={{headerShown: false}}
         />
         <Stack.Screen

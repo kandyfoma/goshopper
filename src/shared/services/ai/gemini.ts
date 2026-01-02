@@ -772,6 +772,33 @@ class GeminiService {
       queueLength: this.requestQueue.length,
     };
   }
+
+  /**
+   * Clear the request queue - use when scans get stuck
+   * This will reject all pending requests and reset the processing state
+   */
+  public clearQueue(): void {
+    console.log(`🧹 Clearing Gemini request queue (${this.requestQueue.length} items)`);
+    
+    // Reject all pending requests
+    while (this.requestQueue.length > 0) {
+      const { reject } = this.requestQueue.shift()!;
+      reject(new Error('Queue cleared by user'));
+    }
+    
+    // Reset processing state
+    this.isProcessingQueue = false;
+    
+    // Reset rate limit if it was set
+    this.rateLimitedUntil = null;
+    
+    // Reset circuit breaker to allow new requests
+    this.circuitState = 'CLOSED';
+    this.failureCount = 0;
+    
+    console.log('✅ Gemini queue cleared and reset');
+  }
+
   private normalizeProductName(name: string): string {
     return name
       .toLowerCase()

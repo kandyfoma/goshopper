@@ -1,6 +1,6 @@
 // City Items Screen - Browse items from all users in the same city
 // Shows aggregated price data for community price comparison
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {
   View,
   Text,
@@ -61,15 +61,23 @@ interface CityItemData {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// Pagination constants
+const ITEMS_PER_PAGE = 50;
+const ITEM_HEIGHT = 120; // Approximate height for getItemLayout optimization
+
 export function CityItemsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {isAuthenticated} = useAuth();
   const {profile: userProfile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
   const [items, setItems] = useState<CityItemData[]>([]);
-  const [filteredItems, setFilteredItems] = useState<CityItemData[]>([]);
+  const [displayedItems, setDisplayedItems] = useState<CityItemData[]>([]); // Items currently displayed
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Immediate input value
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
@@ -78,9 +86,27 @@ export function CityItemsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check feature access
   const hasAccess = hasFeatureAccess('priceComparison', subscription);
+
+  // Debounced search - only trigger search 300ms after user stops typing
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 300);
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchInput]);
 
   // Redirect if not authenticated
   React.useEffect(() => {
@@ -122,13 +148,72 @@ export function CityItemsScreen() {
   // Pull to refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
+    setPage(1);
+    setHasMore(true);
     await loadCityItemsData(true); // Force refresh
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    filterItems();
+  // Memoize filtered and sorted items for performance
+  const filteredAndSortedItems = useMemo(() => {
+    let result = items;
+    
+    // Filter by search query
+    if (searchQuery) {
+      result = items.filter(item => {
+        const normalize = (str: string) => 
+          str.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        
+        const normalizedItem = normalize(item.name);
+        const normalizedQuery = normalize(searchQuery);
+        
+        // Quick checks for performance
+        if (normalizedItem.includes(normalizedQuery)) return true;
+        if (item.category && normalize(item.category).includes(normalizedQuery)) return true;
+        if (item.searchKeywords?.some(kw => normalize(kw).includes(normalizedQuery))) return true;
+        
+        return false;
+      });
+    }
+    
+    // Sort items
+    const sorted = [...result].sort((a, b) => {
+      if (sortBy === 'price') {
+        return a.minPrice - b.minPrice;
+      } else if (sortBy === 'popular') {
+        return b.prices.length - a.prices.length;
+      } else {
+        return a.name.localeCompare(b.name);
+      }
+    });
+    
+    return sorted;
   }, [items, searchQuery, sortBy]);
+
+  // Update displayed items when filtered items or page changes
+  useEffect(() => {
+    const start = 0;
+    const end = page * ITEMS_PER_PAGE;
+    const newDisplayedItems = filteredAndSortedItems.slice(start, end);
+    
+    setDisplayedItems(newDisplayedItems);
+    setHasMore(end < filteredAndSortedItems.length);
+  }, [filteredAndSortedItems, page]);
+
+  // Load more items when user scrolls to bottom
+  const loadMoreItems = useCallback(() => {
+    if (isLoadingMore || !hasMore) return;
+    
+    setIsLoadingMore(true);
+    // Simulate async loading with small delay for smooth UX
+    setTimeout(() => {
+      setPage(prev => prev + 1);
+      setIsLoadingMore(false);
+    }, 100);
+  }, [isLoadingMore, hasMore]);
 
   const toggleSearch = () => {
     if (isSearchOpen) {
@@ -263,156 +348,6 @@ export function CityItemsScreen() {
       console.log('🏁 loadCityItemsData finished');
       setIsLoading(false);
     }
-  };
-
-  // Simple, reliable search function with bilingual support
-  // Now also checks category and searchKeywords for enhanced search
-  const simpleSearch = async (item: CityItemData, query: string): Promise<boolean> => {
-    // Normalize both strings: lowercase, remove accents
-    const normalize = (str: string) => 
-      str.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove accents
-        .trim();
-    
-    const normalizedItem = normalize(item.name);
-    const normalizedQuery = normalize(query);
-    
-    // 1. Check searchKeywords first (for category-based search like "wine" -> "merlot")
-    if (item.searchKeywords && item.searchKeywords.length > 0) {
-      for (const keyword of item.searchKeywords) {
-        const normalizedKeyword = normalize(keyword);
-        if (normalizedKeyword.includes(normalizedQuery) || normalizedQuery.includes(normalizedKeyword)) {
-          return true;
-        }
-      }
-    }
-    
-    // 2. Check category match
-    if (item.category) {
-      const normalizedCategory = normalize(item.category);
-      if (normalizedCategory.includes(normalizedQuery) || normalizedQuery.includes(normalizedCategory)) {
-        return true;
-      }
-    }
-    
-    // 3. Bilingual match (French <-> English) - with API fallback
-    if (await translationService.bilingualMatchAsync(item.name, query)) {
-      return true;
-    }
-    
-    // 4. Direct contains match
-    if (normalizedItem.includes(normalizedQuery)) {
-      return true;
-    }
-    
-    // 5. Query contains item (for short item names)
-    if (normalizedQuery.includes(normalizedItem) && normalizedItem.length >= 3) {
-      return true;
-    }
-    
-    // 6. Word-by-word match (any word matches)
-    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length >= 2);
-    const itemWords = normalizedItem.split(/\s+/).filter(w => w.length >= 2);
-    
-    for (const qWord of queryWords) {
-      for (const iWord of itemWords) {
-        // Word contains match
-        if (iWord.includes(qWord) || qWord.includes(iWord)) {
-          return true;
-        }
-        // Start-of-word match (e.g., "tom" matches "tomate")
-        if (iWord.startsWith(qWord) || qWord.startsWith(iWord)) {
-          return true;
-        }
-      }
-    }
-    
-    // 7. Fuzzy match - allow 1-2 character differences for words >= 4 chars
-    if (normalizedQuery.length >= 4) {
-      for (const iWord of itemWords) {
-        if (iWord.length >= 4) {
-          const distance = levenshteinDistance(normalizedQuery, iWord);
-          const maxDistance = Math.floor(Math.max(normalizedQuery.length, iWord.length) * 0.3);
-          if (distance <= maxDistance) {
-            return true;
-          }
-        }
-      }
-    }
-    
-    return false;
-  };
-  
-  // Levenshtein distance for fuzzy matching
-  const levenshteinDistance = (str1: string, str2: string): number => {
-    const m = str1.length;
-    const n = str2.length;
-    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-    
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
-    
-    for (let i = 1; i <= m; i++) {
-      for (let j = 1; j <= n; j++) {
-        if (str1[i - 1] === str2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        }
-      }
-    }
-    return dp[m][n];
-  };
-
-  const filterItems = () => {
-    setIsSearching(true);
-    
-    // Use setTimeout to allow UI to update with loading state
-    setTimeout(async () => {
-      try {
-        let filtered: CityItemData[];
-        
-        if (!searchQuery.trim()) {
-          filtered = items;
-        } else {
-          // Enhanced search with category and keyword support
-          filtered = [];
-          for (const item of items) {
-            if (await simpleSearch(item, searchQuery)) {
-              filtered.push(item);
-            }
-          }
-          
-          // Log search for analytics
-          analyticsService.logCustomEvent('city_items_search', {
-            query: searchQuery,
-            results_count: filtered.length,
-          });
-        }
-        
-        // Apply sorting
-        const sorted = [...filtered];
-        switch (sortBy) {
-          case 'name':
-            sorted.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-          case 'price':
-            sorted.sort((a, b) => a.minPrice - b.minPrice);
-            break;
-          case 'popular':
-          default:
-            sorted.sort((a, b) => b.prices.length - a.prices.length);
-            break;
-        }
-        
-        // Update filtered items and stop searching AFTER all operations complete
-        setFilteredItems(sorted);
-      } finally {
-        // Always set isSearching to false after search completes
-        setIsSearching(false);
-      }
-    }, 0);
   };
 
   const renderItem = ({item, index}: {item: CityItemData; index: number}) => {
@@ -711,12 +646,15 @@ export function CityItemsScreen() {
               ref={searchInputRef}
               style={styles.searchInput}
               placeholder="Rechercher un article..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+              value={searchInput}
+              onChangeText={setSearchInput}
               placeholderTextColor={Colors.text.tertiary}
             />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+            {searchInput.length > 0 && (
+              <TouchableOpacity onPress={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}>
                 <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
               </TouchableOpacity>
             )}
@@ -725,19 +663,23 @@ export function CityItemsScreen() {
       )}
 
       {/* Results Badge */}
-      {(searchQuery || filteredItems.length > 0) && (
+      {(searchQuery || displayedItems.length > 0) && (
         <View style={styles.resultsContainer}>
           <View style={styles.resultsBadge}>
             <Icon name="filter" size="xs" color={Colors.primary} />
             <Text style={styles.resultsText}>
-              {filteredItems.length} résultat
-              {filteredItems.length !== 1 ? 's' : ''}
+              {filteredAndSortedItems.length} résultat
+              {filteredAndSortedItems.length !== 1 ? 's' : ''}
+              {displayedItems.length < filteredAndSortedItems.length && ` (${displayedItems.length} affichés)`}
             </Text>
           </View>
           {searchQuery && (
             <TouchableOpacity
               style={styles.clearButton}
-              onPress={() => setSearchQuery('')}>
+              onPress={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}>
               <Text style={styles.clearText}>Tout afficher</Text>
             </TouchableOpacity>
           )}
@@ -746,11 +688,34 @@ export function CityItemsScreen() {
 
       {/* Items List */}
       <FlatList
-        data={filteredItems}
+        data={displayedItems}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        // Performance Optimizations
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={(data, index) => ({
+          length: ITEM_HEIGHT,
+          offset: ITEM_HEIGHT * index,
+          index,
+        })}
+        // Infinite Scroll
+        onEndReached={loadMoreItems}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingMoreText}>Chargement...</Text>
+            </View>
+          ) : null
+        }
+        
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1224,5 +1189,17 @@ const styles = StyleSheet.create({
     color: Colors.text.inverse,
     fontWeight: Typography.fontWeight.semiBold,
     textAlign: 'center',
+  },
+  loadingMore: {
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  loadingMoreText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
+    marginLeft: Spacing.sm,
   },
 });

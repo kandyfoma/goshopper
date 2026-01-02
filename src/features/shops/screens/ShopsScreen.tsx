@@ -83,13 +83,15 @@ export function ShopsScreen() {
         .collection('shops')
         .get();
 
-      const shopsData: Shop[] = shopsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name || 'Magasin inconnu',
-          nameNormalized: data.nameNormalized || '',
-          address: data.address,
+      const shopsData: Shop[] = shopsSnapshot.docs
+        .filter(doc => doc.exists && doc.data())
+        .map(doc => {
+          const data = doc.data()!;
+          return {
+            id: doc.id,
+            name: data.name || 'Magasin inconnu',
+            nameNormalized: data.nameNormalized || '',
+            address: data.address,
           phone: data.phone,
           receiptCount: data.receiptCount || 0,
           totalSpent: data.totalSpent || 0,

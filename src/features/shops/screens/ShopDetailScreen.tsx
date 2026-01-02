@@ -64,13 +64,15 @@ export function ShopDetailScreen() {
         .orderBy('scannedAt', 'desc')
         .get();
 
-      const receiptsData: Receipt[] = receiptsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          userId: data.userId,
-          storeName: data.storeName || 'Magasin inconnu',
-          storeNameNormalized: data.storeNameNormalized || '',
+      const receiptsData: Receipt[] = receiptsSnapshot.docs
+        .filter(doc => doc.exists && doc.data())
+        .map(doc => {
+          const data = doc.data()!;
+          return {
+            id: doc.id,
+            userId: data.userId,
+            storeName: data.storeName || 'Magasin inconnu',
+            storeNameNormalized: data.storeNameNormalized || '',
           storeAddress: data.storeAddress,
           storePhone: data.storePhone,
           receiptNumber: data.receiptNumber,
