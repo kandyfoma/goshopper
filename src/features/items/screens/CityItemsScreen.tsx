@@ -208,11 +208,11 @@ export function CityItemsScreen() {
     if (isLoadingMore || !hasMore) return;
     
     setIsLoadingMore(true);
-    // Simulate async loading with small delay for smooth UX
+    // Small delay for smooth UX and debouncing
     setTimeout(() => {
       setPage(prev => prev + 1);
       setIsLoadingMore(false);
-    }, 100);
+    }, 300);
   }, [isLoadingMore, hasMore]);
 
   const toggleSearch = () => {
@@ -707,19 +707,14 @@ export function CityItemsScreen() {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         // Performance Optimizations
-        initialNumToRender={10}
+        initialNumToRender={15}
         maxToRenderPerBatch={10}
-        windowSize={5}
+        windowSize={10}
         removeClippedSubviews={true}
-        updateCellsBatchingPeriod={50}
-        getItemLayout={(data, index) => ({
-          length: ITEM_HEIGHT,
-          offset: ITEM_HEIGHT * index,
-          index,
-        })}
+        updateCellsBatchingPeriod={100}
         // Infinite Scroll
         onEndReached={loadMoreItems}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={0.3}
         ListFooterComponent={
           isLoadingMore ? (
             <View style={styles.loadingMore}>

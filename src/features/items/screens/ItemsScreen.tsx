@@ -28,6 +28,7 @@ import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
+import {cacheManager, CacheTTL} from '@/shared/services/caching';
 import {APP_ID} from '@/shared/services/firebase/config';
 
 // User's personal item data (Tier 2: User Aggregated Items)
@@ -62,16 +63,33 @@ export function ItemsScreen() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Track screen view
     analyticsService.logScreenView('Items', 'ItemsScreen');
+    
+    // Cleanup listener on unmount
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, []);
 
-  // Reload data when screen comes into focus
+  // Setup real-time listener when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadItemsData();
+      
+      // Cleanup listener when screen loses focus
+      return () => {
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+      };
     }, [user])
   );
 
@@ -105,92 +123,91 @@ export function ItemsScreen() {
       return;
     }
 
+    const cacheKey = `user-items-${user.uid}`;
+
     try {
+      // Try loading from cache first for instant display
+      const cachedItems = await cacheManager.get<ItemData[]>(cacheKey, 'receipts');
+      if (cachedItems && cachedItems.length > 0) {
+        console.log('📦 Loaded items from cache:', cachedItems.length);
+        setItems(cachedItems);
+        setIsLoading(false);
+        // Continue to setup real-time listener below
+      }
       
-      // Fetch user's aggregated items from backend (Tier 2: User Aggregated Items)
-      // This collection is automatically maintained by Cloud Functions when receipts are created/updated
-      let itemsSnapshot;
+      // Setup real-time listener for automatic updates
+      const itemsRef = firestore()
+        .collection('artifacts')
+        .doc(APP_ID)
+        .collection('users')
+        .doc(user.uid)
+        .collection('items');
+      
+      // Unsubscribe from previous listener if exists
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      
+      console.log('🔄 Setting up real-time items listener');
+      
+      // Setup listener (try with orderBy, fallback without)
+      let unsubscribe: (() => void) | null = null;
       try {
-        itemsSnapshot = await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('items')
+        unsubscribe = itemsRef
           .orderBy('lastPurchaseDate', 'desc')
-          .get();
+          .onSnapshot(
+            async (snapshot) => {
+              console.log('📡 Items updated:', snapshot.size, 'items');
+              
+              const itemsArray: ItemData[] = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  name: data.name || doc.id,
+                  nameNormalized: data.nameNormalized || doc.id,
+                  prices: (data.prices || []).map((p: any) => ({
+                    storeName: p.storeName || 'Inconnu',
+                    price: p.price || 0,
+                    currency: p.currency || 'USD',
+                    date: safeToDate(p.date),
+                    receiptId: p.receiptId || '',
+                  })),
+                  minPrice: data.minPrice || 0,
+                  maxPrice: data.maxPrice || 0,
+                  avgPrice: data.avgPrice || 0,
+                  storeCount: data.storeCount || 0,
+                  currency: data.currency || 'USD',
+                };
+              });
+
+              setItems(itemsArray);
+              setIsLoading(false);
+              
+              // Update cache
+              if (itemsArray.length > 0) {
+                await cacheManager.set(cacheKey, itemsArray, {
+                  namespace: 'receipts',
+                  ttl: CacheTTL.HOUR * 6, // Cache for 6 hours
+                });
+                console.log('💾 Cached items:', itemsArray.length);
+              } else {
+                // Clear cache if no items
+                await cacheManager.remove(cacheKey, 'receipts');
+              }
+            },
+            (error) => {
+              console.error('❌ Items listener error:', error);
+              setIsLoading(false);
+            }
+          );
       } catch (orderError: any) {
         // Fallback without orderBy if index doesn't exist
-        console.log('⚠️ OrderBy failed, fetching without ordering:', orderError.code);
-        itemsSnapshot = await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('items')
-          .get();
-      }
-
-      // If no items found, check if user has receipts WITH items and trigger rebuild
-      if (itemsSnapshot.empty) {
-        const receiptsSnapshot = await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('receipts')
-          .limit(10) // Check a few receipts to see if any have items
-          .get();
-
-        // Check if any receipts actually have items
-        const hasReceiptsWithItems = receiptsSnapshot.docs.some(doc => {
-          const data = doc.data();
-          return data.items && Array.isArray(data.items) && data.items.length > 0;
-        });
-
-        if (hasReceiptsWithItems) {
-          console.log('📦 Receipts with items found but no aggregated items - triggering rebuild...');
-          
-          // Skip auto-rebuild if user not authenticated
-          if (!user?.uid) {
-            console.warn('⚠️ User not authenticated, skipping auto-rebuild');
-            setItems([]);
-            return;
-          }
-          
-          try {
-            const functionsInstance = firebase.app().functions('europe-west1');
-            const rebuildCallable = functionsInstance.httpsCallable('rebuildItemsAggregation');
+        console.log('⚠️ OrderBy failed, using listener without ordering:', orderError.code);
+        unsubscribe = itemsRef.onSnapshot(
+          async (snapshot) => {
+            console.log('📡 Items updated (no order):', snapshot.size, 'items');
             
-            console.log('🔄 Calling rebuildItemsAggregation function...');
-            const result = await rebuildCallable();
-            console.log('✅ Items aggregation rebuilt:', result.data);
-            console.log('🔄 Reloading items...');
-            
-            // Reload items after rebuild
-            let reloadedItemsSnapshot;
-            try {
-              reloadedItemsSnapshot = await firestore()
-                .collection('artifacts')
-                .doc(APP_ID)
-                .collection('users')
-                .doc(user.uid)
-                .collection('items')
-                .orderBy('lastPurchaseDate', 'desc')
-                .get();
-            } catch (orderError: any) {
-              // Fallback without orderBy
-              console.log('⚠️ OrderBy failed on reload, fetching without ordering');
-              reloadedItemsSnapshot = await firestore()
-                .collection('artifacts')
-                .doc(APP_ID)
-                .collection('users')
-                .doc(user.uid)
-                .collection('items')
-                .get();
-            }
-
-            const itemsArray: ItemData[] = reloadedItemsSnapshot.docs.map(doc => {
+            const itemsArray: ItemData[] = snapshot.docs.map(doc => {
               const data = doc.data();
               return {
                 id: doc.id,
@@ -212,41 +229,31 @@ export function ItemsScreen() {
             });
 
             setItems(itemsArray);
-            return;
-          } catch (rebuildError: any) {
-            console.error('❌ Error rebuilding items:', rebuildError);
-            console.error('❌ Error message:', rebuildError?.message);
-            console.error('❌ Error details:', JSON.stringify(rebuildError, null, 2));
-            // Continue with empty items
+            setIsLoading(false);
+            
+            // Update cache
+            if (itemsArray.length > 0) {
+              await cacheManager.set(cacheKey, itemsArray, {
+                namespace: 'receipts',
+                ttl: CacheTTL.HOUR * 6,
+              });
+            } else {
+              await cacheManager.remove(cacheKey, 'receipts');
+            }
+          },
+          (error) => {
+            console.error('❌ Items listener error:', error);
+            setIsLoading(false);
           }
-        }
+        );
       }
-
-      const itemsArray: ItemData[] = itemsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name || doc.id,
-          nameNormalized: data.nameNormalized || doc.id,
-          prices: (data.prices || []).map((p: any) => ({
-            storeName: p.storeName || 'Inconnu',
-            price: p.price || 0,
-            currency: p.currency || 'USD',
-            date: safeToDate(p.date),
-            receiptId: p.receiptId || '',
-          })),
-          minPrice: data.minPrice || 0,
-          maxPrice: data.maxPrice || 0,
-          avgPrice: data.avgPrice || 0,
-          storeCount: data.storeCount || 0,
-          currency: data.currency || 'USD',
-        };
-      });
-
-      setItems(itemsArray);
+      
+      if (unsubscribe) {
+        unsubscribeRef.current = unsubscribe;
+      }
+      
     } catch (error) {
       console.error('Error loading items:', error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -263,12 +270,7 @@ export function ItemsScreen() {
     const normalizedItem = normalize(itemName);
     const normalizedQuery = normalize(query);
     
-    // 1. Bilingual match (French <-> English) - with API fallback
-    if (await translationService.bilingualMatchAsync(itemName, query)) {
-      return true;
-    }
-    
-    // 2. Direct contains match
+    // 1. Direct contains match
     if (normalizedItem.includes(normalizedQuery)) {
       return true;
     }

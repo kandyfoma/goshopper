@@ -872,7 +872,13 @@ export function LoginScreen() {
                     onPress={handleBiometricLogin}
                     disabled={isLoading || biometricLoading}
                     loading={biometricLoading}
-                    icon={<Icon name="fingerprint" size="sm" color={GOCHUJANG.textPrimary} />}
+                    icon={
+                      <Icon 
+                        name={biometricStatus?.biometryType === 'FaceID' ? 'scan' : 'fingerprint'} 
+                        size="sm" 
+                        color={GOCHUJANG.textPrimary} 
+                      />
+                    }
                     iconPosition="left"
                   />
                 </>
