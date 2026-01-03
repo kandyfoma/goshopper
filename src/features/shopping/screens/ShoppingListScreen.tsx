@@ -764,34 +764,40 @@ export function ShoppingListScreen() {
         <Text style={styles.quickActionsTitle}>Actions rapides</Text>
         <View style={styles.quickActionsGrid}>
           <TouchableOpacity
-            style={[styles.quickAction, {backgroundColor: Colors.card.cosmos}]}
-            onPress={() => navigation.push('Stats')}>
-            <Icon name="stats" size="md" color={Colors.text.inverse} />
-            <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Statistiques</Text>
+            style={styles.quickAction}
+            onPress={() => navigation.push('Stats')}
+            activeOpacity={0.7}>
+            <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
+              <Icon name="bar-chart" size="md" color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>Statistiques</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
-            onPress={() => navigation.push('Shops')}>
-            <Icon name="shopping-bag" size="md" color={Colors.white} />
-            <Text style={[styles.quickActionLabel, {color: Colors.white}]}>Mes Magasins</Text>
+            style={styles.quickAction}
+            onPress={() => navigation.push('Shops')}
+            activeOpacity={0.7}>
+            <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
+              <Icon name="shopping-bag" size="md" color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>Magasins</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.quickAction, {backgroundColor: Colors.card.yellow}]}
-            onPress={() => navigation.push('AIAssistant')}>
-            <Icon name="help" size="md" color={Colors.text.primary} />
-            <Text style={[styles.quickActionLabel, {color: Colors.text.primary}]}>Assistant IA</Text>
+            style={styles.quickAction}
+            onPress={() => navigation.push('AIAssistant')}
+            activeOpacity={0.7}>
+            <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
+              <Icon name="sparkles" size="md" color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>Assistant IA</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.quickAction, {backgroundColor: Colors.card.blue}]}
-            onPress={() => navigation.push('Achievements')}>
-            <Icon name="trophy" size="md" color={Colors.white} />
-            <Text style={[styles.quickActionLabel, {color: Colors.white}]}>Mes succès</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickAction, {backgroundColor: Colors.card.crimson}]}
-            onPress={() => navigation.push('Settings')}>
-            <Icon name="settings" size="md" color={Colors.text.inverse} />
-            <Text style={[styles.quickActionLabel, {color: Colors.text.inverse}]}>Paramètres</Text>
+            style={styles.quickAction}
+            onPress={() => navigation.push('Achievements')}
+            activeOpacity={0.7}>
+            <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
+              <Icon name="trophy" size="md" color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>Succès</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1683,12 +1689,13 @@ const styles = StyleSheet.create({
   quickActionsSection: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xl,
+    backgroundColor: Colors.white,
   },
   quickActionsTitle: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -1697,16 +1704,28 @@ const styles = StyleSheet.create({
   },
   quickAction: {
     width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) / 2,
+    backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 100,
+    borderWidth: 1,
+    borderColor: Colors.border.light,
+    ...Shadows.sm,
+  },
+  quickActionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
   quickActionLabel: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    marginTop: Spacing.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
     textAlign: 'center',
   },
   // New styles for simplified Add Item Modal

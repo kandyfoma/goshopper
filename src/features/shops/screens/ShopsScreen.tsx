@@ -25,6 +25,7 @@ import {Icon, EmptyState, AppFooter, BackButton, FadeIn} from '@/shared/componen
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
+import {networkAwareCache, CacheTTL, CachePriority} from '@/shared/services/caching';
 import {APP_ID} from '@/shared/services/firebase/config';
 
 type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Shops'>;
@@ -72,40 +73,62 @@ export function ShopsScreen() {
       return;
     }
 
+    const userId = user.uid;
+    const cacheKey = `shops-${userId}`;
+
     try {
       setIsLoading(true);
 
-      const shopsSnapshot = await firestore()
-        .collection('artifacts')
-        .doc(APP_ID)
-        .collection('users')
-        .doc(user.uid)
-        .collection('shops')
-        .get();
+      // Fetch shops with network-aware caching
+      const result = await networkAwareCache.fetchWithCache({
+        cacheKey,
+        namespace: 'shops',
+        ttl: CacheTTL.THIRTY_MINUTES,
+        priority: CachePriority.NORMAL,
+        fetchFn: async () => {
+          const shopsSnapshot = await firestore()
+            .collection('artifacts')
+            .doc(APP_ID)
+            .collection('users')
+            .doc(userId)
+            .collection('shops')
+            .get();
 
-      const shopsData: Shop[] = shopsSnapshot.docs
-        .filter(doc => doc.exists && doc.data())
-        .map(doc => {
-          const data = doc.data()!;
-          return {
-            id: doc.id,
-            name: data.name || 'Magasin inconnu',
-            nameNormalized: data.nameNormalized || '',
-            address: data.address,
-          phone: data.phone,
-          receiptCount: data.receiptCount || 0,
-          totalSpent: data.totalSpent || 0,
-          currency: data.currency || 'USD',
-          lastVisit: safeToDate(data.lastVisit),
-          createdAt: safeToDate(data.createdAt),
-          updatedAt: safeToDate(data.updatedAt),
-        };
+          const shopsData: Shop[] = shopsSnapshot.docs
+            .filter(doc => doc.exists && doc.data())
+            .map(doc => {
+              const data = doc.data()!;
+              return {
+                id: doc.id,
+                name: data.name || 'Magasin inconnu',
+                nameNormalized: data.nameNormalized || '',
+                address: data.address,
+                phone: data.phone,
+                receiptCount: data.receiptCount || 0,
+                totalSpent: data.totalSpent || 0,
+                currency: data.currency || 'USD',
+                lastVisit: safeToDate(data.lastVisit),
+                createdAt: safeToDate(data.createdAt),
+                updatedAt: safeToDate(data.updatedAt),
+              };
+            });
+
+          // Sort by totalSpent descending
+          shopsData.sort((a, b) => b.totalSpent - a.totalSpent);
+
+          return shopsData;
+        },
+        onStaleData: (shopsData) => {
+          console.log('📦 Using cached shops (stale)');
+          setShops(shopsData);
+        },
       });
 
-      // Sort by totalSpent descending
-      shopsData.sort((a, b) => b.totalSpent - a.totalSpent);
-
-      setShops(shopsData);
+      if (result.data) {
+        setShops(result.data);
+      } else {
+        setShops([]);
+      }
     } catch (error) {
       console.error('Error loading shops:', error);
       setShops([]);

@@ -15,6 +15,7 @@ import {
 } from '@/shared/utils/fuzzyMatch';
 import {savingsTrackerService} from './savingsTracker';
 import {widgetDataService} from '../widgetDataService';
+import {cacheInvalidation, InvalidationTrigger} from '../caching';
 
 const RECEIPTS_COLLECTION = (userId: string) =>
   `artifacts/${APP_ID}/users/${userId}/receipts`;
@@ -283,6 +284,14 @@ class ReceiptStorageService {
       });
 
       await receiptRef.set(cleanedReceipt);
+
+      // Invalidate related caches
+      cacheInvalidation.invalidate(InvalidationTrigger.RECEIPT_ADDED, {
+        userId,
+        receiptId: receipt.id,
+      }).catch(err => {
+        console.log('Cache invalidation error (non-critical):', err);
+      });
 
       // Update shop in background (non-blocking, non-critical)
       // If this fails, receipt is still saved

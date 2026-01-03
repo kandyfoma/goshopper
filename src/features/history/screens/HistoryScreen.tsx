@@ -32,6 +32,7 @@ import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {spotlightSearchService, offlineService} from '@/shared/services';
+import {networkAwareCache, CacheTTL, CachePriority} from '@/shared/services/caching';
 import {receiptStorageService} from '@/shared/services/firebase';
 import {useIsOnline} from '@/shared/hooks';
 
@@ -83,103 +84,124 @@ export function HistoryScreen() {
       return;
     }
 
+    const userId = user.uid;
+    const cacheKey = `receipts-${userId}`;
+
     try {
       setIsLoading(true);
 
-      let receiptsSnapshot;
-      try {
-        // Try with orderBy first (requires index)
-        receiptsSnapshot = await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('receipts')
-          .orderBy('scannedAt', 'desc')
-          .get();
-      } catch (indexError) {
-        // Fallback: get all and sort client-side
-        console.log('Index not ready, fetching all receipts and sorting client-side');
-        receiptsSnapshot = await firestore()
-          .collection('artifacts')
-          .doc(APP_ID)
-          .collection('users')
-          .doc(user.uid)
-          .collection('receipts')
-          .get();
-      }
+      // Fetch receipts with network-aware caching
+      const result = await networkAwareCache.fetchWithCache({
+        cacheKey,
+        namespace: 'receipts',
+        ttl: CacheTTL.FIVE_MINUTES,
+        priority: CachePriority.HIGH,
+        fetchFn: async () => {
+          let receiptsSnapshot;
+          try {
+            // Try with orderBy first (requires index)
+            receiptsSnapshot = await firestore()
+              .collection('artifacts')
+              .doc(APP_ID)
+              .collection('users')
+              .doc(userId)
+              .collection('receipts')
+              .orderBy('scannedAt', 'desc')
+              .get();
+          } catch (indexError) {
+            // Fallback: get all and sort client-side
+            console.log('Index not ready, fetching all receipts and sorting client-side');
+            receiptsSnapshot = await firestore()
+              .collection('artifacts')
+              .doc(APP_ID)
+              .collection('users')
+              .doc(userId)
+              .collection('receipts')
+              .get();
+          }
 
-      const receiptsData: Receipt[] = receiptsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        
-        // Process items first
-        const processedItems = (data.items || []).map((item: any) => ({
-          id: item.id || Math.random().toString(36).substring(7),
-          name: item.name || 'Article inconnu',
-          nameNormalized: item.nameNormalized || '',
-          quantity: item.quantity || 1,
-          unitPrice: item.unitPrice || 0,
-          totalPrice: item.totalPrice || 0,
-          unit: item.unit,
-          category: item.category || 'Autres',
-          confidence: item.confidence || 0.85,
-        }));
-        
-        // Calculate total from items if not provided
-        const calculatedTotal = processedItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
-        const finalTotal = data.total || calculatedTotal || 0;
-        
-        return {
-          id: doc.id,
-          userId: data.userId,
-          storeName: data.storeName && data.storeName !== 'null' ? data.storeName : 'Magasin inconnu',
-          storeNameNormalized: data.storeNameNormalized || '',
-          storeAddress: data.storeAddress,
-          storePhone: data.storePhone,
-          receiptNumber: data.receiptNumber,
-          date: safeToDate(data.scannedAt || data.date),
-          currency: data.currency || 'USD',
-          items: processedItems,
-          subtotal: data.subtotal,
-          tax: data.tax,
-          total: finalTotal,
-          totalUSD: data.totalUSD,
-          totalCDF: data.totalCDF,
-          processingStatus: data.processingStatus || 'completed',
-          createdAt: safeToDate(data.createdAt) || new Date(),
-          updatedAt: safeToDate(data.updatedAt) || new Date(),
-          scannedAt: safeToDate(data.scannedAt) || new Date(),
-        };
+          const receiptsData: Receipt[] = receiptsSnapshot.docs.map(doc => {
+            const data = doc.data();
+
+            // Process items first
+            const processedItems = (data.items || []).map((item: any) => ({
+              id: item.id || Math.random().toString(36).substring(7),
+              name: item.name || 'Article inconnu',
+              nameNormalized: item.nameNormalized || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              totalPrice: item.totalPrice || 0,
+              unit: item.unit,
+              category: item.category || 'Autres',
+              confidence: item.confidence || 0.85,
+            }));
+
+            // Calculate total from items if not provided
+            const calculatedTotal = processedItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
+            const finalTotal = data.total || calculatedTotal || 0;
+
+            return {
+              id: doc.id,
+              userId: data.userId,
+              storeName: data.storeName && data.storeName !== 'null' ? data.storeName : 'Magasin inconnu',
+              storeNameNormalized: data.storeNameNormalized || '',
+              storeAddress: data.storeAddress,
+              storePhone: data.storePhone,
+              receiptNumber: data.receiptNumber,
+              date: safeToDate(data.scannedAt || data.date),
+              currency: data.currency || 'USD',
+              items: processedItems,
+              subtotal: data.subtotal,
+              tax: data.tax,
+              total: finalTotal,
+              totalUSD: data.totalUSD,
+              totalCDF: data.totalCDF,
+              processingStatus: data.processingStatus || 'completed',
+              createdAt: safeToDate(data.createdAt) || new Date(),
+              updatedAt: safeToDate(data.updatedAt) || new Date(),
+              scannedAt: safeToDate(data.scannedAt) || new Date(),
+            };
+          });
+
+          // Sort by scannedAt descending (in case we used client-side fallback)
+          receiptsData.sort((a, b) => b.scannedAt.getTime() - a.scannedAt.getTime());
+
+          return receiptsData;
+        },
+        onStaleData: (receiptsData) => {
+          console.log('📦 Using cached receipts (stale)');
+          setReceipts(receiptsData);
+          setFilteredReceipts(receiptsData);
+        },
       });
 
-      // Sort by scannedAt descending (in case we used client-side fallback)
-      receiptsData.sort((a, b) => b.scannedAt.getTime() - a.scannedAt.getTime());
+      if (result.data) {
+        setReceipts(result.data);
+        setFilteredReceipts(result.data);
 
-      setReceipts(receiptsData);
-      setFilteredReceipts(receiptsData);
+        // Cache receipts for offline access (legacy support)
+        offlineService.cacheReceipts(
+          result.data.map(r => ({
+            id: r.id,
+            storeName: r.storeName,
+            total: r.total,
+            date: r.date.toISOString(),
+            itemCount: r.items?.length || 0,
+            cachedAt: Date.now(),
+          }))
+        );
 
-      // Cache receipts for offline access
-      offlineService.cacheReceipts(
-        receiptsData.map(r => ({
-          id: r.id,
-          storeName: r.storeName,
-          total: r.total,
-          date: r.date.toISOString(),
-          itemCount: r.items?.length || 0,
-          cachedAt: Date.now(),
-        }))
-      );
-
-      // Index receipts for Spotlight/App Search
-      spotlightSearchService.indexReceipts(
-        receiptsData.map(r => ({
-          id: r.id,
-          shopName: r.storeName,
-          date: r.date,
-          total: r.total,
-          itemCount: r.items?.length || 0,
-        }))
-      );
+        // Index receipts for Spotlight/App Search
+        spotlightSearchService.indexReceipts(
+          result.data.map(r => ({
+            id: r.id,
+            shopName: r.storeName,
+            date: r.date,
+            total: r.total,
+            itemCount: r.items?.length || 0,
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error loading receipts:', error);
       

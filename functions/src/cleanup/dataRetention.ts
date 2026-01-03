@@ -1,6 +1,10 @@
 /**
  * Data Retention Policy
- * Automatically deletes user data older than 3 months
+ * Automatically deletes user data based on subscription tier:
+ * - Basic: 1 month retention
+ * - Standard: 2 months retention  
+ * - Premium: 3 months retention
+ * - Free/Freemium: 1 month retention
  * Runs on the 1st of every month at 2 AM UTC
  */
 
@@ -11,7 +15,25 @@ import {config} from '../config';
 const db = admin.firestore();
 
 /**
- * Delete all user data (receipts, items, stats) older than 3 months
+ * Get data retention period in months based on subscription plan
+ */
+function getRetentionMonths(planId?: string): number {
+  switch (planId) {
+    case 'basic':
+    case 'free':
+    case 'freemium':
+      return 1;
+    case 'standard':
+      return 2;
+    case 'premium':
+      return 3;
+    default:
+      return 1; // Default to 1 month for unsubscribed users
+  }
+}
+
+/**
+ * Delete user data based on subscription-specific retention periods
  * Scheduled to run on the 1st of every month at 2:00 AM UTC
  */
 export const cleanupOldUserData = functions
@@ -19,16 +41,9 @@ export const cleanupOldUserData = functions
   .pubsub.schedule('0 2 1 * *') // Cron: At 02:00 on day-of-month 1
   .timeZone('UTC')
   .onRun(async context => {
-    console.log('🧹 Starting monthly data cleanup...');
+    console.log('🧹 Starting monthly data cleanup with subscription-based retention...');
 
     try {
-      // Calculate the cutoff date (3 months ago)
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const cutoffTimestamp = admin.firestore.Timestamp.fromDate(threeMonthsAgo);
-
-      console.log(`📅 Cutoff date: ${threeMonthsAgo.toISOString()}`);
-
       // Get all users
       const usersSnapshot = await db
         .collection(`artifacts/${config.app.id}/users`)
@@ -49,6 +64,23 @@ export const cleanupOldUserData = functions
         const userId = userDoc.id;
 
         try {
+          // Get user's subscription to determine retention period
+          const subscriptionDoc = await db
+            .collection(`artifacts/${config.app.id}/users/${userId}/subscription`)
+            .doc('current')
+            .get();
+
+          const subscription = subscriptionDoc.data();
+          const planId = subscription?.planId || subscription?.plan || 'freemium';
+          const retentionMonths = getRetentionMonths(planId);
+
+          // Calculate cutoff date based on user's subscription
+          const cutoffDate = new Date();
+          cutoffDate.setMonth(cutoffDate.getMonth() - retentionMonths);
+          const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffDate);
+
+          console.log(`👤 User ${userId} (${planId}): ${retentionMonths} month retention, cutoff: ${cutoffDate.toISOString()}`);
+
           const userStats = await cleanupUserData(userId, cutoffTimestamp);
           totalReceiptsDeleted += userStats.receiptsDeleted;
           totalItemsUpdated += userStats.itemsUpdated;
@@ -58,9 +90,11 @@ export const cleanupOldUserData = functions
           totalBudgetsDeleted += userStats.budgetsDeleted;
           totalUsersProcessed++;
 
-          console.log(
-            `✅ User ${userId}: ${userStats.receiptsDeleted} receipts, ${userStats.itemsUpdated} items, ${userStats.shoppingListsDeleted} lists, ${userStats.notificationsDeleted} notifications, ${userStats.alertsDeleted} alerts, ${userStats.budgetsDeleted} budgets`,
-          );
+          if (userStats.receiptsDeleted > 0 || userStats.itemsUpdated > 0) {
+            console.log(
+              `✅ User ${userId}: ${userStats.receiptsDeleted} receipts, ${userStats.itemsUpdated} items, ${userStats.shoppingListsDeleted} lists, ${userStats.notificationsDeleted} notifications, ${userStats.alertsDeleted} alerts, ${userStats.budgetsDeleted} budgets`,
+            );
+          }
         } catch (error) {
           console.error(`❌ Error processing user ${userId}:`, error);
           // Continue with other users even if one fails
@@ -87,7 +121,7 @@ export const cleanupOldUserData = functions
         notificationsDeleted: totalNotificationsDeleted,
         alertsDeleted: totalAlertsDeleted,
         budgetsDeleted: totalBudgetsDeleted,
-        cutoffDate: threeMonthsAgo.toISOString(),
+        retentionPolicy: 'Subscription-based (Basic: 1mo, Standard: 2mo, Premium: 3mo)',
       };
     } catch (error) {
       console.error('💥 Fatal error in cleanup:', error);

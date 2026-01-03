@@ -109,6 +109,7 @@ export interface PlanPricing {
   priceCDF: number;
   duration: string;
   scanLimit: number;
+  dataRetentionMonths: number;
   features: string[];
   popular?: boolean;
 }
@@ -151,10 +152,12 @@ export const PLAN_PRICING: PlanPricing[] = [
     priceCDF: 0,
     duration: '1 mois',
     scanLimit: 10,
+    dataRetentionMonths: 1,
     features: [
       '1 mois gratuit',
       "10 scans pendant l'essai",
       'Toutes les fonctionnalités premium',
+      'Conservation données: 1 mois',
     ],
   },
   {
@@ -164,10 +167,12 @@ export const PLAN_PRICING: PlanPricing[] = [
     priceCDF: 8000,
     duration: 'mois',
     scanLimit: 20,
+    dataRetentionMonths: 1,
     features: [
       '20 scans par mois',
       'Comparaison de prix basique',
       'Historique 30 jours',
+      'Conservation données: 1 mois',
     ],
   },
   {
@@ -177,11 +182,13 @@ export const PLAN_PRICING: PlanPricing[] = [
     priceCDF: 12000,
     duration: 'mois',
     scanLimit: 50,
+    dataRetentionMonths: 2,
     features: [
       '50 scans par mois',
       'Rapports de dépenses',
       'Historique des prix',
       'Analyse par catégorie',
+      'Conservation données: 2 mois',
     ],
     popular: true,
   },
@@ -192,12 +199,14 @@ export const PLAN_PRICING: PlanPricing[] = [
     priceCDF: 20000,
     duration: 'mois',
     scanLimit: 200,
+    dataRetentionMonths: 3,
     features: [
       '200 scans par mois',
       'Alertes de prix',
       'Listes de courses',
       'Export des données',
       'Support prioritaire',
+      'Conservation données: 3 mois',
     ],
   },
 ];

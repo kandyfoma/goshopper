@@ -33,6 +33,7 @@ import {analyticsService} from '@/shared/services/analytics';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import {SubscriptionLimitModal} from '@/shared/components';
 import {globalSettingsService} from '@/shared/services/globalSettingsService';
+import {networkAwareCache, CachePriority} from '@/shared/services/caching';
 import {APP_ID} from '@/shared/services/firebase/config';
 import {getCurrentMonthBudget} from '@/shared/services/firebase/budgetService';
 import {RootStackParamList, MainTabParamList} from '@/shared/types';
@@ -146,17 +147,14 @@ export function StatsScreen() {
     try {
       setIsLoading(true);
 
-      // Clear AsyncStorage stats cache if force refresh
-      if (forceRefresh) {
-        console.log('🔄 Force refresh - clearing stats cache');
-        try {
-          const USER_STATS_KEY = '@goshopper:user-stats';
-          await AsyncStorage.removeItem(`${USER_STATS_KEY}_${user.uid}`);
-          console.log('✅ Stats cache cleared');
-        } catch (cacheError) {
-          console.log('⚠️ Failed to clear stats cache:', cacheError);
-        }
-      }
+      // Use network-aware cache for stats data
+      const cacheKey = `stats-data-${user.uid}-${new Date().getMonth()}`;
+      const cachedData = await networkAwareCache.fetchWithCache({
+        key: cacheKey,
+        namespace: 'stats',
+        ttl: 5 * 60 * 1000, // 5 minutes
+        priority: CachePriority.HIGH,
+        fetchFn: async () => {
 
       // Get current month receipts (load all and filter in memory to avoid index issues)
       const now = new Date();
@@ -442,6 +440,33 @@ export function StatsScreen() {
       );
 
       setMonthlyData(monthlyArray);
+
+          return {
+            totalSpending,
+            categories: categoriesArray,
+            monthlyData: monthlyArray,
+            currentMonthReceipts: currentMonthReceipts.map(doc => ({id: doc.id, ...doc.data()}))
+          };
+        },
+        forceRefresh,
+        onStaleData: (staleData) => {
+          // Show stale data immediately for instant display
+          if (staleData) {
+            setTotalSpending(staleData.totalSpending || 0);
+            setCategories(staleData.categories || []);
+            setMonthlyData(staleData.monthlyData || []);
+            setCurrentMonthReceipts(staleData.currentMonthReceipts || []);
+          }
+        }
+      });
+
+      // Update with fresh or cached data
+      if (cachedData) {
+        setTotalSpending(cachedData.totalSpending || 0);
+        setCategories(cachedData.categories || []);
+        setMonthlyData(cachedData.monthlyData || []);
+        setCurrentMonthReceipts(cachedData.currentMonthReceipts || []);
+      }
     } catch (error) {
       console.error('Error loading stats:', error);
       // Set empty data on error
@@ -597,40 +622,6 @@ export function StatsScreen() {
               titleColor={Colors.text.secondary}
             />
           }>
-        {/* Summary Cards */}
-        <SlideIn delay={100}>
-          <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, styles.budgetCard]}>
-              <View style={styles.summaryIconWrapper}>
-                <Icon name="wallet" size="md" color={Colors.primary} />
-              </View>
-              <Text style={styles.summaryLabel}>Budget Mensuel</Text>
-              <Text style={styles.summaryAmount}>
-                {formatCurrency(monthlyBudget, primaryCurrency)}
-              </Text>
-            </View>
-
-            <View style={[styles.summaryCard, styles.spendingCard]}>
-              <View style={styles.summaryIconWrapper}>
-                <Icon
-                  name="credit-card"
-                  size="md"
-                  color={Colors.status.warning}
-                />
-              </View>
-              <Text style={styles.summaryLabel}>Dépenses</Text>
-              <Text style={styles.summaryAmount}>
-                {formatCurrency(totalSpending, primaryCurrency)}
-              </Text>
-              <Text style={styles.summarySubtitle}>
-                {totalSpending > monthlyBudget
-                  ? 'Dépassement'
-                  : 'Dans le budget'}
-              </Text>
-            </View>
-          </View>
-        </SlideIn>
-
         {/* Monthly Trend - Improved Bar Chart */}
         <SlideIn delay={200}>
           <View style={styles.section}>
@@ -881,8 +872,78 @@ export function StatsScreen() {
           </View>
         </SlideIn>
 
-        {/* Insights */}
-        <SlideIn delay={400}>
+        {/* Shopping Behavior Analysis */}
+        <SlideIn delay={500}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Analyse de Comportement</Text>
+
+            <View style={styles.behaviorCard}>
+              <View style={styles.behaviorRow}>
+                <View style={styles.behaviorItem}>
+                  <Icon name="calendar" size="sm" color={Colors.primary} />
+                  <Text style={styles.behaviorLabel}>Achats ce mois</Text>
+                  <Text style={styles.behaviorValue}>
+                    {currentMonthReceipts.length}
+                  </Text>
+                </View>
+                <View style={styles.behaviorItem}>
+                  <Icon name="credit-card" size="sm" color={Colors.accent} />
+                  <Text style={styles.behaviorLabel}>Dépense moyenne</Text>
+                  <Text style={styles.behaviorValue}>
+                    {currentMonthReceipts.length > 0 
+                      ? formatCurrency(totalSpending / currentMonthReceipts.length, primaryCurrency)
+                      : formatCurrency(0, primaryCurrency)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.behaviorRow}>
+                <View style={styles.behaviorItem}>
+                  <Icon name="shopping-bag" size="sm" color={Colors.status.success} />
+                  <Text style={styles.behaviorLabel}>Catégories</Text>
+                  <Text style={styles.behaviorValue}>{categories.length}</Text>
+                </View>
+                <View style={styles.behaviorItem}>
+                  <Icon name="trending-down" size="sm" color={Colors.status.info} />
+                  <Text style={styles.behaviorLabel}>Budget restant</Text>
+                  <Text style={styles.behaviorValue}>
+                    {formatCurrency(Math.max(0, monthlyBudget - totalSpending), primaryCurrency)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Top stores if available */}
+            {currentMonthReceipts.length > 0 && (
+              <View style={[styles.behaviorCard, {marginTop: Spacing.md}]}>
+                <Text style={styles.behaviorCardTitle}>Magasins les plus visités</Text>
+                {(() => {
+                  const storeCounts: Record<string, number> = {};
+                  currentMonthReceipts.forEach(doc => {
+                    const storeName = doc.data().storeName || 'Magasin inconnu';
+                    storeCounts[storeName] = (storeCounts[storeName] || 0) + 1;
+                  });
+                  const topStores = Object.entries(storeCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 3);
+                  
+                  return topStores.map(([store, count], index) => (
+                    <View key={index} style={styles.storeRow}>
+                      <View style={styles.storeRank}>
+                        <Text style={styles.storeRankText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.storeName}>{store}</Text>
+                      <Text style={styles.storeCount}>{count} achats</Text>
+                    </View>
+                  ));
+                })()}
+              </View>
+            )}
+          </View>
+        </SlideIn>
+
+        {/* Insights - Moved to bottom */}
+        <SlideIn delay={600}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Conseils Personnalisés</Text>
 
@@ -958,76 +1019,6 @@ export function StatsScreen() {
                     Continuez comme ça! Vous économisez {formatCurrency(monthlyBudget - totalSpending, primaryCurrency)}.
                   </Text>
                 </View>
-              </View>
-            )}
-          </View>
-        </SlideIn>
-
-        {/* Shopping Behavior Analysis */}
-        <SlideIn delay={500}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Analyse de Comportement</Text>
-
-            <View style={styles.behaviorCard}>
-              <View style={styles.behaviorRow}>
-                <View style={styles.behaviorItem}>
-                  <Icon name="calendar" size="sm" color={Colors.primary} />
-                  <Text style={styles.behaviorLabel}>Achats ce mois</Text>
-                  <Text style={styles.behaviorValue}>
-                    {currentMonthReceipts.length}
-                  </Text>
-                </View>
-                <View style={styles.behaviorItem}>
-                  <Icon name="credit-card" size="sm" color={Colors.accent} />
-                  <Text style={styles.behaviorLabel}>Dépense moyenne</Text>
-                  <Text style={styles.behaviorValue}>
-                    {currentMonthReceipts.length > 0 
-                      ? formatCurrency(totalSpending / currentMonthReceipts.length, primaryCurrency)
-                      : formatCurrency(0, primaryCurrency)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.behaviorRow}>
-                <View style={styles.behaviorItem}>
-                  <Icon name="shopping-bag" size="sm" color={Colors.status.success} />
-                  <Text style={styles.behaviorLabel}>Catégories</Text>
-                  <Text style={styles.behaviorValue}>{categories.length}</Text>
-                </View>
-                <View style={styles.behaviorItem}>
-                  <Icon name="trending-down" size="sm" color={Colors.status.info} />
-                  <Text style={styles.behaviorLabel}>Budget restant</Text>
-                  <Text style={styles.behaviorValue}>
-                    {formatCurrency(Math.max(0, monthlyBudget - totalSpending), primaryCurrency)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Top stores if available */}
-            {currentMonthReceipts.length > 0 && (
-              <View style={[styles.behaviorCard, {marginTop: Spacing.md}]}>
-                <Text style={styles.behaviorCardTitle}>Magasins les plus visités</Text>
-                {(() => {
-                  const storeCounts: Record<string, number> = {};
-                  currentMonthReceipts.forEach(doc => {
-                    const storeName = doc.data().storeName || 'Magasin inconnu';
-                    storeCounts[storeName] = (storeCounts[storeName] || 0) + 1;
-                  });
-                  const topStores = Object.entries(storeCounts)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 3);
-                  
-                  return topStores.map(([store, count], index) => (
-                    <View key={index} style={styles.storeRow}>
-                      <View style={styles.storeRank}>
-                        <Text style={styles.storeRankText}>{index + 1}</Text>
-                      </View>
-                      <Text style={styles.storeName}>{store}</Text>
-                      <Text style={styles.storeCount}>{count} achats</Text>
-                    </View>
-                  ));
-                })()}
               </View>
             )}
           </View>

@@ -24,7 +24,7 @@ import {initializeFirebase} from '@/shared/services/firebase/config';
 import {analyticsService, translationService} from '@/shared/services';
 import {pushNotificationService} from '@/shared/services/firebase';
 import {quickActionsService, inAppReviewService, spotlightSearchService, offlineService, widgetDataService} from '@/shared/services';
-import {cacheInitializer} from '@/shared/services/caching';
+import {cacheInitializer, cachePreloader} from '@/shared/services/caching';
 import {initializeNotificationChannels} from '@/shared/utils/notificationChannels';
 import {notificationActionsService} from '@/shared/services/notificationActions';
 import {useBiometricCheck} from '@/shared/hooks';

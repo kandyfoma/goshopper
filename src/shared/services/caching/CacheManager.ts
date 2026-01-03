@@ -62,12 +62,17 @@ export type CacheNamespace =
   | 'security'
   | 'widgets'
   | 'offline-queue'
+  | 'stats'
+  | 'shops'
+  | 'items'
+  | 'home-data'
+  | 'history'
   | 'temp';
 
 const DEFAULT_CONFIG: Required<CacheConfig> = {
-  maxMemoryCacheSize: 1000, // Increased from 500 to 1000 items
-  maxMemoryCacheBytes: 100 * 1024 * 1024, // Increased from 50MB to 100MB
-  defaultTTL: 7 * 24 * 60 * 60 * 1000, // Increased from 24 hours to 7 days
+  maxMemoryCacheSize: 500, // Balanced for mobile devices
+  maxMemoryCacheBytes: 50 * 1024 * 1024, // 50MB to avoid memory pressure
+  defaultTTL: 60 * 60 * 1000, // 1 hour default TTL
   enableCompression: false,
   enableAnalytics: true,
 };
@@ -510,7 +515,13 @@ export const cacheManager = new CacheManager();
 // TTL presets for convenience
 export const CacheTTL = {
   MINUTE: 60 * 1000,
+  FIVE_MINUTES: 5 * 60 * 1000,
+  FIFTEEN_MINUTES: 15 * 60 * 1000,
+  THIRTY_MINUTES: 30 * 60 * 1000,
   HOUR: 60 * 60 * 1000,
+  TWO_HOURS: 2 * 60 * 60 * 1000,
+  SIX_HOURS: 6 * 60 * 60 * 1000,
+  TWELVE_HOURS: 12 * 60 * 60 * 1000,
   DAY: 24 * 60 * 60 * 1000,
   WEEK: 7 * 24 * 60 * 60 * 1000,
   MONTH: 30 * 24 * 60 * 60 * 1000,

@@ -13,6 +13,7 @@ import {useAuth} from './AuthContext';
 import {UserProfile} from '@/shared/types';
 import {COLLECTIONS} from '@/shared/services/firebase/config';
 import {analyticsService} from '@/shared/services';
+import {cachePreloader} from '@/shared/services/caching';
 import {safeToDate} from '@/shared/utils/helpers';
 
 const USER_PROFILE_CACHE_KEY = '@goshopperai_user_profile';
@@ -121,6 +122,11 @@ export function UserProvider({children}: UserProviderProps) {
               USER_PROFILE_CACHE_KEY,
               JSON.stringify(userProfile),
             );
+
+            // Preload critical data in background (non-blocking)
+            cachePreloader.preloadCriticalData(user.uid).catch(err => {
+              console.log('Cache preload error (non-critical):', err);
+            });
           } else {
             // Create default profile if doesn't exist
             await createDefaultProfile(user.uid, user);
