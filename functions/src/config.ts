@@ -83,13 +83,14 @@ export const config = {
 
 // Firestore collection paths
 export const collections = {
-  users: (userId: string) => `artifacts/${config.app.id}/users/${userId}`,
+  users: `artifacts/${config.app.id}/users`,
   userDoc: (userId: string) =>
     `artifacts/${config.app.id}/users/${userId}/profile/data`,
   receipts: (userId: string) =>
     `artifacts/${config.app.id}/users/${userId}/receipts`,
   subscription: (userId: string) =>
     `artifacts/${config.app.id}/users/${userId}/subscription/status`,
+  subscriptions: `artifacts/${config.app.id}/subscriptions`,
   prices: `artifacts/${config.app.id}/public/prices/data`,
   stores: `artifacts/${config.app.id}/public/stores/data`,
   payments: (userId: string) =>

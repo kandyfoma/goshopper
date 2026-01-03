@@ -21,6 +21,15 @@ if (!admin.apps.length) {
 export {parseReceipt, parseReceiptV2, parseReceiptMulti, parseReceiptVideo} from './receipt/parseReceipt';
 export {quickExtractReceipt} from './receipt/quickExtract';
 
+// Background Receipt Processing - FCM push notifications for scan results
+export {
+  createPendingScan,
+  getPendingScanStatus,
+  getUserPendingScans,
+  cancelPendingScan,
+  retryFailedScans,
+} from './receipt/backgroundProcessing';
+
 // Payment functions
 export {
   initiateMokoPayment,

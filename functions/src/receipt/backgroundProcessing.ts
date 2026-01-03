@@ -1,0 +1,663 @@
+/**
+ * Background Receipt Processing Cloud Function
+ * Processes receipts asynchronously after image upload to Cloud Storage
+ * Sends FCM push notifications on completion (works even when phone is locked)
+ */
+
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { config, collections } from '../config';
+import { ParsedReceipt, ReceiptItem } from '../types';
+
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
+const storage = admin.storage();
+const messaging = admin.messaging();
+
+// Gemini AI initialized lazily
+let genAI: GoogleGenerativeAI | null = null;
+
+function getGeminiAI(): GoogleGenerativeAI {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY || (config && config.gemini ? config.gemini.apiKey : '');
+    if (!apiKey) {
+      throw new Error('Service d\'analyse non configuré');
+    }
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+}
+
+interface PendingScan {
+  id: string;
+  userId: string;
+  imageUrl: string;
+  storagePath: string;
+  city?: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.Timestamp;
+  error?: string;
+  receiptId?: string;
+  retryCount: number;
+  fcmToken?: string;
+}
+
+/**
+ * Create a pending scan record and trigger background processing
+ * Called from the mobile app after uploading image to Cloud Storage
+ */
+export const createPendingScan = functions
+  .region('europe-west1')
+  .runWith({
+    timeoutSeconds: 30,
+    memory: '256MB',
+  })
+  .https.onCall(async (data, context) => {
+    // Validate authentication
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { storagePath, city, fcmToken } = data;
+    const userId = context.auth.uid;
+
+    if (!storagePath) {
+      throw new functions.https.HttpsError('invalid-argument', 'storagePath is required');
+    }
+
+    console.log(`📤 Creating pending scan for user ${userId}`);
+
+    try {
+      // Create pending scan record
+      const pendingScanRef = db.collection('pendingScans').doc();
+      const pendingScan: PendingScan = {
+        id: pendingScanRef.id,
+        userId,
+        imageUrl: '', // Will be set when processing
+        storagePath,
+        city: city || undefined,
+        status: 'pending',
+        createdAt: admin.firestore.Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
+        retryCount: 0,
+        fcmToken: fcmToken || undefined,
+      };
+
+      await pendingScanRef.set(pendingScan);
+
+      console.log(`✅ Pending scan created: ${pendingScanRef.id}`);
+
+      // Trigger background processing immediately
+      // This will run asynchronously
+      processReceiptInBackground(pendingScanRef.id).catch(err => {
+        console.error(`Background processing failed for ${pendingScanRef.id}:`, err);
+      });
+
+      return {
+        success: true,
+        pendingScanId: pendingScanRef.id,
+        message: 'Scan queued for background processing',
+      };
+    } catch (error: any) {
+      console.error('Error creating pending scan:', error);
+      throw new functions.https.HttpsError('internal', error.message);
+    }
+  });
+
+/**
+ * Process a receipt in the background
+ * Called automatically when a pending scan is created
+ */
+async function processReceiptInBackground(pendingScanId: string): Promise<void> {
+  console.log(`🔄 Starting background processing for scan ${pendingScanId}`);
+
+  const pendingScanRef = db.collection('pendingScans').doc(pendingScanId);
+  let pendingScan: PendingScan | null = null;
+
+  try {
+    // Get pending scan
+    const doc = await pendingScanRef.get();
+    if (!doc.exists) {
+      console.error(`Pending scan ${pendingScanId} not found`);
+      return;
+    }
+
+    pendingScan = doc.data() as PendingScan;
+
+    // Update status to processing
+    await pendingScanRef.update({
+      status: 'processing',
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    // Download image from Cloud Storage
+    console.log(`📥 Downloading image from ${pendingScan.storagePath}`);
+    const bucket = storage.bucket();
+    const file = bucket.file(pendingScan.storagePath);
+    const [imageBuffer] = await file.download();
+    const imageBase64 = imageBuffer.toString('base64');
+
+    // Get signed URL for reference
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Update with image URL
+    await pendingScanRef.update({
+      imageUrl: signedUrl,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    // Detect mime type
+    const mimeType = pendingScan.storagePath.toLowerCase().endsWith('.png')
+      ? 'image/png'
+      : 'image/jpeg';
+
+    // Process with Gemini AI
+    console.log(`🤖 Processing receipt with Gemini AI`);
+    const receipt = await parseReceiptWithGemini(imageBase64, mimeType, pendingScan.city);
+
+    if (!receipt || !receipt.items || receipt.items.length === 0) {
+      throw new Error('Aucun article détecté dans le reçu');
+    }
+
+    // Check subscription limits
+    const canScan = await checkSubscriptionLimit(pendingScan.userId);
+    if (!canScan.allowed) {
+      throw new Error(canScan.message || 'Limite de scans atteinte');
+    }
+
+    // Save receipt to Firestore
+    console.log(`💾 Saving receipt to Firestore`);
+    const receiptRef = db.collection(collections.receipts(pendingScan.userId)).doc();
+    
+    const receiptData = {
+      ...receipt,
+      id: receiptRef.id,
+      userId: pendingScan.userId,
+      imageUrl: signedUrl,
+      storagePath: pendingScan.storagePath,
+      city: pendingScan.city || receipt.city,
+      scannedAt: admin.firestore.Timestamp.now(),
+      createdAt: admin.firestore.Timestamp.now(),
+      processedInBackground: true,
+    };
+
+    await receiptRef.set(receiptData);
+
+    // Record scan usage
+    await recordScanUsage(pendingScan.userId);
+
+    // Update pending scan as completed
+    await pendingScanRef.update({
+      status: 'completed',
+      receiptId: receiptRef.id,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    console.log(`✅ Receipt saved successfully: ${receiptRef.id}`);
+
+    // Send success notification
+    await sendScanNotification(pendingScan, {
+      success: true,
+      receipt: receiptData,
+      receiptId: receiptRef.id,
+    });
+
+  } catch (error: any) {
+    console.error(`❌ Background processing failed:`, error);
+
+    // Update pending scan as failed
+    if (pendingScan) {
+      const newRetryCount = (pendingScan.retryCount || 0) + 1;
+      
+      await pendingScanRef.update({
+        status: newRetryCount < 3 ? 'pending' : 'failed', // Retry up to 3 times
+        error: error.message,
+        retryCount: newRetryCount,
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+
+      // Send failure notification
+      await sendScanNotification(pendingScan, {
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+}
+
+/**
+ * Parse receipt using Gemini AI
+ */
+async function parseReceiptWithGemini(
+  imageBase64: string,
+  mimeType: string,
+  defaultCity?: string
+): Promise<ParsedReceipt | null> {
+  const prompt = `Tu es un expert en analyse de reçus de magasin. Analyse cette image de reçu et extrait les informations suivantes.
+
+IMPORTANT: 
+- Tous les prix doivent être des NOMBRES (pas de texte)
+- La devise doit être USD ou CDF
+- Si le prix est en francs congolais, utilise CDF
+- Si le prix est en dollars, utilise USD
+
+Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
+{
+  "storeName": "nom du magasin",
+  "date": "YYYY-MM-DD",
+  "receiptNumber": "numéro si visible",
+  "total": 0.00,
+  "currency": "USD ou CDF",
+  "items": [
+    {
+      "name": "nom du produit",
+      "quantity": 1,
+      "unitPrice": 0.00,
+      "totalPrice": 0.00,
+      "category": "catégorie"
+    }
+  ]
+}
+
+Catégories possibles: Alimentation, Boissons, Hygiène, Entretien, Électronique, Vêtements, Autres
+
+Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu valide"}`;
+
+  try {
+    const model = getGeminiAI().getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+      },
+    });
+
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType, data: imageBase64 } },
+    ]);
+
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      throw new Error('Impossible d\'analyser le reçu');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+
+    // Add city to items
+    if (parsed.items && defaultCity) {
+      parsed.items = parsed.items.map((item: ReceiptItem) => ({
+        ...item,
+        city: defaultCity,
+      }));
+      parsed.city = defaultCity;
+    }
+
+    return parsed as ParsedReceipt;
+  } catch (error: any) {
+    console.error('Gemini parsing error:', error);
+    throw new Error(error.message || 'Échec de l\'analyse du reçu');
+  }
+}
+
+/**
+ * Check subscription limit
+ */
+async function checkSubscriptionLimit(userId: string): Promise<{ allowed: boolean; message?: string }> {
+  try {
+    const subscriptionRef = db.collection(collections.subscriptions).doc(userId);
+    const subscriptionDoc = await subscriptionRef.get();
+
+    if (!subscriptionDoc.exists) {
+      // No subscription - check trial limits
+      return { allowed: true }; // Will be handled by recordScanUsage
+    }
+
+    const subscription = subscriptionDoc.data();
+    if (!subscription) {
+      return { allowed: true };
+    }
+
+    // Check if subscribed
+    if (subscription.isSubscribed && subscription.status === 'active') {
+      return { allowed: true };
+    }
+
+    // Check trial limits
+    const trialScansUsed = subscription.trialScansUsed || 0;
+    const trialScansLimit = subscription.trialScansLimit || 50;
+
+    if (trialScansUsed >= trialScansLimit) {
+      return {
+        allowed: false,
+        message: 'Limite d\'essai atteinte. Abonnez-vous pour continuer à scanner.',
+      };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    console.error('Error checking subscription:', error);
+    return { allowed: true }; // Allow on error
+  }
+}
+
+/**
+ * Record scan usage
+ */
+async function recordScanUsage(userId: string): Promise<void> {
+  try {
+    const subscriptionRef = db.collection(collections.subscriptions).doc(userId);
+    await subscriptionRef.update({
+      trialScansUsed: admin.firestore.FieldValue.increment(1),
+      lastScanAt: admin.firestore.Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Error recording scan usage:', error);
+  }
+}
+
+/**
+ * Send FCM push notification for scan result
+ * This works even when the phone is locked!
+ */
+async function sendScanNotification(
+  pendingScan: PendingScan,
+  result: {
+    success: boolean;
+    receipt?: any;
+    receiptId?: string;
+    error?: string;
+  }
+): Promise<void> {
+  try {
+    // Get user's FCM token
+    let fcmToken = pendingScan.fcmToken;
+
+    if (!fcmToken) {
+      // Try to get from user document
+      const userDoc = await db
+        .collection(collections.users)
+        .doc(pendingScan.userId)
+        .get();
+      
+      if (userDoc.exists) {
+        fcmToken = userDoc.data()?.fcmToken;
+      }
+    }
+
+    if (!fcmToken) {
+      console.log('No FCM token available for user', pendingScan.userId);
+      return;
+    }
+
+    let notification: admin.messaging.Notification;
+    let data: { [key: string]: string };
+
+    if (result.success && result.receipt) {
+      const itemCount = result.receipt.items?.length || 0;
+      const storeName = result.receipt.storeName || 'Magasin';
+      const total = result.receipt.total || 0;
+      const currency = result.receipt.currency || 'USD';
+
+      notification = {
+        title: '✅ Reçu analysé avec succès!',
+        body: `${storeName}: ${itemCount} article${itemCount > 1 ? 's' : ''} - ${total.toFixed(2)} ${currency}`,
+      };
+
+      data = {
+        type: 'scan_complete',
+        receiptId: result.receiptId || '',
+        pendingScanId: pendingScan.id,
+        storeName,
+        itemCount: String(itemCount),
+        total: String(total),
+        currency,
+      };
+    } else {
+      notification = {
+        title: '❌ Échec de l\'analyse',
+        body: result.error || 'Une erreur est survenue lors de l\'analyse du reçu.',
+      };
+
+      data = {
+        type: 'scan_failed',
+        pendingScanId: pendingScan.id,
+        error: result.error || 'Unknown error',
+      };
+    }
+
+    // Send FCM message
+    const message: admin.messaging.Message = {
+      token: fcmToken,
+      notification,
+      data,
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'scan_results',
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: notification,
+            sound: 'default',
+            badge: 1,
+            'content-available': 1,
+          },
+        },
+        headers: {
+          'apns-priority': '10',
+        },
+      },
+    };
+
+    await messaging.send(message);
+    console.log(`📱 Notification sent to user ${pendingScan.userId}`);
+  } catch (error: any) {
+    // Handle invalid token
+    if (error.code === 'messaging/registration-token-not-registered' ||
+        error.code === 'messaging/invalid-registration-token') {
+      console.log('Invalid FCM token, removing from user document');
+      await db.collection(collections.users).doc(pendingScan.userId).update({
+        fcmToken: admin.firestore.FieldValue.delete(),
+      });
+    } else {
+      console.error('Error sending notification:', error);
+    }
+  }
+}
+
+/**
+ * Scheduled function to retry failed scans
+ * Runs every 5 minutes
+ */
+export const retryFailedScans = functions
+  .region('europe-west1')
+  .runWith({
+    timeoutSeconds: 300,
+    memory: '512MB',
+  })
+  .pubsub.schedule('every 5 minutes')
+  .onRun(async () => {
+    console.log('🔄 Checking for pending scans to retry...');
+
+    try {
+      // Get pending scans that need retry (status: pending, retryCount < 3)
+      const pendingScans = await db
+        .collection('pendingScans')
+        .where('status', '==', 'pending')
+        .where('retryCount', '<', 3)
+        .limit(10)
+        .get();
+
+      if (pendingScans.empty) {
+        console.log('No pending scans to retry');
+        return null;
+      }
+
+      console.log(`Found ${pendingScans.size} pending scans to retry`);
+
+      // Process each pending scan
+      for (const doc of pendingScans.docs) {
+        try {
+          await processReceiptInBackground(doc.id);
+        } catch (error) {
+          console.error(`Failed to retry scan ${doc.id}:`, error);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error in retryFailedScans:', error);
+      return null;
+    }
+  });
+
+/**
+ * Get pending scan status
+ * Called from the mobile app to check if a scan is complete
+ */
+export const getPendingScanStatus = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { pendingScanId } = data;
+    const userId = context.auth.uid;
+
+    if (!pendingScanId) {
+      throw new functions.https.HttpsError('invalid-argument', 'pendingScanId is required');
+    }
+
+    try {
+      const doc = await db.collection('pendingScans').doc(pendingScanId).get();
+
+      if (!doc.exists) {
+        return { found: false };
+      }
+
+      const pendingScan = doc.data() as PendingScan;
+
+      // Verify ownership
+      if (pendingScan.userId !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Access denied');
+      }
+
+      return {
+        found: true,
+        status: pendingScan.status,
+        receiptId: pendingScan.receiptId,
+        error: pendingScan.error,
+        retryCount: pendingScan.retryCount,
+      };
+    } catch (error: any) {
+      console.error('Error getting pending scan status:', error);
+      throw new functions.https.HttpsError('internal', error.message);
+    }
+  });
+
+/**
+ * Get all pending scans for a user
+ */
+export const getUserPendingScans = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const userId = context.auth.uid;
+
+    try {
+      const snapshot = await db
+        .collection('pendingScans')
+        .where('userId', '==', userId)
+        .where('status', 'in', ['pending', 'processing'])
+        .orderBy('createdAt', 'desc')
+        .limit(10)
+        .get();
+
+      const pendingScans = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.()?.toISOString(),
+        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString(),
+      }));
+
+      return { pendingScans };
+    } catch (error: any) {
+      console.error('Error getting user pending scans:', error);
+      throw new functions.https.HttpsError('internal', error.message);
+    }
+  });
+
+/**
+ * Cancel a pending scan
+ */
+export const cancelPendingScan = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { pendingScanId } = data;
+    const userId = context.auth.uid;
+
+    if (!pendingScanId) {
+      throw new functions.https.HttpsError('invalid-argument', 'pendingScanId is required');
+    }
+
+    try {
+      const docRef = db.collection('pendingScans').doc(pendingScanId);
+      const doc = await docRef.get();
+
+      if (!doc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pending scan not found');
+      }
+
+      const pendingScan = doc.data() as PendingScan;
+
+      if (pendingScan.userId !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Access denied');
+      }
+
+      // Delete the pending scan
+      await docRef.delete();
+
+      // Delete the image from Cloud Storage
+      if (pendingScan.storagePath) {
+        try {
+          await storage.bucket().file(pendingScan.storagePath).delete();
+        } catch (err) {
+          console.log('Could not delete image:', err);
+        }
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error cancelling pending scan:', error);
+      throw new functions.https.HttpsError('internal', error.message);
+    }
+  });

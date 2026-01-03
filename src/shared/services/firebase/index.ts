@@ -51,3 +51,7 @@ export type {
   OptimizationResult,
   StoreRecommendation,
 } from './shoppingList';
+
+// Background Scan Service - Server-side processing with FCM notifications
+export {backgroundScanService} from './backgroundScan';
+export type {PendingScan} from './backgroundScan';

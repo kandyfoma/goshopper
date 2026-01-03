@@ -12,6 +12,8 @@ import {
   Easing,
   Dimensions,
   SafeAreaView,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
@@ -27,6 +29,7 @@ import {analyticsService} from '@/shared/services/analytics';
 import {hapticService} from '@/shared/services/hapticService';
 import {inAppReviewService} from '@/shared/services/inAppReviewService';
 import {offlineQueueService, receiptStorageService, userBehaviorService} from '@/shared/services/firebase';
+import {backgroundScanService} from '@/shared/services/firebase/backgroundScan';
 import {offlineModeService} from '@/shared/services/offlineModeService';
 import {
   Colors,
@@ -57,6 +60,7 @@ const LOADING_MESSAGES = [
   {icon: 'sparkles', text: 'Presque fini...', subtext: 'Eza pene na kosila...'},
   {icon: 'gift', text: 'Finalisation...', subtext: 'Eza kosila...'},
 ];
+
 
 // Helper function to check for duplicate receipts using processed data
 async function checkProcessedReceiptDuplicate(
@@ -307,6 +311,35 @@ export function UnifiedScannerScreen() {
     analyticsService.logScreenView('UnifiedScanner', 'UnifiedScannerScreen');
     offlineQueueService.init();
     
+    // Sync with server when app comes back from background
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // Check for any completed background scans
+        try {
+          const syncResult = await backgroundScanService.syncWithServer();
+          
+          // Show toast for completed scans
+          if (syncResult.completed.length > 0) {
+            showToast(`✅ ${syncResult.completed.length} reçu(s) traité(s) avec succès!`, 'success');
+          }
+          
+          // Show toast for failed scans
+          if (syncResult.failed.length > 0) {
+            showToast(`❌ ${syncResult.failed.length} scan(s) échoué(s)`, 'error');
+          }
+          
+          // Log pending scans
+          if (syncResult.pending.length > 0) {
+            console.log(`⏳ ${syncResult.pending.length} scan(s) still pending`);
+          }
+        } catch (err) {
+          console.error('Error syncing background scans:', err);
+        }
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
     // Entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -329,9 +362,10 @@ export function UnifiedScannerScreen() {
     ]).start();
 
     return () => {
+      subscription.remove();
       offlineQueueService.cleanup();
     };
-  }, []);
+  }, [showToast]);
 
   // Auto-retry scan when subscription is updated (e.g., after adding scans via developer tools or purchase)
   useEffect(() => {
@@ -531,8 +565,9 @@ export function UnifiedScannerScreen() {
     // Navigate away - user can browse the app
     navigation.goBack();
     
-    // Process in background
-    processPhotoInBackground(result.uri);
+    // Use server-side processing for true background support
+    // This ensures FCM notifications arrive even when phone is locked
+    processPhotoOnServer(result.uri);
 
     analyticsService.logCustomEvent('photo_captured', {
       from_gallery: fromGallery,
@@ -800,6 +835,77 @@ export function UnifiedScannerScreen() {
       });
     }
   }, [user?.uid, profile?.defaultCity, scanProcessing]);
+
+  /**
+   * Process photo using TRUE server-side background processing
+   * - Uploads image to Cloud Storage first (quick)
+   * - Triggers Cloud Function to process in background
+   * - FCM push notification will arrive even if phone is locked
+   * - User can close app completely and still get notified
+   */
+  const processPhotoOnServer = useCallback(async (photoUri: string): Promise<void> => {
+    isProcessingRef.current = true;
+    
+    try {
+      // Step 1: Compress image for upload
+      scanProcessing.updateProgress(10, 'Compression de l\'image...');
+      
+      const imageBase64 = await withTimeout(
+        imageCompressionService.compressToBase64(photoUri),
+        10000,
+        'Compression trop longue'
+      );
+
+      // Step 2: Upload and start server-side processing
+      scanProcessing.updateProgress(30, 'Envoi au serveur...');
+      
+      const pendingScan = await backgroundScanService.uploadAndProcessInBackground(
+        imageBase64,
+        user?.uid || 'unknown-user',
+        profile?.defaultCity,
+        photoUri
+      );
+
+      scanProcessing.updateProgress(50, 'Traitement en cours sur le serveur...');
+      
+      showToast(
+        '📤 Votre reçu est en cours de traitement. Vous recevrez une notification quand ce sera terminé!',
+        'success',
+        5000
+      );
+
+      analyticsService.logCustomEvent('server_scan_started', {
+        pendingScanId: pendingScan.id,
+        city: profile?.defaultCity,
+      });
+
+      // Update UI to show pending state
+      scanProcessing.updateProgress(
+        60,
+        'Analyse en cours... Vous pouvez fermer l\'application.'
+      );
+
+      // Give user time to see the message
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Reset UI - notification will come from server
+      scanProcessing.reset();
+      isProcessingRef.current = false;
+
+    } catch (error: any) {
+      console.error('Server processing error:', error);
+      
+      // Fall back to local processing
+      showToast(
+        'Impossible d\'envoyer au serveur. Traitement local en cours...',
+        'warning'
+      );
+      
+      // Try local processing instead
+      isProcessingRef.current = false;
+      await processPhotoInBackground(photoUri, 0);
+    }
+  }, [user?.uid, profile?.defaultCity, scanProcessing, showToast]);
 
   // Background process single photo - runs in background while user can navigate away
   const processPhotoInBackground = useCallback(async (photoUri: string, retryCount: number = 0): Promise<void> => {

@@ -78,8 +78,8 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
     let channelId = 'general';
     if (data.channelId) {
       channelId = data.channelId;
-    } else if (data.type === 'scan_complete') {
-      channelId = 'receipts';
+    } else if (data.type === 'scan_complete' || data.type === 'scan_failed') {
+      channelId = 'scan_results';
     } else if (data.type === 'price_alert') {
       channelId = 'price_alerts';
     }
@@ -90,6 +90,11 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
         id: 'general',
         name: 'Général',
         importance: AndroidImportance.DEFAULT,
+      },
+      scan_results: {
+        id: 'scan_results',
+        name: 'Résultats de Scan',
+        importance: AndroidImportance.HIGH,
       },
       receipts: {
         id: 'receipts',
@@ -157,6 +162,32 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
       // Keep only last 50 notifications
       const trimmed = notifications.slice(0, 50);
       await AsyncStorage.setItem(key, JSON.stringify(trimmed));
+      
+      // Handle scan completion/failure - update local pending scans
+      if (data.type === 'scan_complete' || data.type === 'scan_failed') {
+        const pendingScanId = data.pendingScanId;
+        if (pendingScanId) {
+          // Update local pending scans storage
+          const PENDING_SCANS_KEY = '@goshopperai/pending_scans';
+          const pendingStored = await AsyncStorage.getItem(PENDING_SCANS_KEY);
+          if (pendingStored) {
+            let pendingScans = JSON.parse(pendingStored);
+            pendingScans = pendingScans.map(scan => {
+              if (scan.id === pendingScanId) {
+                return {
+                  ...scan,
+                  status: data.type === 'scan_complete' ? 'completed' : 'failed',
+                  receiptId: data.receiptId || null,
+                  error: data.error || null,
+                };
+              }
+              return scan;
+            });
+            await AsyncStorage.setItem(PENDING_SCANS_KEY, JSON.stringify(pendingScans));
+            console.log('[Background] Updated pending scan status:', pendingScanId, data.type);
+          }
+        }
+      }
     } catch (storageError) {
       console.error('[Background] Failed to save notification:', storageError);
     }

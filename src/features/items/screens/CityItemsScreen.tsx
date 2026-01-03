@@ -322,10 +322,23 @@ export function CityItemsScreen() {
         } else {
           console.log('ℹ️ No items available for this city yet');
           setItems([]);
+          // Clear cache when server returns empty list
+          try {
+            await cacheManager.remove(cacheKey, 'receipts');
+            console.log('🗑️ Cleared stale city items cache');
+          } catch (cacheError) {
+            console.log('⚠️ Failed to clear cache:', cacheError);
+          }
         }
       } else {
         console.log('❌ No items returned');
         setItems([]);
+        // Clear cache on unsuccessful response
+        try {
+          await cacheManager.remove(cacheKey, 'receipts');
+        } catch (cacheError) {
+          console.log('⚠️ Failed to clear cache:', cacheError);
+        }
       }
     } catch (error: any) {
       console.error('❌ Error loading city items:', error);

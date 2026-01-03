@@ -303,7 +303,7 @@ export function ProfileSetupScreen() {
         await userDocRef.set({
           userId: user.uid,
           email: user.email || null,
-          firstName: firstName.trim(),
+          name: firstName.trim(), // Use 'name' instead of 'firstName' for consistency
           surname: surname.trim(),
           displayName: `${firstName.trim()} ${surname.trim()}`,
           phoneNumber: formattedPhone,
@@ -319,7 +319,7 @@ export function ProfileSetupScreen() {
         // Update existing user document
         await userDocRef.set(
           {
-            firstName: firstName.trim(),
+            name: firstName.trim(), // Use 'name' instead of 'firstName' for consistency
             surname: surname.trim(),
             displayName: `${firstName.trim()} ${surname.trim()}`,
             phoneNumber: formattedPhone,

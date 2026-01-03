@@ -25,6 +25,7 @@ import {
 import {Icon, BackButton} from '@/shared/components';
 import {useAuth, useSubscription, useScanProcessing, useUser} from '@/shared/contexts';
 import {itemsService, migrateItemsAggregation} from '@/shared/services/firebase';
+import {cacheManager} from '@/shared/services/caching';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID, COLLECTIONS} from '@/shared/services/firebase/config';
 

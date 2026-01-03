@@ -101,7 +101,7 @@ export function UserProvider({children}: UserProviderProps) {
               sex: data?.sex,
               monthlyBudget: data?.monthlyBudget,
               defaultMonthlyBudget: data?.defaultMonthlyBudget,
-              defaultCity: data?.defaultCity,
+              defaultCity: data?.defaultCity || data?.city, // Fallback to city if defaultCity is missing
               createdAt: safeToDate(data?.createdAt),
               updatedAt: safeToDate(data?.updatedAt),
               // ML & AI fields
@@ -304,7 +304,7 @@ export function UserProvider({children}: UserProviderProps) {
           sex: data?.sex,
           monthlyBudget: data?.monthlyBudget,
           defaultMonthlyBudget: data?.defaultMonthlyBudget,
-          defaultCity: data?.defaultCity,
+          defaultCity: data?.defaultCity || data?.city, // Fallback to city if defaultCity is missing
           createdAt: safeToDate(data?.createdAt),
           updatedAt: safeToDate(data?.updatedAt),
           // ML & AI fields

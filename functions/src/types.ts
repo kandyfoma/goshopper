@@ -31,6 +31,7 @@ export interface ParsedReceipt {
   totalCDF?: number;
   rawText?: string;
   isVideoScan?: boolean; // True if receipt was scanned via video
+  city?: string; // User's city for price comparison
 }
 
 export interface Receipt extends ParsedReceipt {

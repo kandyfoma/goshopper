@@ -241,18 +241,40 @@ class AuthService {
         throw new Error('Impossible d\'obtenir le token d\'authentification');
       }
       
-      // Update last login timestamp
+      // Update last login timestamp and fix missing profile fields
       try {
+        const updateData: any = {
+          lastLoginAt: firestore.FieldValue.serverTimestamp(),
+        };
+        
+        // Fix missing defaultCity - sync from city if missing
+        if (userProfile.city && !userProfile.defaultCity) {
+          updateData.defaultCity = userProfile.city;
+          console.log('🔧 [Phone Login] Syncing defaultCity from city:', userProfile.city);
+        }
+        
+        // Fix missing displayName - use phone number as fallback
+        if (!userProfile.displayName) {
+          updateData.displayName = phoneNumber;
+          console.log('🔧 [Phone Login] Setting displayName to phone number');
+        }
+        
+        // Mark phone as verified if they can log in successfully
+        if (!userProfile.phoneVerified) {
+          updateData.phoneVerified = true;
+          console.log('🔧 [Phone Login] Marking phone as verified');
+        }
+        
         await firestore()
           .collection('artifacts')
           .doc(APP_ID)
           .collection('users')
           .doc(userProfile.userId)
-          .update({
-            lastLoginAt: firestore.FieldValue.serverTimestamp(),
-          });
+          .update(updateData);
+          
+        console.log('✅ [Phone Login] Profile fields updated:', Object.keys(updateData).join(', '));
       } catch (updateError) {
-        console.warn('Could not update lastLoginAt:', updateError);
+        console.warn('Could not update profile fields:', updateError);
       }
       
       console.log('✅ [Phone Login] Login successful');
@@ -991,12 +1013,14 @@ class AuthService {
       const userData = {
         phoneNumber,
         city, // Required for Firestore rules
-        defaultCity: city,
+        defaultCity: city, // Sync defaultCity with city
         countryCode,
         passwordHash: password, // In production, hash this properly
+        displayName: phoneNumber, // Set displayName to phone number as fallback
         createdAt: firestore.FieldValue.serverTimestamp(),
         lastLoginAt: firestore.FieldValue.serverTimestamp(),
         isAnonymous: false,
+        phoneVerified: false, // Will be verified after first successful login
         // Include behavior profile data during creation
         behaviorProfile: {
           profileVersion: 1,
