@@ -88,6 +88,8 @@ export const collections = {
     `artifacts/${config.app.id}/users/${userId}/profile/data`,
   receipts: (userId: string) =>
     `artifacts/${config.app.id}/users/${userId}/receipts`,
+  shops: (userId: string) =>
+    `artifacts/${config.app.id}/users/${userId}/shops`,
   subscription: (userId: string) =>
     `artifacts/${config.app.id}/users/${userId}/subscription/status`,
   subscriptions: `artifacts/${config.app.id}/subscriptions`,

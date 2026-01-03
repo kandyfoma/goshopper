@@ -197,12 +197,31 @@ class ShoppingListService {
       createdAt: safeToDate(data.createdAt) || new Date(),
       updatedAt: safeToDate(data.updatedAt) || new Date(),
       completedAt: data.completedAt ? safeToDate(data.completedAt) : undefined,
-      items: (data.items || []).map((item: any) => ({
-        ...item,
-        addedAt: safeToDate(item.addedAt) || new Date(),
-        checkedAt: item.checkedAt ? safeToDate(item.checkedAt) : undefined,
-      })),
+      items: (data.items || []).map((item: any) => {
+        const baseItem: any = {
+          ...item,
+          addedAt: safeToDate(item.addedAt) || new Date(),
+        };
+        // Only include checkedAt if it exists (Firestore doesn't accept undefined)
+        if (item.checkedAt) {
+          baseItem.checkedAt = safeToDate(item.checkedAt);
+        }
+        return baseItem;
+      }),
     };
+  }
+
+  /**
+   * Remove undefined values from an object (Firestore doesn't accept undefined)
+   */
+  private removeUndefinedValues<T extends Record<string, any>>(obj: T): T {
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+      if (obj[key] !== undefined) {
+        result[key] = obj[key];
+      }
+    }
+    return result;
   }
 
   /**
@@ -250,13 +269,14 @@ class ShoppingListService {
       }
     }
 
-    const updatedItems = [...list.items, newItem];
+    // Clean all items to remove undefined values before saving to Firestore
+    const cleanedItems = [...list.items, newItem].map(i => this.removeUndefinedValues(i));
 
     await firestore()
       .collection(SHOPPING_LISTS_COLLECTION(userId))
       .doc(listId)
       .update({
-        items: updatedItems,
+        items: cleanedItems,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
@@ -281,11 +301,14 @@ class ShoppingListService {
 
     const updatedItems = list.items.filter(item => item.id !== itemId);
 
+    // Clean items to remove undefined values before saving to Firestore
+    const cleanedItems = updatedItems.map(i => this.removeUndefinedValues(i));
+
     await firestore()
       .collection(SHOPPING_LISTS_COLLECTION(userId))
       .doc(listId)
       .update({
-        items: updatedItems,
+        items: cleanedItems,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
@@ -324,11 +347,14 @@ class ShoppingListService {
       return item;
     });
 
+    // Clean items to remove undefined values before saving to Firestore
+    const cleanedItems = updatedItems.map(i => this.removeUndefinedValues(i));
+
     await firestore()
       .collection(SHOPPING_LISTS_COLLECTION(userId))
       .doc(listId)
       .update({
-        items: updatedItems,
+        items: cleanedItems,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
   }
@@ -354,10 +380,14 @@ class ShoppingListService {
       return item;
     });
 
+    // Clean items to remove undefined values before saving to Firestore
+    const cleanedItems = updatedItems.map(i => this.removeUndefinedValues(i));
+
     await firestore()
       .collection(SHOPPING_LISTS_COLLECTION(userId))
       .doc(listId)
       .update({
+        items: cleanedItems,
         items: updatedItems,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });

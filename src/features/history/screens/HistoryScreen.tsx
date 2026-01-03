@@ -185,7 +185,7 @@ export function HistoryScreen() {
             id: r.id,
             storeName: r.storeName,
             total: r.total,
-            date: r.date.toISOString(),
+            date: r.date instanceof Date ? r.date.toISOString() : new Date().toISOString(),
             itemCount: r.items?.length || 0,
             cachedAt: Date.now(),
           }))
@@ -196,7 +196,7 @@ export function HistoryScreen() {
           result.data.map(r => ({
             id: r.id,
             shopName: r.storeName,
-            date: r.date,
+            date: r.date instanceof Date ? r.date : new Date(),
             total: r.total,
             itemCount: r.items?.length || 0,
           }))

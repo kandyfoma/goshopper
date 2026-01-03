@@ -356,12 +356,15 @@ class ReceiptStorageService {
 
     if (batch) {
       // Use batch if provided (legacy support)
+      // Ensure date is a Date object
+      const receiptDate = receipt.date instanceof Date ? receipt.date : new Date(receipt.date);
+      
       if (shopDoc.exists) {
         // Update existing shop
         batch.update(shopRef, {
           receiptCount: firestore.FieldValue.increment(1),
           totalSpent: firestore.FieldValue.increment(receipt.total),
-          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          lastVisit: firestore.Timestamp.fromDate(receiptDate),
           updatedAt: firestore.FieldValue.serverTimestamp(),
           // Update address/phone if not set
           ...(receipt.storeAddress && !shopDoc.data()?.address
@@ -382,12 +385,12 @@ class ReceiptStorageService {
           receiptCount: 1,
           totalSpent: receipt.total,
           currency: receipt.currency,
-          lastVisit: receipt.date,
+          lastVisit: receiptDate,
         };
 
         batch.set(shopRef, {
           ...newShop,
-          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          lastVisit: firestore.Timestamp.fromDate(receiptDate),
           createdAt: firestore.FieldValue.serverTimestamp(),
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
@@ -395,10 +398,13 @@ class ReceiptStorageService {
     } else {
       // Direct update (no batch) - safer for background operations
       if (shopDoc.exists) {
+        // Ensure date is a Date object
+        const receiptDate = receipt.date instanceof Date ? receipt.date : new Date(receipt.date);
+        
         await shopRef.update({
           receiptCount: firestore.FieldValue.increment(1),
           totalSpent: firestore.FieldValue.increment(receipt.total),
-          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          lastVisit: firestore.Timestamp.fromDate(receiptDate),
           updatedAt: firestore.FieldValue.serverTimestamp(),
           ...(receipt.storeAddress && !shopDoc.data()?.address
             ? {address: receipt.storeAddress}
@@ -408,6 +414,9 @@ class ReceiptStorageService {
             : {}),
         });
       } else {
+        // Ensure date is a Date object
+        const receiptDate = receipt.date instanceof Date ? receipt.date : new Date(receipt.date);
+        
         const newShop: Omit<Shop, 'createdAt' | 'updatedAt'> = {
           id: shopId,
           name: receipt.storeName,
@@ -417,12 +426,12 @@ class ReceiptStorageService {
           receiptCount: 1,
           totalSpent: receipt.total,
           currency: receipt.currency,
-          lastVisit: receipt.date,
+          lastVisit: receiptDate,
         };
 
         await shopRef.set({
           ...newShop,
-          lastVisit: firestore.Timestamp.fromDate(receipt.date),
+          lastVisit: firestore.Timestamp.fromDate(receiptDate),
           createdAt: firestore.FieldValue.serverTimestamp(),
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });

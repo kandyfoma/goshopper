@@ -65,6 +65,72 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const ITEMS_PER_PAGE = 50;
 const ITEM_HEIGHT = 120; // Approximate height for getItemLayout optimization
 
+// Client-side fallback keyword mapping for multi-language search
+// This ensures search works even if backend searchKeywords aren't populated
+const FALLBACK_KEYWORDS: Record<string, string[]> = {
+  // Food items
+  'sucre': ['sugar', 'sucre', 'sweet'],
+  'sugar': ['sugar', 'sucre', 'sweet'],
+  'sel': ['salt', 'sel'],
+  'salt': ['salt', 'sel'],
+  'riz': ['rice', 'riz', 'wali'],
+  'rice': ['rice', 'riz', 'wali'],
+  'pain': ['bread', 'pain', 'mkate'],
+  'bread': ['bread', 'pain', 'mkate'],
+  'huile': ['oil', 'huile', 'mafuta'],
+  'oil': ['oil', 'huile', 'mafuta'],
+  'farine': ['flour', 'farine', 'unga'],
+  'flour': ['flour', 'farine', 'unga'],
+  
+  // Beverages
+  'eau': ['water', 'eau', 'maji'],
+  'water': ['water', 'eau', 'maji'],
+  'biere': ['beer', 'biere', 'bia'],
+  'beer': ['beer', 'biere', 'bia'],
+  'vin': ['wine', 'vin', 'divai'],
+  'wine': ['wine', 'vin', 'divai'],
+  'jus': ['juice', 'jus'],
+  'juice': ['juice', 'jus'],
+  
+  // Hygiene
+  'savon': ['soap', 'savon', 'sabuni'],
+  'soap': ['soap', 'savon', 'sabuni'],
+  'dentifrice': ['toothpaste', 'dentifrice'],
+  'toothpaste': ['toothpaste', 'dentifrice'],
+  
+  // Common items
+  'lait': ['milk', 'lait', 'maziwa'],
+  'milk': ['milk', 'lait', 'maziwa'],
+  'cafe': ['coffee', 'cafe', 'kahawa'],
+  'coffee': ['coffee', 'cafe', 'kahawa'],
+  'the': ['tea', 'the', 'chai'],
+  'tea': ['tea', 'the', 'chai'],
+};
+
+// Helper function to check if item matches query using fallback keywords
+const matchesFallbackKeywords = (itemName: string, query: string): boolean => {
+  const normalizeItem = itemName.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  const normalizeQuery = query.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  // Get potential keywords for this query
+  const queryKeywords = FALLBACK_KEYWORDS[normalizeQuery] || [];
+  
+  // Check if item name contains any of the query's related keywords
+  return queryKeywords.some(keyword => {
+    const normalizedKeyword = keyword.toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return normalizeItem.includes(normalizedKeyword);
+  });
+};
+
 export function CityItemsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {isAuthenticated} = useAuth();
@@ -167,13 +233,28 @@ export function CityItemsScreen() {
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
         
-        const normalizedItem = normalize(item.name);
         const normalizedQuery = normalize(searchQuery);
+        const normalizedItem = normalize(item.name);
         
-        // Quick checks for performance
+        // 1. Check item name directly
         if (normalizedItem.includes(normalizedQuery)) return true;
+        
+        // 2. Check category
         if (item.category && normalize(item.category).includes(normalizedQuery)) return true;
-        if (item.searchKeywords?.some(kw => normalize(kw).includes(normalizedQuery))) return true;
+        
+        // 3. Check backend searchKeywords for multi-language support
+        if (item.searchKeywords && item.searchKeywords.length > 0) {
+          const keywordMatch = item.searchKeywords.some(keyword => {
+            const normalizedKeyword = normalize(keyword);
+            return normalizedKeyword.includes(normalizedQuery) || normalizedQuery.includes(normalizedKeyword);
+          });
+          if (keywordMatch) return true;
+        }
+        
+        // 4. Fallback: Use client-side keyword mapping if backend keywords not available
+        if (matchesFallbackKeywords(item.name, searchQuery)) {
+          return true;
+        }
         
         return false;
       });

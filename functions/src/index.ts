@@ -24,6 +24,7 @@ export {quickExtractReceipt} from './receipt/quickExtract';
 // Background Receipt Processing - FCM push notifications for scan results
 export {
   createPendingScan,
+  onPendingScanCreated,
   getPendingScanStatus,
   getUserPendingScans,
   cancelPendingScan,

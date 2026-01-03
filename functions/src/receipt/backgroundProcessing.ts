@@ -19,6 +19,20 @@ const db = admin.firestore();
 const storage = admin.storage();
 const messaging = admin.messaging();
 
+// Timeout constants
+const GEMINI_TIMEOUT_MS = 45000; // 45 seconds max for AI processing
+const DOWNLOAD_TIMEOUT_MS = 15000; // 15 seconds max for image download
+
+// Helper function to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+    ),
+  ]);
+}
+
 // Gemini AI initialized lazily
 let genAI: GoogleGenerativeAI | null = null;
 
@@ -93,11 +107,8 @@ export const createPendingScan = functions
 
       console.log(`✅ Pending scan created: ${pendingScanRef.id}`);
 
-      // Trigger background processing immediately
-      // This will run asynchronously
-      processReceiptInBackground(pendingScanRef.id).catch(err => {
-        console.error(`Background processing failed for ${pendingScanRef.id}:`, err);
-      });
+      // NOTE: Processing is now handled by the onPendingScanCreated trigger
+      // which runs in its own execution context with proper timeout
 
       return {
         success: true,
@@ -107,6 +118,30 @@ export const createPendingScan = functions
     } catch (error: any) {
       console.error('Error creating pending scan:', error);
       throw new functions.https.HttpsError('internal', error.message);
+    }
+  });
+
+/**
+ * Firestore trigger: Process receipt when a pending scan is created
+ * This runs in its own execution context with 120s timeout
+ * Ensures notifications are ALWAYS sent, even on timeout
+ */
+export const onPendingScanCreated = functions
+  .region('europe-west1')
+  .runWith({
+    timeoutSeconds: 120, // 2 minutes for AI processing
+    memory: '512MB',
+  })
+  .firestore.document('pendingScans/{scanId}')
+  .onCreate(async (snap, context) => {
+    const pendingScanId = context.params.scanId;
+    console.log(`🔔 Firestore trigger: New pending scan ${pendingScanId}`);
+    
+    try {
+      await processReceiptInBackground(pendingScanId);
+    } catch (error) {
+      console.error(`Firestore trigger processing failed for ${pendingScanId}:`, error);
+      // Error handling and notification is done inside processReceiptInBackground
     }
   });
 
@@ -136,11 +171,15 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
       updatedAt: admin.firestore.Timestamp.now(),
     });
 
-    // Download image from Cloud Storage
+    // Download image from Cloud Storage with timeout
     console.log(`📥 Downloading image from ${pendingScan.storagePath}`);
     const bucket = storage.bucket();
     const file = bucket.file(pendingScan.storagePath);
-    const [imageBuffer] = await file.download();
+    const [imageBuffer] = await withTimeout(
+      file.download(),
+      DOWNLOAD_TIMEOUT_MS,
+      'Délai d\'attente dépassé lors du téléchargement de l\'image'
+    );
     const imageBase64 = imageBuffer.toString('base64');
 
     // Get signed URL for reference
@@ -160,9 +199,13 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
       ? 'image/png'
       : 'image/jpeg';
 
-    // Process with Gemini AI
+    // Process with Gemini AI with timeout
     console.log(`🤖 Processing receipt with Gemini AI`);
-    const receipt = await parseReceiptWithGemini(imageBase64, mimeType, pendingScan.city);
+    const receipt = await withTimeout(
+      parseReceiptWithGemini(imageBase64, mimeType, pendingScan.city),
+      GEMINI_TIMEOUT_MS,
+      'Délai d\'attente dépassé lors de l\'analyse. Veuillez réessayer.'
+    );
 
     if (!receipt || !receipt.items || receipt.items.length === 0) {
       throw new Error('Aucun article détecté dans le reçu');
@@ -192,6 +235,9 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
 
     await receiptRef.set(receiptData);
 
+    // Update shop statistics
+    await updateShopFromReceipt(receiptData, pendingScan.userId);
+
     // Record scan usage
     await recordScanUsage(pendingScan.userId);
 
@@ -214,22 +260,43 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
   } catch (error: any) {
     console.error(`❌ Background processing failed:`, error);
 
-    // Update pending scan as failed
+    // ALWAYS try to send failure notification first
+    // This ensures user gets notified even if subsequent operations fail
     if (pendingScan) {
-      const newRetryCount = (pendingScan.retryCount || 0) + 1;
-      
-      await pendingScanRef.update({
-        status: newRetryCount < 3 ? 'pending' : 'failed', // Retry up to 3 times
-        error: error.message,
-        retryCount: newRetryCount,
-        updatedAt: admin.firestore.Timestamp.now(),
-      });
+      try {
+        // Determine user-friendly error message
+        let userMessage = error.message || 'Une erreur est survenue';
+        
+        // Check for timeout errors
+        if (userMessage.includes('Délai d\'attente') || 
+            userMessage.includes('timeout') ||
+            userMessage.includes('DEADLINE_EXCEEDED')) {
+          userMessage = 'L\'analyse a pris trop de temps. Réessayez avec une photo plus nette.';
+        }
 
-      // Send failure notification
-      await sendScanNotification(pendingScan, {
-        success: false,
-        error: error.message,
-      });
+        // Send notification FIRST before any database updates
+        await sendScanNotification(pendingScan, {
+          success: false,
+          error: userMessage,
+        });
+        console.log(`📱 Failure notification sent for scan ${pendingScanId}`);
+      } catch (notifError) {
+        console.error('Failed to send failure notification:', notifError);
+      }
+
+      // Now update pending scan status
+      try {
+        const newRetryCount = (pendingScan.retryCount || 0) + 1;
+        
+        await pendingScanRef.update({
+          status: newRetryCount < 3 ? 'pending' : 'failed', // Retry up to 3 times
+          error: error.message,
+          retryCount: newRetryCount,
+          updatedAt: admin.firestore.Timestamp.now(),
+        });
+      } catch (updateError) {
+        console.error('Failed to update pending scan status:', updateError);
+      }
     }
   }
 }
@@ -312,6 +379,59 @@ Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu va
   } catch (error: any) {
     console.error('Gemini parsing error:', error);
     throw new Error(error.message || 'Échec de l\'analyse du reçu');
+  }
+}
+
+/**
+ * Normalize store name for consistent matching
+ */
+function normalizeStoreName(storeName: string): string {
+  return storeName
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, '')
+    .substring(0, 50);
+}
+
+/**
+ * Update or create shop from receipt
+ */
+async function updateShopFromReceipt(receipt: any, userId: string): Promise<void> {
+  try {
+    const shopId = normalizeStoreName(receipt.storeName || 'magasin');
+    const shopRef = db.collection(collections.shops(userId)).doc(shopId);
+    
+    const shopDoc = await shopRef.get();
+    
+    if (shopDoc.exists) {
+      // Update existing shop
+      await shopRef.update({
+        receiptCount: admin.firestore.FieldValue.increment(1),
+        totalSpent: admin.firestore.FieldValue.increment(receipt.total || 0),
+        lastVisit: admin.firestore.Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+      console.log(`✅ Updated shop: ${receipt.storeName}`);
+    } else {
+      // Create new shop
+      await shopRef.set({
+        id: shopId,
+        name: receipt.storeName || 'Magasin inconnu',
+        nameNormalized: shopId,
+        address: receipt.storeAddress || '',
+        phone: receipt.storePhone || '',
+        receiptCount: 1,
+        totalSpent: receipt.total || 0,
+        currency: receipt.currency || 'USD',
+        lastVisit: admin.firestore.Timestamp.now(),
+        createdAt: admin.firestore.Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+      console.log(`✅ Created new shop: ${receipt.storeName}`);
+    }
+  } catch (error) {
+    console.error('Error updating shop:', error);
+    // Don't throw - shop update is not critical
   }
 }
 

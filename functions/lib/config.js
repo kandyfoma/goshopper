@@ -73,10 +73,12 @@ exports.config = {
 };
 // Firestore collection paths
 exports.collections = {
-    users: (userId) => `artifacts/${exports.config.app.id}/users/${userId}`,
+    users: `artifacts/${exports.config.app.id}/users`,
     userDoc: (userId) => `artifacts/${exports.config.app.id}/users/${userId}/profile/data`,
     receipts: (userId) => `artifacts/${exports.config.app.id}/users/${userId}/receipts`,
+    shops: (userId) => `artifacts/${exports.config.app.id}/users/${userId}/shops`,
     subscription: (userId) => `artifacts/${exports.config.app.id}/users/${userId}/subscription/status`,
+    subscriptions: `artifacts/${exports.config.app.id}/subscriptions`,
     prices: `artifacts/${exports.config.app.id}/public/prices/data`,
     stores: `artifacts/${exports.config.app.id}/public/stores/data`,
     payments: (userId) => `artifacts/${exports.config.app.id}/users/${userId}/payments`,

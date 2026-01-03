@@ -38,10 +38,38 @@ import {formatCurrency} from '@/shared/utils/helpers';
 type RouteParams = RouteProp<RootStackParamList, 'ShoppingListDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// Client-side fallback keyword mapping for multi-language search
+const FALLBACK_KEYWORDS: Record<string, string[]> = {
+  'sucre': ['sugar', 'sucre'], 'sugar': ['sugar', 'sucre'],
+  'sel': ['salt', 'sel'], 'salt': ['salt', 'sel'],
+  'riz': ['rice', 'riz', 'wali'], 'rice': ['rice', 'riz', 'wali'],
+  'pain': ['bread', 'pain', 'mkate'], 'bread': ['bread', 'pain', 'mkate'],
+  'huile': ['oil', 'huile', 'mafuta'], 'oil': ['oil', 'huile', 'mafuta'],
+  'farine': ['flour', 'farine', 'unga'], 'flour': ['flour', 'farine', 'unga'],
+  'eau': ['water', 'eau', 'maji'], 'water': ['water', 'eau', 'maji'],
+  'biere': ['beer', 'biere', 'bia'], 'beer': ['beer', 'biere', 'bia'],
+  'vin': ['wine', 'vin', 'divai'], 'wine': ['wine', 'vin', 'divai'],
+  'jus': ['juice', 'jus'], 'juice': ['juice', 'jus'],
+  'savon': ['soap', 'savon', 'sabuni'], 'soap': ['soap', 'savon', 'sabuni'],
+  'dentifrice': ['toothpaste', 'dentifrice'], 'toothpaste': ['toothpaste', 'dentifrice'],
+  'lait': ['milk', 'lait', 'maziwa'], 'milk': ['milk', 'lait', 'maziwa'],
+  'cafe': ['coffee', 'cafe', 'kahawa'], 'coffee': ['coffee', 'cafe', 'kahawa'],
+  'the': ['tea', 'the', 'chai'], 'tea': ['tea', 'the', 'chai'],
+};
+
+const matchesFallbackKeywords = (itemName: string, query: string): boolean => {
+  const normalize = (str: string) => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const normalizeItem = normalize(itemName);
+  const normalizeQuery = normalize(query);
+  const queryKeywords = FALLBACK_KEYWORDS[normalizeQuery] || [];
+  return queryKeywords.some(kw => normalize(kw) !== normalizeQuery && normalizeItem.includes(normalize(kw)));
+};
+
 // Community item from search
 interface CommunityItemData {
   id: string;
   name: string;
+  searchKeywords?: string[]; // Multi-language search keywords
   prices: {
     storeName: string;
     price: number;
@@ -165,10 +193,40 @@ export function ShoppingListDetailScreen() {
       };
 
       if (data.success && data.items) {
-        // Filter items by search query
-        const filtered = data.items.filter(item =>
-          item.name.toLowerCase().includes(query.toLowerCase())
-        );
+        const normalizedQuery = query.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+
+        // Filter items by search query - check name, keywords, and fallback keywords
+        const filtered = data.items.filter(item => {
+          const normalizedName = item.name.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+          
+          // 1. Check if query matches the item name
+          if (normalizedName.includes(normalizedQuery)) {
+            return true;
+          }
+          
+          // 2. Check if query matches any searchKeywords (backend multi-language)
+          if (item.searchKeywords && item.searchKeywords.length > 0) {
+            const keywordMatch = item.searchKeywords.some(keyword => {
+              const normalizedKeyword = keyword.toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+              return normalizedKeyword.includes(normalizedQuery) || normalizedQuery.includes(normalizedKeyword);
+            });
+            if (keywordMatch) return true;
+          }
+          
+          // 3. Fallback: client-side keyword mapping
+          if (matchesFallbackKeywords(item.name, query)) {
+            return true;
+          }
+          
+          return false;
+        });
         setSearchResults(filtered.slice(0, 10)); // Limit to 10 results
       }
     } catch (error) {
@@ -363,6 +421,9 @@ export function ShoppingListDetailScreen() {
     item: ShoppingListItem;
     index: number;
   }) => {
+    const lineTotal = item.bestPrice ? item.bestPrice * (item.quantity || 1) : null;
+    const estimatedLineTotal = item.estimatedPrice ? item.estimatedPrice * (item.quantity || 1) : null;
+    
     return (
       <SlideIn delay={index * 30} direction="up" distance={20}>
         <SwipeToDelete
@@ -388,14 +449,16 @@ export function ShoppingListDetailScreen() {
             </TouchableOpacity>
 
             <View style={styles.itemInfo}>
-              <Text
-                style={[
-                  styles.itemName,
-                  item.isChecked && styles.itemNameChecked,
-                ]}>
-                {item.name}
-              </Text>
-              <View style={styles.itemDetails}>
+              {/* Item name and quantity row */}
+              <View style={styles.itemHeaderRow}>
+                <Text
+                  style={[
+                    styles.itemName,
+                    item.isChecked && styles.itemNameChecked,
+                  ]}
+                  numberOfLines={1}>
+                  {item.name}
+                </Text>
                 {/* Quantity controls */}
                 <View style={styles.quantityControls}>
                   <TouchableOpacity
@@ -412,46 +475,67 @@ export function ShoppingListDetailScreen() {
                     <Icon name="plus" size="xs" color={Colors.primary} />
                   </TouchableOpacity>
                 </View>
-
-                {/* Price badges */}
-                {item.bestPrice && item.bestStore && (
-                  <View style={styles.priceBadge}>
-                    <Icon name="tag" size="xs" color={Colors.status.success} />
-                    <Text style={styles.itemPrice}>
-                      {formatCurrency(item.bestPrice, item.currency || 'USD')} @ {item.bestStore}
-                    </Text>
-                  </View>
-                )}
-                {item.estimatedPrice && !item.bestPrice && (
-                  <View style={styles.estimatedPriceBadge}>
-                    <Text style={styles.itemEstimatedPrice}>
-                      ~{formatCurrency(item.estimatedPrice, item.currency || 'USD')}
-                    </Text>
-                  </View>
-                )}
               </View>
+
+              {/* Store and Price Row */}
+              {item.bestStore && item.bestPrice ? (
+                <View style={styles.itemStoreRow}>
+                  <View style={styles.storeInfoContainer}>
+                    <View style={styles.storeIconBadge}>
+                      <Icon name="shopping-bag" size="xs" color={Colors.white} />
+                    </View>
+                    <Text style={styles.storeName} numberOfLines={1}>{item.bestStore}</Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.unitPriceLabel}>
+                      {formatCurrency(item.bestPrice, item.currency || 'USD')}/unité
+                    </Text>
+                    {lineTotal && item.quantity > 1 && (
+                      <Text style={styles.lineTotalPrice}>
+                        = {formatCurrency(lineTotal, item.currency || 'USD')}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ) : item.estimatedPrice ? (
+                <View style={styles.itemStoreRow}>
+                  <View style={styles.storeInfoContainer}>
+                    <View style={[styles.storeIconBadge, styles.estimatedBadge]}>
+                      <Icon name="help-circle" size="xs" color={Colors.text.secondary} />
+                    </View>
+                    <Text style={styles.storeNameEstimated}>Prix estimé</Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.estimatedPrice}>
+                      ~{formatCurrency(item.estimatedPrice, item.currency || 'USD')}/unité
+                    </Text>
+                    {estimatedLineTotal && item.quantity > 1 && (
+                      <Text style={styles.lineTotalEstimated}>
+                        = ~{formatCurrency(estimatedLineTotal, item.currency || 'USD')}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.itemStoreRow}>
+                  <View style={styles.storeInfoContainer}>
+                    <View style={[styles.storeIconBadge, styles.noPriceBadge]}>
+                      <Icon name="alert-circle" size="xs" color={Colors.text.tertiary} />
+                    </View>
+                    <Text style={styles.noPriceText}>Prix non disponible</Text>
+                  </View>
+                </View>
+              )}
 
               {/* Savings indicator */}
               {item.bestPrice && item.estimatedPrice && item.estimatedPrice > item.bestPrice && (
                 <View style={styles.savingsBadge}>
                   <Icon name="trending-down" size="xs" color={Colors.status.success} />
                   <Text style={styles.savingsText}>
-                    Économie: {formatCurrency(item.estimatedPrice - item.bestPrice, item.currency || 'USD')}
+                    Économie: {formatCurrency((item.estimatedPrice - item.bestPrice) * (item.quantity || 1), item.currency || 'USD')}
                   </Text>
                 </View>
               )}
-            </View>
-
-            {/* Status indicator */}
-            <View style={[
-              styles.statusIndicator,
-              item.isChecked && styles.statusIndicatorChecked,
-            ]}>
-              <Icon
-                name={item.isChecked ? 'check-circle' : 'circle'}
-                size="md"
-                color={item.isChecked ? Colors.status.success : Colors.border.medium}
-              />
             </View>
           </View>
         </SwipeToDelete>
@@ -507,6 +591,62 @@ export function ShoppingListDetailScreen() {
             <Icon name="edit-2" size="sm" color={Colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* Budget Summary Bar */}
+        {list.items.length > 0 && list.items.some(item => item.bestPrice) && (
+          <View style={styles.budgetSummaryBar}>
+            {(() => {
+              let totalBestPrice = 0;
+              let totalEstimated = 0;
+              const storeMap = new Map<string, number>();
+              // Determine primary currency from items (most common)
+              const currencyCount = new Map<string, number>();
+              
+              list.items.forEach(item => {
+                const qty = item.quantity || 1;
+                const itemCurrency = item.currency || 'USD';
+                currencyCount.set(itemCurrency, (currencyCount.get(itemCurrency) || 0) + 1);
+                if (item.bestPrice) {
+                  totalBestPrice += item.bestPrice * qty;
+                  if (item.bestStore) {
+                    storeMap.set(item.bestStore, (storeMap.get(item.bestStore) || 0) + 1);
+                  }
+                }
+                if (item.estimatedPrice) {
+                  totalEstimated += item.estimatedPrice * qty;
+                }
+              });
+              
+              const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
+              const topStores = Array.from(storeMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2);
+              // Get the most common currency
+              const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'USD';
+              
+              return (
+                <>
+                  <View style={styles.budgetItem}>
+                    <Icon name="credit-card" size="xs" color={Colors.primary} />
+                    <Text style={styles.budgetLabel}>Total</Text>
+                    <Text style={styles.budgetValue}>{formatCurrency(totalBestPrice, primaryCurrency)}</Text>
+                  </View>
+                  {savings > 0 && (
+                    <View style={styles.budgetItem}>
+                      <Icon name="trending-down" size="xs" color={Colors.status.success} />
+                      <Text style={styles.budgetLabel}>Économies</Text>
+                      <Text style={[styles.budgetValue, styles.savingsValue]}>{formatCurrency(savings, primaryCurrency)}</Text>
+                    </View>
+                  )}
+                  {topStores.length > 0 && (
+                    <View style={styles.budgetItem}>
+                      <Icon name="shopping-bag" size="xs" color={Colors.text.secondary} />
+                      <Text style={styles.budgetLabel}>{topStores.map(s => s[0]).join(', ')}</Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
+          </View>
+        )}
       </FadeIn>
 
       {/* Progress bar under header */}
@@ -570,24 +710,90 @@ export function ShoppingListDetailScreen() {
           {/* Total Price Summary */}
           {list.items.some(item => item.bestPrice) && (
             <View style={styles.totalSummaryCard}>
-              <View style={styles.totalSummaryContent}>
-                <Text style={styles.totalTitle}>Total</Text>
-                {(() => {
-                  let totalUSD = 0;
+              {(() => {
+                let totalBestPrice = 0;
+                let totalEstimated = 0;
+                let itemsWithPrice = 0;
+                const storeBreakdown = new Map<string, {count: number; total: number; currency: 'USD' | 'CDF'}>();
+                // Determine primary currency from items
+                const currencyCount = new Map<string, number>();
 
-                  list.items.forEach(item => {
-                    if (item.bestPrice) {
-                      totalUSD += item.bestPrice * (item.quantity || 1);
+                list.items.forEach(item => {
+                  const qty = item.quantity || 1;
+                  const itemCurrency = item.currency || 'USD';
+                  currencyCount.set(itemCurrency, (currencyCount.get(itemCurrency) || 0) + 1);
+                  if (item.bestPrice) {
+                    totalBestPrice += item.bestPrice * qty;
+                    itemsWithPrice++;
+                    if (item.bestStore) {
+                      const existing = storeBreakdown.get(item.bestStore) || {count: 0, total: 0, currency: itemCurrency};
+                      storeBreakdown.set(item.bestStore, {
+                        count: existing.count + 1,
+                        total: existing.total + (item.bestPrice * qty),
+                        currency: itemCurrency,
+                      });
                     }
-                  });
+                  }
+                  if (item.estimatedPrice) {
+                    totalEstimated += item.estimatedPrice * qty;
+                  }
+                });
 
-                  return (
-                    <Text style={styles.totalAmount}>
-                      ${totalUSD.toFixed(2)}
-                    </Text>
-                  );
-                })()}
-              </View>
+                const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
+                const storeList = Array.from(storeBreakdown.entries()).sort((a, b) => b[1].total - a[1].total);
+                // Get the most common currency
+                const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'USD';
+
+                return (
+                  <>
+                    {/* Store Breakdown */}
+                    {storeList.length > 0 && (
+                      <View style={styles.storeBreakdownSection}>
+                        <Text style={styles.storeBreakdownTitle}>Répartition par magasin</Text>
+                        {storeList.map(([store, data]) => (
+                          <View key={store} style={styles.storeBreakdownItem}>
+                            <View style={styles.storeBreakdownLeft}>
+                              <View style={styles.storeBreakdownIcon}>
+                                <Icon name="shopping-bag" size="xs" color={Colors.primary} />
+                              </View>
+                              <View>
+                                <Text style={styles.storeBreakdownName}>{store}</Text>
+                                <Text style={styles.storeBreakdownCount}>{data.count} article{data.count > 1 ? 's' : ''}</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.storeBreakdownTotal}>{formatCurrency(data.total, data.currency)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Divider */}
+                    <View style={styles.summaryDivider} />
+
+                    {/* Totals */}
+                    <View style={styles.totalSummaryContent}>
+                      <View>
+                        <Text style={styles.totalLabel}>Total estimé</Text>
+                        <Text style={styles.totalSubLabel}>{itemsWithPrice}/{list.items.length} articles avec prix</Text>
+                      </View>
+                      <Text style={styles.totalAmount}>
+                        {formatCurrency(totalBestPrice, primaryCurrency)}
+                      </Text>
+                    </View>
+
+                    {/* Savings */}
+                    {savings > 0 && (
+                      <View style={styles.savingsSummaryRow}>
+                        <View style={styles.savingsSummaryLeft}>
+                          <Icon name="trending-down" size="sm" color={Colors.status.success} />
+                          <Text style={styles.savingsSummaryLabel}>Économies totales</Text>
+                        </View>
+                        <Text style={styles.savingsSummaryAmount}>-{formatCurrency(savings, primaryCurrency)}</Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
             </View>
           )}
         </>
@@ -620,7 +826,7 @@ export function ShoppingListDetailScreen() {
         visible={showAddItemModal}
         variant="bottom-sheet"
         size="large"
-        title="Ajouter Article"
+        title="Ajouter un article"
         contentStyle={styles.addItemModalContent}
         onClose={() => {
           setShowAddItemModal(false);
@@ -630,137 +836,161 @@ export function ShoppingListDetailScreen() {
           setSelectedItemForAdd(null);
           setSelectedStore(null);
         }}>
-        {/* Search input row with quantity dropdown - same line */}
-        <View style={styles.addItemRow}>
-          <View style={styles.searchInputContainer}>
-            <Input
-              label="Rechercher un article"
-              value={newItemName}
-              onChangeText={(text) => {
-                setNewItemName(text);
-                setSelectedItemForAdd(null); // Reset selection when typing
-              }}
-              placeholder="Ex: Sucre, Riz, Huile..."
-              leftIcon="search"
-            />
-          </View>
-          
-          {/* Quantity Dropdown */}
-          <View style={styles.quantityDropdownContainer}>
-            <View style={styles.quantityDropdown}>
-              <TouchableOpacity
-                style={styles.quantityDropdownButton}
-                onPress={() =>
-                  setNewItemQuantity(
-                    String(Math.max(1, parseInt(newItemQuantity) - 1)),
-                  )
-                }>
-                <Icon name="minus" size="xs" color={Colors.primary} />
-              </TouchableOpacity>
-              <Text style={styles.quantityDropdownValue}>{newItemQuantity}</Text>
-              <TouchableOpacity
-                style={styles.quantityDropdownButton}
-                onPress={() =>
-                  setNewItemQuantity(String(parseInt(newItemQuantity) + 1))
-                }>
-                <Icon name="plus" size="xs" color={Colors.primary} />
-              </TouchableOpacity>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled>
+          {/* Search Section */}
+          <View style={styles.addItemSearchSection}>
+            <View style={styles.searchInputContainer}>
+              <Input
+                label="Nom de l'article"
+                value={newItemName}
+                onChangeText={(text) => {
+                  setNewItemName(text);
+                  setSelectedItemForAdd(null);
+                }}
+                placeholder="Ex: Sucre, Riz, Huile..."
+                leftIcon="search"
+              />
+            </View>
+            
+            {/* Modern Quantity Selector */}
+            <View style={styles.quantitySelector}>
+              <Text style={styles.quantitySelectorLabel}>Quantité</Text>
+              <View style={styles.quantitySelectorRow}>
+                <TouchableOpacity
+                  style={styles.quantityBtn}
+                  onPress={() =>
+                    setNewItemQuantity(String(Math.max(1, parseInt(newItemQuantity) - 1)))
+                  }>
+                  <Icon name="minus" size="sm" color={Colors.white} />
+                </TouchableOpacity>
+                <View style={styles.quantityDisplay}>
+                  <Text style={styles.quantityNumber}>{newItemQuantity}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.quantityBtn}
+                  onPress={() => setNewItemQuantity(String(parseInt(newItemQuantity) + 1))}>
+                  <Icon name="plus" size="sm" color={Colors.white} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Search Results - Show while typing */}
-        {searchResults.length > 0 && !selectedItemForAdd && (
-          <View style={styles.searchResultsContainer}>
-            <Text style={styles.searchResultsTitle}>Articles trouvés ({searchResults.length})</Text>
-            <ScrollView style={styles.searchResultsScroll} nestedScrollEnabled showsVerticalScrollIndicator>
-              {searchResults.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.searchResultItem}
-                  onPress={() => handleSelectSearchResult(item)}>
-                  <View style={styles.searchResultInfo}>
-                    <Text style={styles.searchResultName}>{item.name}</Text>
-                    <Text style={styles.searchResultStats}>
-                      {item.storeCount} magasins • {formatCurrency(item.minPrice, item.currency)} - {formatCurrency(item.maxPrice, item.currency)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-        
-        {/* Loading indicator while searching */}
-        {isSearching && (
-          <View style={styles.searchingIndicator}>
-            <Spinner size="small" color={Colors.primary} />
-            <Text style={styles.searchingText}>Recherche en cours...</Text>
-          </View>
-        )}
+          {/* Loading indicator while searching */}
+          {isSearching && (
+            <View style={styles.searchingIndicator}>
+              <Spinner size="small" color={Colors.primary} />
+              <Text style={styles.searchingText}>Recherche en cours...</Text>
+            </View>
+          )}
 
-        {/* Selected Item Price Comparison */}
-        {selectedItemForAdd && (
-          <View style={styles.priceComparisonContainer}>
-            <Text style={styles.priceComparisonTitle}>Choisir un magasin</Text>
-            <ScrollView style={styles.priceList} nestedScrollEnabled>
-              {selectedItemForAdd.prices
-                .sort((a, b) => a.price - b.price)
-                .slice(0, 5)
-                .map((priceInfo, index) => {
-                  const isSelected = selectedStore?.storeName === priceInfo.storeName && selectedStore?.price === priceInfo.price;
-                  return (
-                    <TouchableOpacity
-                      key={`${priceInfo.storeName}-${index}`}
-                      style={[
-                        styles.priceItem,
-                        isSelected && styles.priceItemSelected
-                      ]}
-                      onPress={() => setSelectedStore({
-                        storeName: priceInfo.storeName,
-                        price: priceInfo.price,
-                        currency: priceInfo.currency
-                      })}>
-                      <View style={styles.priceRank}>
-                        <Text style={styles.priceRankText}>{index + 1}</Text>
-                      </View>
-                      <View style={styles.priceStoreInfo}>
-                        <Text style={[
-                          styles.priceStoreName,
-                          isSelected && styles.priceStoreNameSelected
-                        ]}>{priceInfo.storeName}</Text>
-                        <Text style={styles.priceCurrency}>{priceInfo.currency}</Text>
-                      </View>
-                      <Text style={[
-                        styles.priceAmount,
-                        index === 0 && styles.priceAmountBest,
-                        isSelected && styles.priceAmountSelected
-                      ]}>
-                        {formatCurrency(priceInfo.price, priceInfo.currency)}
+          {/* Search Results */}
+          {searchResults.length > 0 && !selectedItemForAdd && (
+            <View style={styles.searchResultsContainer}>
+              <View style={styles.searchResultsHeader}>
+                <Icon name="database" size="sm" color={Colors.primary} />
+                <Text style={styles.searchResultsTitle}>
+                  {searchResults.length} article{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+              <View style={styles.searchResultsList}>
+                {searchResults.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.searchResultItem}
+                    onPress={() => handleSelectSearchResult(item)}>
+                    <View style={styles.searchResultIcon}>
+                      <Icon name="package" size="sm" color={Colors.primary} />
+                    </View>
+                    <View style={styles.searchResultInfo}>
+                      <Text style={styles.searchResultName}>{item.name}</Text>
+                      <Text style={styles.searchResultStats}>
+                        {item.storeCount} magasins • {formatCurrency(item.minPrice, item.currency)} - {formatCurrency(item.maxPrice, item.currency)}
                       </Text>
-                      {isSelected && (
-                        <Icon name="check" size="sm" color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-            </ScrollView>
-          </View>
-        )}
+                    </View>
+                    <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
-        {/* Add Button */}
-        <View style={styles.addItemButtonContainer}>
-          <Button
-            title="Ajouter"
-            onPress={handleAddItem}
-            disabled={!newItemName.trim() || isCreating}
-            loading={isCreating}
-            icon={<Icon name="plus" size="sm" color={Colors.white} />}
-            iconPosition="left"
-            fullWidth
-          />
-        </View>
+          {/* Selected Item Price Comparison */}
+          {selectedItemForAdd && (
+            <View style={styles.priceComparisonContainer}>
+              <View style={styles.priceComparisonHeader}>
+                <Icon name="tag" size="sm" color={Colors.status.success} />
+                <Text style={styles.priceComparisonTitle}>Comparer les prix</Text>
+              </View>
+              <View style={styles.priceList}>
+                {selectedItemForAdd.prices
+                  .sort((a, b) => a.price - b.price)
+                  .slice(0, 5)
+                  .map((priceInfo, index) => {
+                    const isSelected = selectedStore?.storeName === priceInfo.storeName && selectedStore?.price === priceInfo.price;
+                    const isBest = index === 0;
+                    return (
+                      <TouchableOpacity
+                        key={`${priceInfo.storeName}-${index}`}
+                        style={[
+                          styles.priceItem,
+                          isSelected && styles.priceItemSelected,
+                          isBest && styles.priceItemBest,
+                        ]}
+                        onPress={() => setSelectedStore({
+                          storeName: priceInfo.storeName,
+                          price: priceInfo.price,
+                          currency: priceInfo.currency
+                        })}>
+                        {isBest && (
+                          <View style={styles.bestPriceBadge}>
+                            <Text style={styles.bestPriceText}>Meilleur prix</Text>
+                          </View>
+                        )}
+                        <View style={styles.priceItemContent}>
+                          <View style={styles.priceStoreInfo}>
+                            <Text style={[
+                              styles.priceStoreName,
+                              isSelected && styles.priceStoreNameSelected
+                            ]}>{priceInfo.storeName}</Text>
+                            <Text style={styles.priceCurrency}>{priceInfo.currency}</Text>
+                          </View>
+                          <View style={styles.priceAmountContainer}>
+                            <Text style={[
+                              styles.priceAmount,
+                              isBest && styles.priceAmountBest,
+                            ]}>
+                              {formatCurrency(priceInfo.price, priceInfo.currency)}
+                            </Text>
+                            {isSelected && (
+                              <View style={styles.selectedCheck}>
+                                <Icon name="check" size="xs" color={Colors.white} />
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </View>
+            </View>
+          )}
+
+          {/* Add Button */}
+          <View style={styles.addItemButtonContainer}>
+            <Button
+              title="Ajouter à ma liste"
+              onPress={handleAddItem}
+              disabled={!newItemName.trim() || isCreating}
+              loading={isCreating}
+              icon={<Icon name="plus" size="sm" color={Colors.white} />}
+              iconPosition="left"
+              fullWidth
+            />
+          </View>
+        </ScrollView>
       </Modal>
 
       {/* Edit List Name Modal */}
@@ -880,6 +1110,36 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: BorderRadius.full,
   },
+
+  // Budget Summary Bar
+  budgetSummaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card.cream,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.lg,
+    flexWrap: 'wrap',
+  },
+  budgetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  budgetLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  budgetValue: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  savingsValue: {
+    color: Colors.status.success,
+  },
+
   headerActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
@@ -973,10 +1233,84 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
+    flex: 1,
   },
   itemNameChecked: {
     textDecorationLine: 'line-through',
     color: Colors.text.tertiary,
+  },
+  itemHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  itemStoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  storeInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  storeIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  estimatedBadge: {
+    backgroundColor: Colors.card.yellow,
+  },
+  noPriceBadge: {
+    backgroundColor: Colors.card.cream,
+  },
+  storeName: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.primary,
+    flex: 1,
+  },
+  storeNameEstimated: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  noPriceText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+  },
+  priceContainer: {
+    alignItems: 'flex-end',
+  },
+  unitPriceLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.status.success,
+  },
+  lineTotalPrice: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  estimatedPrice: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  lineTotalEstimated: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
   },
   itemDetails: {
     flexDirection: 'row',
@@ -1064,10 +1398,71 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     ...Shadows.md,
   },
+  storeBreakdownSection: {
+    marginBottom: Spacing.md,
+  },
+  storeBreakdownTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+  },
+  storeBreakdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  storeBreakdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  storeBreakdownIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storeBreakdownName: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+  },
+  storeBreakdownCount: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+  },
+  storeBreakdownTotal: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: Colors.border.light,
+    marginVertical: Spacing.md,
+  },
   totalSummaryContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  totalSubLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.text.tertiary,
+    marginTop: 2,
   },
   totalTitle: {
     fontSize: Typography.fontSize.lg,
@@ -1078,6 +1473,30 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.primary,
+  },
+  savingsSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.light,
+  },
+  savingsSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  savingsSummaryLabel: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.status.success,
+  },
+  savingsSummaryAmount: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.status.success,
   },
   floatingButton: {
     position: 'absolute',
@@ -1120,38 +1539,73 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     color: Colors.white,
   },
-  // Add Item Modal
+  // New styles for simplified Add Item Modal
   addItemModalContent: {
-    minHeight: 450,
-    maxHeight: '90%',
+    minHeight: 500,
   },
-  searchResultsContainer: {
-    backgroundColor: Colors.card.blue,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+  addItemSearchSection: {
+    marginBottom: Spacing.lg,
+  },
+  searchInputContainer: {
     marginBottom: Spacing.md,
-    maxHeight: 300,
   },
-  searchResultsScroll: {
-    maxHeight: 240,
+  quantitySelector: {
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
   },
-  searchingIndicator: {
+  quantitySelectorLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  quantitySelectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.lg,
   },
-  searchingText: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.white,
+  quantityBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityDisplay: {
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  quantityNumber: {
+    fontSize: Typography.fontSize['3xl'],
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+  },
+  searchResultsContainer: {
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  searchResultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
   searchResultsTitle: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.white,
-    marginBottom: Spacing.sm,
+    color: Colors.text.primary,
+  },
+  searchResultsList: {
+    maxHeight: 200,
   },
   searchResultItem: {
     flexDirection: 'row',
@@ -1160,7 +1614,15 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.sm,
-    ...Shadows.sm,
+  },
+  searchResultIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.card.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
   },
   searchResultInfo: {
     flex: 1,
@@ -1169,34 +1631,52 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
+    marginBottom: 2,
   },
   searchResultStats: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
-    marginTop: 2,
+  },
+  searchingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+  },
+  searchingText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
   },
   priceComparisonContainer: {
     backgroundColor: Colors.card.cream,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  priceComparisonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
   priceComparisonTitle: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.bold,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
-    marginBottom: Spacing.sm,
   },
   priceList: {
-    maxHeight: 200,
+    gap: Spacing.sm,
   },
   priceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.white,
-    padding: Spacing.sm,
     borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     marginBottom: Spacing.xs,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -1205,25 +1685,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     backgroundColor: '#FFF5F5',
   },
-  priceRank: {
-    width: 24,
-    height: 24,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.yellow,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.sm,
+  priceItemBest: {
+    borderColor: Colors.status.success,
+    backgroundColor: '#F0FDF4',
   },
-  priceRankText: {
+  bestPriceBadge: {
+    backgroundColor: Colors.status.success,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.xs,
+  },
+  bestPriceText: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.white,
+  },
+  priceItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   priceStoreInfo: {
     flex: 1,
   },
   priceStoreName: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
   },
@@ -1235,126 +1723,29 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
   },
+  priceAmountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   priceAmount: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: Colors.text.primary,
   },
   priceAmountBest: {
     color: Colors.status.success,
   },
-  priceAmountSelected: {
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
-  },
-  quantitySection: {
-    marginBottom: Spacing.lg,
-  },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.md,
-  },
-  quantityButtonModal: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.card.blue,
-    borderRadius: BorderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quantityInputContainer: {
-    backgroundColor: Colors.card.yellow,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  quantityInput: {
-    width: 50,
-    textAlign: 'center',
-    fontSize: Typography.fontSize['2xl'],
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: Colors.card.blue,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.white,
-  },
-  modalCreateButton: {
-    flex: 1,
+  selectedCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  modalCreateButtonDisabled: {
-    backgroundColor: Colors.border.light,
-  },
-  modalCreateText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.white,
-  },
-  // New styles for simplified Add Item Modal
-  addItemRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  searchInputContainer: {
-    flex: 1,
-  },
-  quantityDropdownContainer: {
-    justifyContent: 'flex-end',
-  },
-  quantityDropdownLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.secondary,
-    marginBottom: Spacing.sm,
-  },
-  quantityDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.base,
-    borderWidth: 1.5,
-    borderColor: Colors.border.light,
-    height: 48,
-    paddingHorizontal: Spacing.xs,
-  },
-  quantityDropdownButton: {
-    width: 32,
-    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  quantityDropdownValue: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-    minWidth: 28,
-    textAlign: 'center',
   },
   addItemButtonContainer: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
 });

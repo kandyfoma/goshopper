@@ -1,5 +1,5 @@
 // Shopping Lists Screen - Modern, intuitive shopping list management
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,11 @@ import {
   FlatList,
   TouchableOpacity,
   SafeAreaView,
-  Animated,
   Alert,
   TextInput,
   RefreshControl,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
@@ -71,10 +71,6 @@ export function ShoppingListsScreen() {
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
 
-  // FAB animation
-  const fabScale = useRef(new Animated.Value(1)).current;
-  const fabRotate = useRef(new Animated.Value(0)).current;
-
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
@@ -91,25 +87,25 @@ export function ShoppingListsScreen() {
     }, [user?.uid])
   );
 
-  // FAB pulse animation
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fabScale, {
-          toValue: 1.05,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fabScale, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, []);
+  // FAB pulse animation - removed as it was confusing to users
+  // useEffect(() => {
+  //   const pulse = Animated.loop(
+  //     Animated.sequence([
+  //       Animated.timing(fabScale, {
+  //         toValue: 1.05,
+  //         duration: 1000,
+  //         useNativeDriver: true,
+  //       }),
+  //       Animated.timing(fabScale, {
+  //         toValue: 1,
+  //         duration: 1000,
+  //         useNativeDriver: true,
+  //       }),
+  //     ])
+  //   );
+  //   pulse.start();
+  //   return () => pulse.stop();
+  // }, []);
 
   const loadLists = async (showRefresh = false) => {
     if (!user?.uid) return;
@@ -165,19 +161,6 @@ export function ShoppingListsScreen() {
   };
 
   const handleOpenNewListModal = () => {
-    // Animate FAB
-    Animated.sequence([
-      Animated.timing(fabRotate, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fabRotate, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
     setShowNewListModal(true);
   };
 
@@ -333,7 +316,7 @@ export function ShoppingListsScreen() {
               <View style={styles.progressSection}>
                 <View style={styles.progressBarContainer}>
                   <View style={styles.progressBarBg}>
-                    <Animated.View 
+                    <View 
                       style={[
                         styles.progressBarFill, 
                         {
@@ -399,11 +382,6 @@ export function ShoppingListsScreen() {
     );
   }
 
-  const fabRotateInterpolate = fabRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '135deg'],
-  });
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Modern Header */}
@@ -417,48 +395,27 @@ export function ShoppingListsScreen() {
               {lists.length} liste{lists.length !== 1 ? 's' : ''}
             </Text>
           </View>
-          
-          <View style={styles.headerRight} />
         </View>
       </FadeIn>
 
       {/* Lists */}
       {lists.length === 0 ? (
-        <FadeIn delay={200} duration={500}>
-          <View style={styles.emptyContainer}>
-            {/* Gradient illustration */}
-            <LinearGradient
-              colors={['#FDF0D5', '#F5E6C3']}
-              style={styles.emptyIllustration}>
-              <View style={styles.emptyIconOuter}>
-                <LinearGradient
-                  colors={['#C1121F', '#780000']}
-                  style={styles.emptyIconInner}>
-                  <Icon name="clipboard-list" size="xl" color={Colors.white} />
-                </LinearGradient>
-              </View>
-            </LinearGradient>
-            
-            <Text style={styles.emptyTitle}>Aucune liste</Text>
-            <Text style={styles.emptyText}>
-              Organisez vos courses avec des listes personnalisées
-            </Text>
-            
-            <TouchableOpacity
-              style={styles.createFirstButton}
-              onPress={handleOpenNewListModal}
-              activeOpacity={0.8}>
-              <LinearGradient
-                colors={['#C1121F', '#780000']}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}
-                style={styles.createFirstButtonGradient}>
-                <Icon name="plus" size="md" color={Colors.white} />
-                <Text style={styles.createFirstButtonText}>Créer ma première liste</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </FadeIn>
+        <View style={styles.emptyContainer}>
+          <Icon name="clipboard-list" size="xl" color={Colors.text.tertiary} />
+          
+          <Text style={styles.emptyTitle}>Aucune liste de courses</Text>
+          <Text style={styles.emptyText}>
+            Créez votre première liste pour organiser vos courses facilement
+          </Text>
+          
+          <Button
+            title="Créer une liste"
+            onPress={handleOpenNewListModal}
+            icon={<Icon name="plus" size="sm" color={Colors.white} />}
+            iconPosition="left"
+            fullWidth={false}
+          />
+        </View>
       ) : (
         <FlatList
           data={lists}
@@ -477,57 +434,62 @@ export function ShoppingListsScreen() {
         />
       )}
 
-      {/* Floating Action Button */}
+      {/* Floating Action Button - Static and clear */}
       {lists.length > 0 && (
-        <Animated.View 
-          style={[
-            styles.fabContainer,
-            {
-              transform: [
-                {scale: fabScale},
-              ],
-            },
-          ]}>
+        <View style={styles.fabContainer}>
           <TouchableOpacity
             onPress={handleOpenNewListModal}
-            activeOpacity={0.9}>
+            activeOpacity={0.8}>
             <LinearGradient
               colors={['#C1121F', '#780000']}
               style={styles.fab}>
-              <Animated.View style={{transform: [{rotate: fabRotateInterpolate}]}}>
-                <Icon name="plus" size="lg" color={Colors.white} />
-              </Animated.View>
+              <Icon name="plus" size="lg" color={Colors.white} />
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       )}
 
       {/* New List Modal */}
       <Modal
         visible={showNewListModal}
         variant="bottom-sheet"
-        size="medium"
-        title="Nouvelle Liste"
+        size="large"
+        title="Créer une liste"
+        contentStyle={styles.newListModalContent}
         onClose={() => {
           setShowNewListModal(false);
           setNewListName('');
         }}>
-        <View style={styles.modalContent}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Hero illustration */}
+          <View style={styles.modalHero}>
+            <View style={styles.modalHeroIcon}>
+              <Icon name="clipboard-list" size="xl" color={Colors.white} />
+            </View>
+            <Text style={styles.modalHeroText}>
+              Organisez vos courses intelligemment
+            </Text>
+          </View>
+
           {/* Input */}
-          <Input
-            label="Nom de la liste"
-            value={newListName}
-            onChangeText={setNewListName}
-            placeholder="Donnez un nom à votre liste..."
-            leftIcon="edit-3"
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={() => handleCreateList()}
-          />
+          <View style={styles.modalInputSection}>
+            <Input
+              label="Nom de la liste"
+              value={newListName}
+              onChangeText={setNewListName}
+              placeholder="Ex: Courses de la semaine..."
+              leftIcon="edit-3"
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => handleCreateList()}
+            />
+          </View>
 
           {/* Quick suggestions */}
           <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsLabel}>Suggestions rapides</Text>
+            <Text style={styles.suggestionsLabel}>
+              <Icon name="zap" size="xs" color={Colors.primary} /> Créer rapidement
+            </Text>
             <View style={styles.suggestionsGrid}>
               {LIST_SUGGESTIONS.map((suggestion, index) => (
                 <TouchableOpacity
@@ -541,10 +503,10 @@ export function ShoppingListsScreen() {
             </View>
           </View>
 
-          {/* Actions */}
-          <View style={styles.addItemButtonContainer}>
+          {/* Create Button */}
+          <View style={styles.modalButtonContainer}>
             <Button
-              title="Créer"
+              title="Créer ma liste"
               onPress={() => handleCreateList()}
               disabled={!newListName.trim() || isCreating}
               loading={isCreating}
@@ -553,7 +515,7 @@ export function ShoppingListsScreen() {
               fullWidth
             />
           </View>
-        </View>
+        </ScrollView>
       </Modal>
 
       {/* Subscription Limit Modal */}
@@ -622,9 +584,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
     marginTop: 2,
-  },
-  headerRight: {
-    width: 44,
   },
   
   // List container
@@ -808,60 +767,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing['2xl'],
-  },
-  emptyIllustration: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  emptyIconOuter: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyIconInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: Spacing.lg,
   },
   emptyTitle: {
     fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
   emptyText: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.xl,
-  },
-  createFirstButton: {
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    ...Shadows.lg,
-  },
-  createFirstButtonGradient: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  createFirstButtonText: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.white,
   },
   
   // FAB
@@ -880,45 +799,40 @@ const styles = StyleSheet.create({
   },
   
   // Modal
-  modalContent: {
-    padding: Spacing.lg,
+  newListModalContent: {
+    minHeight: 500,
   },
-  inputContainer: {
-    marginBottom: Spacing.lg,
-  },
-  inputLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.secondary,
-    marginBottom: Spacing.sm,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
+  modalHero: {
     alignItems: 'center',
-    backgroundColor: Colors.card.cream,
-    borderRadius: BorderRadius.xl,
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-    borderWidth: 2,
-    borderColor: Colors.border.light,
+    marginBottom: Spacing.xl,
+    paddingTop: Spacing.md,
   },
-  modalInput: {
-    flex: 1,
-    paddingVertical: Spacing.md,
+  modalHeroIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalHeroText: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.primary,
+    color: Colors.text.secondary,
+    textAlign: 'center',
   },
-  
-  // Suggestions
-  suggestionsContainer: {
+  modalInputSection: {
     marginBottom: Spacing.lg,
+  },
+  suggestionsContainer: {
+    marginBottom: Spacing.xl,
   },
   suggestionsLabel: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.secondary,
-    marginBottom: Spacing.sm,
+    color: Colors.text.primary,
+    marginBottom: Spacing.md,
   },
   suggestionsGrid: {
     flexDirection: 'row',
@@ -928,58 +842,16 @@ const styles = StyleSheet.create({
   suggestionChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.card.yellow,
+    backgroundColor: Colors.card.blue,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.border.light,
   },
   suggestionText: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
-  },
-  
-  // Modal actions
-  modalActions: {
-    flexDirection: 'row',
-    marginTop: Spacing.md,
-    gap: Spacing.md,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: Colors.card.cream,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border.light,
-  },
-  modalCancelText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.secondary,
-  },
-  modalCreateButton: {
-    flex: 1,
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
-  modalCreateButtonDisabled: {
-    opacity: 0.6,
-  },
-  createButtonGradient: {
-    flexDirection: 'row',
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  modalCreateText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.white,
   },
-  addItemButtonContainer: {
-    marginTop: Spacing.lg,
+  modalButtonContainer: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
 });

@@ -17,6 +17,10 @@ class ImageCompressionService {
   /**
    * Compress an image for AI processing
    * Reduces file size by ~90% while maintaining OCR readability
+   * 
+   * IMPORTANT: autoRotate is enabled to fix EXIF orientation issues
+   * Mobile cameras store rotation in EXIF metadata instead of rotating pixels
+   * Without autoRotate, images appear rotated and AI extraction fails
    */
   async compressForAI(
     imagePath: string,
@@ -36,6 +40,10 @@ class ImageCompressionService {
         quality: mergedOptions.quality,
         input: 'uri',
         returnableOutputType: 'uri',
+        // FIX: Auto-rotate based on EXIF orientation data
+        // This fixes images appearing rotated when taken with mobile cameras
+        // Without this, AI extraction fails because text appears upside down
+        autoRotate: true,
       });
 
       const compressedPath = await Promise.race([compression, timeout]);

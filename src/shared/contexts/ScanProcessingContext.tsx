@@ -10,9 +10,12 @@ import React, {
   useEffect,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 import {ReceiptScanResult, Receipt} from '@/shared/types';
 import {pushNotificationService} from '@/shared/services/firebase';
 import {notificationActionsService} from '@/shared/services/notificationActions';
+import {APP_ID} from '@/shared/services/firebase/config';
 
 const SCAN_PROCESSING_KEY = '@goshopperai/scan_processing_state';
 
@@ -98,13 +101,65 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
   }, [state, isLoaded]);
 
   // Auto-cleanup stuck processing states (check every minute)
+  // Also check if scan completed in background
   useEffect(() => {
     if (state.status !== 'processing' || !state.startedAt) {
       return;
     }
 
-    const checkStuck = () => {
+    const checkStuckOrCompleted = async () => {
       const elapsed = Date.now() - (state.startedAt || 0);
+      
+      // First, check if a receipt was created (scan completed on server)
+      const currentUser = auth().currentUser;
+      if (currentUser) {
+        try {
+          const recentReceipts = await firestore()
+            .collection('artifacts')
+            .doc(APP_ID)
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('receipts')
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
+
+          if (!recentReceipts.empty) {
+            const latestReceipt = recentReceipts.docs[0];
+            const receiptData = latestReceipt.data();
+            const createdAt = receiptData.createdAt?.toDate?.() || new Date(receiptData.createdAt);
+            
+            // If receipt was created after scan started, the scan completed successfully
+            if (createdAt.getTime() > (state.startedAt || 0)) {
+              console.log('✅ Scan completed in background - receipt found');
+              
+              // Show success notification
+              const itemCount = receiptData.items?.length || 0;
+              const storeName = receiptData.storeName || 'Magasin inconnu';
+              const total = receiptData.total || 0;
+              const currency = receiptData.currency || 'CDF';
+              
+              await notificationActionsService.displayScanNotification({
+                storeName,
+                itemCount,
+                total,
+                currency,
+                date: createdAt,
+                receiptId: latestReceipt.id,
+              });
+              
+              // Clear the processing state
+              setState(defaultState);
+              await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+              return;
+            }
+          }
+        } catch (checkError) {
+          console.error('Error checking for completed scan:', checkError);
+        }
+      }
+      
+      // If not completed, check if stuck
       if (elapsed > STUCK_PROCESSING_TIMEOUT_MS) {
         console.warn(`⚠️ Scan processing stuck for ${Math.round(elapsed / 60000)} minutes, auto-resetting`);
         setState({
@@ -116,8 +171,9 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
       }
     };
 
-    // Check every minute while processing
-    const interval = setInterval(checkStuck, 60000);
+    // Check immediately then every 30 seconds while processing
+    checkStuckOrCompleted();
+    const interval = setInterval(checkStuckOrCompleted, 30000);
     return () => clearInterval(interval);
   }, [state.status, state.startedAt]);
 
@@ -138,6 +194,57 @@ export function ScanProcessingProvider({children}: ScanProcessingProviderProps) 
             await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
             // Don't restore the stuck state
           } else {
+            // Check if a receipt was actually created during this time (processing completed on server)
+            const currentUser = auth().currentUser;
+            if (currentUser) {
+              try {
+                // Look for receipts created after the scan started
+                const recentReceipts = await firestore()
+                  .collection('artifacts')
+                  .doc(APP_ID)
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .collection('receipts')
+                  .orderBy('createdAt', 'desc')
+                  .limit(1)
+                  .get();
+
+                if (!recentReceipts.empty) {
+                  const latestReceipt = recentReceipts.docs[0];
+                  const receiptData = latestReceipt.data();
+                  const createdAt = receiptData.createdAt?.toDate?.() || new Date(receiptData.createdAt);
+                  
+                  // If receipt was created after scan started, the scan completed successfully
+                  if (createdAt.getTime() > startedAt) {
+                    console.log('✅ Scan completed while app was closed - receipt found');
+                    await AsyncStorage.removeItem(SCAN_PROCESSING_KEY);
+                    
+                    // Show success notification
+                    const itemCount = receiptData.items?.length || 0;
+                    const storeName = receiptData.storeName || 'Magasin inconnu';
+                    const total = receiptData.total || 0;
+                    const currency = receiptData.currency || 'CDF';
+                    
+                    await notificationActionsService.displayScanNotification({
+                      storeName,
+                      itemCount,
+                      total,
+                      currency,
+                      date: createdAt,
+                      receiptId: latestReceipt.id,
+                    });
+                    
+                    // Don't restore the processing state - scan is complete
+                    setIsLoaded(true);
+                    return;
+                  }
+                }
+              } catch (checkError) {
+                console.error('Error checking for completed scan:', checkError);
+              }
+            }
+            
+            // No recent receipt found, restore the processing state
             setState(persistedState);
             console.log('📱 Restored scan processing state');
           }

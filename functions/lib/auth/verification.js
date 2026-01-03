@@ -368,7 +368,7 @@ exports.completeRegistration = functions
             throw new functions.https.HttpsError('deadline-exceeded', 'Verification token has expired');
         }
         // Update user profile with verified contact
-        const userProfileRef = db.doc(`${config_1.collections.users(userId)}/profile`);
+        const userProfileRef = db.doc(`${config_1.collections.users}/${userId}/profile`);
         const updateData = {
             verified: true,
             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -51,6 +51,33 @@ interface ItemData {
   currency: 'USD' | 'CDF'; // Primary currency for display
 }
 
+// Client-side fallback keyword mapping for multi-language search
+const FALLBACK_KEYWORDS: Record<string, string[]> = {
+  'sucre': ['sugar', 'sucre'], 'sugar': ['sugar', 'sucre'],
+  'sel': ['salt', 'sel'], 'salt': ['salt', 'sel'],
+  'riz': ['rice', 'riz', 'wali'], 'rice': ['rice', 'riz', 'wali'],
+  'pain': ['bread', 'pain', 'mkate'], 'bread': ['bread', 'pain', 'mkate'],
+  'huile': ['oil', 'huile', 'mafuta'], 'oil': ['oil', 'huile', 'mafuta'],
+  'farine': ['flour', 'farine', 'unga'], 'flour': ['flour', 'farine', 'unga'],
+  'eau': ['water', 'eau', 'maji'], 'water': ['water', 'eau', 'maji'],
+  'biere': ['beer', 'biere', 'bia'], 'beer': ['beer', 'biere', 'bia'],
+  'vin': ['wine', 'vin', 'divai'], 'wine': ['wine', 'vin', 'divai'],
+  'jus': ['juice', 'jus'], 'juice': ['juice', 'jus'],
+  'savon': ['soap', 'savon', 'sabuni'], 'soap': ['soap', 'savon', 'sabuni'],
+  'dentifrice': ['toothpaste', 'dentifrice'], 'toothpaste': ['toothpaste', 'dentifrice'],
+  'lait': ['milk', 'lait', 'maziwa'], 'milk': ['milk', 'lait', 'maziwa'],
+  'cafe': ['coffee', 'cafe', 'kahawa'], 'coffee': ['coffee', 'cafe', 'kahawa'],
+  'the': ['tea', 'the', 'chai'], 'tea': ['tea', 'the', 'chai'],
+};
+
+const matchesFallbackKeywords = (itemName: string, query: string): boolean => {
+  const normalize = (str: string) => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const normalizeItem = normalize(itemName);
+  const normalizeQuery = normalize(query);
+  const queryKeywords = FALLBACK_KEYWORDS[normalizeQuery] || [];
+  return queryKeywords.some(kw => normalize(kw) !== normalizeQuery && normalizeItem.includes(normalize(kw)));
+};
+
 export function ItemsScreen() {
   const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
@@ -272,6 +299,11 @@ export function ItemsScreen() {
     
     // 1. Direct contains match
     if (normalizedItem.includes(normalizedQuery)) {
+      return true;
+    }
+    
+    // 2. Fallback keyword matching for multi-language support
+    if (matchesFallbackKeywords(itemName, query)) {
       return true;
     }
     

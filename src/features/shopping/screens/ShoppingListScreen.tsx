@@ -94,7 +94,7 @@ export function ShoppingListScreen() {
   const [searchResults, setSearchResults] = useState<CommunityItemData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedItemForAdd, setSelectedItemForAdd] = useState<CommunityItemData | null>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<number | null>(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -484,11 +484,7 @@ export function ShoppingListScreen() {
           <Icon name="chevron-left" size="md" color={Colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Liste de Courses</Text>
-        <TouchableOpacity
-          style={styles.newListHeaderButton}
-          onPress={() => setShowNewListModal(true)}>
-          <Icon name="plus" size="sm" color={Colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* List Selector */}
@@ -578,32 +574,6 @@ export function ShoppingListScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </LinearGradient>
-            </View>
-          )}
-
-          {/* Store Recommendations */}
-          {selectedList.optimizedStores.length > 0 && (
-            <View style={styles.storesCard}>
-              <View style={styles.storesHeader}>
-                <Icon name="store" size="md" color={Colors.text.primary} />
-                <Text style={styles.storesTitle}>Magasins recommandés</Text>
-              </View>
-              {selectedList.optimizedStores.slice(0, 3).map((store, index) => (
-                <View key={store.storeNameNormalized} style={styles.storeRow}>
-                  <View style={styles.storeRank}>
-                    <Text style={styles.storeRankText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.storeInfo}>
-                    <Text style={styles.storeName}>{store.storeName}</Text>
-                    <Text style={styles.storeItems}>
-                      {store.itemCount} articles
-                    </Text>
-                  </View>
-                  <Text style={styles.storePrice}>
-                    ${store.totalPrice.toFixed(2)}
-                  </Text>
-                </View>
-              ))}
             </View>
           )}
 
@@ -1020,13 +990,8 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
   },
-  newListHeaderButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
+  headerSpacer: {
+    width: 44,
   },
   listSelector: {
     maxHeight: 80,
@@ -1315,14 +1280,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.status.success,
-  },
-  removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.card.blue,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   // Total Summary Card
   totalSummaryCard: {

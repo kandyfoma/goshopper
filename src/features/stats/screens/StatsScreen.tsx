@@ -41,6 +41,57 @@ import {StatsStackParamList} from '../navigation/StatsStackNavigator';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
+// Category detection keywords - mirrors backend logic for consistent categorization
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  'Boissons': ['eau', 'water', 'jus', 'juice', 'soda', 'coca', 'fanta', 'sprite', 'pepsi', 'limonade', 
+               'biere', 'beer', 'vin', 'wine', 'merlot', 'cabernet', 'chardonnay', 'medco', 'sauvignon',
+               'whisky', 'vodka', 'rhum', 'rum', 'champagne', 'cafe', 'coffee', 'the', 'tea', 'lait', 'milk',
+               'yaourt', 'yogurt', 'primus', 'heineken', 'skol', 'tembo', 'castel', 'ngok', 'nkoyi',
+               'simba', 'mutzig', 'masanga', 'malavu', 'lotoko', 'maziwa'],
+  'Alimentation': ['riz', 'rice', 'pain', 'bread', 'farine', 'flour', 'pate', 'pasta', 'spaghetti', 'macaroni',
+               'cereale', 'cereal', 'biscuit', 'cookie', 'chocolat', 'chocolate', 'sucre', 'sugar',
+               'sel', 'salt', 'huile', 'oil', 'miel', 'honey', 'confiture', 'jam', 'beurre', 'butter',
+               'fromage', 'cheese', 'oeuf', 'egg', 'viande', 'meat', 'poulet', 'chicken', 'boeuf', 'beef',
+               'poisson', 'fish', 'sardine', 'thon', 'tuna', 'mafuta', 'mungwa', 'fufu', 'pondu', 'saka',
+               'makayabu', 'mbisi', 'ngolo', 'kapiteni', 'sombe', 'matembele', 'biteku', 'ngai ngai', 'ndunda',
+               'bonbon', 'candy', 'chips', 'snack', 'gateaux', 'cake', 'creme', 'cream', 'nutella'],
+  'Fruits & Légumes': ['pomme', 'apple', 'banane', 'banana', 'orange', 'citron', 'lemon', 'mangue', 'mango',
+               'ananas', 'pineapple', 'avocat', 'avocado', 'tomate', 'tomato', 'carotte', 'carrot',
+               'oignon', 'onion', 'ail', 'garlic', 'salade', 'lettuce', 'chou', 'cabbage', 'haricot', 'bean',
+               'pomme de terre', 'potato', 'patate', 'epinard', 'spinach', 'concombre', 'cucumber'],
+  'Hygiène': ['savon', 'soap', 'shampooing', 'shampoo', 'dentifrice', 'toothpaste', 'brosse', 'brush',
+               'papier toilette', 'toilet paper', 'serviette', 'towel', 'deodorant', 'gel douche', 'shower gel',
+               'lotion', 'parfum', 'perfume', 'coton', 'cotton', 'rasoir', 'razor', 'lingette', 'wipe'],
+  'Ménage': ['javel', 'bleach', 'detergent', 'lessive', 'laundry', 'eponge', 'sponge', 'balai', 'broom',
+               'seau', 'bucket', 'serpilliere', 'mop', 'torchon', 'cloth', 'poubelle', 'trash', 'sac poubelle',
+               'insecticide', 'desodorisant', 'air freshener', 'makala', 'charbon', 'charcoal'],
+  'Bébé': ['couche', 'diaper', 'nappy', 'pampers', 'biberon', 'bottle', 'lait bebe', 'baby formula',
+               'lingette bebe', 'baby wipe', 'sucette', 'pacifier', 'tetine', 'huggies', 'molfix'],
+  'Électronique': ['pile', 'battery', 'chargeur', 'charger', 'cable', 'ecouteur', 'earphone', 'lampe', 'lamp',
+               'ampoule', 'bulb', 'torch', 'torche', 'flashlight', 'radio', 'telephone', 'phone'],
+};
+
+/**
+ * Detect category from item name using keyword matching
+ * Returns null if no category detected (will fall back to item's original category)
+ */
+function detectItemCategory(itemName: string): string | null {
+  const normalizedName = itemName.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (normalizedName.includes(keyword) || keyword.includes(normalizedName)) {
+        return category;
+      }
+    }
+  }
+  
+  return null;
+}
+
 type StatsScreenNavigationProp = CompositeNavigationProp<
   NativeStackNavigationProp<StatsStackParamList, 'StatsMain'>,
   CompositeNavigationProp<
@@ -147,8 +198,10 @@ export function StatsScreen() {
     try {
       setIsLoading(true);
 
-      // Use network-aware cache for stats data
+      // Always clear cache to ensure fresh data
       const cacheKey = `stats-data-${user.uid}-${new Date().getMonth()}`;
+      
+      // Use network-aware cache for stats data
       const cachedData = await networkAwareCache.fetchWithCache({
         key: cacheKey,
         namespace: 'stats',
@@ -198,8 +251,25 @@ export function StatsScreen() {
         return isCurrentMonth;
       });
 
+      console.log('📊 Stats Debug:', {
+        totalReceipts: receiptsSnapshot.docs.length,
+        currentMonthReceipts: currentMonthReceipts.length,
+        startOfMonth: startOfMonth.toISOString(),
+        sampleReceiptDates: receiptsSnapshot.docs.slice(0, 3).map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            scannedAt: data.scannedAt,
+            scannedAtConverted: safeToDate(data.scannedAt).toISOString(),
+            createdAt: data.createdAt,
+            total: data.total,
+            currency: data.currency,
+          };
+        }),
+      });
+
       // Store current month receipts in state for behavior analysis
-      setCurrentMonthReceipts(currentMonthReceipts);
+      setCurrentMonthReceipts(currentMonthReceipts.map(doc => ({id: doc.id, ...doc.data()})));
 
       // Determine primary currency from receipts
       const currencyCount: Record<string, number> = {};
@@ -209,9 +279,11 @@ export function StatsScreen() {
         currencyCount[currency] = (currencyCount[currency] || 0) + 1;
       });
 
-      // Set primary currency from user profile or determine from receipts
-      const userPreferredCurrency = profile?.preferredCurrency || 'USD';
-      setPrimaryCurrency(userPreferredCurrency);
+      // Set primary currency from receipts (most common currency)
+      // This ensures stats display in the same currency as the receipts
+      const mostCommonCurrency = Object.entries(currencyCount)
+        .sort(([, a], [, b]) => b - a)[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+      setPrimaryCurrency(mostCommonCurrency);
 
       // Note: monthlyBudget is now set by separate useEffect for real-time updates
 
@@ -224,7 +296,7 @@ export function StatsScreen() {
         const data = doc.data();
         // Calculate total based on currency using standardized fields
         let receiptTotal = 0;
-        if (userPreferredCurrency === 'CDF') {
+        if (mostCommonCurrency === 'CDF') {
           // For CDF: prioritize totalCDF field
           if (data.totalCDF != null) {
             receiptTotal = Number(data.totalCDF) || 0;
@@ -264,17 +336,40 @@ export function StatsScreen() {
           // If items sum to something, distribute the receipt total proportionally
           if (receiptItemSum > 0) {
             data.items.forEach((item: any) => {
-              const category = item.category || 'Autre';
+              // Re-detect category client-side for better accuracy
+              const detectedCategory = detectItemCategory(item.name || '');
+              const category = detectedCategory || item.category || 'Autres';
               const itemTotal = item.totalPrice || 0;
               
-              // Calculate this item's share of the receipt total (in user's currency)
+              // Calculate this item's share of the receipt total (in receipt's currency)
               const itemShare = (itemTotal / receiptItemSum) * receiptTotal;
               
               categoryTotals[category] = (categoryTotals[category] || 0) + itemShare;
               categoryRawTotal += itemShare;
             });
           }
+        } else if (receiptTotal > 0) {
+          // If receipt has no items or items don't sum up, put entire receipt in "Autres"
+          categoryTotals['Autres'] = (categoryTotals['Autres'] || 0) + receiptTotal;
+          categoryRawTotal += receiptTotal;
         }
+      });
+
+      console.log('📊 Stats items debug:', {
+        sampleReceiptItems: currentMonthReceipts.slice(0, 1).map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            hasItems: !!data.items,
+            itemCount: data.items?.length || 0,
+            sampleItems: (data.items || []).slice(0, 3).map((item: any) => ({
+              name: item.name,
+              category: item.category,
+              totalPrice: item.totalPrice,
+            })),
+          };
+        }),
+        categoryTotals,
       });
 
       // Convert to category array with percentages
@@ -339,8 +434,12 @@ export function StatsScreen() {
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      setTotalSpending(totalSpent);
-      setCategories(categoriesArray);
+      console.log('📊 Stats calculated:', {
+        totalSpent,
+        categoryRawTotal,
+        categoriesCount: categoriesArray.length,
+        topCategories: categoriesArray.slice(0, 3).map(c => ({name: c.name, amount: c.amount})),
+      });
 
       // Calculate monthly data (last 3 months)
       const monthlyTotals: Record<string, number> = {};
@@ -402,7 +501,7 @@ export function StatsScreen() {
         if (monthlyTotals[monthKey] !== undefined) {
           // Calculate amount based on currency using standardized fields
           let amount = 0;
-          if (userPreferredCurrency === 'CDF') {
+          if (mostCommonCurrency === 'CDF') {
             // For CDF: prioritize totalCDF field
             if (data.totalCDF != null) {
               amount = Number(data.totalCDF) || 0;
@@ -439,10 +538,8 @@ export function StatsScreen() {
         },
       );
 
-      setMonthlyData(monthlyArray);
-
           return {
-            totalSpending,
+            totalSpending: totalSpent,
             categories: categoriesArray,
             monthlyData: monthlyArray,
             currentMonthReceipts: currentMonthReceipts.map(doc => ({id: doc.id, ...doc.data()}))
@@ -451,21 +548,23 @@ export function StatsScreen() {
         forceRefresh,
         onStaleData: (staleData) => {
           // Show stale data immediately for instant display
-          if (staleData) {
-            setTotalSpending(staleData.totalSpending || 0);
-            setCategories(staleData.categories || []);
-            setMonthlyData(staleData.monthlyData || []);
-            setCurrentMonthReceipts(staleData.currentMonthReceipts || []);
+          if (staleData && staleData.data) {
+            console.log('📊 Using stale data:', staleData);
+            setTotalSpending(staleData.data.totalSpending || 0);
+            setCategories(staleData.data.categories || []);
+            setMonthlyData(staleData.data.monthlyData || []);
+            setCurrentMonthReceipts(staleData.data.currentMonthReceipts || []);
           }
         }
       });
 
       // Update with fresh or cached data
-      if (cachedData) {
-        setTotalSpending(cachedData.totalSpending || 0);
-        setCategories(cachedData.categories || []);
-        setMonthlyData(cachedData.monthlyData || []);
-        setCurrentMonthReceipts(cachedData.currentMonthReceipts || []);
+      console.log('📊 Updating state with fresh data:', cachedData);
+      if (cachedData && cachedData.data) {
+        setTotalSpending(cachedData.data.totalSpending || 0);
+        setCategories(cachedData.data.categories || []);
+        setMonthlyData(cachedData.data.monthlyData || []);
+        setCurrentMonthReceipts(cachedData.data.currentMonthReceipts || []);
       }
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -920,7 +1019,7 @@ export function StatsScreen() {
                 {(() => {
                   const storeCounts: Record<string, number> = {};
                   currentMonthReceipts.forEach(doc => {
-                    const storeName = doc.data().storeName || 'Magasin inconnu';
+                    const storeName = doc.storeName || 'Magasin inconnu';
                     storeCounts[storeName] = (storeCounts[storeName] || 0) + 1;
                   });
                   const topStores = Object.entries(storeCounts)

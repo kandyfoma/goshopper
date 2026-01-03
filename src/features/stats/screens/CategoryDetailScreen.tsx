@@ -24,10 +24,61 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, EmptyState, BackButton, FadeIn} from '@/shared/components';
-import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
-import {useAuth} from '@/shared/contexts';
+import {formatCurrency, safeToDate, convertCurrency} from '@/shared/utils/helpers';
+import {useAuth, useUser} from '@/shared/contexts';
 import {translationService} from '@/shared/services/translation';
 import {APP_ID} from '@/shared/services/firebase/config';
+
+// Category detection keywords - mirrors backend logic for consistent categorization
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  'Boissons': ['eau', 'water', 'jus', 'juice', 'soda', 'coca', 'fanta', 'sprite', 'pepsi', 'limonade', 
+               'biere', 'beer', 'vin', 'wine', 'merlot', 'cabernet', 'chardonnay', 'medco', 'sauvignon',
+               'whisky', 'vodka', 'rhum', 'rum', 'champagne', 'cafe', 'coffee', 'the', 'tea', 'lait', 'milk',
+               'yaourt', 'yogurt', 'primus', 'heineken', 'skol', 'tembo', 'castel', 'ngok', 'nkoyi',
+               'simba', 'mutzig', 'masanga', 'malavu', 'lotoko', 'maziwa'],
+  'Alimentation': ['riz', 'rice', 'pain', 'bread', 'farine', 'flour', 'pate', 'pasta', 'spaghetti', 'macaroni',
+               'cereale', 'cereal', 'biscuit', 'cookie', 'chocolat', 'chocolate', 'sucre', 'sugar',
+               'sel', 'salt', 'huile', 'oil', 'miel', 'honey', 'confiture', 'jam', 'beurre', 'butter',
+               'fromage', 'cheese', 'oeuf', 'egg', 'viande', 'meat', 'poulet', 'chicken', 'boeuf', 'beef',
+               'poisson', 'fish', 'sardine', 'thon', 'tuna', 'mafuta', 'mungwa', 'fufu', 'pondu', 'saka',
+               'makayabu', 'mbisi', 'ngolo', 'kapiteni', 'sombe', 'matembele', 'biteku', 'ngai ngai', 'ndunda',
+               'bonbon', 'candy', 'chips', 'snack', 'gateaux', 'cake', 'creme', 'cream', 'nutella'],
+  'Fruits & Légumes': ['pomme', 'apple', 'banane', 'banana', 'orange', 'citron', 'lemon', 'mangue', 'mango',
+               'ananas', 'pineapple', 'avocat', 'avocado', 'tomate', 'tomato', 'carotte', 'carrot',
+               'oignon', 'onion', 'ail', 'garlic', 'salade', 'lettuce', 'chou', 'cabbage', 'haricot', 'bean',
+               'pomme de terre', 'potato', 'patate', 'epinard', 'spinach', 'concombre', 'cucumber'],
+  'Hygiène': ['savon', 'soap', 'shampooing', 'shampoo', 'dentifrice', 'toothpaste', 'brosse', 'brush',
+               'papier toilette', 'toilet paper', 'serviette', 'towel', 'deodorant', 'gel douche', 'shower gel',
+               'lotion', 'parfum', 'perfume', 'coton', 'cotton', 'rasoir', 'razor', 'lingette', 'wipe'],
+  'Ménage': ['javel', 'bleach', 'detergent', 'lessive', 'laundry', 'eponge', 'sponge', 'balai', 'broom',
+               'seau', 'bucket', 'serpilliere', 'mop', 'torchon', 'cloth', 'poubelle', 'trash', 'sac poubelle',
+               'insecticide', 'desodorisant', 'air freshener', 'makala', 'charbon', 'charcoal'],
+  'Bébé': ['couche', 'diaper', 'nappy', 'pampers', 'biberon', 'bottle', 'lait bebe', 'baby formula',
+               'lingette bebe', 'baby wipe', 'sucette', 'pacifier', 'tetine', 'huggies', 'molfix'],
+  'Électronique': ['pile', 'battery', 'chargeur', 'charger', 'cable', 'ecouteur', 'earphone', 'lampe', 'lamp',
+               'ampoule', 'bulb', 'torch', 'torche', 'flashlight', 'radio', 'telephone', 'phone'],
+};
+
+/**
+ * Detect category from item name using keyword matching
+ * Returns null if no category detected (will fall back to item's original category)
+ */
+function detectItemCategory(itemName: string): string | null {
+  const normalizedName = itemName.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (normalizedName.includes(keyword) || keyword.includes(normalizedName)) {
+        return category;
+      }
+    }
+  }
+  
+  return null;
+}
 
 type NavigationProp = NativeStackNavigationProp<StatsStackParamList, 'CategoryDetail'>;
 type CategoryDetailRouteProp = RouteProp<StatsStackParamList, 'CategoryDetail'>;
@@ -53,6 +104,7 @@ export function CategoryDetailScreen() {
   const insets = useSafeAreaInsets();
   const {categoryName, categoryColor} = route.params;
   const {user} = useAuth();
+  const {profile} = useUser();
 
   const [items, setItems] = useState<CategoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<CategoryItem[]>([]);
@@ -113,7 +165,7 @@ export function CategoryDetailScreen() {
     try {
       setIsLoading(true);
 
-      // Get user's currency preference
+      // Get user's currency preference (but we'll override with receipt currency)
       const userDoc = await firestore()
         .collection('artifacts')
         .doc(APP_ID)
@@ -121,9 +173,6 @@ export function CategoryDetailScreen() {
         .doc(user.uid)
         .get();
       
-      const userCurrency = userDoc.data()?.currency || 'USD';
-      setPrimaryCurrency(userCurrency);
-
       // Get all receipts
       const receiptsSnapshot = await firestore()
         .collection('artifacts')
@@ -134,6 +183,14 @@ export function CategoryDetailScreen() {
         .orderBy('scannedAt', 'desc')
         .get();
 
+      // Determine primary currency from receipts (most common currency)
+      const receiptCurrencies = receiptsSnapshot.docs.map(doc => doc.data().currency || 'CDF');
+      const currencyCount: Record<string, number> = {};
+      receiptCurrencies.forEach(c => { currencyCount[c] = (currencyCount[c] || 0) + 1; });
+      const mostCommonCurrency = Object.entries(currencyCount)
+        .sort(([, a], [, b]) => b - a)[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+      setPrimaryCurrency(mostCommonCurrency);
+
       // Process items by category
       const itemsMap = new Map<string, CategoryItem>();
       let categoryTotal = 0;
@@ -143,25 +200,44 @@ export function CategoryDetailScreen() {
         const items = data.items || [];
         const storeName = data.storeName || 'Magasin inconnu';
         const receiptDate = safeToDate(data.scannedAt);
+        const receiptCurrency = data.currency || 'CDF';
 
         items.forEach((item: any) => {
+          // Re-detect category for better accuracy
+          const detectedCategory = detectItemCategory(item.name || '');
+          const itemCategory = detectedCategory || item.category || 'Autres';
+          
           // Only process items in the selected category
-          if (item.category !== categoryName) return;
+          if (itemCategory !== categoryName) return;
 
           const itemName = item.name || 'Article inconnu';
           const normalizedName = itemName.toLowerCase().trim();
           const totalPrice = item.totalPrice || 0;
           const quantity = item.quantity || 1;
-          const receiptCurrency = data.currency || 'USD';
 
-          // Create unique key with currency to avoid mixing USD and CDF
-          const itemKey = `${normalizedName}_${receiptCurrency}`;
+          // Debug logging for sugar items
+          if (normalizedName.includes('sugar') || normalizedName.includes('sucre')) {
+            console.log('🔍 Sugar item found:', {
+              receiptId: doc.id,
+              itemName,
+              quantity,
+              totalPrice,
+              category: item.category,
+              detectedCategory,
+              receiptCurrency
+            });
+          }
 
-          categoryTotal += totalPrice;
+          // Create unique key (combine items regardless of currency)
+          const itemKey = normalizedName;
+
+          // Convert to common currency if needed
+          const convertedTotalPrice = convertCurrency(totalPrice, receiptCurrency, mostCommonCurrency);
+          categoryTotal += convertedTotalPrice;
 
           if (itemsMap.has(itemKey)) {
             const existing = itemsMap.get(itemKey)!;
-            existing.totalSpent += totalPrice;
+            existing.totalSpent += convertedTotalPrice;
             existing.quantity += quantity;
             existing.averagePrice = existing.totalSpent / existing.quantity;
 
@@ -169,12 +245,12 @@ export function CategoryDetailScreen() {
             const shopIndex = existing.shops.findIndex(s => s.name === storeName);
             if (shopIndex >= 0) {
               existing.shops[shopIndex].count++;
-              existing.shops[shopIndex].totalSpent += totalPrice;
+              existing.shops[shopIndex].totalSpent += convertedTotalPrice;
             } else {
               existing.shops.push({
                 name: storeName,
                 count: 1,
-                totalSpent: totalPrice,
+                totalSpent: convertedTotalPrice,
               });
             }
 
@@ -186,14 +262,14 @@ export function CategoryDetailScreen() {
             itemsMap.set(itemKey, {
               id: itemKey,
               name: itemName,
-              totalSpent: totalPrice,
+              totalSpent: convertedTotalPrice,
               quantity: quantity,
-              averagePrice: totalPrice / quantity,
-              currency: receiptCurrency,
+              averagePrice: convertedTotalPrice / quantity,
+              currency: mostCommonCurrency,
               shops: [{
                 name: storeName,
                 count: 1,
-                totalSpent: totalPrice,
+                totalSpent: convertedTotalPrice,
               }],
               lastPurchaseDate: receiptDate,
             });

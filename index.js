@@ -172,19 +172,28 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
           const pendingStored = await AsyncStorage.getItem(PENDING_SCANS_KEY);
           if (pendingStored) {
             let pendingScans = JSON.parse(pendingStored);
-            pendingScans = pendingScans.map(scan => {
-              if (scan.id === pendingScanId) {
-                return {
-                  ...scan,
-                  status: data.type === 'scan_complete' ? 'completed' : 'failed',
-                  receiptId: data.receiptId || null,
-                  error: data.error || null,
-                };
-              }
-              return scan;
-            });
+            
+            if (data.type === 'scan_complete') {
+              // Remove completed scans to prevent showing stale status
+              pendingScans = pendingScans.filter(scan => scan.id !== pendingScanId);
+              console.log('[Background] Removed completed scan:', pendingScanId);
+            } else {
+              // Update failed scan status
+              pendingScans = pendingScans.map(scan => {
+                if (scan.id === pendingScanId) {
+                  return {
+                    ...scan,
+                    status: 'failed',
+                    receiptId: data.receiptId || null,
+                    error: data.error || 'Échec de l\'analyse',
+                  };
+                }
+                return scan;
+              });
+              console.log('[Background] Updated failed scan status:', pendingScanId);
+            }
+            
             await AsyncStorage.setItem(PENDING_SCANS_KEY, JSON.stringify(pendingScans));
-            console.log('[Background] Updated pending scan status:', pendingScanId, data.type);
           }
         }
       }

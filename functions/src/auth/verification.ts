@@ -442,7 +442,7 @@ export const completeRegistration = functions
       }
 
       // Update user profile with verified contact
-      const userProfileRef = db.doc(`${collections.users(userId)}/profile`);
+      const userProfileRef = db.doc(`${collections.users}/${userId}/profile`);
       const updateData: Record<string, any> = {
         verified: true,
         verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
