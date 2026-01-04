@@ -910,21 +910,41 @@ export const aggregateItemsOnReceipt = functions
       const receiptData = change.after.data();
       if (!receiptData || !receiptData.items || receiptData.items.length === 0) {
         console.log(`Receipt ${receiptId} has no items - skipping aggregation`);
+        console.log(`Receipt data keys: ${receiptData ? Object.keys(receiptData).join(', ') : 'null'}`);
         return null;
       }
 
       const items = receiptData.items as any[];
       const storeName = receiptData.storeName || 'Inconnu';
       const currency = receiptData.currency || 'USD';
-      const receiptDate =
-        receiptData.scannedAt ||
-        receiptData.date ||
-        admin.firestore.Timestamp.now();
+      
+      // Get receipt date as Timestamp for storage
+      const rawDate = receiptData.scannedAt || receiptData.date || admin.firestore.Timestamp.now();
+      const receiptDate: admin.firestore.Timestamp = rawDate?.toDate 
+        ? rawDate  // Already a Timestamp
+        : admin.firestore.Timestamp.fromDate(rawDate instanceof Date ? rawDate : new Date(rawDate));
+      
+      // Also get as Date for time calculations
+      const receiptDateAsDate: Date = receiptDate.toDate();
+
+      console.log(`📋 Processing receipt ${receiptId}:`);
+      console.log(`   - Store: ${storeName}`);
+      console.log(`   - Currency: ${currency}`);
+      console.log(`   - Items count: ${items.length}`);
+      console.log(`   - First item sample: ${JSON.stringify(items[0] || 'none')}`);
 
       // Get user's city for master city items table
+      // Try both defaultCity and city fields (some users may have only city set)
       const userDoc = await db.collection(`artifacts/${config.app.id}/users`).doc(userId).get();
-      const userCity = userDoc.data()?.defaultCity || null;
-      console.log(`Processing receipt for user in city: ${userCity}`);
+      const userData = userDoc.data();
+      const userCity = userData?.defaultCity || userData?.city || null;
+      
+      if (!userCity) {
+        console.log(`⚠️ User ${userId} has no city set - city items will NOT be saved`);
+        console.log(`   User data fields: ${userData ? Object.keys(userData).join(', ') : 'no user doc'}`);
+      } else {
+        console.log(`🏙️ Processing receipt for user in city: ${userCity}`);
+      }
 
       // Process each item in the receipt
       const batch = db.batch();
@@ -942,8 +962,20 @@ export const aggregateItemsOnReceipt = functions
       // Initialize spell checker for OCR error correction
       await ensureSpellChecker();
 
+      // Track skipped items for debugging
+      let skippedNoName = 0;
+      let skippedNoPrice = 0;
+      let skippedInvalidName = 0;
+      let processedCount = 0;
+
       for (const item of items) {
-        if (!item.name || !item.unitPrice || item.unitPrice <= 0) {
+        if (!item.name) {
+          skippedNoName++;
+          continue;
+        }
+        if (!item.unitPrice || item.unitPrice <= 0) {
+          skippedNoPrice++;
+          console.log(`⚠️ Skipping item "${item.name}": invalid price (${item.unitPrice})`);
           continue;
         }
 
@@ -955,9 +987,12 @@ export const aggregateItemsOnReceipt = functions
 
         // Validate item name quality - skip low-quality/mistake names
         if (!isValidItemName(correctedName, itemNameNormalized)) {
-          console.log(`Skipping low-quality item name: "${item.name}" (corrected: "${correctedName}", normalized: "${itemNameNormalized}")`);
+          skippedInvalidName++;
+          console.log(`⚠️ Skipping low-quality item name: "${item.name}" (corrected: "${correctedName}", normalized: "${itemNameNormalized}")`);
           continue;
         }
+
+        processedCount++;
 
         // Update item with corrected name for display
         item.name = correctedName;
@@ -1191,11 +1226,11 @@ export const aggregateItemsOnReceipt = functions
 
             // Time-based features
             const firstSeenDate = cityData.createdAt?.toDate?.() || new Date();
-            const daysSinceFirstSeen = Math.floor((receiptDate.getTime() - firstSeenDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysSinceFirstSeen = Math.floor((receiptDateAsDate.getTime() - firstSeenDate.getTime()) / (1000 * 60 * 60 * 24));
             const weeklyPurchaseRate = daysSinceFirstSeen > 0 ? (updatedCityPrices.length / daysSinceFirstSeen) * 7 : 0;
 
             // Popularity score (combines user count, purchase frequency, and recency)
-            const daysSinceLastPurchase = Math.floor((new Date().getTime() - receiptDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysSinceLastPurchase = Math.floor((new Date().getTime() - receiptDateAsDate.getTime()) / (1000 * 60 * 60 * 24));
             const recencyFactor = Math.max(0, 1 - (daysSinceLastPurchase / 365)); // Decay over 1 year
             const popularityScore = (userIds.length * 10) + (weeklyPurchaseRate * 5) + (recencyFactor * 20);
 
@@ -1295,13 +1330,21 @@ export const aggregateItemsOnReceipt = functions
 
       // Commit all item updates
       await batch.commit();
-      console.log(
-        `✅ Aggregated ${items.length} items for receipt ${receiptId}`,
-      );
+      
+      // Summary log for debugging
+      console.log(`📊 Item aggregation summary for receipt ${receiptId}:`);
+      console.log(`   - Total items in receipt: ${items.length}`);
+      console.log(`   - Items processed (valid): ${processedCount}`);
+      console.log(`   - Skipped (no name): ${skippedNoName}`);
+      console.log(`   - Skipped (no/invalid price): ${skippedNoPrice}`);
+      console.log(`   - Skipped (invalid name quality): ${skippedInvalidName}`);
+      console.log(`   - User items path: ${userItemsPath}`);
+      console.log(`   - City items path: ${cityItemsPath || 'N/A (no city set)'}`);
+      console.log(`✅ Aggregated ${processedCount} items for receipt ${receiptId}`);
 
       return null;
     } catch (error) {
-      console.error(`Error aggregating items for receipt ${receiptId}:`, error);
+      console.error(`❌ Error aggregating items for receipt ${receiptId}:`, error);
       // Don't throw - allow receipt to be saved even if aggregation fails
       return null;
     }

@@ -4,14 +4,24 @@
  * Used instead of Alert.alert for a better UX
  */
 
-import React from 'react';
-import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import React, {useState, useEffect, useRef} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import RNModal from 'react-native-modal';
+import {BlurView} from '@react-native-community/blur';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
 import Icon from '@/shared/components/Icon';
-import {Colors, Typography, Spacing} from '@/shared/theme/theme';
-import {AnimatedModal} from './AnimatedModal';
+import {Colors, Typography, Spacing, BorderRadius, Shadows} from '@/shared/theme/theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -86,17 +96,54 @@ export default function SubscriptionLimitModal({
   requiredPlan,
 }: SubscriptionLimitModalProps) {
   const navigation = useNavigation<NavigationProp>();
-  
+  const insets = useSafeAreaInsets();
+
+  // Animation refs
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
   const content = LIMIT_CONTENT[limitType];
-  
+
   // Generate dynamic message for downgrade scenario
   let title = customTitle || content.title;
   let message = customMessage || (isTrialActive ? content.trialMessage : content.message);
-  
+
   if (limitType === 'downgrade' && previousPlan && currentPlan) {
     title = 'Accès Restreint';
     message = `Vous êtes passé de ${previousPlan} à ${currentPlan}. Cette fonctionnalité nécessite le plan ${requiredPlan || 'supérieur'}. Mettez à niveau pour retrouver l'accès.`;
   }
+
+  // Animation effects
+  useEffect(() => {
+    if (visible) {
+      // Reset animations
+      slideAnim.setValue(100);
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+
+      // Start animations
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [visible, slideAnim, fadeAnim, scaleAnim]);
 
   const handleUpgrade = () => {
     onClose();
@@ -119,13 +166,145 @@ export default function SubscriptionLimitModal({
   const showBuyScansOption = limitType === 'scan';
 
   return (
-    <AnimatedModal
-      visible={visible}
-      onClose={handleGoBack}
-      variant="centered"
-      overlayOpacity={0.6}>
-      <View style={styles.outerContainer}>
-        <View style={styles.modal}>
+    <RNModal
+      isVisible={visible}
+      onBackdropPress={handleGoBack}
+      onBackButtonPress={handleGoBack}
+      backdropOpacity={0.25}
+      animationIn="fadeIn"
+      animationOut="fadeOut"
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={true}
+      style={styles.modal}>
+      {Platform.OS === 'ios' ? (
+        <BlurView style={styles.overlay} blurType="dark" blurAmount={10}>
+          <Animated.View style={[styles.androidOverlay, { opacity: fadeAnim }]} />
+          <View style={styles.overlayContent}>
+            <TouchableOpacity
+              style={styles.overlayTouchable}
+              activeOpacity={1}
+              onPress={handleGoBack}
+            />
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  paddingBottom: insets.bottom + Spacing.lg,
+                  transform: [
+                    { translateY: slideAnim },
+                    { scale: scaleAnim },
+                  ],
+                }
+              ]}>
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={styles.headerDrag} />
+                <View style={styles.headerTop}>
+                  <View style={styles.headerContent}>
+                    <Text style={styles.headerTitle}>{title}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={handleGoBack}
+                    hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                    <Icon name="x" size="md" color={Colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                {/* Icon */}
+                <View style={styles.iconContainer}>
+                  <View style={styles.iconOuter}>
+                    <View style={styles.iconInner}>
+                      <Icon name={content.icon} size="xl" color={Colors.primary} />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Message */}
+                <Text style={styles.message}>{message}</Text>
+
+                {/* Premium benefits preview */}
+                <View style={styles.benefitsContainer}>
+                  <View style={styles.benefitRow}>
+                    <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                    <Text style={styles.benefitText}>Scans illimités</Text>
+                  </View>
+                  <View style={styles.benefitRow}>
+                    <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                    <Text style={styles.benefitText}>Listes de courses illimitées</Text>
+                  </View>
+                  <View style={styles.benefitRow}>
+                    <Icon name="check-circle" size="sm" color={Colors.status.success} />
+                    <Text style={styles.benefitText}>Comparaison de prix avancée</Text>
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Action Buttons */}
+              <View style={styles.buttonContainer}>
+                {/* Buy Scans Option - for scan limit */}
+                {showBuyScansOption && (
+                  <TouchableOpacity style={styles.photoButton} onPress={handleBuyScans}>
+                    <Icon name="zap" size="sm" color={Colors.white} />
+                    <Text style={styles.photoButtonText}>Acheter des Scans</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Primary Action - Upgrade */}
+                <TouchableOpacity style={[styles.primaryButton, showBuyScansOption && styles.primaryButtonAlt]} onPress={handleUpgrade}>
+                  <Icon name="crown" size="sm" color={showBuyScansOption ? Colors.primary : Colors.white} />
+                  <Text style={[styles.primaryButtonText, showBuyScansOption && styles.primaryButtonTextAlt]}>
+                    {showBuyScansOption ? 'Ou mettre à niveau' : 'Mettre à niveau'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Secondary Action - Go Back */}
+                <TouchableOpacity style={styles.secondaryButton} onPress={handleGoBack}>
+                  <Text style={styles.secondaryButtonText}>Plus tard</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </BlurView>
+      ) : (
+        <Animated.View style={[styles.androidOverlay, { opacity: fadeAnim }]} />
+      )}
+      <View style={styles.overlayContent}>
+        <TouchableOpacity
+          style={styles.overlayTouchable}
+          activeOpacity={1}
+          onPress={handleGoBack}
+        />
+        <Animated.View
+          style={[
+            styles.modalContent,
+            {
+              paddingBottom: insets.bottom + Spacing.lg,
+              transform: [
+                { translateY: slideAnim },
+                { scale: scaleAnim },
+              ],
+            }
+          ]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerDrag} />
+            <View style={styles.headerTop}>
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>{title}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleGoBack}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                <Icon name="x" size="md" color={Colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
             {/* Icon */}
             <View style={styles.iconContainer}>
               <View style={styles.iconOuter}>
@@ -134,9 +313,6 @@ export default function SubscriptionLimitModal({
                 </View>
               </View>
             </View>
-
-            {/* Title */}
-            <Text style={styles.title}>{title}</Text>
 
             {/* Message */}
             <Text style={styles.message}>{message}</Text>
@@ -156,12 +332,15 @@ export default function SubscriptionLimitModal({
                 <Text style={styles.benefitText}>Comparaison de prix avancée</Text>
               </View>
             </View>
+          </ScrollView>
 
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
             {/* Buy Scans Option - for scan limit */}
             {showBuyScansOption && (
-              <TouchableOpacity style={styles.buyScansButton} onPress={handleBuyScans}>
+              <TouchableOpacity style={styles.photoButton} onPress={handleBuyScans}>
                 <Icon name="zap" size="sm" color={Colors.white} />
-                <Text style={styles.buyScansButtonText}>Acheter des Scans</Text>
+                <Text style={styles.photoButtonText}>Acheter des Scans</Text>
               </TouchableOpacity>
             )}
 
@@ -177,98 +356,164 @@ export default function SubscriptionLimitModal({
             <TouchableOpacity style={styles.secondaryButton} onPress={handleGoBack}>
               <Text style={styles.secondaryButtonText}>Plus tard</Text>
             </TouchableOpacity>
-        </View>
+          </View>
+        </Animated.View>
       </View>
-    </AnimatedModal>
+    </RNModal>
   );
 }
 
 const styles = StyleSheet.create({
-  outerContainer: {
-    backgroundColor: '#003049', // Cosmos Blue
-    borderRadius: 28,
-    padding: 4,
-    width: '100%',
-    maxWidth: 388,
-  },
   modal: {
+    margin: 0,
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  androidOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  overlayContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  overlayTouchable: {
+    flex: 1,
+  },
+  modalContent: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 28,
-    width: '100%',
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
+    minHeight: '75%',
+    maxHeight: '95%',
+    ...Shadows.lg,
+  },
+  header: {
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  headerDrag: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.border.medium,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerContent: {
+    flex: 1,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.lg,
+    alignItems: 'center',
   },
   iconContainer: {
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
   },
   iconOuter: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: '#003049', // Cosmos Blue
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.accent, // Cosmos Blue
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#C1121F', // Crimson Blaze
+    borderColor: Colors.primary, // Crimson Blaze
   },
   iconInner: {
     width: 70,
     height: 70,
-    borderRadius: 35,
-    backgroundColor: '#C1121F', // Crimson Blaze
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary, // Crimson Blaze
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
   message: {
-    fontSize: 15,
+    fontSize: Typography.fontSize.base,
     color: Colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
     lineHeight: 22,
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.sm,
   },
   benefitsContainer: {
     backgroundColor: Colors.background.secondary,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
     width: '100%',
-    marginBottom: 24,
-    gap: 12,
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
   },
   benefitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: Spacing.sm,
   },
   benefitText: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.sm,
     color: Colors.text.secondary,
     fontWeight: '500',
   },
-  primaryButton: {
-    backgroundColor: '#C1121F', // Crimson Blaze
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    width: '100%',
+  buttonContainer: {
+    padding: Spacing.md,
+    gap: Spacing.xs,
+  },
+  photoButton: {
+    backgroundColor: Colors.primary, // Crimson Blaze
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    shadowColor: '#C1121F',
+    gap: Spacing.sm,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  photoButtonText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary, // Crimson Blaze
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -277,48 +522,24 @@ const styles = StyleSheet.create({
   primaryButtonAlt: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: '#C1121F', // Crimson Blaze
+    borderColor: Colors.primary, // Crimson Blaze
     shadowOpacity: 0,
     elevation: 0,
   },
   primaryButtonText: {
-    fontSize: 17,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
     color: Colors.white,
   },
   primaryButtonTextAlt: {
-    color: '#C1121F', // Crimson Blaze
-  },
-  buyScansButton: {
-    backgroundColor: '#780000', // Gochujang Red
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    shadowColor: '#780000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buyScansButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.white,
+    color: Colors.primary, // Crimson Blaze
   },
   secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    width: '100%',
+    paddingVertical: Spacing.sm,
     alignItems: 'center',
   },
   secondaryButtonText: {
-    fontSize: 15,
+    fontSize: Typography.fontSize.base,
     color: Colors.text.tertiary,
     fontWeight: '500',
   },

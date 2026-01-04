@@ -283,57 +283,108 @@ class BackgroundScanService {
     const failed: PendingScan[] = [];
     const pending: PendingScan[] = [];
 
+    // Auto-cleanup: Remove old failed scans (older than 24 hours)
+    const OLD_SCAN_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
+    const now = Date.now();
+    
     for (const scan of localScans) {
-      // Skip local-only uploads that didn't reach server
+      const scanAge = now - new Date(scan.createdAt).getTime();
+      
+      // Auto-remove old failed scans
+      if (scan.status === 'failed' && scanAge > OLD_SCAN_THRESHOLD) {
+        await this.removePendingScanLocally(scan.id);
+        continue;
+      }
+      
+      // Skip scans that are already marked as completed or failed locally
+      if (scan.status === 'completed') {
+        completed.push(scan);
+        // Clean up completed scans
+        await this.removePendingScanLocally(scan.id);
+        continue;
+      }
+      
+      if (scan.status === 'failed') {
+        failed.push(scan);
+        // Clean up failed scans after reporting
+        await this.removePendingScanLocally(scan.id);
+        continue;
+      }
+
+      // For scans still uploading, keep them as pending (don't mark as failed)
       if (scan.id.startsWith('local_') && scan.status === 'uploading') {
-        failed.push({...scan, error: 'Upload interrupted'});
+        pending.push(scan);
         continue;
       }
 
-      if (scan.status === 'completed' || scan.status === 'failed') {
-        if (scan.status === 'completed') {
-          completed.push(scan);
-        } else {
-          failed.push(scan);
+      // Check server status for scans that have a server ID
+      if (!scan.id.startsWith('local_')) {
+        const serverStatus = await this.checkPendingScanStatus(scan.id);
+
+        if (!serverStatus.found) {
+          // Don't mark as failed immediately - might still be propagating
+          // Only fail if scan is very old (more than 5 minutes)
+          if (scanAge > 5 * 60 * 1000) {
+            failed.push({...scan, error: 'Scan not found on server'});
+            await this.removePendingScanLocally(scan.id);
+          } else {
+            pending.push(scan);
+          }
+          continue;
         }
-        continue;
-      }
 
-      // Check server status
-      const serverStatus = await this.checkPendingScanStatus(scan.id);
-
-      if (!serverStatus.found) {
-        failed.push({...scan, error: 'Scan not found on server'});
-        continue;
-      }
-
-      switch (serverStatus.status) {
-        case 'completed':
-          completed.push({
-            ...scan,
-            status: 'completed',
-            receiptId: serverStatus.receiptId,
-          });
-          await this.removePendingScanLocally(scan.id);
-          break;
-        case 'failed':
-          failed.push({
-            ...scan,
-            status: 'failed',
-            error: serverStatus.error || 'Processing failed',
-          });
-          break;
-        case 'pending':
-        case 'processing':
-          pending.push({
-            ...scan,
-            status: serverStatus.status as any,
-          });
-          break;
+        switch (serverStatus.status) {
+          case 'completed':
+            completed.push({
+              ...scan,
+              status: 'completed',
+              receiptId: serverStatus.receiptId,
+            });
+            await this.removePendingScanLocally(scan.id);
+            break;
+          case 'failed':
+            failed.push({
+              ...scan,
+              status: 'failed',
+              error: serverStatus.error || 'Processing failed',
+            });
+            await this.removePendingScanLocally(scan.id);
+            break;
+          case 'pending':
+          case 'processing':
+            pending.push({
+              ...scan,
+              status: serverStatus.status as any,
+            });
+            break;
+        }
+      } else {
+        // Local scans without server ID stay pending
+        pending.push(scan);
       }
     }
 
     return {completed, failed, pending};
+  }
+
+  /**
+   * Clear all failed scans from local storage
+   */
+  async clearFailedScans(): Promise<number> {
+    const scans = await this.getLocalPendingScans();
+    const filtered = scans.filter(s => s.status !== 'failed');
+    const removedCount = scans.length - filtered.length;
+    await AsyncStorage.setItem(PENDING_SCANS_KEY, JSON.stringify(filtered));
+    console.log(`🗑️ Cleared ${removedCount} failed scans`);
+    return removedCount;
+  }
+
+  /**
+   * Clear all pending scans from local storage (for troubleshooting)
+   */
+  async clearAllPendingScans(): Promise<void> {
+    await AsyncStorage.removeItem(PENDING_SCANS_KEY);
+    console.log('🗑️ Cleared all pending scans');
   }
 
   /**

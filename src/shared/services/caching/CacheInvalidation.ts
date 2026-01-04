@@ -25,22 +25,27 @@ const INVALIDATION_MAP: Record<
   Array<{pattern?: RegExp; key?: string; namespace: CacheNamespace}>
 > = {
   [InvalidationTrigger.RECEIPT_ADDED]: [
+    {pattern: /^receipts-/, namespace: 'receipts'}, // matches receipts-{userId}
     {pattern: /^recent-receipts/, namespace: 'receipts'},
-    {pattern: /^user-items-/, namespace: 'items'},
+    {pattern: /^user-items-/, namespace: 'receipts'}, // items are stored in 'receipts' namespace
+    {pattern: /^city-items-/, namespace: 'receipts'}, // city items cache
     {pattern: /^home-stats-/, namespace: 'home-data'},
     {pattern: /^monthly-spending-/, namespace: 'stats'},
     {pattern: /^category-stats-/, namespace: 'stats'},
   ],
   [InvalidationTrigger.RECEIPT_UPDATED]: [
     {pattern: /^receipt-/, namespace: 'receipts'},
+    {pattern: /^receipts-/, namespace: 'receipts'}, // matches receipts-{userId}
     {pattern: /^recent-receipts/, namespace: 'receipts'},
-    {pattern: /^user-items-/, namespace: 'items'},
+    {pattern: /^user-items-/, namespace: 'receipts'},
     {pattern: /^home-stats-/, namespace: 'home-data'},
   ],
   [InvalidationTrigger.RECEIPT_DELETED]: [
     {pattern: /^receipt-/, namespace: 'receipts'},
+    {pattern: /^receipts-/, namespace: 'receipts'}, // matches receipts-{userId}
     {pattern: /^recent-receipts/, namespace: 'receipts'},
-    {pattern: /^user-items-/, namespace: 'items'},
+    {pattern: /^user-items-/, namespace: 'receipts'},
+    {pattern: /^city-items-/, namespace: 'receipts'}, // city items cache
     {pattern: /^home-stats-/, namespace: 'home-data'},
     {pattern: /^monthly-spending-/, namespace: 'stats'},
   ],
@@ -132,6 +137,7 @@ class CacheInvalidationService {
     
     if (metadata?.userId) {
       const userKeys = [
+        `receipts-${metadata.userId}`, // Main receipts list
         `user-items-${metadata.userId}`,
         `home-stats-${metadata.userId}`,
         `profile-${metadata.userId}`,

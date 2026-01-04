@@ -198,15 +198,16 @@ export function StatsScreen() {
     try {
       setIsLoading(true);
 
-      // Always clear cache to ensure fresh data
+      // Use cache key with month to auto-refresh when month changes
       const cacheKey = `stats-data-${user.uid}-${new Date().getMonth()}`;
       
       // Use network-aware cache for stats data
       const cachedData = await networkAwareCache.fetchWithCache({
         key: cacheKey,
         namespace: 'stats',
-        ttl: 5 * 60 * 1000, // 5 minutes
+        ttl: 30 * 60 * 1000, // 30 minutes cache
         priority: CachePriority.HIGH,
+        forceRefresh, // Respect forceRefresh parameter
         fetchFn: async () => {
 
       // Get current month receipts (load all and filter in memory to avoid index issues)
@@ -608,11 +609,11 @@ export function StatsScreen() {
     };
   }, [user?.uid, loadStatsData]);
 
-  // Reload data when screen comes into focus - always fetch fresh data for real-time updates
+  // Reload data when screen comes into focus - use cache for faster loading
   useFocusEffect(
     useCallback(() => {
       if (user?.uid) {
-        loadStatsData(true); // Always force refresh for real-time data
+        loadStatsData(false); // Use cache on focus, only force refresh on pull-to-refresh
       }
     }, [user?.uid, loadStatsData])
   );

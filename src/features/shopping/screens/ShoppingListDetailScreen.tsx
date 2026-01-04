@@ -18,6 +18,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation, useRoute, RouteProp, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {firebase} from '@react-native-firebase/functions';
+import RNModal from 'react-native-modal';
+import {BlurView} from '@react-native-community/blur';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth, useUser} from '@/shared/contexts';
 import {
@@ -32,7 +34,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, SwipeToDelete, FadeIn, SlideIn, Input, Button, BackButton} from '@/shared/components';
+import {Icon, Spinner, SwipeToDelete, FadeIn, SlideIn, Input, Button, BackButton} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 
 type RouteParams = RouteProp<RootStackParamList, 'ShoppingListDetail'>;
@@ -113,6 +115,15 @@ export function ShoppingListDetailScreen() {
   // FAB animation
   const fabScale = useRef(new Animated.Value(1)).current;
 
+  // Modal animations
+  const addItemSlideAnim = useRef(new Animated.Value(0)).current;
+  const addItemFadeAnim = useRef(new Animated.Value(0)).current;
+  const addItemScaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  const editNameSlideAnim = useRef(new Animated.Value(0)).current;
+  const editNameFadeAnim = useRef(new Animated.Value(0)).current;
+  const editNameScaleAnim = useRef(new Animated.Value(0.9)).current;
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
@@ -148,6 +159,68 @@ export function ShoppingListDetailScreen() {
     pulse.start();
     return () => pulse.stop();
   }, []);
+
+  // Add Item Modal animations
+  useEffect(() => {
+    if (showAddItemModal) {
+      // Reset animations
+      addItemSlideAnim.setValue(100);
+      addItemFadeAnim.setValue(0);
+      addItemScaleAnim.setValue(0.9);
+
+      // Start animations
+      Animated.parallel([
+        Animated.spring(addItemSlideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+        Animated.timing(addItemFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(addItemScaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [showAddItemModal, addItemSlideAnim, addItemFadeAnim, addItemScaleAnim]);
+
+  // Edit Name Modal animations
+  useEffect(() => {
+    if (showEditNameModal) {
+      // Reset animations
+      editNameSlideAnim.setValue(100);
+      editNameFadeAnim.setValue(0);
+      editNameScaleAnim.setValue(0.9);
+
+      // Start animations
+      Animated.parallel([
+        Animated.spring(editNameSlideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+        Animated.timing(editNameFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(editNameScaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [showEditNameModal, editNameSlideAnim, editNameFadeAnim, editNameScaleAnim]);
 
   const loadList = async (showRefresh = false) => {
     if (!user?.uid || !listId) return;
@@ -822,205 +895,622 @@ export function ShoppingListDetailScreen() {
       </Animated.View>
 
       {/* Add Item Modal with Search */}
-      <Modal
-        visible={showAddItemModal}
-        variant="bottom-sheet"
-        size="large"
-        title="Ajouter un article"
-        contentStyle={styles.addItemModalContent}
-        onClose={() => {
+      <RNModal
+        isVisible={showAddItemModal}
+        onBackdropPress={() => {
           setShowAddItemModal(false);
           setNewItemName('');
           setNewItemQuantity('1');
           setSearchResults([]);
           setSelectedItemForAdd(null);
           setSelectedStore(null);
-        }}>
-        <ScrollView 
-          showsVerticalScrollIndicator={false} 
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled>
-          {/* Search Section */}
-          <View style={styles.addItemSearchSection}>
-            <View style={styles.searchInputContainer}>
-              <Input
-                label="Nom de l'article"
-                value={newItemName}
-                onChangeText={(text) => {
-                  setNewItemName(text);
+        }}
+        onBackButtonPress={() => {
+          setShowAddItemModal(false);
+          setNewItemName('');
+          setNewItemQuantity('1');
+          setSearchResults([]);
+          setSelectedItemForAdd(null);
+          setSelectedStore(null);
+        }}
+        backdropOpacity={0.25}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+        useNativeDriver={true}
+        hideModalContentWhileAnimating={true}
+        style={styles.modal}>
+        {Platform.OS === 'ios' ? (
+          <BlurView style={styles.overlay} blurType="dark" blurAmount={10}>
+            <Animated.View style={[styles.androidOverlay, { opacity: addItemFadeAnim }]} />
+            <View style={styles.overlayContent}>
+              <TouchableOpacity
+                style={styles.overlayTouchable}
+                activeOpacity={1}
+                onPress={() => {
+                  setShowAddItemModal(false);
+                  setNewItemName('');
+                  setNewItemQuantity('1');
+                  setSearchResults([]);
                   setSelectedItemForAdd(null);
+                  setSelectedStore(null);
                 }}
-                placeholder="Ex: Sucre, Riz, Huile..."
-                leftIcon="search"
               />
+              <Animated.View
+                style={[
+                  styles.modalContent,
+                  {
+                    paddingBottom: insets.bottom + Spacing.lg,
+                    transform: [
+                      { translateY: addItemSlideAnim },
+                      { scale: addItemScaleAnim },
+                    ],
+                  }
+                ]}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.headerDrag} />
+                  <View style={styles.headerTop}>
+                    <View style={styles.headerContent}>
+                      <Text style={styles.modalHeaderTitle}>Ajouter un article</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => {
+                        setShowAddItemModal(false);
+                        setNewItemName('');
+                        setNewItemQuantity('1');
+                        setSearchResults([]);
+                        setSelectedItemForAdd(null);
+                        setSelectedStore(null);
+                      }}
+                      hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                      <Icon name="x" size="md" color={Colors.text.secondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled>
+                  {/* Search Section */}
+                  <View style={styles.addItemSearchSection}>
+                    <View style={styles.searchInputContainer}>
+                      <Input
+                        label="Nom de l'article"
+                        value={newItemName}
+                        onChangeText={(text) => {
+                          setNewItemName(text);
+                          setSelectedItemForAdd(null);
+                        }}
+                        placeholder="Ex: Sucre, Riz, Huile..."
+                        leftIcon="search"
+                      />
+                    </View>
+
+                    {/* Modern Quantity Selector */}
+                    <View style={styles.quantitySelector}>
+                      <Text style={styles.quantitySelectorLabel}>Quantité</Text>
+                      <View style={styles.quantitySelectorRow}>
+                        <TouchableOpacity
+                          style={styles.quantityBtn}
+                          onPress={() =>
+                            setNewItemQuantity(String(Math.max(1, parseInt(newItemQuantity) - 1)))
+                          }>
+                          <Icon name="minus" size="sm" color={Colors.white} />
+                        </TouchableOpacity>
+                        <View style={styles.quantityDisplay}>
+                          <Text style={styles.quantityNumber}>{newItemQuantity}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.quantityBtn}
+                          onPress={() => setNewItemQuantity(String(parseInt(newItemQuantity) + 1))}>
+                          <Icon name="plus" size="sm" color={Colors.white} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Loading indicator while searching */}
+                  {isSearching && (
+                    <View style={styles.searchingIndicator}>
+                      <Spinner size="small" color={Colors.primary} />
+                      <Text style={styles.searchingText}>Recherche en cours...</Text>
+                    </View>
+                  )}
+
+                  {/* Search Results */}
+                  {searchResults.length > 0 && !selectedItemForAdd && (
+                    <View style={styles.searchResultsContainer}>
+                      <View style={styles.searchResultsHeader}>
+                        <Icon name="database" size="sm" color={Colors.primary} />
+                        <Text style={styles.searchResultsTitle}>
+                          {searchResults.length} article{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.searchResultsList}>
+                        {searchResults.map((item) => (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[
+                              styles.searchResultItem,
+                              selectedItemForAdd?.id === item.id && styles.searchResultItemSelected,
+                            ]}
+                            onPress={() => setSelectedItemForAdd(item)}
+                            activeOpacity={0.7}>
+                            <View style={styles.searchResultContent}>
+                              <View style={styles.searchResultInfo}>
+                                <Text style={styles.searchResultName}>{item.name}</Text>
+                                <Text style={styles.searchResultPrice}>
+                                  À partir de {formatCurrency(item.minPrice, item.currency)}
+                                </Text>
+                              </View>
+                              <View style={styles.searchResultStats}>
+                                <Text style={styles.searchResultStores}>
+                                  {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Price Comparison for selected item */}
+                  {selectedItemForAdd && (
+                    <View style={styles.priceComparisonContainer}>
+                      <View style={styles.priceComparisonHeader}>
+                        <Icon name="dollar-sign" size="sm" color={Colors.primary} />
+                        <Text style={styles.priceComparisonTitle}>
+                          Prix pour "{selectedItemForAdd.name}"
+                        </Text>
+                      </View>
+                      <View style={styles.priceList}>
+                        {selectedItemForAdd.prices.map((priceInfo, index) => {
+                          const isSelected = selectedStore?.storeName === priceInfo.storeName && selectedStore?.price === priceInfo.price;
+                          const isBest = priceInfo.price === selectedItemForAdd.minPrice;
+                          return (
+                            <TouchableOpacity
+                              key={index}
+                              style={[
+                                styles.priceItem,
+                                isSelected && styles.priceItemSelected,
+                                isBest && styles.priceItemBest,
+                              ]}
+                              onPress={() => setSelectedStore({storeName: priceInfo.storeName, price: priceInfo.price, currency: priceInfo.currency})}
+                              activeOpacity={0.7}>
+                              {isBest && (
+                                <View style={styles.bestPriceBadge}>
+                                  <Text style={styles.bestPriceText}>Meilleur prix</Text>
+                                </View>
+                              )}
+                              <View style={styles.priceItemContent}>
+                                <View style={styles.priceStoreInfo}>
+                                  <Text style={[
+                                    styles.priceStoreName,
+                                    isSelected && styles.priceStoreNameSelected
+                                  ]}>{priceInfo.storeName}</Text>
+                                  <Text style={styles.priceCurrency}>{priceInfo.currency}</Text>
+                                </View>
+                                <View style={styles.priceAmountContainer}>
+                                  <Text style={[
+                                    styles.priceAmount,
+                                    isBest && styles.priceAmountBest,
+                                  ]}>
+                                    {formatCurrency(priceInfo.price, priceInfo.currency)}
+                                  </Text>
+                                  {isSelected && (
+                                    <View style={styles.selectedCheck}>
+                                      <Icon name="check" size="xs" color={Colors.white} />
+                                    </View>
+                                  )}
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Add Button */}
+                  <View style={styles.addItemButtonContainer}>
+                    <Button
+                      title="Ajouter à ma liste"
+                      onPress={handleAddItem}
+                      disabled={!newItemName.trim() || isCreating}
+                      loading={isCreating}
+                      icon={<Icon name="plus" size="sm" color={Colors.white} />}
+                      iconPosition="left"
+                      fullWidth
+                    />
+                  </View>
+                </ScrollView>
+              </Animated.View>
             </View>
-            
-            {/* Modern Quantity Selector */}
-            <View style={styles.quantitySelector}>
-              <Text style={styles.quantitySelectorLabel}>Quantité</Text>
-              <View style={styles.quantitySelectorRow}>
-                <TouchableOpacity
-                  style={styles.quantityBtn}
-                  onPress={() =>
-                    setNewItemQuantity(String(Math.max(1, parseInt(newItemQuantity) - 1)))
-                  }>
-                  <Icon name="minus" size="sm" color={Colors.white} />
-                </TouchableOpacity>
-                <View style={styles.quantityDisplay}>
-                  <Text style={styles.quantityNumber}>{newItemQuantity}</Text>
+          </BlurView>
+        ) : (
+          <Animated.View style={[styles.androidOverlay, { opacity: addItemFadeAnim }]} />
+        )}
+        <View style={styles.overlayContent}>
+          <TouchableOpacity
+            style={styles.overlayTouchable}
+            activeOpacity={1}
+            onPress={() => {
+              setShowAddItemModal(false);
+              setNewItemName('');
+              setNewItemQuantity('1');
+              setSearchResults([]);
+              setSelectedItemForAdd(null);
+              setSelectedStore(null);
+            }}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                paddingBottom: insets.bottom + Spacing.lg,
+                transform: [
+                  { translateY: addItemSlideAnim },
+                  { scale: addItemScaleAnim },
+                ],
+              }
+            ]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.headerDrag} />
+              <View style={styles.headerTop}>
+                <View style={styles.headerContent}>
+                  <Text style={styles.modalHeaderTitle}>Ajouter un article</Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.quantityBtn}
-                  onPress={() => setNewItemQuantity(String(parseInt(newItemQuantity) + 1))}>
-                  <Icon name="plus" size="sm" color={Colors.white} />
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setShowAddItemModal(false);
+                    setNewItemName('');
+                    setNewItemQuantity('1');
+                    setSearchResults([]);
+                    setSelectedItemForAdd(null);
+                    setSelectedStore(null);
+                  }}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                  <Icon name="x" size="md" color={Colors.text.secondary} />
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
 
-          {/* Loading indicator while searching */}
-          {isSearching && (
-            <View style={styles.searchingIndicator}>
-              <Spinner size="small" color={Colors.primary} />
-              <Text style={styles.searchingText}>Recherche en cours...</Text>
-            </View>
-          )}
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled>
+              {/* Search Section */}
+              <View style={styles.addItemSearchSection}>
+                <View style={styles.searchInputContainer}>
+                  <Input
+                    label="Nom de l'article"
+                    value={newItemName}
+                    onChangeText={(text) => {
+                      setNewItemName(text);
+                      setSelectedItemForAdd(null);
+                    }}
+                    placeholder="Ex: Sucre, Riz, Huile..."
+                    leftIcon="search"
+                  />
+                </View>
 
-          {/* Search Results */}
-          {searchResults.length > 0 && !selectedItemForAdd && (
-            <View style={styles.searchResultsContainer}>
-              <View style={styles.searchResultsHeader}>
-                <Icon name="database" size="sm" color={Colors.primary} />
-                <Text style={styles.searchResultsTitle}>
-                  {searchResults.length} article{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.searchResultsList}>
-                {searchResults.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.searchResultItem}
-                    onPress={() => handleSelectSearchResult(item)}>
-                    <View style={styles.searchResultIcon}>
-                      <Icon name="package" size="sm" color={Colors.primary} />
+                {/* Modern Quantity Selector */}
+                <View style={styles.quantitySelector}>
+                  <Text style={styles.quantitySelectorLabel}>Quantité</Text>
+                  <View style={styles.quantitySelectorRow}>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() =>
+                        setNewItemQuantity(String(Math.max(1, parseInt(newItemQuantity) - 1)))
+                      }>
+                      <Icon name="minus" size="sm" color={Colors.white} />
+                    </TouchableOpacity>
+                    <View style={styles.quantityDisplay}>
+                      <Text style={styles.quantityNumber}>{newItemQuantity}</Text>
                     </View>
-                    <View style={styles.searchResultInfo}>
-                      <Text style={styles.searchResultName}>{item.name}</Text>
-                      <Text style={styles.searchResultStats}>
-                        {item.storeCount} magasins • {formatCurrency(item.minPrice, item.currency)} - {formatCurrency(item.maxPrice, item.currency)}
-                      </Text>
-                    </View>
-                    <Icon name="chevron-right" size="sm" color={Colors.text.tertiary} />
-                  </TouchableOpacity>
-                ))}
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => setNewItemQuantity(String(parseInt(newItemQuantity) + 1))}>
+                      <Icon name="plus" size="sm" color={Colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
-            </View>
-          )}
 
-          {/* Selected Item Price Comparison */}
-          {selectedItemForAdd && (
-            <View style={styles.priceComparisonContainer}>
-              <View style={styles.priceComparisonHeader}>
-                <Icon name="tag" size="sm" color={Colors.status.success} />
-                <Text style={styles.priceComparisonTitle}>Comparer les prix</Text>
-              </View>
-              <View style={styles.priceList}>
-                {selectedItemForAdd.prices
-                  .sort((a, b) => a.price - b.price)
-                  .slice(0, 5)
-                  .map((priceInfo, index) => {
-                    const isSelected = selectedStore?.storeName === priceInfo.storeName && selectedStore?.price === priceInfo.price;
-                    const isBest = index === 0;
-                    return (
+              {/* Loading indicator while searching */}
+              {isSearching && (
+                <View style={styles.searchingIndicator}>
+                  <Spinner size="small" color={Colors.primary} />
+                  <Text style={styles.searchingText}>Recherche en cours...</Text>
+                </View>
+              )}
+
+              {/* Search Results */}
+              {searchResults.length > 0 && !selectedItemForAdd && (
+                <View style={styles.searchResultsContainer}>
+                  <View style={styles.searchResultsHeader}>
+                    <Icon name="database" size="sm" color={Colors.primary} />
+                    <Text style={styles.searchResultsTitle}>
+                      {searchResults.length} article{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.searchResultsList}>
+                    {searchResults.map((item) => (
                       <TouchableOpacity
-                        key={`${priceInfo.storeName}-${index}`}
+                        key={item.id}
                         style={[
-                          styles.priceItem,
-                          isSelected && styles.priceItemSelected,
-                          isBest && styles.priceItemBest,
+                          styles.searchResultItem,
+                          selectedItemForAdd?.id === item.id && styles.searchResultItemSelected,
                         ]}
-                        onPress={() => setSelectedStore({
-                          storeName: priceInfo.storeName,
-                          price: priceInfo.price,
-                          currency: priceInfo.currency
-                        })}>
-                        {isBest && (
-                          <View style={styles.bestPriceBadge}>
-                            <Text style={styles.bestPriceText}>Meilleur prix</Text>
-                          </View>
-                        )}
-                        <View style={styles.priceItemContent}>
-                          <View style={styles.priceStoreInfo}>
-                            <Text style={[
-                              styles.priceStoreName,
-                              isSelected && styles.priceStoreNameSelected
-                            ]}>{priceInfo.storeName}</Text>
-                            <Text style={styles.priceCurrency}>{priceInfo.currency}</Text>
-                          </View>
-                          <View style={styles.priceAmountContainer}>
-                            <Text style={[
-                              styles.priceAmount,
-                              isBest && styles.priceAmountBest,
-                            ]}>
-                              {formatCurrency(priceInfo.price, priceInfo.currency)}
+                        onPress={() => setSelectedItemForAdd(item)}
+                        activeOpacity={0.7}>
+                        <View style={styles.searchResultContent}>
+                          <View style={styles.searchResultInfo}>
+                            <Text style={styles.searchResultName}>{item.name}</Text>
+                            <Text style={styles.searchResultPrice}>
+                              À partir de {formatCurrency(item.minPrice, item.currency)}
                             </Text>
-                            {isSelected && (
-                              <View style={styles.selectedCheck}>
-                                <Icon name="check" size="xs" color={Colors.white} />
-                              </View>
-                            )}
+                          </View>
+                          <View style={styles.searchResultStats}>
+                            <Text style={styles.searchResultStores}>
+                              {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
+                            </Text>
                           </View>
                         </View>
                       </TouchableOpacity>
-                    );
-                  })}
-              </View>
-            </View>
-          )}
+                    ))}
+                  </View>
+                </View>
+              )}
 
-          {/* Add Button */}
-          <View style={styles.addItemButtonContainer}>
-            <Button
-              title="Ajouter à ma liste"
-              onPress={handleAddItem}
-              disabled={!newItemName.trim() || isCreating}
-              loading={isCreating}
-              icon={<Icon name="plus" size="sm" color={Colors.white} />}
-              iconPosition="left"
-              fullWidth
-            />
-          </View>
-        </ScrollView>
-      </Modal>
+              {/* Price Comparison for selected item */}
+              {selectedItemForAdd && (
+                <View style={styles.priceComparisonContainer}>
+                  <View style={styles.priceComparisonHeader}>
+                    <Icon name="dollar-sign" size="sm" color={Colors.primary} />
+                    <Text style={styles.priceComparisonTitle}>
+                      Prix pour "{selectedItemForAdd.name}"
+                    </Text>
+                  </View>
+                  <View style={styles.priceList}>
+                    {selectedItemForAdd.prices.map((priceInfo, index) => {
+                      const isSelected = selectedStore?.storeName === priceInfo.storeName && selectedStore?.price === priceInfo.price;
+                      const isBest = priceInfo.price === selectedItemForAdd.minPrice;
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.priceItem,
+                            isSelected && styles.priceItemSelected,
+                            isBest && styles.priceItemBest,
+                          ]}
+                          onPress={() => setSelectedStore({storeName: priceInfo.storeName, price: priceInfo.price, currency: priceInfo.currency})}
+                          activeOpacity={0.7}>
+                          {isBest && (
+                            <View style={styles.bestPriceBadge}>
+                              <Text style={styles.bestPriceText}>Meilleur prix</Text>
+                            </View>
+                          )}
+                          <View style={styles.priceItemContent}>
+                            <View style={styles.priceStoreInfo}>
+                              <Text style={[
+                                styles.priceStoreName,
+                                isSelected && styles.priceStoreNameSelected
+                              ]}>{priceInfo.storeName}</Text>
+                              <Text style={styles.priceCurrency}>{priceInfo.currency}</Text>
+                            </View>
+                            <View style={styles.priceAmountContainer}>
+                              <Text style={[
+                                styles.priceAmount,
+                                isBest && styles.priceAmountBest,
+                              ]}>
+                                {formatCurrency(priceInfo.price, priceInfo.currency)}
+                              </Text>
+                              {isSelected && (
+                                <View style={styles.selectedCheck}>
+                                  <Icon name="check" size="xs" color={Colors.white} />
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Add Button */}
+              <View style={styles.addItemButtonContainer}>
+                <Button
+                  title="Ajouter à ma liste"
+                  onPress={handleAddItem}
+                  disabled={!newItemName.trim() || isCreating}
+                  loading={isCreating}
+                  icon={<Icon name="plus" size="sm" color={Colors.white} />}
+                  iconPosition="left"
+                  fullWidth
+                />
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </RNModal>
 
       {/* Edit List Name Modal */}
-      <Modal
-        title="Modifier le nom"
-        visible={showEditNameModal}
-        onClose={() => {
+      <RNModal
+        isVisible={showEditNameModal}
+        onBackdropPress={() => {
           setShowEditNameModal(false);
           setEditedListName('');
-        }}>
-        <Input
-          label="Nom de la liste"
-          value={editedListName}
-          onChangeText={setEditedListName}
-          placeholder="Ex: Courses de la semaine..."
-          leftIcon="edit-2"
-          autoFocus
-        />
+        }}
+        onBackButtonPress={() => {
+          setShowEditNameModal(false);
+          setEditedListName('');
+        }}
+        backdropOpacity={0.25}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+        useNativeDriver={true}
+        hideModalContentWhileAnimating={true}
+        style={styles.modal}>
+        {Platform.OS === 'ios' ? (
+          <BlurView style={styles.overlay} blurType="dark" blurAmount={10}>
+            <Animated.View style={[styles.androidOverlay, { opacity: editNameFadeAnim }]} />
+            <View style={styles.overlayContent}>
+              <TouchableOpacity
+                style={styles.overlayTouchable}
+                activeOpacity={1}
+                onPress={() => {
+                  setShowEditNameModal(false);
+                  setEditedListName('');
+                }}
+              />
+              <Animated.View
+                style={[
+                  styles.modalContent,
+                  {
+                    paddingBottom: insets.bottom + Spacing.lg,
+                    transform: [
+                      { translateY: editNameSlideAnim },
+                      { scale: editNameScaleAnim },
+                    ],
+                  }
+                ]}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.headerDrag} />
+                  <View style={styles.headerTop}>
+                    <View style={styles.headerContent}>
+                      <Text style={styles.modalHeaderTitle}>Modifier le nom</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => {
+                        setShowEditNameModal(false);
+                        setEditedListName('');
+                      }}
+                      hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                      <Icon name="x" size="md" color={Colors.text.secondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-        <View style={styles.addItemButtonContainer}>
-          <Button
-            title="Enregistrer"
-            onPress={handleUpdateListName}
-            disabled={!editedListName.trim()}
-            icon={<Icon name="check" size="sm" color={Colors.white} />}
-            iconPosition="left"
-            fullWidth
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled>
+                  <View style={styles.editNameContent}>
+                    <Input
+                      label="Nom de la liste"
+                      value={editedListName}
+                      onChangeText={setEditedListName}
+                      placeholder="Ex: Courses de la semaine..."
+                      leftIcon="edit-2"
+                      autoFocus
+                    />
+
+                    <View style={styles.addItemButtonContainer}>
+                      <Button
+                        title="Enregistrer"
+                        onPress={handleUpdateListName}
+                        disabled={!editedListName.trim() || isCreating}
+                        loading={isCreating}
+                        icon={<Icon name="check" size="sm" color={Colors.white} />}
+                        iconPosition="left"
+                        fullWidth
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+              </Animated.View>
+            </View>
+          </BlurView>
+        ) : (
+          <Animated.View style={[styles.androidOverlay, { opacity: editNameFadeAnim }]} />
+        )}
+        <View style={styles.overlayContent}>
+          <TouchableOpacity
+            style={styles.overlayTouchable}
+            activeOpacity={1}
+            onPress={() => {
+              setShowEditNameModal(false);
+              setEditedListName('');
+            }}
           />
-        </View>
-      </Modal>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                paddingBottom: insets.bottom + Spacing.lg,
+                transform: [
+                  { translateY: editNameSlideAnim },
+                  { scale: editNameScaleAnim },
+                ],
+              }
+            ]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.headerDrag} />
+              <View style={styles.headerTop}>
+                <View style={styles.headerContent}>
+                  <Text style={styles.modalHeaderTitle}>Modifier le nom</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => {
+                        setShowEditNameModal(false);
+                        setEditedListName('');
+                      }}
+                      hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                      <Icon name="x" size="md" color={Colors.text.secondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled>
+                  <View style={styles.editNameContent}>
+                    <Input
+                      label="Nom de la liste"
+                      value={editedListName}
+                      onChangeText={setEditedListName}
+                      placeholder="Ex: Courses de la semaine..."
+                      leftIcon="edit-2"
+                      autoFocus
+                    />
+
+                    <View style={styles.addItemButtonContainer}>
+                      <Button
+                        title="Enregistrer"
+                        onPress={handleUpdateListName}
+                        disabled={!editedListName.trim() || isCreating}
+                        loading={isCreating}
+                        icon={<Icon name="check" size="sm" color={Colors.white} />}
+                        iconPosition="left"
+                        fullWidth
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+              </Animated.View>
+            </View>
+          </RNModal>
     </View>
   );
 }
@@ -1638,114 +2128,114 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
   },
-  searchingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
+  // RNModal styles
+  modal: {
+    margin: 0,
+    justifyContent: 'flex-end',
   },
-  searchingText: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  priceComparisonContainer: {
-    backgroundColor: Colors.card.cream,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+  androidOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
-  priceComparisonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-    paddingBottom: Spacing.sm,
+  overlayContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  overlayTouchable: {
+    flex: 1,
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: '80%',
+    minHeight: 300,
+    ...Shadows.xl,
+  },
+  modalHeader: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.light,
   },
-  priceComparisonTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+  headerDrag: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.border.light,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
   },
-  priceList: {
-    gap: Spacing.sm,
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
   },
-  priceItem: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.xs,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  headerContent: {
+    flex: 1,
   },
-  priceItemSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: '#FFF5F5',
-  },
-  priceItemBest: {
-    borderColor: Colors.status.success,
-    backgroundColor: '#F0FDF4',
-  },
-  bestPriceBadge: {
-    backgroundColor: Colors.status.success,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    alignSelf: 'flex-start',
-    marginBottom: Spacing.xs,
-  },
-  bestPriceText: {
-    fontSize: Typography.fontSize.xs,
+  modalHeaderTitle: {
+    fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.white,
+    color: Colors.text.primary,
+    textAlign: 'center',
   },
-  priceItemContent: {
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card.cream,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    maxHeight: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  searchResultContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  priceStoreInfo: {
+  searchResultInfo: {
     flex: 1,
   },
-  priceStoreName: {
+  searchResultName: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.text.primary,
+    marginBottom: 2,
   },
-  priceStoreNameSelected: {
-    color: Colors.primary,
+  searchResultPrice: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.status.success,
   },
-  priceCurrency: {
+  searchResultStats: {
+    alignItems: 'flex-end',
+  },
+  searchResultStores: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
   },
-  priceAmountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  priceAmount: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
-  },
-  priceAmountBest: {
-    color: Colors.status.success,
-  },
-  selectedCheck: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addItemButtonContainer: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
+  editNameContent: {
+    paddingVertical: Spacing.lg,
   },
 });

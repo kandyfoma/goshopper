@@ -87,6 +87,66 @@ function normalizeProductName(name) {
         .trim();
 }
 /**
+ * Fix quantity parsing for weight/volume units
+ * Handles cases where "1.000kg" is misread as 1000 instead of 1.0 kg
+ *
+ * In DRC/French format:
+ * - "1.000" or "1,000" with units like kg/g/l/ml typically means 1.0 (decimal precision)
+ * - Real thousands would be written as "1 000" (space separator)
+ *
+ * Logic:
+ * - If quantity >= 100 and has unit kg/g/l/ml, divide by 1000 if it's a round thousand
+ * - Check if quantity looks like misread decimal (e.g., 1000 -> 1.0, 2500 -> 2.5)
+ */
+function fixQuantityForWeightUnits(quantity, unit, itemName) {
+    // Only apply to weight/volume units
+    const weightVolumeUnits = ['kg', 'g', 'l', 'ml', 'cl', 'lt', 'litre', 'liter', 'gram', 'gramme', 'kilo', 'kilogram'];
+    const hasWeightUnit = unit && weightVolumeUnits.some(u => unit.toLowerCase().includes(u));
+    const nameHasWeightUnit = itemName && /\d+[\.,]?\d*\s*(kg|g|l|ml|cl|lt)\b/i.test(itemName);
+    if (!hasWeightUnit && !nameHasWeightUnit) {
+        return quantity;
+    }
+    // Check if quantity is suspiciously high for a weight/volume
+    // People don't typically buy 100+ kg/liters of a single item in a grocery store
+    if (quantity >= 100) {
+        // Check if it's a "misread decimal" pattern:
+        // 1000 -> 1.000 -> 1.0 kg
+        // 2500 -> 2.500 -> 2.5 kg  
+        // 1500 -> 1.500 -> 1.5 kg
+        // 500 -> 0.500 -> 0.5 kg
+        // Pattern: number ending in 000 (like 1000, 2000) -> divide by 1000
+        if (quantity % 1000 === 0 && quantity <= 10000) {
+            const fixed = quantity / 1000;
+            console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (weight unit detected)`);
+            return fixed;
+        }
+        // Pattern: number ending in 00 (like 100, 250, 500) -> divide by 100 or 1000
+        // 500 with kg -> 0.5 kg (divide by 1000)
+        // 250 with kg -> 0.25 kg (divide by 1000)
+        if (quantity % 100 === 0 && quantity < 1000) {
+            const fixed = quantity / 1000;
+            console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (weight unit detected, sub-kg)`);
+            return fixed;
+        }
+        // Pattern: numbers like 1500, 2500, etc -> 1.5, 2.5
+        if (quantity % 500 === 0 && quantity <= 10000) {
+            const fixed = quantity / 1000;
+            console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (weight unit detected, .5 pattern)`);
+            return fixed;
+        }
+        // General case: if quantity > 50 for kg unit, it's likely wrong
+        if (hasWeightUnit && quantity > 50) {
+            // Check if dividing by 1000 gives a reasonable result (0.1 to 20)
+            const possibleFixed = quantity / 1000;
+            if (possibleFixed >= 0.1 && possibleFixed <= 20) {
+                console.log(`⚖️ Fixed quantity: ${quantity} -> ${possibleFixed} (too high for weight unit)`);
+                return possibleFixed;
+            }
+        }
+    }
+    return quantity;
+}
+/**
  * FIX: Merge items split across lines
  */
 function mergeMultiLineItems(items) {
@@ -329,37 +389,64 @@ function calculateItemSimilarity(items1, items2) {
     return matchCount / maxLength;
 }
 // Prompt for receipt parsing - optimized for DRC market
-const PARSING_PROMPT = `Extract receipt data into JSON: { "storeName": string, "date": string, "currency": string, "total": number, "items": [{ "name": string, "quantity": number, "unitPrice": number }] }.
+const PARSING_PROMPT = `You are an expert receipt scanner. Extract ALL data from this receipt image into JSON format.
 
-CRITICAL INSTRUCTIONS:
-- DO NOT filter out or skip any items that look like legitimate products, even if they have unusual formatting or OCR errors
-- Include ALL visible items on the receipt, including those with size information like "400gr", "500ml", etc.
-- Do not treat items with size/weight information as "corrupted" or "system lines"
-- Only exclude obvious non-product lines like headers, footers, store information, or payment method lines
-- If uncertain, include the item rather than excluding it
+REQUIRED OUTPUT FORMAT:
+{
+  "storeName": "Store name from receipt header",
+  "date": "YYYY-MM-DD format",
+  "currency": "CDF or USD",
+  "total": number (final total amount),
+  "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
+}
 
-CURRENCY RULES (VERY IMPORTANT):
-- **DEFAULT is ALWAYS "CDF" (Congolese Franc / FC)** - prices in DRC are usually large numbers: 1000+
-- **ONLY use "USD" if you CLEARLY see:**
-  * Dollar sign ($) before or after prices
-  * The word "USD" or "dollars" explicitly written on the receipt
-  * Prices with decimal points AND small values (like $1.50, $10.00, $25.99)
-- **Use "CDF" (NOT "USD") when you see:**
-  * "FC" (Franc Congolais) written on receipt
-  * "CDF" written on receipt
-  * Large round numbers: 500, 1000, 2500, 5000, 10000, 15000, 50000, 100000
-  * Prices WITHOUT dollar signs or "USD" text
-  * NO explicit currency indicators (default is CDF for DRC)
-- **Price magnitude matters:**
-  * If item prices are 1000+ → almost certainly CDF
-  * If item prices are 0.50-100.00 with decimals → likely USD
-- **When in doubt: choose "CDF"** (it's the default currency in DRC)
+CRITICAL EXTRACTION RULES:
+1. **EXTRACT ALL LINE ITEMS** - Every product/item with a price MUST be included
+2. **SHORT RECEIPTS ARE VALID** - Even receipts with 1-3 items should have items extracted
+3. **NEVER return empty items array if there are products visible on the receipt**
 
-CLEANUP INSTRUCTIONS:
-- Strip internal tracking codes or OCR misreads like (z4), (24), or (l0) from the product names.
-- Focus on human-readable product descriptions.
-- Merge multi-line item fragments.
-- Fix common OCR errors: "a00gr" → "400gr", "s00ml" → "500ml", "k9" → "kg"`;
+MULTI-LINE ITEM FORMAT (VERY IMPORTANT):
+Many receipts use a TWO-LINE format per item:
+- Line 1: Product NAME only (price column may show "Y", "-", or be empty)
+- Line 2: Details like "QTE: 2  P.U: 1500  TOTAL: 3000" or "2 x 1500 = 3000"
+
+EXAMPLES OF MULTI-LINE ITEMS:
+Example 1:
+  "COCA COLA 500ML           Y"
+  "   1    1500         1500"
+  → {"name": "COCA COLA 500ML", "quantity": 1, "unitPrice": 1500}
+
+Example 2:
+  "LAIT COWBELL 400G"
+  "   QTE: 2  PU: 2500  3000"
+  → {"name": "LAIT COWBELL 400G", "quantity": 2, "unitPrice": 2500}
+
+Example 3:
+  "SAVON LUX"
+  "   3 x 800         2400"
+  → {"name": "SAVON LUX", "quantity": 3, "unitPrice": 800}
+
+SINGLE-LINE ITEM FORMAT:
+- "FANTA 500ML    2500" → {"name": "FANTA 500ML", "quantity": 1, "unitPrice": 2500}
+- "2X PAIN        1000" → {"name": "PAIN", "quantity": 2, "unitPrice": 500}
+
+KEY RULES:
+1. If Line 1 has a name but NO valid price (or shows "Y", "-", etc.), LOOK AT LINE 2
+2. Line 2 usually contains: quantity, unit price (P.U/PU), and total price
+3. The LAST number on Line 2 is usually the TOTAL for that item
+4. Calculate unitPrice = totalPrice / quantity if needed
+5. Look for the TOTAL/MONTANT/TTL line to get the receipt total
+
+CURRENCY RULES:
+- **DEFAULT is "CDF"** (Congolese Franc) - prices in DRC are usually 500+
+- Only use "USD" if you see $ symbol or "USD" text explicitly
+- Large numbers (1000, 5000, 10000) = CDF
+- Small decimals ($1.50, $5.00) = USD
+
+CLEANUP:
+- Remove internal codes like (z4), (24) from product names
+- Fix OCR errors: "a00gr" → "400gr", "s00ml" → "500ml"
+- Keep size/weight info in product names (400g, 500ml, 1L, etc.)`;
 /**
  * Check if user can perform a scan based on subscription status
  */
@@ -1126,14 +1213,23 @@ CRITICAL OUTPUT RULES:
             // Parse items first - clean OCR spacing errors
             const rawItems = (parsed.items || []).map((item, index) => {
                 const cleanedName = cleanItemName(item.name || 'Article inconnu');
+                const rawQuantity = Number(item.quantity) || 1;
+                const unit = item.unit || 'pièce';
+                // Fix misread quantities for weight/volume units (e.g., 1.000kg read as 1000)
+                const fixedQuantity = fixQuantityForWeightUnits(rawQuantity, unit, cleanedName);
+                const unitPrice = Number(item.unitPrice) || 0;
+                // Recalculate total if quantity was fixed
+                const totalPrice = rawQuantity !== fixedQuantity
+                    ? fixedQuantity * unitPrice
+                    : (Number(item.totalPrice) || 0);
                 return {
                     id: `item_${index}`,
                     name: cleanedName,
                     nameNormalized: normalizeProductName(cleanedName),
-                    quantity: Number(item.quantity) || 1,
-                    unitPrice: Number(item.unitPrice) || 0,
-                    totalPrice: Number(item.totalPrice) || 0,
-                    unit: item.unit || 'pièce',
+                    quantity: fixedQuantity,
+                    unitPrice,
+                    totalPrice,
+                    unit,
                     category: item.category,
                     confidence: Number(item.confidence) || 0.8,
                 };
@@ -1160,41 +1256,43 @@ CRITICAL OUTPUT RULES:
                 rawText: parsed.rawText,
                 isVideoScan: true, // Mark as video scan for analytics
             };
-            // VIDEO TOTAL VALIDATION: Smart validation to catch wrong totals
+            // VIDEO TOTAL VALIDATION: Trust the receipt's printed total
+            // Only override if it's clearly wrong (0, or receipt number)
             const calculatedTotal = receipt.items.reduce((sum, item) => {
                 const itemTotal = item.totalPrice || (item.unitPrice * item.quantity);
                 return sum + itemTotal;
             }, 0);
-            console.log(`Video total validation: parsed=${receipt.total}, calculated=${calculatedTotal}, items=${receipt.items.length}`);
+            const parsedTotal = Number(parsed.total) || 0;
+            console.log(`Video total validation: parsed=${parsedTotal}, calculated=${calculatedTotal}, items=${receipt.items.length}`);
             // Case 1: Parsed total is 0 but we have items - use calculated
-            if (receipt.total === 0 && calculatedTotal > 0) {
+            if (parsedTotal === 0 && calculatedTotal > 0) {
                 console.log('⚠️ Video: Using calculated total (parsed was 0)');
                 receipt.total = calculatedTotal;
             }
-            // Case 2: Parsed total is WAY too high (might be receipt number/customer ID)
-            // A realistic total should be within 2x of calculated for small receipts, 1.5x for large
+            // Case 2: Parsed total looks like a receipt number (too many digits, no realistic)
+            // Receipt numbers are usually 6+ digits, totals rarely exceed 1 million
+            else if (parsedTotal > 10000000) {
+                // 10 million+ is definitely not a receipt total
+                console.log('⚠️ Video: Parsed total is receipt number, using calculated');
+                receipt.total = calculatedTotal;
+            }
+            // Case 3: Trust the receipt's printed total - it's more reliable than item calculations
+            else if (parsedTotal > 0) {
+                console.log(`✅ Video: Using receipt's printed total: ${parsedTotal}`);
+                receipt.total = parsedTotal;
+                // Optional: Log if calculated differs significantly (for debugging)
+                if (calculatedTotal > 0) {
+                    const diff = Math.abs(parsedTotal - calculatedTotal);
+                    const diffPercent = (diff / parsedTotal) * 100;
+                    if (diffPercent > 20) {
+                        console.log(`ℹ️ Note: Item sum (${calculatedTotal}) differs from receipt total by ${diffPercent.toFixed(1)}% - using receipt total`);
+                    }
+                }
+            }
+            // Case 4: No total found anywhere
             else if (calculatedTotal > 0) {
-                const tolerance = calculatedTotal > 100000 ? 1.5 : 2.0; // Stricter for large amounts
-                if (receipt.total > calculatedTotal * 10) {
-                    // Parsed total is 10x higher - definitely wrong (probably receipt number)
-                    console.log('⚠️ Video: Parsed total is WAY too high (likely receipt number), using calculated');
-                    receipt.total = calculatedTotal;
-                }
-                else if (receipt.total > calculatedTotal * tolerance && receipt.total > 1000000) {
-                    // Large number that's much higher than items - suspicious
-                    console.log('⚠️ Video: Parsed total suspiciously high, using calculated');
-                    receipt.total = calculatedTotal;
-                }
-                else if (receipt.total < calculatedTotal * 0.5) {
-                    // Parsed total is less than half - might be partial or missing zeros
-                    console.log('⚠️ Video: Parsed total seems too low, using calculated');
-                    receipt.total = calculatedTotal;
-                }
-                // Case 3: Totals are reasonably close - keep the parsed one
-                else if (Math.abs(receipt.total - calculatedTotal) / calculatedTotal < 0.15) {
-                    // Within 15% - totals match well, keep parsed (it includes tax, fees, etc.)
-                    console.log('✅ Video: Total validated - parsed and calculated match within 15%');
-                }
+                console.log('⚠️ Video: No receipt total found, using calculated');
+                receipt.total = calculatedTotal;
             }
             // Validate we got meaningful data
             if (receipt.items.length === 0 && receipt.total === 0) {
@@ -1292,16 +1390,39 @@ async function parseWithGemini(imageBase64, mimeType) {
             }
             catch (parseError) {
                 console.error('JSON parse error:', parseError);
-                console.error('Raw Gemini response:', text);
-                console.error('Cleaned JSON:', jsonStr);
+                console.error('Raw Gemini response (first 500 chars):', text.substring(0, 500));
+                console.error('Cleaned JSON (first 500 chars):', jsonStr.substring(0, 500));
                 // Log the actual parse error for debugging
                 console.error('Parse error details:', parseError instanceof Error ? parseError.message : String(parseError));
-                throw new Error(`Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.`);
+                // Try to extract basic info from raw text as fallback
+                console.log('⚠️ Attempting to extract basic info from raw text...');
+                const totalMatch = text.match(/total[:\s]*(\d+[.,]?\d*)/i);
+                const storeMatch = text.match(/"?storeName"?\s*:\s*"([^"]+)"/i);
+                if (totalMatch || storeMatch) {
+                    console.log('📋 Found fallback data - total:', totalMatch === null || totalMatch === void 0 ? void 0 : totalMatch[1], 'store:', storeMatch === null || storeMatch === void 0 ? void 0 : storeMatch[1]);
+                    parsed = {
+                        storeName: storeMatch ? storeMatch[1] : 'Magasin inconnu',
+                        date: new Date().toISOString().split('T')[0],
+                        currency: 'CDF',
+                        items: [],
+                        total: totalMatch ? parseFloat(totalMatch[1].replace(',', '.')) : 0,
+                    };
+                }
+                else {
+                    throw new Error(`Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.`);
+                }
             }
             // Validate parsed data structure
             if (!parsed || typeof parsed !== 'object') {
                 console.error('❌ VALIDATION FAILED: parsed is not an object:', typeof parsed, parsed);
-                throw new Error('Impossible de lire ce reçu. Veuillez réessayer avec une image plus claire.');
+                // Create minimal valid receipt instead of throwing
+                parsed = {
+                    storeName: 'Magasin inconnu',
+                    date: new Date().toISOString().split('T')[0],
+                    currency: 'CDF',
+                    items: [],
+                    total: 0,
+                };
             }
             if (!parsed.storeName && !parsed.items) {
                 console.warn('⚠️ Gemini response missing required fields:', JSON.stringify(parsed));
@@ -1335,16 +1456,22 @@ async function parseWithGemini(imageBase64, mimeType) {
                 return 0;
             };
             const items = (parsed.items || []).map((item) => {
-                const quantity = parseNumericValue(item.quantity) || 1;
+                const rawQuantity = parseNumericValue(item.quantity) || 1;
                 const unitPrice = parseNumericValue(item.unitPrice);
-                const totalPrice = parseNumericValue(item.totalPrice) || quantity * unitPrice;
                 const cleanedName = cleanItemName(item.name || 'Unknown Item');
+                const unit = item.unit;
+                // Fix misread quantities for weight/volume units (e.g., 1.000kg read as 1000)
+                const fixedQuantity = fixQuantityForWeightUnits(rawQuantity, unit, cleanedName);
+                // Recalculate total if quantity was fixed
+                const totalPrice = rawQuantity !== fixedQuantity
+                    ? fixedQuantity * unitPrice
+                    : (parseNumericValue(item.totalPrice) || fixedQuantity * unitPrice);
                 // Build item object, excluding undefined values for Firestore compatibility
                 const receiptItem = {
                     id: generateItemId(),
                     name: cleanedName,
                     nameNormalized: normalizeProductName(cleanedName),
-                    quantity,
+                    quantity: fixedQuantity,
                     unitPrice,
                     totalPrice,
                     category: item.category || 'Autres',
@@ -1367,6 +1494,31 @@ async function parseWithGemini(imageBase64, mimeType) {
             const storeName = storeNameRaw && storeNameRaw !== 'null' && storeNameRaw !== 'undefined' && storeNameRaw !== 'Unknown Store'
                 ? storeNameRaw
                 : 'Magasin inconnu';
+            // IMAGE TOTAL VALIDATION
+            // Calculate total from items for comparison
+            const calculatedTotal = deduplicatedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+            const parsedTotal = parseNumericValue(parsed.total);
+            let finalTotal;
+            if (!parsedTotal || parsedTotal === 0) {
+                // No total found - use calculated
+                console.log(`📊 No receipt total found, using calculated: ${calculatedTotal.toFixed(2)}`);
+                finalTotal = calculatedTotal;
+            }
+            else if (parsedTotal > 10000000) {
+                // Likely confused with receipt number - use calculated
+                console.log(`📊 Parsed total suspiciously high (${parsedTotal}), using calculated: ${calculatedTotal.toFixed(2)}`);
+                finalTotal = calculatedTotal;
+            }
+            else if (parsedTotal > 0) {
+                // We have a valid receipt total - TRUST IT
+                // The receipt's printed total is the source of truth, not our calculations from OCR'd items
+                console.log(`📊 Using receipt's printed total: ${parsedTotal.toFixed(2)} (calculated from items: ${calculatedTotal.toFixed(2)})`);
+                finalTotal = parsedTotal;
+            }
+            else {
+                // Fallback to calculated
+                finalTotal = calculatedTotal;
+            }
             const receipt = {
                 storeName: storeName,
                 storeNameNormalized: normalizeStoreName(storeName),
@@ -1378,8 +1530,7 @@ async function parseWithGemini(imageBase64, mimeType) {
                 // DRC uses FC (Franc Congolais = CDF) as default currency
                 currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
                 items: deduplicatedItems,
-                total: parseNumericValue(parsed.total) ||
-                    deduplicatedItems.reduce((sum, item) => sum + item.totalPrice, 0),
+                total: finalTotal,
             };
             // Only add optional numeric fields if they have valid values
             const subtotalValue = parseNumericValue(parsed.subtotal);
@@ -1443,7 +1594,7 @@ exports.parseReceipt = functions
     secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
-    var _a, _b;
+    var _a, _b, _c;
     // Check authentication
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to parse receipts');
@@ -1461,7 +1612,10 @@ exports.parseReceipt = functions
         }
         // V2 FIX: Detect if image contains a receipt
         const detection = await detectReceiptContent(imageBase64, mimeType);
-        if (!detection.isReceipt || detection.confidence < 0.7) {
+        console.log('📋 Receipt detection result:', detection);
+        // Be more lenient - only reject if very confident it's NOT a receipt
+        // Small/short receipts often get low confidence but are valid
+        if (!detection.isReceipt && detection.confidence > 0.8) {
             throw new functions.https.HttpsError('invalid-argument', `Cette image ne semble pas être un reçu. ${detection.reason || 'Veuillez scanner un reçu valide.'}`);
         }
         // H1 FIX: Check image quality - only reject VERY poor quality images
@@ -1534,15 +1688,18 @@ exports.parseReceipt = functions
         // QUALITY CHECK: Validate that the receipt was actually readable
         const hasItems = parsedReceipt.items && parsedReceipt.items.length > 0;
         const hasTotal = parsedReceipt.total > 0;
-        console.log('📊 VALIDATION - hasItems:', hasItems, 'hasTotal:', hasTotal);
-        // More lenient validation: Accept if we have items OR a total (even if some items have no price)
+        const hasStoreName = parsedReceipt.storeName && parsedReceipt.storeName !== 'Magasin inconnu' && parsedReceipt.storeName !== 'Unknown Store';
+        console.log('📊 VALIDATION - hasItems:', hasItems, 'hasTotal:', hasTotal, 'hasStoreName:', hasStoreName);
+        console.log('📊 VALIDATION - itemsCount:', (_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.length, 'total:', parsedReceipt.total, 'storeName:', parsedReceipt.storeName);
+        // Accept if we have items OR total - store name alone isn't enough
+        // A useful receipt needs at least some data (items or total)
         if (!hasItems && !hasTotal) {
-            console.error('❌ VALIDATION FAILED: No items and no total');
-            throw new functions.https.HttpsError('invalid-argument', 'La qualité de l\'image est insuffisante pour lire le reçu. Veuillez reprendre la photo avec un meilleur éclairage et en vous rapprochant du reçu.');
+            console.error('❌ VALIDATION FAILED: No items and no total - only store name is not useful');
+            throw new functions.https.HttpsError('invalid-argument', 'Impossible de lire les articles ou le total de ce reçu. Veuillez reprendre la photo avec un meilleur éclairage.');
         }
-        // Some receipts might have all prices as 0 due to OCR issues but still be valid
-        if (hasItems && parsedReceipt.items.every(item => item.unitPrice === 0) && parsedReceipt.total === 0) {
-            throw new functions.https.HttpsError('invalid-argument', 'Impossible de lire les prix sur ce reçu. L\'image est peut-être floue ou trop sombre. Veuillez reprendre la photo.');
+        // Only warn if we have items but ALL have 0 price AND total is 0
+        if (hasItems && parsedReceipt.items.length > 2 && parsedReceipt.items.every(item => item.unitPrice === 0) && parsedReceipt.total === 0) {
+            console.warn('⚠️ All items have 0 price, but proceeding anyway - might be a free receipt');
         }
         // H2 FIX: Check for duplicate receipts
         const duplicateCheck = await detectDuplicateReceipt(userId, imageBase64, parsedReceipt);
@@ -1572,10 +1729,12 @@ exports.parseReceipt = functions
         });
         // Scan count already incremented atomically in transaction above
         // No need to increment again
+        // Update shop stats (create or increment)
+        await updateShopFromReceipt(userId, parsedReceipt);
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         // Log suspicious items before returning
-        const suspiciousItems = (_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
+        const suspiciousItems = (_c = parsedReceipt.items) === null || _c === void 0 ? void 0 : _c.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
         if (suspiciousItems && suspiciousItems.length > 0) {
             console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
         }
@@ -1602,8 +1761,14 @@ exports.parseReceipt = functions
         if (errorMessage.includes('timeout') || errorMessage.includes('trop de temps')) {
             throw new functions.https.HttpsError('deadline-exceeded', 'Le traitement a pris trop de temps. Réessayez avec une image plus petite.');
         }
-        // Generic error for all other cases
-        throw new functions.https.HttpsError('internal', 'Impossible de traiter ce reçu. Veuillez réessayer avec une photo plus claire.');
+        // Log full error details for debugging
+        console.error('Full error object:', JSON.stringify({
+            name: error.name,
+            message: error.message,
+            code: error.code,
+        }));
+        // Generic error for all other cases - include original message for debugging
+        throw new functions.https.HttpsError('internal', `Erreur lors du traitement: ${errorMessage.substring(0, 100)}. Veuillez réessayer.`);
     }
 });
 /**
@@ -1800,6 +1965,13 @@ exports.parseReceiptV2 = functions
             updatedAt: now,
             scannedAt: now,
         });
+        // Update shop from receipt
+        try {
+            await updateShopFromReceipt(userId, mergedReceipt);
+        }
+        catch (shopError) {
+            console.warn('[V2] Failed to update shop:', shopError);
+        }
         // Update scan count
         await subscriptionRef.update({
             trialScansUsed: admin.firestore.FieldValue.increment(1),
@@ -1868,6 +2040,13 @@ exports.parseReceiptMulti = functions
             updatedAt: now,
             scannedAt: now,
         });
+        // Update shop from receipt
+        try {
+            await updateShopFromReceipt(userId, mergedReceipt);
+        }
+        catch (shopError) {
+            console.warn('[Multi] Failed to update shop:', shopError);
+        }
         // Update scan count
         await subscriptionRef.update({
             trialScansUsed: admin.firestore.FieldValue.increment(1),
@@ -1984,6 +2163,13 @@ exports.parseReceiptVideo = functions
             trialScansUsed: admin.firestore.FieldValue.increment(1),
             updatedAt: now,
         });
+        // Update shop from receipt
+        try {
+            await updateShopFromReceipt(userId, parsedReceipt);
+        }
+        catch (shopError) {
+            console.warn('[Video] Failed to update shop:', shopError);
+        }
         // Update user stats
         try {
             await updateUserStats(userId, parsedReceipt);
@@ -2070,6 +2256,84 @@ async function calculateReceiptSavings(userId, receipt) {
     catch (error) {
         console.error('Error calculating receipt savings:', error);
         return 0; // Return 0 on error to avoid breaking the flow
+    }
+}
+/**
+ * Update shop document from receipt data
+ */
+async function updateShopFromReceipt(userId, receipt) {
+    var _a;
+    try {
+        const shopId = receipt.storeNameNormalized || normalizeStoreName(receipt.storeName || '');
+        if (!shopId) {
+            console.log('[Shop] No valid shop ID, skipping shop update');
+            return;
+        }
+        const shopRef = db
+            .collection('artifacts')
+            .doc(config_1.config.app.id)
+            .collection('users')
+            .doc(userId)
+            .collection('shops')
+            .doc(shopId);
+        const shopDoc = await shopRef.get();
+        // Ensure date is a valid timestamp (receipt.date can be string, Date, Timestamp, or undefined)
+        let receiptDate;
+        if (!receipt.date) {
+            receiptDate = admin.firestore.Timestamp.now();
+        }
+        else if (typeof receipt.date === 'string') {
+            receiptDate = admin.firestore.Timestamp.fromDate(new Date(receipt.date));
+        }
+        else if ((_a = receipt.date) === null || _a === void 0 ? void 0 : _a.toDate) {
+            // Already a Timestamp
+            receiptDate = receipt.date;
+        }
+        else {
+            // Assume Date object
+            receiptDate = admin.firestore.Timestamp.fromDate(receipt.date);
+        }
+        if (shopDoc.exists) {
+            // Update existing shop
+            const updateData = {
+                receiptCount: admin.firestore.FieldValue.increment(1),
+                totalSpent: admin.firestore.FieldValue.increment(receipt.total || 0),
+                lastVisit: receiptDate,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            // Update address/phone if not set
+            const existingData = shopDoc.data();
+            if (receipt.storeAddress && !(existingData === null || existingData === void 0 ? void 0 : existingData.address)) {
+                updateData.address = receipt.storeAddress;
+            }
+            if (receipt.storePhone && !(existingData === null || existingData === void 0 ? void 0 : existingData.phone)) {
+                updateData.phone = receipt.storePhone;
+            }
+            await shopRef.update(updateData);
+            console.log(`[Shop] Updated shop ${shopId} for user ${userId}`);
+        }
+        else {
+            // Create new shop - automatically from receipt data
+            const newShop = {
+                id: shopId,
+                name: receipt.storeName || 'Unknown Store',
+                nameNormalized: shopId,
+                address: receipt.storeAddress || null,
+                phone: receipt.storePhone || null,
+                receiptCount: 1,
+                totalSpent: receipt.total || 0,
+                currency: receipt.currency || 'USD',
+                lastVisit: receiptDate,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            await shopRef.set(newShop);
+            console.log(`[Shop] Created shop ${shopId} for user ${userId}`);
+        }
+    }
+    catch (error) {
+        console.error('[Shop] Failed to update shop from receipt:', error);
+        // Don't throw - shop update is not critical
     }
 }
 /**

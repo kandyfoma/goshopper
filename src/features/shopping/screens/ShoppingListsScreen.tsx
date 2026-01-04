@@ -1,5 +1,5 @@
 // Shopping Lists Screen - Modern, intuitive shopping list management
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,15 @@ import {
   RefreshControl,
   Dimensions,
   ScrollView,
+  Animated,
+  Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
+import RNModal from 'react-native-modal';
+import {BlurView} from '@react-native-community/blur';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth, useSubscription} from '@/shared/contexts';
 import {canCreateShoppingList} from '@/shared/utils/featureAccess';
@@ -31,7 +35,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal, BackButton} from '@/shared/components';
+import {Icon, Spinner, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal, BackButton} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -62,6 +66,11 @@ export function ShoppingListsScreen() {
   const {user, isAuthenticated} = useAuth();
   const {subscription} = useSubscription();
 
+  // Animation refs
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -86,6 +95,37 @@ export function ShoppingListsScreen() {
       }
     }, [user?.uid])
   );
+
+  // Animation effects
+  useEffect(() => {
+    if (showNewListModal) {
+      // Reset animations
+      slideAnim.setValue(100);
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+
+      // Start animations
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [showNewListModal, slideAnim, fadeAnim, scaleAnim]);
 
   // FAB pulse animation - removed as it was confusing to users
   // useEffect(() => {
@@ -450,73 +490,224 @@ export function ShoppingListsScreen() {
       )}
 
       {/* New List Modal */}
-      <Modal
-        visible={showNewListModal}
-        variant="bottom-sheet"
-        size="large"
-        title="Créer une liste"
-        contentStyle={styles.newListModalContent}
-        onClose={() => {
+      <RNModal
+        isVisible={showNewListModal}
+        onBackdropPress={() => {
           setShowNewListModal(false);
           setNewListName('');
-        }}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Hero illustration */}
-          <View style={styles.modalHero}>
-            <View style={styles.modalHeroIcon}>
-              <Icon name="clipboard-list" size="xl" color={Colors.white} />
+        }}
+        onBackButtonPress={() => {
+          setShowNewListModal(false);
+          setNewListName('');
+        }}
+        backdropOpacity={0.25}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+        useNativeDriver={true}
+        hideModalContentWhileAnimating={true}
+        style={styles.modal}>
+        {Platform.OS === 'ios' ? (
+          <BlurView style={styles.overlay} blurType="dark" blurAmount={10}>
+            <Animated.View style={[styles.androidOverlay, { opacity: fadeAnim }]} />
+            <View style={styles.overlayContent}>
+              <TouchableOpacity
+                style={styles.overlayTouchable}
+                activeOpacity={1}
+                onPress={() => {
+                  setShowNewListModal(false);
+                  setNewListName('');
+                }}
+              />
+              <Animated.View
+                style={[
+                  styles.modalContent,
+                  {
+                    paddingBottom: insets.bottom + Spacing.lg,
+                    transform: [
+                      { translateY: slideAnim },
+                      { scale: scaleAnim },
+                    ],
+                  }
+                ]}>
+                {/* Header */}
+                <View style={styles.header}>
+                  <View style={styles.headerDrag} />
+                  <View style={styles.headerTop}>
+                    <View style={styles.headerContent}>
+                      <Text style={styles.headerTitle}>Créer une liste</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => {
+                        setShowNewListModal(false);
+                        setNewListName('');
+                      }}
+                      hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                      <Icon name="x" size="md" color={Colors.text.secondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                  {/* Hero illustration */}
+                  <View style={styles.modalHero}>
+                    <View style={styles.modalHeroIcon}>
+                      <Icon name="clipboard-list" size="xl" color={Colors.white} />
+                    </View>
+                    <Text style={styles.modalHeroText}>
+                      Organisez vos courses intelligemment
+                    </Text>
+                  </View>
+
+                  {/* Input */}
+                  <View style={styles.modalInputSection}>
+                    <Input
+                      label="Nom de la liste"
+                      value={newListName}
+                      onChangeText={setNewListName}
+                      placeholder="Ex: Courses de la semaine..."
+                      leftIcon="edit-3"
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleCreateList()}
+                    />
+                  </View>
+
+                  {/* Quick suggestions */}
+                  <View style={styles.suggestionsContainer}>
+                    <Text style={styles.suggestionsLabel}>
+                      <Icon name="zap" size="xs" color={Colors.primary} /> Créer rapidement
+                    </Text>
+                    <View style={styles.suggestionsGrid}>
+                      {LIST_SUGGESTIONS.map((suggestion, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.suggestionChip}
+                          onPress={() => handleCreateList(suggestion)}
+                          activeOpacity={0.7}>
+                          <Text style={styles.suggestionText}>{suggestion}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Create Button */}
+                  <View style={styles.modalButtonContainer}>
+                    <Button
+                      title="Créer ma liste"
+                      onPress={() => handleCreateList()}
+                      disabled={!newListName.trim() || isCreating}
+                      loading={isCreating}
+                      icon={<Icon name="plus" size="sm" color={Colors.white} />}
+                      iconPosition="left"
+                      fullWidth
+                    />
+                  </View>
+                </ScrollView>
+              </Animated.View>
             </View>
-            <Text style={styles.modalHeroText}>
-              Organisez vos courses intelligemment
-            </Text>
-          </View>
-
-          {/* Input */}
-          <View style={styles.modalInputSection}>
-            <Input
-              label="Nom de la liste"
-              value={newListName}
-              onChangeText={setNewListName}
-              placeholder="Ex: Courses de la semaine..."
-              leftIcon="edit-3"
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={() => handleCreateList()}
-            />
-          </View>
-
-          {/* Quick suggestions */}
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsLabel}>
-              <Icon name="zap" size="xs" color={Colors.primary} /> Créer rapidement
-            </Text>
-            <View style={styles.suggestionsGrid}>
-              {LIST_SUGGESTIONS.map((suggestion, index) => (
+          </BlurView>
+        ) : (
+          <Animated.View style={[styles.androidOverlay, { opacity: fadeAnim }]} />
+        )}
+        <View style={styles.overlayContent}>
+          <TouchableOpacity
+            style={styles.overlayTouchable}
+            activeOpacity={1}
+            onPress={() => {
+              setShowNewListModal(false);
+              setNewListName('');
+            }}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                paddingBottom: insets.bottom + Spacing.lg,
+                transform: [
+                  { translateY: slideAnim },
+                  { scale: scaleAnim },
+                ],
+              }
+            ]}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerDrag} />
+              <View style={styles.headerTop}>
+                <View style={styles.headerContent}>
+                  <Text style={styles.headerTitle}>Créer une liste</Text>
+                </View>
                 <TouchableOpacity
-                  key={index}
-                  style={styles.suggestionChip}
-                  onPress={() => handleCreateList(suggestion)}
-                  activeOpacity={0.7}>
-                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setShowNewListModal(false);
+                    setNewListName('');
+                  }}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                  <Icon name="x" size="md" color={Colors.text.secondary} />
                 </TouchableOpacity>
-              ))}
+              </View>
             </View>
-          </View>
 
-          {/* Create Button */}
-          <View style={styles.modalButtonContainer}>
-            <Button
-              title="Créer ma liste"
-              onPress={() => handleCreateList()}
-              disabled={!newListName.trim() || isCreating}
-              loading={isCreating}
-              icon={<Icon name="plus" size="sm" color={Colors.white} />}
-              iconPosition="left"
-              fullWidth
-            />
-          </View>
-        </ScrollView>
-      </Modal>
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              {/* Hero illustration */}
+              <View style={styles.modalHero}>
+                <View style={styles.modalHeroIcon}>
+                  <Icon name="clipboard-list" size="xl" color={Colors.white} />
+                </View>
+                <Text style={styles.modalHeroText}>
+                  Organisez vos courses intelligemment
+                </Text>
+              </View>
+
+              {/* Input */}
+              <View style={styles.modalInputSection}>
+                <Input
+                  label="Nom de la liste"
+                  value={newListName}
+                  onChangeText={setNewListName}
+                  placeholder="Ex: Courses de la semaine..."
+                  leftIcon="edit-3"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => handleCreateList()}
+                />
+              </View>
+
+              {/* Quick suggestions */}
+              <View style={styles.suggestionsContainer}>
+                <Text style={styles.suggestionsLabel}>
+                  <Icon name="zap" size="xs" color={Colors.primary} /> Créer rapidement
+                </Text>
+                <View style={styles.suggestionsGrid}>
+                  {LIST_SUGGESTIONS.map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionChip}
+                      onPress={() => handleCreateList(suggestion)}
+                      activeOpacity={0.7}>
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Create Button */}
+              <View style={styles.modalButtonContainer}>
+                <Button
+                  title="Créer ma liste"
+                  onPress={() => handleCreateList()}
+                  disabled={!newListName.trim() || isCreating}
+                  loading={isCreating}
+                  icon={<Icon name="plus" size="sm" color={Colors.white} />}
+                  iconPosition="left"
+                  fullWidth
+                />
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </RNModal>
 
       {/* Subscription Limit Modal */}
       <SubscriptionLimitModal
@@ -798,9 +989,77 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   
-  // Modal
-  newListModalContent: {
-    minHeight: 500,
+  // Modal styles
+  modal: {
+    margin: 0,
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  androidOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  overlayContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  overlayTouchable: {
+    flex: 1,
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
+    minHeight: '75%',
+    maxHeight: '95%',
+    ...Shadows.lg,
+  },
+  header: {
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  headerDrag: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.border.medium,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.lg,
+    alignItems: 'center',
   },
   modalHero: {
     alignItems: 'center',
@@ -824,9 +1083,11 @@ const styles = StyleSheet.create({
   },
   modalInputSection: {
     marginBottom: Spacing.lg,
+    width: '100%',
   },
   suggestionsContainer: {
     marginBottom: Spacing.xl,
+    width: '100%',
   },
   suggestionsLabel: {
     fontSize: Typography.fontSize.sm,
@@ -853,5 +1114,6 @@ const styles = StyleSheet.create({
   modalButtonContainer: {
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
+    width: '100%',
   },
 });

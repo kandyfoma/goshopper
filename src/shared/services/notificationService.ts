@@ -6,6 +6,7 @@
 import messaging, {FirebaseMessagingTypes} from '@react-native-firebase/messaging';
 import {Platform, Alert, Linking} from 'react-native';
 import firestore from '@react-native-firebase/firestore';
+import {COLLECTIONS} from './firebase/config';
 
 /**
  * Request notification permission
@@ -52,14 +53,14 @@ export async function getFCMToken(): Promise<string | null> {
 
 /**
  * Save FCM token to Firestore
+ * Uses correct path: artifacts/goshopper/users/{userId}
  */
 export async function saveFCMToken(userId: string, token: string): Promise<void> {
   try {
-    const userRef = firestore()
-      .collection('users')
-      .doc(userId);
+    // Use the correct collection path that matches Cloud Functions
+    const userRef = firestore().doc(COLLECTIONS.users(userId));
 
-    await userRef.update({
+    await userRef.set({
       fcmToken: token,
       fcmTokenUpdatedAt: firestore.FieldValue.serverTimestamp(),
       notificationsEnabled: true,
@@ -68,9 +69,9 @@ export async function saveFCMToken(userId: string, token: string): Promise<void>
         os: Platform.OS,
         version: Platform.Version,
       },
-    });
+    }, { merge: true });
 
-    console.log('✅ FCM token saved to Firestore');
+    console.log('✅ FCM token saved to Firestore at:', COLLECTIONS.users(userId));
   } catch (error) {
     console.error('Save FCM token error:', error);
   }
@@ -119,8 +120,7 @@ export function setupForegroundNotificationHandler(
       const userId = remoteMessage.data?.userId;
       if (userId && typeof userId === 'string') {
         await firestore()
-          .collection('users')
-          .doc(userId)
+          .doc(COLLECTIONS.users(userId))
           .update({
             pushNotificationsReceived: firestore.FieldValue.increment(1),
           });
@@ -142,8 +142,7 @@ export function setupForegroundNotificationHandler(
             const userId = remoteMessage.data?.userId;
             if (userId && typeof userId === 'string') {
               await firestore()
-                .collection('users')
-                .doc(userId)
+                .doc(COLLECTIONS.users(userId))
                 .update({
                   pushNotificationDismissed: firestore.FieldValue.increment(1),
                 });
@@ -157,8 +156,7 @@ export function setupForegroundNotificationHandler(
             const userId = remoteMessage.data?.userId;
             if (userId && typeof userId === 'string') {
               await firestore()
-                .collection('users')
-                .doc(userId)
+                .doc(COLLECTIONS.users(userId))
                 .update({
                   pushNotificationsOpened: firestore.FieldValue.increment(1),
                 });
@@ -187,8 +185,7 @@ export function setupBackgroundNotificationHandler(
     const userId = remoteMessage.data?.userId;
     if (userId && typeof userId === 'string') {
       await firestore()
-        .collection('users')
-        .doc(userId)
+        .doc(COLLECTIONS.users(userId))
         .update({
           pushNotificationsOpened: firestore.FieldValue.increment(1),
         });
@@ -208,8 +205,7 @@ export function setupBackgroundNotificationHandler(
         const userId = remoteMessage.data?.userId;
         if (userId && typeof userId === 'string') {
           await firestore()
-            .collection('users')
-            .doc(userId)
+            .doc(COLLECTIONS.users(userId))
             .update({
               pushNotificationsOpened: firestore.FieldValue.increment(1),
             });
@@ -326,8 +322,7 @@ export async function openNotificationSettings(): Promise<void> {
 export async function disableNotifications(userId: string): Promise<void> {
   try {
     await firestore()
-      .collection('users')
-      .doc(userId)
+      .doc(COLLECTIONS.users(userId))
       .update({
         notificationsEnabled: false,
         fcmToken: null,

@@ -392,7 +392,7 @@ class GeminiService {
       console.error('Receipt parse error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      // Don't log full error details - may contain large base64 image data
 
       // Record failure for circuit breaker
       this.recordFailure();

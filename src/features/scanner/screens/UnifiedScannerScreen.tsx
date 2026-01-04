@@ -38,7 +38,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, ScanProgressIndicator, ConfirmationModal, SubscriptionLimitModal} from '@/shared/components';
+import {Icon, ScanProgressIndicator, ConfirmationModal, SubscriptionLimitModal, VideoScanInstructionsModal, ScanTipsModal} from '@/shared/components';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
 
@@ -221,6 +221,13 @@ export function UnifiedScannerScreen() {
   // Subscription Limit Modal State
   const [showLimitModal, setShowLimitModal] = useState(false);
 
+  // Video Scan Instructions Modal State
+  const [showVideoInstructionsModal, setShowVideoInstructionsModal] = useState(false);
+
+  // Scan Tips Modal State
+  const [showTipsModal, setShowTipsModal] = useState(false);
+  const [tipsModalVariant, setTipsModalVariant] = useState<'general' | 'error'>('general');
+
   // Pending scan state for auto-retry after subscription update
   const pendingScanPhotoRef = useRef<string | null>(null);
   const previousScansRemainingRef = useRef<number>(scansRemaining);
@@ -275,6 +282,20 @@ export function UnifiedScannerScreen() {
   const retryCountRef = useRef(0);
   const confettiRef = useRef<any>(null);
 
+  // Sync isProcessingRef with the global scan processing context state
+  // When the context shows error or idle (e.g., after timeout), reset the local processing flag
+  useEffect(() => {
+    const contextStatus = scanProcessing.state.status;
+    if (contextStatus === 'idle' || contextStatus === 'error') {
+      // Reset the local processing flag when context is idle or shows error
+      // This ensures user can retry after timeout/error without getting "Un scan est déjà en cours"
+      if (isProcessingRef.current) {
+        console.log('🔄 Syncing isProcessingRef with context status:', contextStatus);
+        isProcessingRef.current = false;
+      }
+    }
+  }, [scanProcessing.state.status]);
+
   // Reset state when screen comes into focus (e.g., after viewing receipt)
   useFocusEffect(
     useCallback(() => {
@@ -318,14 +339,14 @@ export function UnifiedScannerScreen() {
         try {
           const syncResult = await backgroundScanService.syncWithServer();
           
-          // Show toast for completed scans
+          // Show toast for completed scans (only if there were actual background scans)
           if (syncResult.completed.length > 0) {
             showToast(`✅ ${syncResult.completed.length} reçu(s) traité(s) avec succès!`, 'success');
           }
           
-          // Show toast for failed scans
+          // Log failed scans but don't show toast - it's confusing when current scan is processing fine
           if (syncResult.failed.length > 0) {
-            showToast(`❌ ${syncResult.failed.length} scan(s) échoué(s)`, 'error');
+            console.log(`❌ ${syncResult.failed.length} background scan(s) failed`);
           }
           
           // Log pending scans
@@ -597,78 +618,59 @@ export function UnifiedScannerScreen() {
       return;
     }
 
-    // Show video quality tips before recording
-    Alert.alert(
-      '📹 Comment scanner en vidéo',
-      '🐌 RÈGLE #1: SCANNEZ TRÈS LENTEMENT!\n' +
-      'Prenez 10-15 secondes pour tout le reçu.\n\n' +
-      
-      '📱 RÈGLE #2: SÉQUENCE CORRECTE\n' +
-      '1️⃣ Commencez 5cm AU-DESSUS du nom du magasin\n' +
-      '2️⃣ Descendez LENTEMENT ligne par ligne (1-2s par section)\n' +
-      '3️⃣ Terminez 5cm APRÈS le total\n\n' +
-      
-      '💡 RÈGLE #3: QUALITÉ\n' +
-      '• Utilisez les DEUX mains pour stabilité\n' +
-      '• Bonne lumière (près d\'une fenêtre)\n' +
-      '• Distance: 20-30cm du reçu\n\n' +
-      
-      '⚠️ ASTUCE: Reçu court (< 10 articles)?\n' +
-      'Le mode PHOTO est plus précis et plus rapide!',
-      [
-        {text: 'Annuler', style: 'cancel'},
-        {text: 'Utiliser PHOTO', onPress: handlePhotoCapture},
-        {text: 'OK, compris', style: 'default', onPress: async () => {
-          setState('capturing');
-          showToast('Scannez lentement du haut vers le bas...', 'info');
-          
-          const result = await cameraService.recordVideo();
+    // Show video quality tips modal before recording
+    setShowVideoInstructionsModal(true);
+  }, [canScan, profile?.defaultCity, navigation, showToast]);
 
-          if (!result.success || !result.base64) {
-            setState('idle');
-            if (result.error && result.error !== 'Capture annulée') {
-              showToast(result.error, 'error');
-            }
-            return;
-          }
+  // Handle starting video recording after modal instructions
+  const handleStartVideoRecording = useCallback(async () => {
+    setState('capturing');
+    showToast('Scannez lentement du haut vers le bas...', 'info');
+    
+    const result = await cameraService.recordVideo();
 
-          // Validate video duration
-          if (result.duration && result.duration < 5000) {
-            Alert.alert(
-              '⚠️ Vidéo trop rapide',
-              `Votre scan a duré ${(result.duration / 1000).toFixed(1)} secondes.\n\n` +
-              'Pour de MEILLEURS RÉSULTATS:\n' +
-              '• Scannez pendant 10-15 secondes\n' +
-              '• Bougez LENTEMENT du haut vers le bas\n' +
-              '• Prenez votre temps sur chaque section\n\n' +
-              'Voulez-vous réessayer plus lentement?',
-              [
-                {text: 'Recommencer', onPress: () => {
-                  // Restart video recording
-                  setTimeout(() => {
-                    Alert.alert(
-                      '📹 Rappel: Scannez LENTEMENT',
-                      'Prenez 10-15 secondes. Qualité > Vitesse!',
-                      [{text: 'OK', onPress: async () => {
-                        const retryResult = await cameraService.recordVideo();
-                        if (retryResult.success && retryResult.base64) {
-                          startVideoProcessing(retryResult);
-                        }
-                      }}]
-                    );
-                  }, 500);
-                }},
-                {text: 'Continuer quand même', style: 'default', onPress: () => startVideoProcessing(result)},
-              ]
-            );
-            return;
-          }
+    if (!result.success || !result.base64) {
+      setState('idle');
+      if (result.error && result.error !== 'Capture annulée') {
+        showToast(result.error, 'error');
+      }
+      return;
+    }
 
-          startVideoProcessing(result);
-        }},
-      ]
-    );
-  }, [canScan, profile?.defaultCity, navigation, showToast, handlePhotoCapture]);
+    // Validate video duration
+    if (result.duration && result.duration < 5000) {
+      Alert.alert(
+        '⚠️ Vidéo trop rapide',
+        `Votre scan a duré ${(result.duration / 1000).toFixed(1)} secondes.\n\n` +
+        'Pour de MEILLEURS RÉSULTATS:\n' +
+        '• Scannez pendant 10-15 secondes\n' +
+        '• Bougez LENTEMENT du haut vers le bas\n' +
+        '• Prenez votre temps sur chaque section\n\n' +
+        'Voulez-vous réessayer plus lentement?',
+        [
+          {text: 'Recommencer', onPress: () => {
+            // Restart video recording
+            setTimeout(() => {
+              Alert.alert(
+                '📹 Rappel: Scannez LENTEMENT',
+                'Prenez 10-15 secondes. Qualité > Vitesse!',
+                [{text: 'OK', onPress: async () => {
+                  const retryResult = await cameraService.recordVideo();
+                  if (retryResult.success && retryResult.base64) {
+                    startVideoProcessing(retryResult);
+                  }
+                }}]
+              );
+            }, 500);
+          }},
+          {text: 'Continuer quand même', style: 'default', onPress: () => startVideoProcessing(result)},
+        ]
+      );
+      return;
+    }
+
+    startVideoProcessing(result);
+  }, [showToast]);
 
   // Separate function for video processing
   const startVideoProcessing = useCallback(async (result: any) => {
@@ -895,11 +897,8 @@ export function UnifiedScannerScreen() {
     } catch (error: any) {
       console.error('Server processing error:', error);
       
-      // Fall back to local processing
-      showToast(
-        'Impossible d\'envoyer au serveur. Traitement local en cours...',
-        'warning'
-      );
+      // Fall back to local processing silently - don't show toast as local processing works fine
+      console.log('Falling back to local processing...');
       
       // Try local processing instead
       isProcessingRef.current = false;
@@ -1115,6 +1114,9 @@ export function UnifiedScannerScreen() {
 
       // Extract error message from JSON responses (like Cloud Function errors)
       let extractedErrorMessage = errorText;
+      let isServerError = false;
+      let isInternalError = false;
+      
       try {
         // Try to parse JSON error responses
         if (errorText.includes('{') && errorText.includes('}')) {
@@ -1123,50 +1125,66 @@ export function UnifiedScannerScreen() {
             const errorJson = JSON.parse(jsonMatch[0]);
             if (errorJson.error && errorJson.error.message) {
               extractedErrorMessage = errorJson.error.message;
+              // Check if this is an INTERNAL server error
+              if (errorJson.error.status === 'INTERNAL') {
+                isInternalError = true;
+              }
             }
           }
+        }
+        // Check for 500 error in the original text
+        if (errorText.includes('500') || errorText.includes('Erreur serveur')) {
+          isServerError = true;
         }
       } catch (parseError) {
         // If JSON parsing fails, use the original error text
         console.log('Failed to parse error JSON, using original text');
       }
 
-      // Use extracted message for further processing
-      errorText = extractedErrorMessage;
-
       // Define the user-facing error message
       let userMessage = 'Une erreur est survenue lors de l\'analyse.';
 
-      // Only override with generic messages if no specific error was extracted
-      if (userMessage === 'Une erreur est survenue lors de l\'analyse.') {
-        if (errorText.includes('ne semble pas être un reçu') ||
-            errorText.includes('not a receipt')) {
-          userMessage = 'Cette image ne semble pas être un reçu.';
-        } else if (errorText.includes('Unable to detect receipt')) {
-          userMessage = 'Impossible de détecter une facture.';
-        } else if (errorText.includes('timeout') || errorText.includes('trop longue')) {
-          userMessage = 'L\'analyse a pris trop de temps. Vérifiez votre connexion et réessayez.';
-        } else if (errorText.includes('network') || errorText.includes('réseau') || errorText.includes('offline')) {
-          // Check if user has offline access
-          const hasOfflineAccess = offlineModeService.canUseOfflineMode();
-          if (hasOfflineAccess) {
-            userMessage = 'Erreur réseau. Le scan sera synchronisé une fois connecté.';
-          } else {
-            userMessage = 'Pas de connexion internet. Mettez à niveau vers Standard ou Premium pour scanner hors ligne.';
-          }
-        } else if (errorText.includes('floue') || errorText.includes('sombre') ||
-                   errorText.includes('blur') || errorText.includes('dark')) {
-          // Use the extracted message if it's about image quality
-          userMessage = errorText;
-        } else if (errorText && errorText.length > 0 && errorText.length < 200) {
-          // Use the error text directly if it's a reasonable length
-          userMessage = errorText;
+      // Handle server errors (500/INTERNAL) - suggest video scan for long receipts
+      if (isServerError || isInternalError) {
+        // If it's a processing error, suggest using video scan
+        if (extractedErrorMessage.includes('Impossible de traiter') || 
+            extractedErrorMessage.includes('réessayer') ||
+            extractedErrorMessage.includes('photo plus claire')) {
+          userMessage = '📷 Le reçu semble trop long ou complexe pour une photo.\n\n💡 Conseil: Utilisez le scan vidéo (bouton caméra) pour les reçus longs - balayez lentement de haut en bas.';
+        } else {
+          userMessage = extractedErrorMessage || 'Erreur serveur. Veuillez réessayer.';
         }
+      } else if (extractedErrorMessage.includes('ne semble pas être un reçu') ||
+          extractedErrorMessage.includes('not a receipt')) {
+        userMessage = 'Cette image ne semble pas être un reçu.';
+      } else if (extractedErrorMessage.includes('Unable to detect receipt')) {
+        userMessage = 'Impossible de détecter une facture.';
+      } else if (extractedErrorMessage.includes('timeout') || extractedErrorMessage.includes('trop longue')) {
+        userMessage = 'L\'analyse a pris trop de temps. Vérifiez votre connexion et réessayez.';
+      } else if (extractedErrorMessage.includes('network') || extractedErrorMessage.includes('réseau') || extractedErrorMessage.includes('offline')) {
+        // Check if user has offline access
+        const hasOfflineAccess = offlineModeService.canUseOfflineMode();
+        if (hasOfflineAccess) {
+          userMessage = 'Erreur réseau. Le scan sera synchronisé une fois connecté.';
+        } else {
+          userMessage = 'Pas de connexion internet. Mettez à niveau vers Standard ou Premium pour scanner hors ligne.';
+        }
+      } else if (extractedErrorMessage.includes('floue') || extractedErrorMessage.includes('sombre') ||
+                 extractedErrorMessage.includes('blur') || extractedErrorMessage.includes('dark')) {
+        // Use the extracted message if it's about image quality
+        userMessage = extractedErrorMessage;
+      } else if (extractedErrorMessage && extractedErrorMessage.length > 0 && extractedErrorMessage.length < 200) {
+        // Use the error text directly if it's a reasonable length
+        userMessage = extractedErrorMessage;
       }
 
+      // CRITICAL: Always stop processing and clear state on error
+      console.log('🛑 Stopping scan processing due to error');
       hapticService.error();
-      scanProcessing.setError(userMessage);
       isProcessingRef.current = false;
+      
+      // Set error which will: show banner, send push notification, and auto-clear after 5s
+      await scanProcessing.setError(userMessage);
     }
   }, [user?.uid, profile?.defaultCity, recordScan, scanProcessing]);
 
@@ -1216,10 +1234,10 @@ export function UnifiedScannerScreen() {
             <Text style={styles.scansRemainingText}>{scansRemaining} scans restants</Text>
           </View>
           <TouchableOpacity
-            onPress={() => Alert.alert(
-              'Conseils',
-              '• Photo nette et bien éclairée\n• Reçu complet visible\n• Évitez reflets et ombres\n• Mode vidéo pour longs reçus'
-            )}
+            onPress={() => {
+              setTipsModalVariant('general');
+              setShowTipsModal(true);
+            }}
             hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
           >
             <Icon name="help-circle" size="sm" color={Colors.white} />
@@ -1408,10 +1426,10 @@ export function UnifiedScannerScreen() {
 
             <TouchableOpacity
               style={styles.helpButton}
-              onPress={() => Alert.alert(
-                'Aide',
-                '• Assurez-vous que la photo est bien éclairée\n• Le reçu doit être entièrement visible\n• Évitez les reflets et les ombres\n• Pour les longs reçus, utilisez le mode vidéo'
-              )}
+              onPress={() => {
+                setTipsModalVariant('error');
+                setShowTipsModal(true);
+              }}
             >
               <Text style={styles.helpButtonText}>💡 Conseils pour un meilleur scan</Text>
             </TouchableOpacity>
@@ -1457,6 +1475,21 @@ export function UnifiedScannerScreen() {
         }}
         limitType="scan"
         isTrialActive={isTrialActive}
+      />
+
+      {/* Video Scan Instructions Modal */}
+      <VideoScanInstructionsModal
+        visible={showVideoInstructionsModal}
+        onClose={() => setShowVideoInstructionsModal(false)}
+        onUsePhoto={handlePhotoCapture}
+        onStartVideo={handleStartVideoRecording}
+      />
+
+      {/* Scan Tips Modal */}
+      <ScanTipsModal
+        visible={showTipsModal}
+        onClose={() => setShowTipsModal(false)}
+        variant={tipsModalVariant}
       />
       </View>
     </SafeAreaView>

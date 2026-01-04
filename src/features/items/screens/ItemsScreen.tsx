@@ -13,6 +13,7 @@ import {
   Animated,
   Pressable,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
@@ -88,6 +89,7 @@ export function ItemsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -144,7 +146,19 @@ export function ItemsScreen() {
     }
   };
 
-  const loadItemsData = async () => {
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    // Clear cache and reload
+    if (user?.uid) {
+      const cacheKey = `user-items-${user.uid}`;
+      await cacheManager.remove(cacheKey, 'receipts');
+    }
+    await loadItemsData(true);
+    setIsRefreshing(false);
+  }, [user?.uid]);
+
+  const loadItemsData = async (forceRefresh: boolean = false) => {
     if (!user?.uid) {
       setIsLoading(false);
       return;
@@ -153,13 +167,17 @@ export function ItemsScreen() {
     const cacheKey = `user-items-${user.uid}`;
 
     try {
-      // Try loading from cache first for instant display
-      const cachedItems = await cacheManager.get<ItemData[]>(cacheKey, 'receipts');
-      if (cachedItems && cachedItems.length > 0) {
-        console.log('📦 Loaded items from cache:', cachedItems.length);
-        setItems(cachedItems);
-        setIsLoading(false);
-        // Continue to setup real-time listener below
+      // Try loading from cache first for instant display (skip if force refresh)
+      if (!forceRefresh) {
+        const cachedItems = await cacheManager.get<ItemData[]>(cacheKey, 'receipts');
+        if (cachedItems && cachedItems.length > 0) {
+          console.log('📦 Loaded items from cache:', cachedItems.length);
+          setItems(cachedItems);
+          setIsLoading(false);
+          // Continue to setup real-time listener below
+        }
+      } else {
+        console.log('🔄 Force refresh - skipping cache');
       }
       
       // Setup real-time listener for automatic updates
@@ -644,6 +662,14 @@ export function ItemsScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
         ListEmptyComponent={
           isSearching ? (
             <View style={styles.emptyContainer}>

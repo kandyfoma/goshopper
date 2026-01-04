@@ -204,7 +204,7 @@ export function CityItemsScreen() {
       }
       
       if (!profileLoading && userProfile?.defaultCity) {
-        loadCityItemsData(true); // Always force refresh for real-time data
+        loadCityItemsData(false); // Use cache on initial load, only force refresh on pull-to-refresh
       } else if (!profileLoading) {
         setIsLoading(false);
       }

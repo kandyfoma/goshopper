@@ -8,7 +8,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config, collections } from '../config';
-import { ParsedReceipt, ReceiptItem } from '../types';
+import { ParsedReceipt } from '../types';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -31,6 +31,51 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: st
       setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
     ),
   ]);
+}
+
+/**
+ * Fix quantity parsing for weight/volume units
+ * Handles cases where "1.000kg" is misread as 1000 instead of 1.0 kg
+ */
+function fixQuantityForWeightUnits(quantity: number, unit?: string, itemName?: string): number {
+  const weightVolumeUnits = ['kg', 'g', 'l', 'ml', 'cl', 'lt', 'litre', 'liter', 'gram', 'gramme', 'kilo'];
+  const hasWeightUnit = unit && weightVolumeUnits.some(u => unit.toLowerCase().includes(u));
+  const nameHasWeightUnit = itemName && /\d+[\.,]?\d*\s*(kg|g|l|ml|cl|lt)\b/i.test(itemName);
+  
+  if (!hasWeightUnit && !nameHasWeightUnit) {
+    return quantity;
+  }
+  
+  if (quantity >= 100) {
+    // 1000 -> 1.0, 2000 -> 2.0
+    if (quantity % 1000 === 0 && quantity <= 10000) {
+      const fixed = quantity / 1000;
+      console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (weight unit)`);
+      return fixed;
+    }
+    // 500 -> 0.5, 250 -> 0.25
+    if (quantity % 100 === 0 && quantity < 1000) {
+      const fixed = quantity / 1000;
+      console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (sub-kg)`);
+      return fixed;
+    }
+    // 1500 -> 1.5, 2500 -> 2.5
+    if (quantity % 500 === 0 && quantity <= 10000) {
+      const fixed = quantity / 1000;
+      console.log(`⚖️ Fixed quantity: ${quantity} -> ${fixed} (.5 pattern)`);
+      return fixed;
+    }
+    // General: if > 50 for kg, likely wrong
+    if (hasWeightUnit && quantity > 50) {
+      const possibleFixed = quantity / 1000;
+      if (possibleFixed >= 0.1 && possibleFixed <= 20) {
+        console.log(`⚖️ Fixed quantity: ${quantity} -> ${possibleFixed} (too high)`);
+        return possibleFixed;
+      }
+    }
+  }
+  
+  return quantity;
 }
 
 // Gemini AI initialized lazily
@@ -221,6 +266,9 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
     console.log(`💾 Saving receipt to Firestore`);
     const receiptRef = db.collection(collections.receipts(pendingScan.userId)).doc();
     
+    // Normalize store name for shop association
+    const storeNameNormalized = normalizeStoreName(receipt.storeName || 'magasin');
+    
     const receiptData = {
       ...receipt,
       id: receiptRef.id,
@@ -228,6 +276,7 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
       imageUrl: signedUrl,
       storagePath: pendingScan.storagePath,
       city: pendingScan.city || receipt.city,
+      storeNameNormalized, // Important: links receipt to shop
       scannedAt: admin.firestore.Timestamp.now(),
       createdAt: admin.firestore.Timestamp.now(),
       processedInBackground: true,
@@ -366,13 +415,28 @@ Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu va
       throw new Error(parsed.error);
     }
 
-    // Add city to items
-    if (parsed.items && defaultCity) {
-      parsed.items = parsed.items.map((item: ReceiptItem) => ({
-        ...item,
-        city: defaultCity,
-      }));
-      parsed.city = defaultCity;
+    // Fix quantity issues and add city to items
+    if (parsed.items) {
+      parsed.items = parsed.items.map((item: any) => {
+        const rawQuantity = Number(item.quantity) || 1;
+        const unit = item.unit;
+        // Fix misread quantities for weight/volume units (e.g., 1.000kg read as 1000)
+        const fixedQuantity = fixQuantityForWeightUnits(rawQuantity, unit, item.name);
+        const unitPrice = Number(item.unitPrice) || 0;
+        
+        return {
+          ...item,
+          quantity: fixedQuantity,
+          // Recalculate total if quantity was fixed
+          totalPrice: rawQuantity !== fixedQuantity 
+            ? fixedQuantity * unitPrice 
+            : (Number(item.totalPrice) || fixedQuantity * unitPrice),
+          city: defaultCity || item.city,
+        };
+      });
+      if (defaultCity) {
+        parsed.city = defaultCity;
+      }
     }
 
     return parsed as ParsedReceipt;

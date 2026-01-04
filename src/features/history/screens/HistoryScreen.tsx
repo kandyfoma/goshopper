@@ -32,7 +32,7 @@ import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/
 import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {spotlightSearchService, offlineService} from '@/shared/services';
-import {networkAwareCache, CacheTTL, CachePriority} from '@/shared/services/caching';
+import {networkAwareCache, CacheTTL, CachePriority, cacheManager} from '@/shared/services/caching';
 import {receiptStorageService} from '@/shared/services/firebase';
 import {useIsOnline} from '@/shared/hooks';
 
@@ -75,10 +75,10 @@ export function HistoryScreen() {
   }, []);
 
   useEffect(() => {
-    loadReceipts();
+    loadReceipts(false); // Initial load uses cache
   }, [user]);
 
-  const loadReceipts = async () => {
+  const loadReceipts = async (forceRefresh: boolean = false) => {
     if (!user?.uid) {
       setIsLoading(false);
       return;
@@ -86,6 +86,16 @@ export function HistoryScreen() {
 
     const userId = user.uid;
     const cacheKey = `receipts-${userId}`;
+
+    // Force refresh - clear cache first
+    if (forceRefresh) {
+      console.log('🔄 Force refresh - clearing receipts cache');
+      try {
+        await cacheManager.remove(cacheKey, 'receipts');
+      } catch (e) {
+        console.log('⚠️ Failed to clear cache:', e);
+      }
+    }
 
     try {
       setIsLoading(true);
@@ -96,6 +106,7 @@ export function HistoryScreen() {
         namespace: 'receipts',
         ttl: CacheTTL.FIVE_MINUTES,
         priority: CachePriority.HIGH,
+        forceRefresh, // Pass force refresh option
         fetchFn: async () => {
           let receiptsSnapshot;
           try {
@@ -164,7 +175,11 @@ export function HistoryScreen() {
           });
 
           // Sort by scannedAt descending (in case we used client-side fallback)
-          receiptsData.sort((a, b) => b.scannedAt.getTime() - a.scannedAt.getTime());
+          receiptsData.sort((a, b) => {
+            const aTime = a.scannedAt?.getTime?.() || 0;
+            const bTime = b.scannedAt?.getTime?.() || 0;
+            return bTime - aTime;
+          });
 
           return receiptsData;
         },
@@ -289,15 +304,17 @@ export function HistoryScreen() {
         return sorted.sort((a, b) => (b.total || 0) - (a.total || 0));
       case 'date':
       default:
-        return sorted.sort((a, b) => 
-          b.scannedAt.getTime() - a.scannedAt.getTime()
-        );
+        return sorted.sort((a, b) => {
+          const aTime = a.scannedAt?.getTime?.() || 0;
+          const bTime = b.scannedAt?.getTime?.() || 0;
+          return bTime - aTime;
+        });
     }
   }, []);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await loadReceipts();
+    await loadReceipts(true); // Force refresh to bypass cache
     setIsRefreshing(false);
   }, []);
 

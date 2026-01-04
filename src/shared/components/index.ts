@@ -88,6 +88,10 @@ export {GlobalPaymentProgressBanner} from './GlobalPaymentProgressBanner';
 // Subscription Components
 export {default as SubscriptionLimitModal} from './SubscriptionLimitModal';
 
+// Video Scan Components
+export {default as VideoScanInstructionsModal} from './VideoScanInstructionsModal';
+export {default as ScanTipsModal} from './ScanTipsModal';
+
 // Price Alert Components
 export {WatchItemButton} from './WatchItemButton';
 // Error Handling Components
