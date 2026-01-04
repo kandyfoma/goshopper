@@ -100,7 +100,7 @@ class CacheInvalidationService {
       return;
     }
 
-    console.log(`🗑️ Cache invalidation triggered: ${trigger}`);
+    // console.log(`🗑️ Cache invalidation triggered: ${trigger}`);
 
     for (const rule of invalidations) {
       if (rule.pattern) {

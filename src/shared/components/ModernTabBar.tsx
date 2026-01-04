@@ -1,5 +1,5 @@
-// Enhanced Tab Bar with Notification Badges
-import React, {useEffect, useRef} from 'react';
+// Enhanced Tab Bar with Notification Badges and Auto-hide on Scroll
+import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -107,11 +107,53 @@ interface ModernTabBarProps {
   descriptors: any;
   navigation: any;
   badges?: {[key: string]: number};
+  scrollY?: Animated.Value; // Optional scroll position for auto-hide
 }
 
-export function ModernTabBar({state, descriptors, navigation, badges = {}}: ModernTabBarProps) {
+export function ModernTabBar({state, descriptors, navigation, badges = {}, scrollY}: ModernTabBarProps) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    if (!scrollY) return;
+
+    const listenerId = scrollY.addListener(({value}) => {
+      const diff = value - lastScrollY.current;
+      
+      // Only hide/show if scrolled more than 5 pixels (prevent jitter)
+      if (Math.abs(diff) < 5) return;
+
+      if (diff > 0 && value > 50 && isVisible) {
+        // Scrolling down - hide tab bar
+        setIsVisible(false);
+        Animated.spring(translateY, {
+          toValue: 100, // Height of tab bar
+          useNativeDriver: true,
+          tension: 300,
+          friction: 30,
+        }).start();
+      } else if (diff < 0 && !isVisible) {
+        // Scrolling up - show tab bar
+        setIsVisible(true);
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 30,
+        }).start();
+      }
+
+      lastScrollY.current = value;
+    });
+
+    return () => {
+      scrollY.removeListener(listenerId);
+    };
+  }, [scrollY, isVisible]);
+
   return (
-    <View style={styles.tabBarContainer}>
+    <Animated.View style={[styles.tabBarContainer, {transform: [{translateY}]}]}>
       <LinearGradient
         colors={['#FDF0D5', '#F5E6C3']}
         start={{x: 0, y: 0}}
@@ -131,7 +173,9 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}}: Mode
               }) : { defaultPrevented: false };
 
               if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name, route.params);
+                // Navigate to Main tab navigator with nested screen
+                // This ensures we always go to the tab, not root stack screens
+                navigation.navigate('Main', {screen: route.name});
               }
             };
 
@@ -176,7 +220,7 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}}: Mode
         </View>
         */}
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 

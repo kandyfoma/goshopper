@@ -290,7 +290,7 @@ class ReceiptStorageService {
         userId,
         receiptId: receipt.id,
       }).catch(err => {
-        console.log('Cache invalidation error (non-critical):', err);
+        // console.log('Cache invalidation error (non-critical):', err);
       });
 
       // Update shop in background (non-blocking, non-critical)
@@ -345,6 +345,17 @@ class ReceiptStorageService {
     userId: string,
     batch: FirebaseFirestoreTypes.WriteBatch | null,
   ): Promise<void> {
+    // Validate required fields to prevent Firestore errors
+    if (!receipt.total || typeof receipt.total !== 'number' || receipt.total <= 0) {
+      console.warn('Skipping shop update: invalid receipt total', { total: receipt.total, receiptId: receipt.id });
+      return;
+    }
+
+    if (!receipt.storeName || typeof receipt.storeName !== 'string') {
+      console.warn('Skipping shop update: invalid store name', { storeName: receipt.storeName, receiptId: receipt.id });
+      return;
+    }
+
     const shopId =
       receipt.storeNameNormalized || this.normalizeStoreName(receipt.storeName);
 

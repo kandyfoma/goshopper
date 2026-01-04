@@ -73,7 +73,8 @@ class LocalOcrService {
       };
       
     } catch (error: any) {
-      console.error('OCR recognition error:', error);
+      // Don't log OCR recognition errors - they're expected when ML Kit fails
+      // console.error('OCR recognition error:', error);
       return {
         success: false,
         text: '',

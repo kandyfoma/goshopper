@@ -308,6 +308,47 @@ async function checkImageQuality(imageBase64) {
  * Detect duplicate receipts
  * H2 FIX: Duplicate receipt detection with perceptual hash
  */
+/**
+ * Enhance image for better OCR/AI text recognition
+ * Especially helpful for dense receipts with closely-spaced text
+ */
+async function enhanceImageForOCR(imageBase64) {
+    try {
+        const buffer = Buffer.from(imageBase64, 'base64');
+        // Apply image enhancements for better text readability:
+        // 1. Increase sharpness to make text edges clearer
+        // 2. Normalize contrast to improve text/background separation
+        // 3. Slight gamma adjustment for better mid-tone detail
+        const enhanced = await (0, sharp_1.default)(buffer)
+            // Normalize the image histogram for better contrast
+            .normalize()
+            // Apply sharpening - helps with dense text
+            .sharpen({
+            sigma: 1.5, // Moderate sharpening radius
+            m1: 1.0, // Flat areas sharpening
+            m2: 2.0, // Jagged areas (text edges) sharpening - higher for text
+            x1: 2.0, // Threshold
+            y2: 10.0, // Max brightening
+            y3: 10.0, // Max darkening
+        })
+            // Adjust gamma for better text visibility (darken text, lighten background)
+            .gamma(1.1)
+            // Apply light unsharp mask for text clarity
+            .modulate({
+            brightness: 1.05, // Slight brightness increase
+            saturation: 0.8, // Reduce saturation (receipts are mostly grayscale)
+        })
+            // Convert to high-quality JPEG
+            .jpeg({ quality: 95 })
+            .toBuffer();
+        console.log('✨ Image enhanced for OCR (dense text mode)');
+        return enhanced.toString('base64');
+    }
+    catch (error) {
+        console.warn('⚠️ Image enhancement failed, using original:', error);
+        return imageBase64; // Return original if enhancement fails
+    }
+}
 async function detectDuplicateReceipt(userId, imageBase64, receiptData) {
     try {
         // 1. Calculate perceptual hash of image
@@ -399,6 +440,20 @@ REQUIRED OUTPUT FORMAT:
   "total": number (final total amount),
   "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
 }
+
+⚠️ CRITICAL: HANDLING DENSE/TIGHTLY-SPACED TEXT
+Some receipts have items printed very close together with minimal line spacing. For these:
+1. **ANALYZE CAREFULLY** - Zoom in mentally on each line, don't rush
+2. **LOOK FOR VISUAL SEPARATORS** - Even if faint: dots, dashes, spaces, or slight alignment changes
+3. **USE PRICE POSITIONS** - Prices are usually right-aligned; use price column to identify line endings
+4. **COUNT ALL ITEMS** - If you see 10 prices in the right column, you should have ~10 items
+5. **DON'T MERGE ITEMS** - If two different product names appear, they are SEPARATE items
+6. **VERIFY TOTAL** - Sum of item prices should approximate the TOTAL line
+
+DENSE TEXT EXTRACTION STRATEGY:
+- First, identify all the PRICES in the right column
+- Then, work backwards to match each price with its product name
+- If text looks merged, look for: CAPITAL letters starting new words, numbers breaking text, punctuation
 
 CRITICAL EXTRACTION RULES:
 1. **EXTRACT ALL LINE ITEMS** - Every product/item with a price MUST be included
@@ -1324,10 +1379,16 @@ CRITICAL OUTPUT RULES:
  * Parse receipt image using Gemini AI
  * V3 FIX: Enhanced error handling with retry logic
  */
-async function parseWithGemini(imageBase64, mimeType) {
+async function parseWithGemini(imageBase64, mimeType, useEnhancement = false) {
     var _a, _b, _c, _d, _e;
     const MAX_RETRIES = 2;
     let lastError = null;
+    // Apply image enhancement if requested (for dense text / tightly-spaced items)
+    let processedImage = imageBase64;
+    if (useEnhancement) {
+        console.log('🔧 Applying image enhancement for dense text...');
+        processedImage = await enhanceImageForOCR(imageBase64);
+    }
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
             const model = getGeminiAI().getGenerativeModel({
@@ -1344,7 +1405,7 @@ async function parseWithGemini(imageBase64, mimeType) {
                 {
                     inlineData: {
                         mimeType,
-                        data: imageBase64,
+                        data: processedImage,
                     },
                 },
             ]);
@@ -1594,7 +1655,7 @@ exports.parseReceipt = functions
     secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g;
     // Check authentication
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to parse receipts');
@@ -1682,15 +1743,40 @@ exports.parseReceipt = functions
         });
         // Now parse receipt - scan limit already reserved
         console.log('🚀 Starting parseWithGemini...');
-        const parsedReceipt = await parseWithGemini(imageBase64, mimeType);
+        let parsedReceipt = await parseWithGemini(imageBase64, mimeType, false);
         console.log('✅ parseWithGemini completed');
-        console.log('📊 FINAL RESULT - Items:', (_a = parsedReceipt.items) === null || _a === void 0 ? void 0 : _a.length, 'Total:', parsedReceipt.total);
+        console.log('📊 INITIAL RESULT - Items:', (_a = parsedReceipt.items) === null || _a === void 0 ? void 0 : _a.length, 'Total:', parsedReceipt.total);
+        // DENSE TEXT RETRY: If few items detected but total suggests more items, retry with enhanced image
+        // This helps with receipts where items are tightly spaced
+        const itemsFound = ((_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.length) || 0;
+        const totalValue = parsedReceipt.total || 0;
+        const avgItemPrice = itemsFound > 0 ? totalValue / itemsFound : 0;
+        // Heuristic: If we found few items (1-3) but total is high enough to suggest more items exist
+        // OR if calculated average price per item is suspiciously high (suggests missed items)
+        const suspectDenseText = ((itemsFound > 0 && itemsFound <= 3 && totalValue > 10000 && avgItemPrice > 5000) || // Few items with high total
+            (itemsFound === 0 && totalValue > 5000) // No items but has a total
+        );
+        if (suspectDenseText) {
+            console.log('⚠️ Suspecting dense/tightly-spaced text - retrying with enhanced image...');
+            console.log(`⚠️ Reason: items=${itemsFound}, total=${totalValue}, avgPrice=${avgItemPrice.toFixed(0)}`);
+            const enhancedReceipt = await parseWithGemini(imageBase64, mimeType, true);
+            console.log('📊 ENHANCED RESULT - Items:', (_c = enhancedReceipt.items) === null || _c === void 0 ? void 0 : _c.length, 'Total:', enhancedReceipt.total);
+            // Use enhanced result if it found more items
+            if ((((_d = enhancedReceipt.items) === null || _d === void 0 ? void 0 : _d.length) || 0) > itemsFound) {
+                console.log('✅ Enhanced image found more items! Using enhanced result.');
+                parsedReceipt = enhancedReceipt;
+            }
+            else {
+                console.log('ℹ️ Enhanced image did not find more items, keeping original result.');
+            }
+        }
+        console.log('📊 FINAL RESULT - Items:', (_e = parsedReceipt.items) === null || _e === void 0 ? void 0 : _e.length, 'Total:', parsedReceipt.total);
         // QUALITY CHECK: Validate that the receipt was actually readable
         const hasItems = parsedReceipt.items && parsedReceipt.items.length > 0;
         const hasTotal = parsedReceipt.total > 0;
         const hasStoreName = parsedReceipt.storeName && parsedReceipt.storeName !== 'Magasin inconnu' && parsedReceipt.storeName !== 'Unknown Store';
         console.log('📊 VALIDATION - hasItems:', hasItems, 'hasTotal:', hasTotal, 'hasStoreName:', hasStoreName);
-        console.log('📊 VALIDATION - itemsCount:', (_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.length, 'total:', parsedReceipt.total, 'storeName:', parsedReceipt.storeName);
+        console.log('📊 VALIDATION - itemsCount:', (_f = parsedReceipt.items) === null || _f === void 0 ? void 0 : _f.length, 'total:', parsedReceipt.total, 'storeName:', parsedReceipt.storeName);
         // Accept if we have items OR total - store name alone isn't enough
         // A useful receipt needs at least some data (items or total)
         if (!hasItems && !hasTotal) {
@@ -1734,7 +1820,7 @@ exports.parseReceipt = functions
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         // Log suspicious items before returning
-        const suspiciousItems = (_c = parsedReceipt.items) === null || _c === void 0 ? void 0 : _c.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
+        const suspiciousItems = (_g = parsedReceipt.items) === null || _g === void 0 ? void 0 : _g.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
         if (suspiciousItems && suspiciousItems.length > 0) {
             console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
         }
@@ -1943,8 +2029,8 @@ exports.parseReceiptV2 = functions
         //   res.status(403).send('Trial limit reached');
         //   return;
         // }
-        // Parse all images and merge results
-        const parsedResults = await Promise.all(images.map((img) => parseWithGemini(img, mimeType)));
+        // Parse all images and merge results (no enhancement for multi-page, handle per-page if needed)
+        const parsedResults = await Promise.all(images.map((img) => parseWithGemini(img, mimeType, false)));
         // H3 FIX: Use improved multi-page merging with validation
         const mergedReceipt = await mergeMultiPageReceipt(parsedResults, images);
         // Get user profile to include city
@@ -2018,8 +2104,8 @@ exports.parseReceiptMulti = functions
         if (!subscription) {
             throw new functions.https.HttpsError('permission-denied', 'Subscription not initialized');
         }
-        // Parse all images and merge results
-        const parsedResults = await Promise.all(images.map((img) => parseWithGemini(img, mimeType)));
+        // Parse all images and merge results (no enhancement for multi-page, handle per-page if needed)
+        const parsedResults = await Promise.all(images.map((img) => parseWithGemini(img, mimeType, false)));
         // Use improved multi-page merging with validation
         const mergedReceipt = await mergeMultiPageReceipt(parsedResults, images);
         // Get user profile to include city

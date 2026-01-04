@@ -334,10 +334,9 @@ class GeminiService {
       }
 
       const responseData = await response.json();
-      console.log(
-        'Cloud Function response:',
-        JSON.stringify(responseData).substring(0, 500),
-      );
+      
+      // Don't log full response - may contain base64 image data in error cases
+      // console.log('Cloud Function response:', JSON.stringify(responseData).substring(0, 500));
 
       // Log any suspicious item names in the raw response
       if (responseData.result?.receipt?.items || responseData.receipt?.items || responseData.data?.items) {
@@ -700,7 +699,9 @@ class GeminiService {
       }
 
       const responseData = await response.json();
-      console.log('Video Cloud Function response:', JSON.stringify(responseData).substring(0, 500));
+      
+      // Don't log full response - may contain base64 video data in error cases
+      // console.log('Video Cloud Function response:', JSON.stringify(responseData).substring(0, 500));
 
       if (responseData.error) {
         const errorMsg =

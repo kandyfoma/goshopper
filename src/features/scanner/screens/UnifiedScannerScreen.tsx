@@ -714,7 +714,7 @@ export function UnifiedScannerScreen() {
       
       // Check for null, undefined, or zero total
       if (total === null || total === undefined || total === 0) {
-        scanProcessing.setError('Reçu invalide: Aucun montant détecté.\nScannez plus lentement.');
+        scanProcessing.setError('Reçu invalide: Aucun montant détecté.\\nScannez plus lentement.');
         return;
       }
       
@@ -732,7 +732,7 @@ export function UnifiedScannerScreen() {
 
       // Validate items exist and are an array
       if (!parseResult.receipt.items || parseResult.receipt.items.length === 0) {
-        scanProcessing.setError('Aucun article détecté.\nScannez plus lentement.');
+        scanProcessing.setError('Aucun article détecté.\\nScannez plus lentement.');
         return;
       }
       
@@ -761,15 +761,61 @@ export function UnifiedScannerScreen() {
           parseResult.receipt.date = new Date().toISOString(); // Use today
         }
       }
-
-      // Note: Scan usage is already recorded atomically by the Cloud Function
+      
+      // Validate store name
+      if (!parseResult.receipt.storeName && !parseResult.receipt.date) {
+        scanProcessing.setError('Image invalide: Ceci ne semble pas être un reçu.');
+        return;
+      }
+      
+      // Add user's default city if receipt doesn't have a city
+      if (!parseResult.receipt.city && profile?.defaultCity) {
+        parseResult.receipt.city = profile.defaultCity;
+        if (parseResult.receipt.items) {
+          parseResult.receipt.items = parseResult.receipt.items.map(item => ({
+            ...item,
+            city: profile.defaultCity
+          }));
+        }
+      }
 
       scanProcessing.updateProgress(90, 'Finalisation...');
+      
+      // Use offline mode service to handle both online and offline scenarios
+      const saveResult = await offlineModeService.saveReceipt(
+        parseResult.receipt,
+        null, // Video - no image URI
+        user?.uid || 'unknown-user'
+      );
+
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Échec de la sauvegarde');
+      }
+
+      const savedReceiptId = saveResult.queued 
+        ? saveResult.queuedReceipt?.id || parseResult.receipt.id
+        : saveResult.savedReceiptId || parseResult.receipt.id;
+      
+      // Show queued message if receipt was queued for offline sync
+      if (saveResult.queued) {
+        showToast('Reçu enregistré hors ligne. Il sera synchronisé une fois connecté.', 'info', 4000);
+      }
+
+      // Track shopping patterns for ML
+      if (user?.uid) {
+        await userBehaviorService.updateShoppingPatterns(user.uid, {
+          total: parseResult.receipt.total || 0,
+          itemCount: parseResult.receipt.items?.length || 0,
+          storeName: parseResult.receipt.storeName || '',
+          categories: [...new Set(parseResult.receipt.items?.map(item => item.category).filter(Boolean) || [])] as string[],
+          date: new Date(),
+        }).catch(err => console.log('Failed to track shopping patterns:', err));
+      }
 
       // Success!
       scanProcessing.updateProgress(100, 'Presque terminé !');
       hapticService.success();
-      scanProcessing.setSuccess(parseResult.receipt, parseResult.receipt.id || '');
+      scanProcessing.setSuccess(parseResult.receipt, savedReceiptId);
 
       analyticsService.logCustomEvent('video_scan_success', {
         duration: result.duration,
@@ -785,15 +831,43 @@ export function UnifiedScannerScreen() {
     } catch (error: any) {
       console.error('Video scan error:', error);
 
+      // Extract error message from JSON responses (like Cloud Function errors)
+      let errorText = error.message || '';
+      let extractedErrorMessage = errorText;
+      let isServerError = false;
+      let isInternalError = false;
+      
+      try {
+        // Try to parse JSON error responses
+        if (errorText.includes('{') && errorText.includes('}')) {
+          const jsonMatch = errorText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const errorJson = JSON.parse(jsonMatch[0]);
+            if (errorJson.error && errorJson.error.message) {
+              extractedErrorMessage = errorJson.error.message;
+              // Check if this is an INTERNAL server error
+              if (errorJson.error.status === 'INTERNAL') {
+                isInternalError = true;
+              }
+            }
+          }
+        }
+        // Check for 500 error in the original text
+        if (errorText.includes('500') || errorText.includes('Erreur serveur')) {
+          isServerError = true;
+        }
+      } catch (parseError) {
+        console.log('Failed to parse error JSON, using original text');
+      }
+
       // Check if this is a subscription limit error
-      const errorText = error.message || '';
       const isSubscriptionLimitError = 
-        errorText.includes('Limite d\'essai atteinte') ||
-        errorText.includes('limite d\'essai') ||
-        errorText.includes('trial limit') ||
-        errorText.includes('RESOURCE_EXHAUSTED') ||
-        errorText.includes('Abonnez-vous pour continuer') ||
-        errorText.includes('Subscribe to continue');
+        extractedErrorMessage.includes('Limite d\'essai atteinte') ||
+        extractedErrorMessage.includes('limite d\'essai') ||
+        extractedErrorMessage.includes('trial limit') ||
+        extractedErrorMessage.includes('RESOURCE_EXHAUSTED') ||
+        extractedErrorMessage.includes('Abonnez-vous pour continuer') ||
+        extractedErrorMessage.includes('Subscribe to continue');
 
       if (isSubscriptionLimitError) {
         console.log('📊 Video scan subscription limit reached, showing modal');
@@ -803,33 +877,44 @@ export function UnifiedScannerScreen() {
         return;
       }
 
+      // Define the user-facing error message
+      let userMessage = 'Une erreur est survenue lors de l\'analyse.';
+
       // Hybrid approach: Suggest photo mode on video failure
       const isVideoQualityError = 
-        errorText.includes('Aucun article détecté') ||
-        errorText.includes('trop longue') ||
-        errorText.includes('complexe') ||
-        errorText.includes('lentement') ||
-        errorText.includes('truncated') ||
-        errorText.includes('Incomplete');
+        extractedErrorMessage.includes('Aucun article détecté') ||
+        extractedErrorMessage.includes('trop longue') ||
+        extractedErrorMessage.includes('complexe') ||
+        extractedErrorMessage.includes('lentement') ||
+        extractedErrorMessage.includes('truncated') ||
+        extractedErrorMessage.includes('Incomplete');
       
       if (isVideoQualityError) {
         // Suggest using photo mode instead
-        scanProcessing.setError(
-          'La vidéo n\'a pas pu être analysée correctement.\n\n' +
-          '💡 Conseil: Essayez le mode PHOTO pour de meilleurs résultats.\n' +
-          'Prenez une photo claire du reçu entier.'
-        );
-        hapticService.error();
-        analyticsService.logCustomEvent('video_scan_suggest_photo', {
-          error: error.message,
-        });
-        return;
+        userMessage = 'La vidéo n\'a pas pu être analysée correctement.\\n\\n' +
+          '💡 Conseil: Essayez le mode PHOTO pour de meilleurs résultats.\\n' +
+          'Prenez une photo claire du reçu entier.';
+      } else if (isServerError || isInternalError) {
+        userMessage = extractedErrorMessage || 'Erreur serveur. Veuillez réessayer.';
+      } else if (extractedErrorMessage.includes('ne semble pas être un reçu') ||
+          extractedErrorMessage.includes('not a receipt')) {
+        userMessage = 'Cette vidéo ne semble pas être un reçu.';
+      } else if (extractedErrorMessage.includes('Unable to detect receipt')) {
+        userMessage = 'Impossible de détecter une facture.';
+      } else if (extractedErrorMessage.includes('timeout') || extractedErrorMessage.includes('trop longue')) {
+        userMessage = 'L\'analyse a pris trop de temps. Vérifiez votre connexion et réessayez.';
+      } else if (extractedErrorMessage.includes('network') || extractedErrorMessage.includes('réseau') || extractedErrorMessage.includes('offline')) {
+        const hasOfflineAccess = offlineModeService.canUseOfflineMode();
+        if (hasOfflineAccess) {
+          userMessage = 'Erreur réseau. Le scan sera synchronisé une fois connecté.';
+        } else {
+          userMessage = 'Pas de connexion internet. Mettez à niveau vers Standard ou Premium pour scanner hors ligne.';
+        }
+      } else if (extractedErrorMessage && extractedErrorMessage.length > 0 && extractedErrorMessage.length < 200) {
+        userMessage = extractedErrorMessage;
       }
 
-      scanProcessing.setError(
-        (error.message || 'Erreur lors de l\'analyse de la vidéo') +
-        '\n\n💡 Conseil: Le mode photo est souvent plus précis.'
-      );
+      scanProcessing.setError(userMessage);
       hapticService.error();
 
       analyticsService.logCustomEvent('video_scan_error', {

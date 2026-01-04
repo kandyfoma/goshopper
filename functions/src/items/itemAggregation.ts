@@ -119,12 +119,82 @@ export interface CityItem {
 interface AggregatedItem extends UserItem {}
 
 /**
+ * Extract size/weight/volume info from item name
+ * Returns normalized size string (e.g., "5kg", "330ml", "1l") or null if not found
+ * IMPORTANT: This determines if items are considered the same product or different
+ * "Sucre 5kg" and "Sucre 1kg" should be DIFFERENT items for price comparison
+ */
+function extractSizeInfo(name: string): string | null {
+  const lowerName = name.toLowerCase();
+  
+  // Pattern to match size/weight/volume
+  // Matches: 5kg, 500g, 330ml, 1.5l, 2lb, 6x330ml, etc.
+  const patterns = [
+    // Weight: 5kg, 500g, 1.5kg
+    /\b(\d+(?:\.\d+)?)\s*(kg|kilogram|kilograms)/i,
+    /\b(\d+(?:\.\d+)?)\s*(g|gram|grams)(?!\w)/i,
+    // Volume: 330ml, 1.5l, 500cl
+    /\b(\d+(?:\.\d+)?)\s*(ml|millilitre|milliliter)/i,
+    /\b(\d+(?:\.\d+)?)\s*(l|litre|liter|litres|liters)(?!\w)/i,
+    /\b(\d+(?:\.\d+)?)\s*(cl|centilitre|centiliter)/i,
+    /\b(\d+(?:\.\d+)?)\s*(dl|decilitre|deciliter)/i,
+    // Imperial: 16oz, 2lb
+    /\b(\d+(?:\.\d+)?)\s*(oz|ounce|ounces)/i,
+    /\b(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds)/i,
+    // Packs: 6 packs, 10 sachets
+    /\b(\d+)\s*(pcs|pieces|pack|packs|sachets?|packets?)/i,
+    // Multi-pack: 6x330ml
+    /\b(\d+)\s*x\s*(\d+)\s*(ml|g|cl|l)?/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = lowerName.match(pattern);
+    if (match) {
+      // Normalize the unit
+      const value = match[1];
+      let unit = (match[2] || '').toLowerCase();
+      let multiplier = match[3] ? match[3].toLowerCase() : '';
+      
+      // Handle multi-pack format (6x330ml)
+      if (multiplier) {
+        return `${value}x${match[2]}${multiplier}`;
+      }
+      
+      // Normalize units to standard short forms
+      if (['kilogram', 'kilograms'].includes(unit)) unit = 'kg';
+      if (['gram', 'grams'].includes(unit)) unit = 'g';
+      if (['litre', 'liter', 'litres', 'liters'].includes(unit)) unit = 'l';
+      if (['millilitre', 'milliliter'].includes(unit)) unit = 'ml';
+      if (['centilitre', 'centiliter'].includes(unit)) unit = 'cl';
+      if (['decilitre', 'deciliter'].includes(unit)) unit = 'dl';
+      if (['ounce', 'ounces'].includes(unit)) unit = 'oz';
+      if (['pound', 'pounds', 'lbs'].includes(unit)) unit = 'lb';
+      if (['pieces', 'pcs'].includes(unit)) unit = 'pcs';
+      if (['sachets', 'sachet'].includes(unit)) unit = 'sachet';
+      if (['packets', 'packet'].includes(unit)) unit = 'pack';
+      if (['packs'].includes(unit)) unit = 'pack';
+      
+      return `${value}${unit}`;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Normalize item name for consistent matching
  * - Corrects common OCR mistakes (1/l/i confusion, 0/o confusion)
- * - Removes product codes, SKUs, and size/weight info
+ * - Removes product codes, SKUs
+ * - NOW PRESERVES size/weight info (appended as suffix)
  * - Cleans up noise to get the core product name
+ * 
+ * IMPORTANT: Size IS part of the product identity!
+ * "Sucre 5kg" and "Sucre 1kg" are DIFFERENT products for price comparison
  */
 function normalizeItemName(name: string): string {
+  // STEP 0: Extract size info BEFORE cleaning (we'll append it later)
+  const sizeInfo = extractSizeInfo(name);
+  
   let normalized = name
     .toLowerCase()
     .normalize('NFD')
@@ -144,14 +214,14 @@ function normalizeItemName(name: string): string {
     .replace(/\b\d+[a-z]\d+\b/gi, '') // 4g00
     .trim();
 
-  // ============ STEP 3: Remove size/weight/volume info ============
-  // So "Sprite 330ml" and "Sprite 500ml" normalize to same product
+  // ============ STEP 3: Remove size/weight/volume info from the NAME ============
+  // We will append the normalized size at the end
   normalized = normalized
-    .replace(/\b\d+\s*(ml|cl|dl|l|litre|liter|litres|liters)\b/gi, '') // 330ml, 1.5l, 5 litres
-    .replace(/\b\d+\s*(g|kg|gram|grams|kilogram|kilograms)\b/gi, '') // 500g, 1kg
-    .replace(/\b\d+\s*(oz|lb|lbs|pound|pounds|ounce|ounces)\b/gi, '') // 16oz, 2lb
+    .replace(/\b\d+(?:\.\d+)?\s*(ml|cl|dl|l|litre|liter|litres|liters)\b/gi, '') // 330ml, 1.5l, 5 litres
+    .replace(/\b\d+(?:\.\d+)?\s*(g|kg|gram|grams|kilogram|kilograms)\b/gi, '') // 500g, 1kg
+    .replace(/\b\d+(?:\.\d+)?\s*(oz|lb|lbs|pound|pounds|ounce|ounces)\b/gi, '') // 16oz, 2lb
     .replace(/\b\d+\s*(pcs|pieces|pack|packs|sachets?|packets?)\b/gi, '') // 6 packs, 10 sachets
-    .replace(/\b\d+\s*x\s*\d+\s*(ml|g|cl)?\b/gi, '') // 6x330ml, 4x100g
+    .replace(/\b\d+\s*x\s*\d+\s*(ml|g|cl|l)?\b/gi, '') // 6x330ml, 4x100g
     .trim();
 
   // ============ STEP 4: Remove noise words ============
@@ -251,15 +321,30 @@ function normalizeItemName(name: string): string {
     return match.replace(/\s+/g, '');
   });
 
+  // ============ STEP 10: Append size info as suffix ============
+  // This ensures "Sucre 5kg" and "Sucre 1kg" are DIFFERENT items
+  // Format: "sucre_5kg" vs "sucre_1kg"
+  if (sizeInfo) {
+    normalized = `${normalized}_${sizeInfo}`;
+  }
+
   return normalized;
 }
 
 /**
  * Get canonical form of a product name using synonyms
  * Comprehensive list for supermarket products
+ * 
+ * IMPORTANT: Preserves size suffix from normalization
+ * "sugar_5kg" → "sucre_5kg" (canonical name + size)
  */
 function getCanonicalName(name: string): string {
   const normalized = normalizeItemName(name);
+
+  // Extract size suffix if present (e.g., "_5kg" from "sucre_5kg")
+  const sizeSuffixMatch = normalized.match(/_(\d+(?:\.\d+)?(?:x\d+)?[a-z]+)$/);
+  const sizeSuffix = sizeSuffixMatch ? sizeSuffixMatch[0] : '';
+  const normalizedWithoutSize = sizeSuffix ? normalized.slice(0, -sizeSuffix.length) : normalized;
 
   // Comprehensive product synonyms for better grouping
   const synonyms: Record<string, string[]> = {
@@ -687,8 +772,9 @@ function getCanonicalName(name: string): string {
   // Check if normalized name matches any synonym
   // CRITICAL FIX: Only match COMPLETE WORDS, not substrings
   // This prevents "castel lite" from matching "te" and becoming "the"
-  const normalizedWords = normalized.split(/\s+/);
-  const normalizedFull = normalized.replace(/\s+/g, ''); // For multi-word matches
+  // NOTE: We use normalizedWithoutSize to match, then re-append size suffix
+  const normalizedWords = normalizedWithoutSize.split(/\s+/);
+  const normalizedFull = normalizedWithoutSize.replace(/\s+/g, ''); // For multi-word matches
   
   for (const [canonical, variations] of Object.entries(synonyms)) {
     for (const variation of variations) {
@@ -696,7 +782,8 @@ function getCanonicalName(name: string): string {
       
       // 1. Exact match (with or without spaces)
       if (normalizedFull === variationNoSpaces) {
-        return canonical.replace(/\s+/g, '');
+        // Re-append size suffix to canonical name
+        return canonical.replace(/\s+/g, '') + sizeSuffix;
       }
       
       // 2. Full word match - check if variation is a complete word in the normalized name
@@ -706,7 +793,8 @@ function getCanonicalName(name: string): string {
         if (normalizedWords.length === 1 || 
             normalizedWords[0] === variation || 
             normalizedWords[normalizedWords.length - 1] === variation) {
-          return canonical.replace(/\s+/g, '');
+          // Re-append size suffix to canonical name
+          return canonical.replace(/\s+/g, '') + sizeSuffix;
         }
       }
     }
@@ -714,7 +802,8 @@ function getCanonicalName(name: string): string {
 
   // Remove all spaces from the final normalized name for consistent document IDs
   // This ensures "b ag riz" and "bag riz" both become "bagriz"
-  return normalized.replace(/\s+/g, '');
+  // Keep the size suffix intact
+  return normalizedWithoutSize.replace(/\s+/g, '') + sizeSuffix;
 }
 
 /**
@@ -732,13 +821,20 @@ function isValidItemName(name: string, normalizedName: string): boolean {
     return false;
   }
 
-  // Skip if normalized name is too short (likely OCR garbage)
-  if (normalizedName.length < 3) {
+  // Extract size suffix if present (e.g., "_5kg" from "sucre_5kg")
+  // We need to validate the base name, not the size suffix
+  const sizeSuffixMatch = normalizedName.match(/_(\d+(?:\.\d+)?(?:x\d+)?[a-z]+)$/);
+  const nameWithoutSize = sizeSuffixMatch 
+    ? normalizedName.slice(0, -sizeSuffixMatch[0].length) 
+    : normalizedName;
+
+  // Skip if normalized name (without size) is too short (likely OCR garbage)
+  if (nameWithoutSize.length < 3) {
     return false;
   }
 
-  // Count alphabetic characters (after removing spaces)
-  const withoutSpaces = normalizedName.replace(/\s/g, '');
+  // Count alphabetic characters (after removing spaces and size suffix)
+  const withoutSpaces = nameWithoutSize.replace(/\s/g, '');
   const alphaCount = (withoutSpaces.match(/[a-z]/g) || []).length;
   const digitCount = (withoutSpaces.match(/[0-9]/g) || []).length;
 

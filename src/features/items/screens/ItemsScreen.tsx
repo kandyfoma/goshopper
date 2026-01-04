@@ -26,6 +26,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn} from '@/shared/components';
+import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
@@ -93,6 +94,7 @@ export function ItemsScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Track screen view
@@ -660,7 +662,12 @@ export function ItemsScreen() {
         data={filteredItems}
         renderItem={renderItem}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, {paddingBottom: 100}]}
+        onScroll={Animated.event(
+          [{nativeEvent: {contentOffset: {y: scrollY}}}],
+          {useNativeDriver: false}
+        )}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -698,6 +705,30 @@ export function ItemsScreen() {
             </View>
           )
         }
+      />
+
+      {/* Main Footer Tabs */}
+      <ModernTabBar
+        state={{
+          index: 1, // Items tab is at index 1
+          routes: [
+            {key: 'Home', name: 'Home'},
+            {key: 'Items', name: 'Items'},
+            {key: 'Scanner', name: 'Scanner'},
+            {key: 'Stats', name: 'Stats'},
+            {key: 'Profile', name: 'Profile'},
+          ],
+        }}
+        descriptors={{
+          Home: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="home" label="Accueil" />}},
+          Items: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="shopping-bag" label="Articles" />}},
+          Scanner: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="camera" label="Scanner" />}},
+          Stats: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="bar-chart-2" label="Stats" />}},
+          Profile: {options: {tabBarIcon: ({focused}: any) => <TabBarIcon focused={focused} icon="user" label="Profil" />}},
+        }}
+        navigation={navigation}
+        badges={{}}
+        scrollY={scrollY}
       />
     </SafeAreaView>
   );

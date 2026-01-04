@@ -1,6 +1,6 @@
 // Receipt Detail Screen - Urbanist Design System
 // GoShopper - Warm color palette with category colors
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Alert,
   StatusBar,
+  Animated,
 } from 'react-native';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -60,6 +61,7 @@ export function ReceiptDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // Tab configuration
   const tabs = [
@@ -282,6 +284,11 @@ export function ReceiptDetailScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{nativeEvent: {contentOffset: {y: scrollY}}}],
+          {useNativeDriver: false}
+        )}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
         {/* Store Header Card */}
         <View style={styles.storeCard}>
@@ -587,6 +594,7 @@ export function ReceiptDetailScreen() {
         }}
         navigation={navigation}
         badges={{}}
+        scrollY={scrollY}
       />
     </SafeAreaView>
   );

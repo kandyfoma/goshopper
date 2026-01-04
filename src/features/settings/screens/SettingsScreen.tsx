@@ -1,6 +1,6 @@
 // Settings Screen - Urbanist Design System
 // Sleek, professional settings with soft pastels
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Animated,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -149,6 +150,7 @@ export function SettingsScreen() {
   const {fontScale, isLargeText, shouldReduceMotion} = useDynamicType();
   const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
   const [togglingBiometric, setTogglingBiometric] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // Check biometric status on mount
   useEffect(() => {
@@ -445,6 +447,11 @@ export function SettingsScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{nativeEvent: {contentOffset: {y: scrollY}}}],
+          {useNativeDriver: false}
+        )}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
 
         {/* Profile Card */}
@@ -761,6 +768,7 @@ export function SettingsScreen() {
         }}
         navigation={navigation}
         badges={{}}
+        scrollY={scrollY}
       />
 
       {/* Delete Data Modal */}

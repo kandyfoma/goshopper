@@ -55,6 +55,7 @@ export function HistoryScreen() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // Tab configuration (useMemo to prevent recreation on every render)
   const tabs = React.useMemo(() => [
@@ -741,6 +742,11 @@ export function HistoryScreen() {
             tintColor={Colors.primary}
           />
         }
+        onScroll={Animated.event(
+          [{nativeEvent: {contentOffset: {y: scrollY}}}],
+          {useNativeDriver: false}
+        )}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       />
 
@@ -765,6 +771,7 @@ export function HistoryScreen() {
         }}
         navigation={navigation}
         badges={{}}
+        scrollY={scrollY}
       />
     </SafeAreaView>
   );

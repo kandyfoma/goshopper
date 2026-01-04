@@ -174,7 +174,8 @@ class HybridReceiptProcessor {
       };
 
     } catch (error: any) {
-      console.error('Local processing error:', error);
+      // Don't log local processing errors - they're expected and handled by fallback to Gemini
+      // console.error('Local processing error:', error);
       return {
         success: false,
         confidence: 0.0,
