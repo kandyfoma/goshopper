@@ -269,24 +269,42 @@ class GeminiService {
 
       const idToken = await currentUser.getIdToken();
 
+      // Create AbortController for timeout - 150s to accommodate complex receipts
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 150000); // 150s timeout
+
       // Call Cloud Function via HTTP with Firebase Auth
       // This is needed because the function is deployed in europe-west1
-      const response = await fetch(
-        `https://${FUNCTIONS_REGION}-${PROJECT_ID}.cloudfunctions.net/parseReceipt`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            data: {
-              imageBase64: imageBase64,
-              mimeType: 'image/jpeg',
+      let response: Response;
+      try {
+        response = await fetch(
+          `https://${FUNCTIONS_REGION}-${PROJECT_ID}.cloudfunctions.net/parseReceipt`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
             },
-          }),
-        },
-      );
+            body: JSON.stringify({
+              data: {
+                imageBase64: imageBase64,
+                mimeType: 'image/jpeg',
+              },
+            }),
+            signal: controller.signal,
+          },
+        );
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          return {
+            success: false,
+            error: 'Le traitement du reçu prend trop de temps. Veuillez réessayer avec une photo plus claire.',
+          };
+        }
+        throw fetchError;
+      }
+      clearTimeout(timeoutId);
 
       // Check if HTTP response is OK
       if (!response.ok) {

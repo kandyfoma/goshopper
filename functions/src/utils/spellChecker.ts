@@ -109,6 +109,42 @@ const PRODUCT_WORDS: string[] = [
   'bidon', 'carton', 'pack', 'lot', 'promo', 'promotion', 'blanc', 'poudre',
   'concentre', 'paste', 'gold', 'toast', 'cereals',
   
+  // Additional French grocery words
+  'aubergine', 'courgette', 'concombre', 'champignon', 'maïs', 'mais', 'mais',
+  'saucisson', 'jambon', 'bacon', 'lardons', 'saucisse', 'merguez',
+  'creme', 'fraiche', 'yaourt', 'yogourt', 'dessert', 'mousse',
+  'brioche', 'croissant', 'baguette', 'tartine', 'toast', 'crackers',
+  'patisserie', 'gateau', 'biscotte', 'galette', 'crepe', 'gaufre',
+  'nouilles', 'vermicelle', 'couscous', 'semoule', 'polenta',
+  'haricots', 'lentilles', 'pois chiches', 'flageolets',
+  'sardines', 'maquereaux', 'anchois', 'saumon', 'truite', 'cabillaud',
+  'crevettes', 'moules', 'huitres', 'calamar', 'poulpe',
+  'agneau', 'veau', 'canard', 'dinde', 'lapin', 'gibier',
+  'abricot', 'cerise', 'framboise', 'myrtille', 'cassis', 'prune',
+  'pasteque', 'melon', 'kiwi', 'litchi', 'papaye', 'goyave', 'grenade',
+  'noix', 'amande', 'noisette', 'pistache', 'cacahuete', 'arachide',
+  'raisin', 'datte', 'figue', 'pruneau', 'abricots secs',
+  
+  // Lingala (DRC) food words
+  'pondu', 'saka', 'kwanga', 'chikwange', 'lituma', 'fufu', 'foufou',
+  'makemba', 'ndunda', 'mbika', 'ngai', 'madesu', 'litoyo', 'mbisi',
+  'ngolo', 'liboke', 'maboke', 'mosaka', 'madesu', 'matembele',
+  'biteku', 'mfumbwa', 'lenga', 'nsamba', 'mikate', 'mandazi',
+  'moambe', 'mwambe', 'mpiodi', 'makayabu', 'ndakala', 'kapiteni',
+  'tilapia', 'mboto', 'mosombo', 'lokoni', 'ntaba', 'ngombe',
+  'nyama', 'nsoso', 'mosuni', 'libenga', 'libanga', 'nkisi',
+  'lotoko', 'masanga', 'malewa', 'nguba', 'mbila', 'safou',
+  
+  // Swahili food words (Eastern DRC)
+  'chakula', 'nyama', 'samaki', 'mboga', 'matunda', 'maji', 'chai',
+  'sukari', 'chumvi', 'unga', 'wali', 'maharage', 'viazi', 'ndizi',
+  'embe', 'nanasi', 'papai', 'chungwa', 'limau', 'tikiti',
+  'mayai', 'maziwa', 'siagi', 'jibini', 'asali', 'pilipili',
+  'vitunguu', 'nyanya', 'karoti', 'kabichi', 'mchicha', 'kunde',
+  'mahindi', 'mtama', 'muhogo', 'viazi vitamu', 'kunde',
+  'dagaa', 'sangara', 'sato', 'kuku', 'bata', 'mbuzi', 'ng\'ombe',
+  'ugali', 'chapati', 'mandazi', 'kachumbari', 'mchuzi',
+  
   // Common English grocery words
   'milk', 'cheese', 'butter', 'egg', 'eggs', 'bread', 'flour', 'sugar',
   'salt', 'pepper', 'vinegar', 'rice', 'pasta', 'tomato', 'onion',
@@ -131,6 +167,253 @@ const PRODUCT_WORDS: string[] = [
 
 // Create a Set for fast lookup
 const PRODUCT_DICTIONARY: Set<string> = new Set(PRODUCT_WORDS.map(w => w.toLowerCase()));
+
+// ============ OCR LETTER CONFUSION MAPPINGS ============
+// Common OCR misreadings for letters that look similar
+// Format: { misread_char: [possible_correct_chars] }
+const OCR_LETTER_CONFUSIONS: Record<string, string[]> = {
+  // D and O often confused (round shapes)
+  'd': ['o', 'b', 'a'],
+  'o': ['d', '0', 'a', 'e'],
+  
+  // B, D, O, 0 confusion (round shapes)
+  'b': ['d', 'h', '6', 'p'],
+  '0': ['o', 'd'],
+  
+  // I, L, 1 confusion (vertical lines)
+  'i': ['l', '1', 'j', 't'],
+  'l': ['i', '1', 't'],
+  '1': ['i', 'l', '7'],
+  
+  // E and F confusion (horizontal lines)
+  'e': ['c', 'o', '3'],
+  'f': ['t', 'r'],
+  
+  // C and G confusion
+  'c': ['e', 'o', 'g'],
+  'g': ['q', '9', 'c'],
+  
+  // M and N confusion
+  'm': ['n', 'rn', 'nn'],
+  'n': ['m', 'h', 'r'],
+  
+  // R and P confusion
+  'r': ['n', 'f'],
+  'p': ['b', 'q'],
+  
+  // U and V confusion
+  'u': ['v', 'n'],
+  'v': ['u', 'w', 'y'],
+  
+  // S and 5 confusion
+  's': ['5', '8'],
+  '5': ['s'],
+  
+  // Other common confusions
+  'h': ['b', 'n', 'k'],
+  'k': ['x', 'h'],
+  'w': ['vv', 'vu'],
+  'q': ['g', 'p', '9'],
+  't': ['f', 'l', 'i'],
+  'y': ['v', 'j'],
+};
+
+// ============ DIRECT WORD CORRECTIONS ============
+// Known OCR misreadings with their correct forms
+// These are high-confidence corrections for frequently seen errors
+const DIRECT_WORD_CORRECTIONS: Record<string, string> = {
+  // D/O confusions in French
+  'deufs': 'oeufs',
+  'deuf': 'oeuf',
+  'dignon': 'oignon',
+  'drange': 'orange',
+  'dlive': 'olive',
+  'buile': 'huile',
+  
+  // P/B confusions  
+  'bain': 'pain',
+  'boisson': 'poisson', // context-dependent, but common
+  'bâte': 'pâte',
+  'bates': 'pates',
+  
+  // L/I/1 confusions
+  'iait': 'lait',
+  '1ait': 'lait',
+  'ia1t': 'lait',
+  'I ait': 'lait',
+  'iégume': 'légume',
+  '1egume': 'légume',
+  'iegume': 'legume',
+  
+  // Common brand misspellings
+  'cocaco1a': 'cocacola',
+  'sprlte': 'sprite',
+  'spr1te': 'sprite',
+  'fanla': 'fanta',
+  'fan1a': 'fanta',
+  'peps1': 'pepsi',
+  'helneken': 'heineken',
+  'he1neken': 'heineken',
+  
+  // Common French food words
+  'fromaqe': 'fromage',
+  'sucr': 'sucre',
+  'farlne': 'farine',
+  'far1ne': 'farine',
+  'vlande': 'viande',
+  'v1ande': 'viande',
+  'pou1et': 'poulet',
+  'pouiet': 'poulet',
+  'po1sson': 'poisson',
+  'poissom': 'poisson',
+  'chocolai': 'chocolat',
+  'choco1at': 'chocolat',
+  
+  // Lingala
+  'kwanqa': 'kwanga',
+  'bondu': 'pondu',
+  'mbika': 'mbika',
+  'madesu': 'madesu',
+  
+  // Swahili
+  'nyarna': 'nyama',
+  'samak1': 'samaki',
+  'mboca': 'mboga',
+  'maziwa': 'maziwa',
+};
+
+/**
+ * Try direct word correction first, then OCR letter substitutions
+ * "Deufs" -> direct map or tries "Oeufs", "Beufs", etc. -> finds "Oeufs"
+ */
+function tryOCRSubstitutions(word: string, maxSubstitutions: number = 2): string | null {
+  const lowerWord = word.toLowerCase();
+  
+  // Quick check if word is already valid
+  if (PRODUCT_DICTIONARY.has(lowerWord)) {
+    return word;
+  }
+  
+  // STEP 1: Check direct word corrections first (highest priority)
+  const directCorrection = DIRECT_WORD_CORRECTIONS[lowerWord];
+  if (directCorrection) {
+    console.log(`  🔤 Direct word fix: "${word}" → "${directCorrection}"`);
+    // Preserve original case pattern
+    if (word[0] === word[0].toUpperCase()) {
+      return directCorrection.charAt(0).toUpperCase() + directCorrection.slice(1);
+    }
+    return directCorrection;
+  }
+  
+  // STEP 2: Try single character substitutions (most common)
+  for (let i = 0; i < lowerWord.length; i++) {
+    const char = lowerWord[i];
+    const substitutions = OCR_LETTER_CONFUSIONS[char];
+    
+    if (substitutions) {
+      for (const sub of substitutions) {
+        const candidate = lowerWord.slice(0, i) + sub + lowerWord.slice(i + 1);
+        if (PRODUCT_DICTIONARY.has(candidate)) {
+          console.log(`  🔤 OCR letter fix: "${word}" → "${candidate}" (${char}→${sub})`);
+          // Preserve original case pattern
+          if (word[0] === word[0].toUpperCase()) {
+            return candidate.charAt(0).toUpperCase() + candidate.slice(1);
+          }
+          return candidate;
+        }
+      }
+    }
+  }
+  
+  // STEP 3: Try double character substitutions if allowed
+  if (maxSubstitutions >= 2 && lowerWord.length >= 3) {
+    for (let i = 0; i < lowerWord.length; i++) {
+      for (let j = i + 1; j < lowerWord.length; j++) {
+        const char1 = lowerWord[i];
+        const char2 = lowerWord[j];
+        const subs1 = OCR_LETTER_CONFUSIONS[char1] || [];
+        const subs2 = OCR_LETTER_CONFUSIONS[char2] || [];
+        
+        for (const sub1 of subs1) {
+          for (const sub2 of subs2) {
+            const candidate = 
+              lowerWord.slice(0, i) + sub1 + 
+              lowerWord.slice(i + 1, j) + sub2 + 
+              lowerWord.slice(j + 1);
+            if (PRODUCT_DICTIONARY.has(candidate)) {
+              console.log(`  🔤 OCR double fix: "${word}" → "${candidate}" (${char1}→${sub1}, ${char2}→${sub2})`);
+              if (word[0] === word[0].toUpperCase()) {
+                return candidate.charAt(0).toUpperCase() + candidate.slice(1);
+              }
+              return candidate;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Find dictionary match with OCR-aware fuzzy matching
+ * Combines Levenshtein distance with OCR letter confusion knowledge
+ */
+function findOCRAwareMatch(word: string, maxDistance: number = 2): string | null {
+  const lowerWord = word.toLowerCase();
+  
+  // First try exact OCR substitutions
+  const ocrMatch = tryOCRSubstitutions(word);
+  if (ocrMatch) {
+    return ocrMatch;
+  }
+  
+  // Then try Levenshtein distance with bias towards OCR-confusable letters
+  let bestMatch: string | null = null;
+  let bestScore = maxDistance + 1;
+  
+  for (const dictWord of PRODUCT_DICTIONARY) {
+    // Only compare words of similar length
+    if (Math.abs(dictWord.length - lowerWord.length) > maxDistance) {
+      continue;
+    }
+    
+    const distance = levenshteinDistance(lowerWord, dictWord);
+    
+    // Calculate OCR bonus: reduce distance for OCR-confusable letter differences
+    let ocrBonus = 0;
+    if (distance <= maxDistance && distance > 0) {
+      for (let i = 0; i < Math.min(lowerWord.length, dictWord.length); i++) {
+        const char1 = lowerWord[i];
+        const char2 = dictWord[i];
+        if (char1 !== char2) {
+          const confusions = OCR_LETTER_CONFUSIONS[char1] || [];
+          if (confusions.includes(char2)) {
+            ocrBonus += 0.3; // Reduce effective distance for OCR-confusable pairs
+          }
+        }
+      }
+    }
+    
+    const adjustedDistance = distance - ocrBonus;
+    
+    if (adjustedDistance < bestScore) {
+      bestScore = adjustedDistance;
+      bestMatch = dictWord;
+    }
+  }
+  
+  if (bestMatch && bestScore <= maxDistance) {
+    // Preserve original case
+    if (word[0] === word[0].toUpperCase() && bestMatch) {
+      return bestMatch.charAt(0).toUpperCase() + bestMatch.slice(1);
+    }
+    return bestMatch;
+  }
+  
+  return null;
+}
 
 /**
  * Levenshtein distance for fuzzy matching
@@ -518,6 +801,33 @@ export function fixOCRErrors(name: string): string {
       fixed = fixedWords.join(' ');
     }
   }
+  
+  // STEP 3: Try OCR letter substitution for each word
+  // This catches cases like "Deufs" → "Oeufs", "Bain" → "Pain"
+  const wordsToFix = fixed.split(/\s+/).filter(w => w.length > 0);
+  const fixedWords: string[] = [];
+  
+  for (const word of wordsToFix) {
+    // Skip words that are already in dictionary or are numbers/sizes
+    if (PRODUCT_DICTIONARY.has(word.toLowerCase()) || /^\d+[a-z]*$/i.test(word)) {
+      fixedWords.push(word);
+      continue;
+    }
+    
+    // Try OCR-aware matching for words >= 3 chars
+    if (word.length >= 3) {
+      const ocrMatch = findOCRAwareMatch(word, 2);
+      if (ocrMatch && ocrMatch.toLowerCase() !== word.toLowerCase()) {
+        console.log(`  🔤 Word corrected: "${word}" → "${ocrMatch}"`);
+        fixedWords.push(ocrMatch);
+        continue;
+      }
+    }
+    
+    fixedWords.push(word);
+  }
+  
+  fixed = fixedWords.join(' ');
   
   // If we made changes, log them
   if (fixed.toLowerCase() !== originalName.toLowerCase()) {

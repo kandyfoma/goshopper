@@ -1521,14 +1521,15 @@ async function parseWithGemini(
         model: config.gemini.model,
         generationConfig: {
           temperature: 0.1, // Low temperature for consistent output
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192, // Increased for complex receipts with many items
+          responseMimeType: 'application/json', // Force JSON response
         },
       });
 
-      // Set timeout for Gemini API call
+      // Set timeout for Gemini API call - 75s for complex receipts
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 45000),
-      ); // 45s
+        setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 75000),
+      ); // 75s for complex receipts
 
       const resultPromise = model.generateContent([
         PARSING_PROMPT,
@@ -1580,6 +1581,28 @@ async function parseWithGemini(
 
       console.log('🧹 Cleaned JSON string (first 1000 chars):', jsonStr.substring(0, 1000));
       console.log('🧹 Cleaned JSON LENGTH:', jsonStr.length);
+
+      // Check for truncated JSON (incomplete response)
+      const openBraces = (jsonStr.match(/{/g) || []).length;
+      const closeBraces = (jsonStr.match(/}/g) || []).length;
+      const openBrackets = (jsonStr.match(/\[/g) || []).length;
+      const closeBrackets = (jsonStr.match(/]/g) || []).length;
+      
+      if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+        console.warn('⚠️ TRUNCATED JSON DETECTED - attempting to repair');
+        console.warn(`Braces: ${openBraces} open, ${closeBraces} close | Brackets: ${openBrackets} open, ${closeBrackets} close`);
+        
+        // Try to repair truncated JSON by adding missing brackets
+        let repaired = jsonStr;
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          repaired += ']';
+        }
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          repaired += '}';
+        }
+        jsonStr = repaired;
+        console.log('🔧 Repaired JSON (last 200 chars):', jsonStr.substring(jsonStr.length - 200));
+      }
 
       // Parse JSON with error handling
       let parsed: any;
@@ -1844,8 +1867,8 @@ async function parseWithGemini(
 export const parseReceipt = functions
   .region(config.app.region)
   .runWith({
-    timeoutSeconds: 60,
-    memory: '512MB',
+    timeoutSeconds: 120, // Increased for complex receipts
+    memory: '1GB', // Increased memory for processing large receipts
     secrets: ['GEMINI_API_KEY'],
   })
   .https.onCall(async (data, context) => {
