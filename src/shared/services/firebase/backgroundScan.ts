@@ -70,6 +70,7 @@ class BackgroundScanService {
 
       // Call Cloud Function to start background processing
       const createPendingScan = functions()
+        .region(REGION)
         .httpsCallable('createPendingScan');
 
       const result = await createPendingScan({
@@ -127,6 +128,7 @@ class BackgroundScanService {
   }> {
     try {
       const getPendingScanStatus = functions()
+        .region(REGION)
         .httpsCallable('getPendingScanStatus');
 
       const result = await getPendingScanStatus({pendingScanId});
@@ -143,6 +145,7 @@ class BackgroundScanService {
   async getUserPendingScans(): Promise<PendingScan[]> {
     try {
       const getUserPendingScans = functions()
+        .region(REGION)
         .httpsCallable('getUserPendingScans');
 
       const result = await getUserPendingScans({});
@@ -160,6 +163,7 @@ class BackgroundScanService {
   async cancelPendingScan(pendingScanId: string): Promise<boolean> {
     try {
       const cancelPendingScan = functions()
+        .region(REGION)
         .httpsCallable('cancelPendingScan');
 
       const result = await cancelPendingScan({pendingScanId});

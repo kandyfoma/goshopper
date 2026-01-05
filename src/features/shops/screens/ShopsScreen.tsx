@@ -198,13 +198,11 @@ export function ShopsScreen() {
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Icon
-              name="dollar-sign"
-              size="xs"
-              color={isDarkBg ? 'rgba(255, 255, 255, 0.7)' : Colors.text.tertiary}
-            />
             <Text style={[styles.statText, {color: subtextColor}]}>
-              {formatCurrency(item.totalSpent, item.currency)}
+              {item.currency === 'CDF' 
+                ? `${Math.round(item.totalSpent).toLocaleString('fr-CD')} FC`
+                : item.totalSpent.toFixed(2)
+              }
             </Text>
           </View>
         </View>

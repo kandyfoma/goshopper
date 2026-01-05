@@ -382,8 +382,22 @@ class GeminiService {
 
       // Get receipt data from either 'receipt' or 'data' field
       const receiptData = result.receipt || result.data;
+      
+      // DEBUG: Log FULL Gemini response for debugging
+      console.log('📥 [Gemini] FULL Cloud Function response:', JSON.stringify(result, null, 2));
+      console.log('📥 [Gemini] Receipt data:', JSON.stringify(receiptData, null, 2));
+      console.log('📥 [Gemini] Summary:', JSON.stringify({
+        success: result.success,
+        hasReceiptData: !!receiptData,
+        storeName: receiptData?.storeName,
+        itemsCount: receiptData?.items?.length || 0,
+        total: receiptData?.total,
+        currency: receiptData?.currency,
+        rawItems: receiptData?.items || [],
+      }));
 
       if (!result.success || !receiptData) {
+        console.error('📥 [Gemini] No receipt data in response:', result.error);
         return {
           success: false,
           error: result.error || 'Failed to parse receipt',

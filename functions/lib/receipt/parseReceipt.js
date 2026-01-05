@@ -192,6 +192,7 @@ function validateImageData(imageBase64, mimeType) {
  * V2 FIX: Content detection (receipt vs non-receipt)
  */
 async function detectReceiptContent(imageBase64, mimeType) {
+    console.log('🔍 [Receipt Detection] Starting content analysis...');
     const detectionPrompt = `Analyze this image and determine if it is a receipt, invoice, or bill.
 
 Respond with ONLY this JSON:
@@ -225,17 +226,24 @@ NOT receipts:
             { inlineData: { mimeType, data: imageBase64 } },
         ]);
         const text = result.response.text();
+        console.log('🔍 [Receipt Detection] Raw AI response:', text);
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const detection = JSON.parse(jsonMatch[0]);
+            console.log(`🔍 [Receipt Detection] Result: ${detection.isReceipt ? 'IS RECEIPT' : 'NOT RECEIPT'}`);
+            console.log(`🔍 [Receipt Detection] Confidence: ${(detection.confidence * 100).toFixed(1)}%`);
+            console.log(`🔍 [Receipt Detection] Reason: ${detection.reason}`);
+            console.log(`🔍 [Receipt Detection] Has text: ${detection.hasText}, Language: ${detection.textLanguage}`);
             return detection;
         }
+        console.log('⚠️ [Receipt Detection] Could not parse detection response');
     }
     catch (error) {
-        console.error('Receipt detection failed:', error);
+        console.error('❌ [Receipt Detection] Detection failed:', error);
         // On error, be permissive and allow processing
         return { isReceipt: true, confidence: 0.5, reason: 'Detection unavailable' };
     }
+    console.log('⚠️ [Receipt Detection] No valid detection result, defaulting to NOT RECEIPT');
     return {
         isReceipt: false,
         confidence: 0,
@@ -243,7 +251,10 @@ NOT receipts:
     };
 }
 async function checkImageQuality(imageBase64) {
+    console.log('🔍 [Quality Check] Starting image quality analysis...');
     const buffer = Buffer.from(imageBase64, 'base64');
+    const imageSizeKB = buffer.length / 1024;
+    console.log(`🔍 [Quality Check] Image size: ${imageSizeKB.toFixed(2)} KB`);
     const image = (0, sharp_1.default)(buffer);
     const metadata = await image.metadata();
     const stats = await image.stats();
@@ -252,20 +263,31 @@ async function checkImageQuality(imageBase64) {
     // Check resolution
     const width = metadata.width || 0;
     const height = metadata.height || 0;
+    console.log(`🔍 [Quality Check] Resolution: ${width}x${height} pixels`);
     if (width < 800 || height < 600) {
         warnings.push('Image très petite - le texte peut être illisible');
         suggestions.push('Rapprochez-vous du reçu ou utilisez un meilleur appareil photo');
+        console.log(`⚠️ [Quality Check] WARNING: Low resolution (${width}x${height})`);
+    }
+    else {
+        console.log(`✅ [Quality Check] Resolution OK (${width}x${height})`);
     }
     // Check brightness (average luminance across all channels)
     const avgBrightness = stats.channels.reduce((sum, ch) => sum + ch.mean, 0) /
         stats.channels.length;
+    console.log(`🔍 [Quality Check] Brightness: ${avgBrightness.toFixed(2)} (range: 0-255)`);
     if (avgBrightness < 50) {
         warnings.push('Image trop sombre');
         suggestions.push('Scannez dans un endroit bien éclairé');
+        console.log(`⚠️ [Quality Check] WARNING: Image too dark (${avgBrightness.toFixed(2)} < 50)`);
     }
     else if (avgBrightness > 230) {
         warnings.push('Image trop claire/surexposée');
         suggestions.push('Réduisez la luminosité ou évitez la lumière directe');
+        console.log(`⚠️ [Quality Check] WARNING: Image too bright (${avgBrightness.toFixed(2)} > 230)`);
+    }
+    else {
+        console.log(`✅ [Quality Check] Brightness OK (${avgBrightness.toFixed(2)})`);
     }
     // Estimate sharpness using Laplacian variance (simple blur detection)
     const { data, info } = await image.greyscale().raw().toBuffer({
@@ -286,12 +308,20 @@ async function checkImageQuality(imageBase64) {
         }
     }
     const sharpness = laplacianSum / ((info.width - 2) * (info.height - 2));
+    console.log(`🔍 [Quality Check] Sharpness: ${sharpness.toFixed(2)} (threshold: 100, critical: 20)`);
     if (sharpness < 100) {
         warnings.push('Image floue');
         suggestions.push('Tenez votre téléphone stable ou utilisez le flash');
+        console.log(`⚠️ [Quality Check] WARNING: Image blurry (${sharpness.toFixed(2)} < 100)`);
+    }
+    else {
+        console.log(`✅ [Quality Check] Sharpness OK (${sharpness.toFixed(2)})`);
     }
     const isAcceptable = warnings.length === 0 ||
         (width >= 800 && avgBrightness >= 50 && sharpness >= 50);
+    console.log(`🔍 [Quality Check] Final assessment: ${isAcceptable ? 'ACCEPTABLE' : 'NOT ACCEPTABLE'}`);
+    console.log(`🔍 [Quality Check] Warnings (${warnings.length}): ${warnings.join(', ') || 'None'}`);
+    console.log(`🔍 [Quality Check] Suggestions (${suggestions.length}): ${suggestions.join(', ') || 'None'}`);
     return {
         isAcceptable,
         warnings,
@@ -400,10 +430,51 @@ REQUIRED OUTPUT FORMAT:
   "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
 }
 
+CRITICAL - DO NOT RETURN EMPTY ITEMS:
+- If you can read the store name, you MUST also extract line items
+- Even blurry receipts have SOME readable text - extract whatever you can see
+- Look for ANY text followed by numbers - those are likely products and prices
+- NEVER return {"items": []} if there is ANY readable product/price text
+- If you can only partially read an item name, include it anyway with your best guess
+
 CRITICAL EXTRACTION RULES:
 1. **EXTRACT ALL LINE ITEMS** - Every product/item with a price MUST be included
 2. **SHORT RECEIPTS ARE VALID** - Even receipts with 1-3 items should have items extracted
 3. **NEVER return empty items array if there are products visible on the receipt**
+4. **PARTIAL TEXT IS OK** - If you can only read part of a product name, include it
+5. **LOOK FOR NUMBERS** - Any line with numbers after text is likely a product with price
+
+JAMBO MART FORMAT (CRITICAL - TWO-LINE PER ITEM):
+JAMBO MART receipts have this specific format:
+- Header row: QTY | UNITE | PRIX | DISC% | MONTANT
+- Item Line 1: "Product Name (SA)                    Y" (or N)
+- Item Line 2: "0.372  KG  15,800.00     0    5,877.60"
+
+EXAMPLE JAMBO MART ITEMS:
+  "Pepper Variety Red Per Kg (SA)          Y"
+  "0.372  KG  15,800.00      0      5,877.60"
+  → {"name": "Pepper Variety Red Per Kg", "quantity": 0.372, "unitPrice": 15800}
+
+  "Carrot Kg (SA)                          Y"
+  "1.22   KG  3,700.00       0      4,514.00"
+  → {"name": "Carrot Kg", "quantity": 1.22, "unitPrice": 3700}
+
+  "Sadia Chicken 1.3kg                     N"
+  "2      PCS  12,400.00     0      24,800.00"
+  → {"name": "Sadia Chicken 1.3kg", "quantity": 2, "unitPrice": 12400}
+
+KEY RULES FOR JAMBO MART:
+1. The "Y" or "N" at end of product line is a flag - IGNORE IT
+2. The "(SA)" after product names is a code - REMOVE IT from name
+3. Line 2 has: QUANTITY, UNIT (KG/PCS), UNIT_PRICE, DISCOUNT%, TOTAL
+4. Use UNIT_PRICE (3rd number on line 2), NOT the total
+5. MONTANT at bottom is the receipt total
+
+COMMON DRC RECEIPT PATTERNS:
+- Product names are often in UPPERCASE
+- Prices are usually 3-6 digit numbers (e.g., 500, 1500, 10000 CDF)
+- Look for patterns like: "PRODUCT NAME    PRICE" or "PRODUCT NAME...PRICE"
+- Numbers at the end of lines are usually prices or totals
 
 MULTI-LINE ITEM FORMAT (VERY IMPORTANT):
 Many receipts use a TWO-LINE format per item:
@@ -420,11 +491,6 @@ Example 2:
   "LAIT COWBELL 400G"
   "   QTE: 2  PU: 2500  3000"
   → {"name": "LAIT COWBELL 400G", "quantity": 2, "unitPrice": 2500}
-
-Example 3:
-  "SAVON LUX"
-  "   3 x 800         2400"
-  → {"name": "SAVON LUX", "quantity": 3, "unitPrice": 800}
 
 SINGLE-LINE ITEM FORMAT:
 - "FANTA 500ML    2500" → {"name": "FANTA 500ML", "quantity": 1, "unitPrice": 2500}
@@ -444,9 +510,70 @@ CURRENCY RULES:
 - Small decimals ($1.50, $5.00) = USD
 
 CLEANUP:
-- Remove internal codes like (z4), (24) from product names
+- Remove internal codes like (SA), (z4), (24) from product names
 - Fix OCR errors: "a00gr" → "400gr", "s00ml" → "500ml"
-- Keep size/weight info in product names (400g, 500ml, 1L, etc.)`;
+- Keep size/weight info in product names (400g, 500ml, 1L, etc.)
+
+IMPORTANT: If you recognize a store name but return 0 items, you have FAILED. Try harder to find the items!`;
+// FALLBACK PROMPT - Used when primary parsing returns empty items
+// This prompt is more aggressive and tries to extract ANY text/numbers
+const FALLBACK_RAW_TEXT_PROMPT = `You are analyzing a receipt image. The previous attempt failed to extract items.
+
+YOUR TASK: Extract ALL visible text and numbers from this receipt, even if partially readable.
+
+STEP 1 - READ ALL TEXT:
+First, transcribe ALL text you can see on the receipt, line by line. Include:
+- Store name/header
+- Every line of text
+- Every number you see
+- Even partial/blurry text (use your best guess)
+
+STEP 2 - IDENTIFY ITEMS:
+Look for any pattern that could be a product:
+- Text followed by numbers (product + price)
+- Numbers followed by text (quantity + product)
+- Any line with both letters and numbers
+- Table rows with multiple columns
+
+COMMON DRC RECEIPT FORMATS:
+1. JAMBO MART format (two lines per item):
+   - Line 1: "Product Name (SA)    Y"
+   - Line 2: "0.5 KG 3000.00 0 1500.00"
+   → Extract: name from line 1, quantity and prices from line 2
+
+2. Numbered items format:
+   - "1 Product Name"
+   - "1 pc 5000 5000"
+
+3. Simple format:
+   - "Product Name    5000"
+
+STEP 3 - OUTPUT JSON:
+{
+  "storeName": "Store name from header",
+  "rawText": "All text transcribed line by line",
+  "date": "YYYY-MM-DD or today's date",
+  "currency": "CDF",
+  "total": number (look for TOTAL, TTL, MONTANT, or largest number),
+  "items": [
+    {"name": "product name (even partial)", "quantity": 1, "unitPrice": number}
+  ]
+}
+
+CRITICAL RULES:
+1. DO NOT return empty items array - find SOMETHING
+2. If you see ANY number next to text, include it as an item
+3. If the total is visible, extract it
+4. Guess product names from partial text
+5. Prices in DRC are typically 500-100000 CDF
+6. Look for columns: usually [Name] [Qty] [Price] [Total]
+
+EXAMPLE PATTERNS TO LOOK FOR:
+- "COCA 1500" → {"name": "COCA", "quantity": 1, "unitPrice": 1500}
+- "2 PAIN 1000" → {"name": "PAIN", "quantity": 2, "unitPrice": 500}
+- "HUILE...3500" → {"name": "HUILE", "quantity": 1, "unitPrice": 3500}
+
+Even if you can only read 30% of the receipt, extract what you can see!`;
 /**
  * Check if user can perform a scan based on subscription status
  */
@@ -1192,6 +1319,9 @@ CRITICAL OUTPUT RULES:
                 .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}\]])/g, ':"$1"$2')
                 .replace(/,\s*}/g, '}')
                 .replace(/,\s*]/g, ']');
+            // Fix leading zeros in numbers (e.g., 0372 -> 0.372 for quantities)
+            // This handles cases like "quantity":0372 -> "quantity":0.372
+            jsonStr = jsonStr.replace(/:(\s*)0(\d{2,})(\s*[,}\]])/g, ':$10.$2$3');
             // Fix thousand separators
             jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2');
             jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2$3');
@@ -1202,7 +1332,41 @@ CRITICAL OUTPUT RULES:
             catch (parseError) {
                 console.error('Video JSON parse error:', parseError);
                 console.error('Failed JSON string:', jsonStr.substring(0, 500));
-                throw new Error('Impossible de lire la vidéo. Veuillez réessayer plus lentement.');
+                // Try to extract partial data using regex
+                console.log('Attempting to extract partial data from malformed JSON...');
+                const storeNameMatch = jsonStr.match(/"storeName"\s*:\s*"([^"]+)"/);
+                const totalMatch = jsonStr.match(/"total"\s*:\s*([\d.]+)/);
+                const currencyMatch = jsonStr.match(/"currency"\s*:\s*"([^"]+)"/);
+                const dateMatch = jsonStr.match(/"date"\s*:\s*"([^"]+)"/);
+                // Extract items array - try to get complete item objects
+                const itemsMatch = jsonStr.match(/"items"\s*:\s*\[([\s\S]*?)(?:\]|$)/);
+                const extractedItems = [];
+                if (itemsMatch) {
+                    // Try to extract individual item objects
+                    const itemRegex = /\{\s*"name"\s*:\s*"([^"]+)"[^}]*?"unitPrice"\s*:\s*([\d.]+)[^}]*?\}/g;
+                    let match;
+                    while ((match = itemRegex.exec(itemsMatch[1])) !== null) {
+                        extractedItems.push({
+                            name: match[1],
+                            quantity: 1,
+                            unitPrice: parseFloat(match[2]) || 0,
+                            totalPrice: parseFloat(match[2]) || 0,
+                        });
+                    }
+                }
+                if (storeNameMatch && (extractedItems.length > 0 || totalMatch)) {
+                    console.log(`✅ Recovered partial data: store="${storeNameMatch[1]}", items=${extractedItems.length}`);
+                    parsed = {
+                        storeName: storeNameMatch[1],
+                        date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
+                        currency: currencyMatch ? currencyMatch[1] : 'CDF',
+                        items: extractedItems,
+                        total: totalMatch ? parseFloat(totalMatch[1]) : 0,
+                    };
+                }
+                else {
+                    throw new Error('Impossible de lire la vidéo. Veuillez réessayer plus lentement.');
+                }
             }
             // Transform and validate the result
             // Handle cases where Gemini returns "null" as a string
@@ -1325,11 +1489,12 @@ CRITICAL OUTPUT RULES:
  * V3 FIX: Enhanced error handling with retry logic
  */
 async function parseWithGemini(imageBase64, mimeType) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     const MAX_RETRIES = 2;
     let lastError = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
+            console.log(`🚀 [Gemini Parse] Attempt ${attempt + 1}/${MAX_RETRIES + 1}`);
             const model = getGeminiAI().getGenerativeModel({
                 model: config_1.config.gemini.model,
                 generationConfig: {
@@ -1338,8 +1503,11 @@ async function parseWithGemini(imageBase64, mimeType) {
                     responseMimeType: 'application/json', // Force JSON response
                 },
             });
+            console.log(`🚀 [Gemini Parse] Using model: ${config_1.config.gemini.model}`);
+            console.log(`🚀 [Gemini Parse] Config: temp=0.1, maxTokens=8192, timeout=75s`);
             // Set timeout for Gemini API call - 75s for complex receipts
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Le service met trop de temps à répondre')), 75000)); // 75s for complex receipts
+            console.log(`🚀 [Gemini Parse] Sending request to Gemini AI...`);
             const resultPromise = model.generateContent([
                 PARSING_PROMPT,
                 {
@@ -1350,6 +1518,7 @@ async function parseWithGemini(imageBase64, mimeType) {
                 },
             ]);
             const result = await Promise.race([resultPromise, timeoutPromise]);
+            console.log(`✅ [Gemini Parse] Received response from Gemini AI`);
             const response = result.response;
             const text = response.text();
             // DEBUG: Log raw Gemini response
@@ -1370,6 +1539,9 @@ async function parseWithGemini(imageBase64, mimeType) {
                 .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}\]])/g, ':"$1"$2') // Quote unquoted string values
                 .replace(/,\s*}/g, '}') // Remove trailing commas
                 .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+            // Fix leading zeros in numbers (e.g., 0372 -> 0.372 for quantities)
+            // This handles cases like "quantity":0372 -> "quantity":0.372
+            jsonStr = jsonStr.replace(/:(\s*)0(\d{2,})(\s*[,}\]])/g, ':$10.$2$3');
             // Fix thousand separators in numbers (e.g., "3 768" -> "3768", "1,500" -> "1500")
             // This handles space, comma, or period as thousand separators for large numbers
             jsonStr = jsonStr.replace(/:\s*(\d{1,3})[\s,.](\d{3})(?=\s*[,}\]])/g, ':$1$2');
@@ -1404,9 +1576,19 @@ async function parseWithGemini(imageBase64, mimeType) {
                 console.log('📦 Parsed storeName:', parsed.storeName);
                 console.log('📦 Parsed items count:', ((_a = parsed.items) === null || _a === void 0 ? void 0 : _a.length) || 0);
                 console.log('📦 Parsed total:', parsed.total);
-                if (parsed.items && parsed.items.length > 0) {
-                    console.log('📦 First 3 items:', JSON.stringify(parsed.items.slice(0, 3)));
+                console.log('📦 Parsed currency:', parsed.currency);
+                console.log('📦 Parsed date:', parsed.date);
+                // LOG ALL RAW ITEMS BEFORE PROCESSING
+                console.log('🔍 ============= RAW ITEMS FROM GEMINI =============');
+                console.log('🔍 RAW ITEMS ARRAY:', JSON.stringify(parsed.items, null, 2));
+                console.log('🔍 RAW ITEMS TYPE:', typeof parsed.items);
+                console.log('🔍 RAW ITEMS IS ARRAY:', Array.isArray(parsed.items));
+                if (parsed.items && Array.isArray(parsed.items)) {
+                    parsed.items.forEach((item, index) => {
+                        console.log(`🔍 RAW ITEM[${index}]:`, JSON.stringify(item));
+                    });
                 }
+                console.log('🔍 ================================================');
             }
             catch (parseError) {
                 console.error('JSON parse error:', parseError);
@@ -1506,8 +1688,71 @@ async function parseWithGemini(imageBase64, mimeType) {
             // Merge multi-line items first
             const mergedItems = mergeMultiLineItems(items);
             // Deduplicate items by similar name + same price
-            const deduplicatedItems = deduplicateItems(mergedItems);
+            let deduplicatedItems = deduplicateItems(mergedItems);
             console.log(`📦 Processing: ${items.length} items -> ${mergedItems.length} merged -> ${deduplicatedItems.length} unique items`);
+            console.log('🔍 ============= PROCESSED ITEMS =============');
+            deduplicatedItems.forEach((item, index) => {
+                console.log(`🔍 PROCESSED ITEM[${index}]: ${item.name} - qty: ${item.quantity} x ${item.unitPrice} = ${item.totalPrice}`);
+            });
+            console.log('🔍 ==========================================');
+            // FALLBACK: If we got a store name but NO items, try the aggressive fallback prompt
+            if (deduplicatedItems.length === 0 && parsed.storeName && attempt === 0) {
+                console.log('⚠️ FALLBACK TRIGGERED: Store name found but no items. Retrying with raw text extraction...');
+                try {
+                    const fallbackModel = getGeminiAI().getGenerativeModel({
+                        model: config_1.config.gemini.model,
+                        generationConfig: {
+                            temperature: 0.3, // Slightly higher for more creative extraction
+                            maxOutputTokens: 8192,
+                            responseMimeType: 'application/json',
+                        },
+                    });
+                    const fallbackResult = await fallbackModel.generateContent([
+                        FALLBACK_RAW_TEXT_PROMPT,
+                        {
+                            inlineData: {
+                                mimeType,
+                                data: imageBase64,
+                            },
+                        },
+                    ]);
+                    const fallbackText = fallbackResult.response.text();
+                    console.log('📥 FALLBACK RAW RESPONSE (first 1500 chars):', fallbackText.substring(0, 1500));
+                    // Parse fallback response
+                    let fallbackJsonStr = fallbackText;
+                    const fallbackJsonMatch = fallbackText.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (fallbackJsonMatch) {
+                        fallbackJsonStr = fallbackJsonMatch[1];
+                    }
+                    fallbackJsonStr = fallbackJsonStr.trim();
+                    const fallbackParsed = JSON.parse(fallbackJsonStr);
+                    console.log('📦 FALLBACK parsed items count:', ((_b = fallbackParsed.items) === null || _b === void 0 ? void 0 : _b.length) || 0);
+                    console.log('📦 FALLBACK raw text:', (_c = fallbackParsed.rawText) === null || _c === void 0 ? void 0 : _c.substring(0, 500));
+                    if (fallbackParsed.items && fallbackParsed.items.length > 0) {
+                        console.log('✅ FALLBACK SUCCESS: Found items in retry');
+                        // Process fallback items
+                        const fallbackItems = fallbackParsed.items.map((item) => ({
+                            id: generateItemId(),
+                            name: cleanItemName(item.name || 'Article'),
+                            nameNormalized: normalizeProductName(item.name || 'Article'),
+                            quantity: parseNumericValue(item.quantity) || 1,
+                            unitPrice: parseNumericValue(item.unitPrice) || 0,
+                            totalPrice: parseNumericValue(item.totalPrice) || (parseNumericValue(item.unitPrice) * (parseNumericValue(item.quantity) || 1)),
+                            category: 'Autres',
+                            confidence: 0.6, // Lower confidence for fallback extraction
+                        }));
+                        deduplicatedItems = deduplicateItems(fallbackItems);
+                        // Also update total if found in fallback
+                        if (fallbackParsed.total && fallbackParsed.total > 0) {
+                            parsed.total = fallbackParsed.total;
+                        }
+                    }
+                }
+                catch (fallbackError) {
+                    console.error('⚠️ FALLBACK FAILED:', fallbackError);
+                    // Continue with empty items
+                }
+            }
             // Build parsed receipt - exclude undefined fields for Firestore compatibility
             // Handle cases where Gemini returns "null" as a string
             const storeNameRaw = parsed.storeName;
@@ -1574,16 +1819,16 @@ async function parseWithGemini(imageBase64, mimeType) {
         catch (error) {
             lastError = error;
             // Handle specific Gemini errors
-            if ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('API_KEY_INVALID')) {
+            if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('API_KEY_INVALID')) {
                 throw new functions.https.HttpsError('internal', 'Configuration erreur. Contactez le support.');
             }
-            if ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('QUOTA_EXCEEDED')) {
+            if ((_e = error.message) === null || _e === void 0 ? void 0 : _e.includes('QUOTA_EXCEEDED')) {
                 throw new functions.https.HttpsError('resource-exhausted', 'Service temporairement saturé. Réessayez dans 1 heure.');
             }
-            if ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('CONTENT_POLICY_VIOLATION')) {
+            if ((_f = error.message) === null || _f === void 0 ? void 0 : _f.includes('CONTENT_POLICY_VIOLATION')) {
                 throw new functions.https.HttpsError('invalid-argument', 'Image inappropriée détectée. Veuillez scanner un reçu valide.');
             }
-            if ((_e = error.message) === null || _e === void 0 ? void 0 : _e.includes('timeout')) {
+            if ((_g = error.message) === null || _g === void 0 ? void 0 : _g.includes('timeout')) {
                 console.warn(`Service timeout on attempt ${attempt + 1}`);
                 if (attempt < MAX_RETRIES) {
                     await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Exponential backoff
@@ -1614,7 +1859,7 @@ exports.parseReceipt = functions
     secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     // Check authentication
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to parse receipts');
@@ -1631,25 +1876,43 @@ exports.parseReceipt = functions
             throw new functions.https.HttpsError('invalid-argument', validation.error);
         }
         // V2 FIX: Detect if image contains a receipt
+        console.log('📋 [ParseReceipt] Starting receipt detection...');
         const detection = await detectReceiptContent(imageBase64, mimeType);
-        console.log('📋 Receipt detection result:', detection);
+        console.log('📋 [ParseReceipt] Detection result:', JSON.stringify(detection));
         // Be more lenient - only reject if very confident it's NOT a receipt
         // Small/short receipts often get low confidence but are valid
         if (!detection.isReceipt && detection.confidence > 0.8) {
+            console.log(`❌ [ParseReceipt] REJECTED: Not a receipt (confidence: ${(detection.confidence * 100).toFixed(1)}%)`);
             throw new functions.https.HttpsError('invalid-argument', `Cette image ne semble pas être un reçu. ${detection.reason || 'Veuillez scanner un reçu valide.'}`);
+        }
+        else if (!detection.isReceipt) {
+            console.log(`⚠️ [ParseReceipt] Detected as NOT receipt but allowing (low confidence: ${(detection.confidence * 100).toFixed(1)}%)`);
+        }
+        else {
+            console.log(`✅ [ParseReceipt] Detected as receipt (confidence: ${(detection.confidence * 100).toFixed(1)}%)`);
         }
         // H1 FIX: Check image quality - only reject VERY poor quality images
         // Be lenient here - let Gemini try to parse, and validate results after
+        console.log('📋 [ParseReceipt] Starting image quality check...');
         const qualityCheck = await checkImageQuality(imageBase64);
+        console.log('📋 [ParseReceipt] Quality check result:', JSON.stringify({
+            isAcceptable: qualityCheck.isAcceptable,
+            warnings: qualityCheck.warnings,
+            metrics: qualityCheck.metrics
+        }));
         if (!qualityCheck.isAcceptable) {
             // Only reject extremely poor quality (sharpness < 20 or brightness < 20)
             // These are truly unreadable - pitch black or motion blur
             if (qualityCheck.metrics.sharpness < 20 || qualityCheck.metrics.brightness < 20) {
                 const warningMsg = qualityCheck.suggestions.join(' ');
+                console.log(`❌ [ParseReceipt] REJECTED: Image quality too poor (sharpness: ${qualityCheck.metrics.sharpness.toFixed(2)}, brightness: ${qualityCheck.metrics.brightness.toFixed(2)})`);
                 throw new functions.https.HttpsError('invalid-argument', `La qualité de l'image est insuffisante. ${warningMsg}`);
             }
             // Log warnings but let Gemini try - it's often better at reading blurry text than expected
-            console.warn(`Image quality issues (proceeding anyway): ${qualityCheck.warnings.join('. ')}. Metrics: sharpness=${qualityCheck.metrics.sharpness}, brightness=${qualityCheck.metrics.brightness}`);
+            console.warn(`⚠️ [ParseReceipt] Image quality issues (proceeding anyway): ${qualityCheck.warnings.join('. ')}. Metrics: sharpness=${qualityCheck.metrics.sharpness.toFixed(2)}, brightness=${qualityCheck.metrics.brightness.toFixed(2)}`);
+        }
+        else {
+            console.log(`✅ [ParseReceipt] Image quality acceptable, proceeding to parse`);
         }
         // V5 FIX: Atomic subscription check and increment with transaction
         const subscriptionRef = db.doc(config_1.collections.subscription(userId));
@@ -1706,16 +1969,27 @@ exports.parseReceipt = functions
         console.log('✅ parseWithGemini completed');
         console.log('📊 FINAL RESULT - Items:', (_a = parsedReceipt.items) === null || _a === void 0 ? void 0 : _a.length, 'Total:', parsedReceipt.total);
         // QUALITY CHECK: Validate that the receipt was actually readable
+        console.log('📋 [Validation] Starting result validation...');
         const hasItems = parsedReceipt.items && parsedReceipt.items.length > 0;
         const hasTotal = parsedReceipt.total > 0;
         const hasStoreName = parsedReceipt.storeName && parsedReceipt.storeName !== 'Magasin inconnu' && parsedReceipt.storeName !== 'Unknown Store';
-        console.log('📊 VALIDATION - hasItems:', hasItems, 'hasTotal:', hasTotal, 'hasStoreName:', hasStoreName);
-        console.log('📊 VALIDATION - itemsCount:', (_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.length, 'total:', parsedReceipt.total, 'storeName:', parsedReceipt.storeName);
-        // Accept if we have items OR total - store name alone isn't enough
-        // A useful receipt needs at least some data (items or total)
-        if (!hasItems && !hasTotal) {
-            console.error('❌ VALIDATION FAILED: No items and no total - only store name is not useful');
+        console.log('📊 [Validation] hasItems:', hasItems, '(count:', ((_b = parsedReceipt.items) === null || _b === void 0 ? void 0 : _b.length) || 0, ')');
+        console.log('📊 [Validation] hasTotal:', hasTotal, '(value:', parsedReceipt.total, ')');
+        console.log('📊 [Validation] hasStoreName:', hasStoreName, '(name:', parsedReceipt.storeName, ')');
+        // Accept if we have items OR total OR store name (store name means Gemini detected something)
+        // A useful receipt needs at least some data (items or total or store name)
+        if (!hasItems && !hasTotal && !hasStoreName) {
+            console.error('❌ [Validation] VALIDATION FAILED: No items, no total, and no store name - receipt appears completely unreadable');
+            console.error('❌ [Validation] Parsed receipt data:', JSON.stringify({
+                storeName: parsedReceipt.storeName,
+                itemsCount: (_c = parsedReceipt.items) === null || _c === void 0 ? void 0 : _c.length,
+                total: parsedReceipt.total,
+                date: parsedReceipt.date
+            }));
             throw new functions.https.HttpsError('invalid-argument', 'Impossible de lire les articles ou le total de ce reçu. Veuillez reprendre la photo avec un meilleur éclairage.');
+        }
+        else {
+            console.log('✅ [Validation] Has sufficient data to proceed (items, total, or store name detected)');
         }
         // Only warn if we have items but ALL have 0 price AND total is 0
         if (hasItems && parsedReceipt.items.length > 2 && parsedReceipt.items.every(item => item.unitPrice === 0) && parsedReceipt.total === 0) {
@@ -1754,7 +2028,7 @@ exports.parseReceipt = functions
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         // Log suspicious items before returning
-        const suspiciousItems = (_c = parsedReceipt.items) === null || _c === void 0 ? void 0 : _c.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
+        const suspiciousItems = (_d = parsedReceipt.items) === null || _d === void 0 ? void 0 : _d.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
         if (suspiciousItems && suspiciousItems.length > 0) {
             console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
         }

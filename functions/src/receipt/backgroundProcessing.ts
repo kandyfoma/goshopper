@@ -253,7 +253,13 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
     );
 
     if (!receipt || !receipt.items || receipt.items.length === 0) {
-      throw new Error('Aucun article détecté dans le reçu');
+      // Even without items, if we have a total and store name, save it
+      if (receipt && (receipt.total > 0 || receipt.storeName)) {
+        console.log('⚠️ No items but have total or store name, proceeding with minimal receipt');
+        // Proceed with what we have
+      } else {
+        throw new Error('Aucun article détecté dans le reçu');
+      }
     }
 
     // Check subscription limits

@@ -710,12 +710,34 @@ export function UnifiedScannerScreen() {
       scanProcessing.updateProgress(70, 'Vérification des données...');
 
       // Enhanced receipt validation
-      const total = parseResult.receipt.total;
+      let total = parseResult.receipt.total;
       
-      // Check for null, undefined, or zero total
-      if (total === null || total === undefined || total === 0) {
+      // If total is missing but we have items, calculate from items
+      const hasValidItems = parseResult.receipt.items && parseResult.receipt.items.length > 0;
+      if ((total === null || total === undefined || total === 0) && hasValidItems) {
+        total = parseResult.receipt.items.reduce((sum, item) => {
+          const itemTotal = item.totalPrice || (item.unitPrice * (item.quantity || 1));
+          return sum + (itemTotal || 0);
+        }, 0);
+        parseResult.receipt.total = total;
+        console.log('📊 Calculated total from items:', total);
+      }
+      
+      // Check for null, undefined, or zero total - but only if no items AND no store name
+      const hasStoreName = parseResult.receipt.storeName && 
+        parseResult.receipt.storeName !== 'Magasin inconnu' && 
+        parseResult.receipt.storeName !== 'Unknown Store';
+      
+      if ((total === null || total === undefined || total === 0) && !hasValidItems && !hasStoreName) {
         scanProcessing.setError('Reçu invalide: Aucun montant détecté.\\nScannez plus lentement.');
         return;
+      }
+      
+      // If we have store name but no items/total, show a warning but still proceed
+      if ((total === null || total === undefined || total === 0) && !hasValidItems && hasStoreName) {
+        console.warn('⚠️ Receipt has store name but no items/total:', parseResult.receipt.storeName);
+        parseResult.receipt.total = 0;
+        parseResult.receipt.items = [];
       }
       
       // Check for negative totals
@@ -730,8 +752,8 @@ export function UnifiedScannerScreen() {
         return;
       }
 
-      // Validate items exist and are an array
-      if (!parseResult.receipt.items || parseResult.receipt.items.length === 0) {
+      // Validate items exist and are an array - but only if we don't have a store name
+      if ((!parseResult.receipt.items || parseResult.receipt.items.length === 0) && !hasStoreName) {
         scanProcessing.setError('Aucun article détecté.\\nScannez plus lentement.');
         return;
       }
@@ -1021,14 +1043,46 @@ export function UnifiedScannerScreen() {
       );
 
       if (response.success && response.receipt) {
-        // Enhanced validation checks
-        const total = response.receipt.total;
+        // DEBUG: Log what we received
+        console.log('📥 [Scanner] Receipt response:', JSON.stringify({
+          storeName: response.receipt.storeName,
+          itemsCount: response.receipt.items?.length || 0,
+          total: response.receipt.total,
+          currency: response.receipt.currency,
+        }));
         
-        // Check for null, undefined, or zero total
-        if (total === null || total === undefined || total === 0) {
+        // Enhanced validation checks
+        let total = response.receipt.total;
+        
+        // If total is missing but we have items, calculate from items
+        const hasValidItems = response.receipt.items && response.receipt.items.length > 0;
+        if ((total === null || total === undefined || total === 0) && hasValidItems) {
+          total = response.receipt.items.reduce((sum, item) => {
+            const itemTotal = item.totalPrice || (item.unitPrice * (item.quantity || 1));
+            return sum + (itemTotal || 0);
+          }, 0);
+          response.receipt.total = total;
+          console.log('📊 Calculated total from items:', total);
+        }
+        
+        // Check for null, undefined, or zero total - but only if no items AND no store name
+        // If we have a store name, Gemini at least detected something valid
+        const hasStoreName = response.receipt.storeName && 
+          response.receipt.storeName !== 'Magasin inconnu' && 
+          response.receipt.storeName !== 'Unknown Store';
+        
+        if ((total === null || total === undefined || total === 0) && !hasValidItems && !hasStoreName) {
           isProcessingRef.current = false;
           scanProcessing.setError('Reçu invalide: Aucun montant détecté.\\nVeuillez scanner un reçu valide avec des prix.');
           return;
+        }
+        
+        // If we have store name but no items/total, show a warning but still proceed
+        if ((total === null || total === undefined || total === 0) && !hasValidItems && hasStoreName) {
+          console.warn('⚠️ Receipt has store name but no items/total:', response.receipt.storeName);
+          // Create a minimal receipt entry anyway
+          response.receipt.total = 0;
+          response.receipt.items = [];
         }
         
         // Check for negative totals
@@ -1045,27 +1099,29 @@ export function UnifiedScannerScreen() {
           return;
         }
         
-        // Validate items exist and are valid
-        if (!response.receipt.items || response.receipt.items.length === 0) {
+        // Validate items exist and are valid - but skip if we have store name
+        if ((!response.receipt.items || response.receipt.items.length === 0) && !hasStoreName) {
           isProcessingRef.current = false;
           scanProcessing.setError('Image invalide: Ceci n\'est pas un reçu.\nVeuillez scanner un reçu valide.');
           return;
         }
         
-        // Validate item prices
-        const invalidItems = response.receipt.items.filter(item => 
-          !item || 
-          typeof item.unitPrice !== 'number' || 
-          item.unitPrice < 0 || 
-          !Number.isFinite(item.unitPrice) ||
-          (item.totalPrice !== undefined && (item.totalPrice < 0 || !Number.isFinite(item.totalPrice)))
-        );
-        
-        if (invalidItems.length > 0) {
-          console.warn('Invalid items detected in photo scan:', invalidItems);
-          isProcessingRef.current = false;
-          scanProcessing.setError('Articles invalides détectés dans le reçu.');
-          return;
+        // Validate item prices - only if we have items
+        if (response.receipt.items && response.receipt.items.length > 0) {
+          const invalidItems = response.receipt.items.filter(item => 
+            !item || 
+            typeof item.unitPrice !== 'number' || 
+            item.unitPrice < 0 || 
+            !Number.isFinite(item.unitPrice) ||
+            (item.totalPrice !== undefined && (item.totalPrice < 0 || !Number.isFinite(item.totalPrice)))
+          );
+          
+          if (invalidItems.length > 0) {
+            console.warn('Invalid items detected in photo scan:', invalidItems);
+            isProcessingRef.current = false;
+            scanProcessing.setError('Articles invalides détectés dans le reçu.');
+            return;
+          }
         }
         
         // Validate receipt date

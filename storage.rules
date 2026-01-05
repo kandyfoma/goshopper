@@ -22,6 +22,14 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
     
+    // User pending receipt images (temporary storage before processing)
+    match /users/{userId}/pending_receipts/{fileName} {
+      // Users can read/write their own pending receipt images
+      allow read, write: if isOwner(userId) 
+                         && isImage() 
+                         && isValidSize();
+    }
+    
     // User receipt images
     match /users/{userId}/receipts/{receiptId}/{fileName} {
       // Users can read their own images
