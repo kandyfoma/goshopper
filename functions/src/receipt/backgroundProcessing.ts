@@ -390,6 +390,11 @@ Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
   ]
 }
 
+IMPORTANT pour la DATE:
+- Convertir DD-MM-YY en YYYY-MM-DD
+- Exemple: "05-01-26" = 5 janvier 2026 → "2026-01-05"
+- Si l'année est 2 chiffres, utiliser 20XX pour 00-30, 19XX pour 31-99
+
 Catégories possibles: Alimentation, Boissons, Hygiène, Entretien, Électronique, Vêtements, Autres
 
 Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu valide"}`;

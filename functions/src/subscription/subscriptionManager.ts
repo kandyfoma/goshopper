@@ -1045,13 +1045,18 @@ export const checkExpiredSubscriptions = functions
         console.log(`Expiring subscription for user, moving to freemium plan`);
         
         // Move to freemium plan instead of just marking as expired
+        const billingStart = new Date();
+        const billingEnd = addMonths(billingStart, 1);
+        
         expiredBatch.update(doc.ref, {
           planId: 'freemium',
           isSubscribed: false,
-          status: 'expired',
+          status: 'freemium',
           expiresAt: admin.firestore.FieldValue.delete(),
           subscriptionEndDate: admin.firestore.FieldValue.delete(),
           monthlyScansUsed: 0,
+          currentBillingPeriodStart: admin.firestore.Timestamp.fromDate(billingStart),
+          currentBillingPeriodEnd: admin.firestore.Timestamp.fromDate(billingEnd),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         expiredCount++;
@@ -1076,13 +1081,18 @@ export const checkExpiredSubscriptions = functions
         console.log(`Trial expired for user, moving to freemium plan`);
         
         // Move to freemium plan when trial expires
+        const billingStart = new Date();
+        const billingEnd = addMonths(billingStart, 1);
+        
         trialBatch.update(doc.ref, {
           planId: 'freemium',
-          status: 'expired',
+          status: 'freemium',
           isSubscribed: false,
           expiresAt: admin.firestore.FieldValue.delete(),
           trialEndDate: admin.firestore.FieldValue.delete(),
           monthlyScansUsed: 0,
+          currentBillingPeriodStart: admin.firestore.Timestamp.fromDate(billingStart),
+          currentBillingPeriodEnd: admin.firestore.Timestamp.fromDate(billingEnd),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         trialExpiredCount++;

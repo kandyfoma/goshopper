@@ -183,6 +183,9 @@ class CameraService {
       };
     }
 
+    // Track recording start time since react-native-image-picker doesn't always return duration
+    const recordingStartTime = Date.now();
+
     return new Promise(resolve => {
       launchCamera(
         {
@@ -190,7 +193,11 @@ class CameraService {
           durationLimit: Math.min(maxDuration, MAX_VIDEO_DURATION_SECONDS),
         },
         async (response: ImagePickerResponse) => {
-          const result = this.handleVideoPickerResponse(response);
+          // Calculate actual recording duration
+          const recordingEndTime = Date.now();
+          const actualDurationMs = recordingEndTime - recordingStartTime;
+          
+          const result = this.handleVideoPickerResponse(response, actualDurationMs);
           
           // If successful, validate size and convert to base64
           if (result.success && result.uri) {
@@ -204,6 +211,14 @@ class CameraService {
                   canRetry: true,
                 });
                 return;
+              }
+              
+              // Estimate duration from file size if not available
+              // Rough estimate: ~500KB per second of medium quality video
+              if (!result.duration || result.duration === 0) {
+                const estimatedDurationSeconds = fileInfo.size / (500 * 1024);
+                result.duration = Math.max(estimatedDurationSeconds, actualDurationMs / 1000);
+                console.log(`📹 Estimated video duration: ${result.duration.toFixed(1)}s (from file size: ${(fileInfo.size / 1024).toFixed(0)}KB)`);
               }
 
               const base64 = await RNFS.readFile(result.uri, 'base64');
@@ -392,6 +407,7 @@ class CameraService {
    */
   private handleVideoPickerResponse(
     response: ImagePickerResponse,
+    actualDurationMs?: number,
   ): VideoResult {
     if (response.didCancel) {
       return {
@@ -437,22 +453,34 @@ class CameraService {
       };
     }
 
-    // Validate video duration
-    const durationSeconds = asset.duration || 0;
-    if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-      return {
-        success: false,
-        error: `Vidéo trop longue (${Math.round(durationSeconds)}s). Maximum ${MAX_VIDEO_DURATION_SECONDS}s.`,
-        canRetry: true,
-      };
+    // Get duration from asset or from actual recording time
+    // react-native-image-picker doesn't always return duration
+    let durationSeconds = asset.duration || 0;
+    
+    // If asset duration is 0, use actual recorded time
+    if (durationSeconds === 0 && actualDurationMs && actualDurationMs > 0) {
+      durationSeconds = actualDurationMs / 1000;
+      console.log(`📹 Using actual recording duration: ${durationSeconds.toFixed(1)}s (asset.duration was ${asset.duration})`);
     }
+    
+    // Only validate if we have a reliable duration
+    // Skip validation for duration 0 - it will be estimated later from file size
+    if (durationSeconds > 0) {
+      if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+        return {
+          success: false,
+          error: `Vidéo trop longue (${Math.round(durationSeconds)}s). Maximum ${MAX_VIDEO_DURATION_SECONDS}s.`,
+          canRetry: true,
+        };
+      }
 
-    if (durationSeconds < MIN_VIDEO_DURATION_SECONDS) {
-      return {
-        success: false,
-        error: `Vidéo trop courte (${Math.round(durationSeconds)}s). Scannez lentement tout le reçu (minimum ${MIN_VIDEO_DURATION_SECONDS}s).`,
-        canRetry: true,
-      };
+      if (durationSeconds < MIN_VIDEO_DURATION_SECONDS) {
+        return {
+          success: false,
+          error: `Vidéo trop courte (${Math.round(durationSeconds)}s). Scannez lentement tout le reçu (minimum ${MIN_VIDEO_DURATION_SECONDS}s).`,
+          canRetry: true,
+        };
+      }
     }
 
     return {

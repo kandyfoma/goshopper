@@ -14,7 +14,7 @@ const db = admin.firestore();
 const BRAND_PATTERNS = [
   // Congolese/African brands
   'skol', 'primus', 'tembo', 'simba', 'turbo king', 'doppel',
-  'kwanga', 'brasimba', 'bracongo',
+  'kwanga', 'brasimba', 'bracongo', 'sadia',
   // International brands
   'coca cola', 'coca-cola', 'pepsi', 'fanta', 'sprite', 'nestle',
   'nescafe', 'maggi', 'knorr', 'unilever', 'colgate', 'palmolive',
@@ -281,55 +281,51 @@ export function createProductFingerprint(name: string): ProductFingerprint {
 
 /**
  * Calculate overall similarity between two product names
+ * STRICT MATCHING: Products must have same base name AND same size to match
  * Returns a score between 0 and 1
  */
 export function calculateProductSimilarity(name1: string, name2: string): number {
   const fp1 = createProductFingerprint(name1);
   const fp2 = createProductFingerprint(name2);
   
-  let score = 0;
-  let weights = 0;
-  
   // 1. Exact normalized match (highest priority)
   if (fp1.normalizedName === fp2.normalizedName) {
     return 1.0;
   }
   
-  // 2. String similarity (weight: 0.3)
-  const strSim = stringSimilarity(fp1.normalizedName, fp2.normalizedName);
-  score += strSim * 0.3;
-  weights += 0.3;
+  // 2. STRICT RULE: Size and unit must match exactly
+  // If either product has a size, both must have the same size+unit
+  const hasSize1 = fp1.size !== null && fp1.unit !== null;
+  const hasSize2 = fp2.size !== null && fp2.unit !== null;
   
-  // 3. Token (Jaccard) similarity (weight: 0.3)
+  if (hasSize1 || hasSize2) {
+    // If one has size but the other doesn't, not a match
+    if (hasSize1 !== hasSize2) {
+      return 0;
+    }
+    
+    // Both have sizes - they must match exactly
+    if (fp1.size !== fp2.size || fp1.unit !== fp2.unit) {
+      return 0; // Different sizes = different products
+    }
+  }
+  
+  // 3. Calculate base product similarity (item name without brand/size)
+  // Must be very similar (>90%) to be considered the same product
+  const baseSim = stringSimilarity(fp1.baseProduct, fp2.baseProduct);
+  
+  // If base products are too different, not a match
+  if (baseSim < 0.9) {
+    return 0;
+  }
+  
+  // 4. Token similarity for the full name
   const tokenSim = jaccardSimilarity(fp1.tokens, fp2.tokens);
-  score += tokenSim * 0.3;
-  weights += 0.3;
   
-  // 4. Base product similarity (weight: 0.2)
-  if (fp1.baseProduct && fp2.baseProduct) {
-    const baseSim = stringSimilarity(fp1.baseProduct, fp2.baseProduct);
-    score += baseSim * 0.2;
-    weights += 0.2;
-  }
+  // Weighted score: base product (70%) + token similarity (30%)
+  const score = (baseSim * 0.7) + (tokenSim * 0.3);
   
-  // 5. Brand match bonus (weight: 0.1)
-  if (fp1.brand && fp2.brand) {
-    if (fp1.brand === fp2.brand) {
-      score += 0.1;
-    }
-    weights += 0.1;
-  }
-  
-  // 6. Category match bonus (weight: 0.1)
-  if (fp1.category && fp2.category) {
-    if (fp1.category === fp2.category) {
-      score += 0.1;
-    }
-    weights += 0.1;
-  }
-  
-  // Normalize by actual weights used
-  return weights > 0 ? score / weights : 0;
+  return score;
 }
 
 /**
@@ -341,7 +337,6 @@ export async function findMatchingProduct(
   storeNameNormalized: string
 ): Promise<MatchResult> {
   const normalizedProduct = normalizeProductName(productName);
-  const productFp = createProductFingerprint(productName);
   
   // Step 1: Try exact match first
   const exactQuery = await db
@@ -411,8 +406,9 @@ export async function findMatchingProduct(
   
   // Step 4: Determine if match is good enough
   if (bestMatch) {
-    // Fuzzy match threshold: 85%
-    if (bestMatch.similarity >= 0.85) {
+    // STRICT MATCHING: Require 95% similarity for fuzzy match
+    // This ensures same item + same size before comparing prices
+    if (bestMatch.similarity >= 0.95) {
       return {
         matched: true,
         existingDoc: bestMatch.doc,
@@ -422,18 +418,9 @@ export async function findMatchingProduct(
       };
     }
     
-    // Semantic match threshold: 70% + same category
-    if (bestMatch.similarity >= 0.70 && productFp.category) {
-      const existingFp = createProductFingerprint(bestMatch.name);
-      if (existingFp.category === productFp.category) {
-        return {
-          matched: true,
-          existingDoc: bestMatch.doc,
-          matchType: 'semantic',
-          confidence: bestMatch.similarity,
-          matchedName: bestMatch.name,
-        };
-      }
+    // Log near-misses for debugging
+    if (bestMatch.similarity >= 0.85) {
+      console.log(`Near match rejected (${(bestMatch.similarity * 100).toFixed(1)}%): "${productName}" vs "${bestMatch.name}"`);
     }
   }
   
@@ -503,8 +490,10 @@ export async function smartUpsertPriceData(
     const newPriceRef = db.collection(collections.prices).doc();
     
     const newPricePoint: Partial<PricePoint> = {
-      productName: existingData.productName, // Keep canonical name
-      productNameNormalized: existingData.productNameNormalized,
+      // FIXED: Use the NEW item name from the receipt, not the old matched name
+      // This prevents incorrect names from propagating (e.g., "Soda" replacing "Sadia")
+      productName: item.name,
+      productNameNormalized: normalizedProduct,
       storeName: receipt.storeName,
       storeNameNormalized: receipt.storeNameNormalized,
       price: item.unitPrice,

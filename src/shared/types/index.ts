@@ -62,6 +62,7 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
   CityItems: undefined;
+  CityItemDetail: {item: any}; // City item with full price details
   Items: undefined;
   // Stats Screen
   Stats: undefined;

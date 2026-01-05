@@ -27,6 +27,7 @@ import {quickActionsService, inAppReviewService, spotlightSearchService, offline
 import {cacheInitializer, cachePreloader} from '@/shared/services/caching';
 import {initializeNotificationChannels} from '@/shared/utils/notificationChannels';
 import {notificationActionsService} from '@/shared/services/notificationActions';
+import {navigationService, navigationRef} from '@/shared/services/navigationService';
 import {useBiometricCheck} from '@/shared/hooks';
 
 // Ignore specific warnings in development
@@ -50,7 +51,7 @@ function NetworkAwareApp(): React.JSX.Element {
                   <OfflineModeProvider>
                     <ScanProcessingProvider>
                       <PaymentProcessingProvider>
-                        <NavigationContainer>
+                        <NavigationContainer ref={navigationRef}>
                           <OfflineBanner />
                           <OfflineSyncBanner />
                           <GlobalScanProgressBanner />
@@ -124,6 +125,12 @@ function App(): React.JSX.Element {
 
         // Initialize Widget Data Service
         await widgetDataService.initialize();
+
+        // Check for pending navigation from notifications
+        // This handles deep linking when user taps notification
+        setTimeout(async () => {
+          await navigationService.checkPendingNavigation();
+        }, 1000);
 
         // Pre-translate common search terms in background
         InteractionManager.runAfterInteractions(async () => {

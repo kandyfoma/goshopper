@@ -111,7 +111,7 @@ export function CategoryDetailScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [totalSpent, setTotalSpent] = useState(0);
-  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('USD');
+  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('CDF');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = React.useRef<TextInput>(null);
 

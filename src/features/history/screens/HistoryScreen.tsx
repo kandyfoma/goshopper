@@ -161,7 +161,7 @@ export function HistoryScreen() {
               storePhone: data.storePhone,
               receiptNumber: data.receiptNumber,
               date: safeToDate(data.scannedAt || data.date),
-              currency: data.currency || 'USD',
+              currency: data.currency || 'CDF',
               items: processedItems,
               subtotal: data.subtotal,
               tax: data.tax,
@@ -235,7 +235,7 @@ export function HistoryScreen() {
             // Add other required fields with defaults
             userId: user?.uid || '',
             storeNameNormalized: '',
-            currency: 'USD' as const, // Default to USD for cached receipts
+            currency: 'CDF' as const, // Default to CDF for cached receipts (DRC primary currency)
             processingStatus: 'completed' as const,
             createdAt: new Date(),
             updatedAt: new Date(),

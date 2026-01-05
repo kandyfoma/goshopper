@@ -358,10 +358,13 @@ export function SubscriptionScreen() {
             
             // Assign colors to plans - Using app branding
             const cardColor = planId === 'basic' ? '#FDF0D5' : planId === 'standard' ? '#669BBC' : '#003049';
-            const scanCount = planId === 'basic' ? '25' : planId === 'standard' ? '100' : 'Illimité';
+            const scanCount = planId === 'basic' ? '25' : planId === 'standard' ? '100' : '1,000';
             // White text for standard and premium, dark text for basic
             const textColor = planId === 'basic' ? Colors.text.primary : '#FFFFFF';
             const iconColor = planId === 'basic' ? Colors.text.primary : '#FFFFFF';
+            
+            // Get key features for each plan (first 2)
+            const keyFeatures = plan.features.slice(0, 2);
 
             return (
               <TouchableOpacity
@@ -398,10 +401,18 @@ export function SubscriptionScreen() {
                     <Text style={[styles.planStackPrice, {color: textColor}]}>
                       {formatCurrency(plan.price)}/mois
                     </Text>
-                    <Text style={[styles.planStackInfo, {color: textColor}]}>
-                      {scanCount} scans par mois • Essai gratuit 30 jours{' \n'}
-                      Puis {formatCurrency(plan.price)}/mois après l'essai
+                    <Text style={[styles.planStackInfo, {color: textColor, marginBottom: Spacing.xs}]}>
+                      {scanCount} scans/mois • Essai 30 jours gratuit
                     </Text>
+                    <View style={styles.planFeaturesList}>
+                      {keyFeatures.map((feature, idx) => (
+                        <View key={idx} style={styles.planFeatureItem}>
+                          <Text style={[styles.planFeatureText, {color: textColor}]}>
+                            ✓ {feature}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                   {isSelected ? (
                     <Icon name="check" size="lg" color={iconColor} />
@@ -734,6 +745,20 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
     lineHeight: 18,
+  },
+  planFeaturesList: {
+    marginTop: Spacing.xs,
+    gap: 4,
+  },
+  planFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  planFeatureText: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+    lineHeight: 16,
   },
   currentBadge: {
     position: 'absolute',

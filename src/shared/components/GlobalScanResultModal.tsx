@@ -94,7 +94,7 @@ export function GlobalScanResultModal() {
   const itemCount = receipt.items?.length || 0;
   const storeName = receipt.storeName || 'Magasin';
   const total = receipt.total || 0;
-  const currency = receipt.currency || 'USD';
+  const currency = receipt.currency || 'CDF';
   
   const handleViewReceipt = () => {
     hapticService.selection();

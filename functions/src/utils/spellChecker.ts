@@ -19,6 +19,9 @@ const PRODUCT_WORDS: string[] = [
   'sprite', 'fanta', 'coca', 'cola', 'pepsi', 'mirinda', 'schweppes', 'sevenup',
   'tonic', 'soda', 'limonade', 'orangina', 'oasis', 'tropicana', 'minute', 'maid',
   
+  // Protected brand names (should NEVER be spell-corrected)
+  'sadia', 'seara', 'perdigao', 'aurora', 'doux', 'tyson', 'pilgrim', 'hormel',
+  
   // Beverages - Beers  
   'heineken', 'castel', 'primus', 'skol', 'simba', 'tembo', 'mutzig', 'stella',
   'artois', 'budweiser', 'corona', 'amstel', 'guinness', 'guiness', 'carlsberg',
@@ -173,8 +176,9 @@ const PRODUCT_DICTIONARY: Set<string> = new Set(PRODUCT_WORDS.map(w => w.toLower
 // Format: { misread_char: [possible_correct_chars] }
 const OCR_LETTER_CONFUSIONS: Record<string, string[]> = {
   // D and O often confused (round shapes)
-  'd': ['o', 'b', 'a'],
-  'o': ['d', '0', 'a', 'e'],
+  // NOTE: Removed 'a' - it doesn't look like 'd' or 'o' in OCR
+  'd': ['o', 'b'],
+  'o': ['d', '0', 'e'],
   
   // B, D, O, 0 confusion (round shapes)
   'b': ['d', 'h', '6', 'p'],
@@ -363,27 +367,56 @@ function tryOCRSubstitutions(word: string, maxSubstitutions: number = 2): string
 function findOCRAwareMatch(word: string, maxDistance: number = 2): string | null {
   const lowerWord = word.toLowerCase();
   
-  // First try exact OCR substitutions
+  // First try exact OCR substitutions (highest confidence)
   const ocrMatch = tryOCRSubstitutions(word);
   if (ocrMatch) {
     return ocrMatch;
   }
   
+  // Determine strictness based on word length
+  // Longer words are more likely to be brand names, so be more conservative
+  let effectiveMaxDistance = maxDistance;
+  let minSimilarity = 0.5; // 50% similarity minimum
+  
+  if (lowerWord.length >= 5) {
+    // For longer words (5+ chars), only allow distance of 1
+    // This prevents "sadia" (5 chars) from matching "soda" (4 chars, distance 2)
+    effectiveMaxDistance = 1;
+    minSimilarity = 0.7; // 70% similarity for longer words
+  } else if (lowerWord.length <= 2) {
+    // Very short words must match exactly (no fuzzy matching)
+    return null;
+  }
+  
+  // Calculate similarity threshold
+  const minMatchLength = Math.floor(lowerWord.length * minSimilarity);
+  
   // Then try Levenshtein distance with bias towards OCR-confusable letters
   let bestMatch: string | null = null;
-  let bestScore = maxDistance + 1;
+  let bestScore = effectiveMaxDistance + 1;
   
   for (const dictWord of PRODUCT_DICTIONARY) {
     // Only compare words of similar length
-    if (Math.abs(dictWord.length - lowerWord.length) > maxDistance) {
+    if (Math.abs(dictWord.length - lowerWord.length) > effectiveMaxDistance) {
       continue;
     }
     
     const distance = levenshteinDistance(lowerWord, dictWord);
     
+    // Skip if distance too large
+    if (distance > effectiveMaxDistance) {
+      continue;
+    }
+    
+    // Calculate similarity (how many characters match)
+    const matchingChars = Math.max(lowerWord.length, dictWord.length) - distance;
+    if (matchingChars < minMatchLength) {
+      continue; // Not similar enough
+    }
+    
     // Calculate OCR bonus: reduce distance for OCR-confusable letter differences
     let ocrBonus = 0;
-    if (distance <= maxDistance && distance > 0) {
+    if (distance > 0) {
       for (let i = 0; i < Math.min(lowerWord.length, dictWord.length); i++) {
         const char1 = lowerWord[i];
         const char2 = dictWord[i];
@@ -404,7 +437,10 @@ function findOCRAwareMatch(word: string, maxDistance: number = 2): string | null
     }
   }
   
-  if (bestMatch && bestScore <= maxDistance) {
+  if (bestMatch && bestScore <= effectiveMaxDistance) {
+    // Log the correction for debugging
+    console.log(`  🔤 Fuzzy match: "${word}" → "${bestMatch}" (distance: ${bestScore.toFixed(2)}, length: ${word.length})`);
+    
     // Preserve original case
     if (word[0] === word[0].toUpperCase() && bestMatch) {
       return bestMatch.charAt(0).toUpperCase() + bestMatch.slice(1);

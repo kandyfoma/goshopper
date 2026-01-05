@@ -561,11 +561,11 @@ export function ShoppingListDetailScreen() {
                   </View>
                   <View style={styles.priceContainer}>
                     <Text style={styles.unitPriceLabel}>
-                      {formatCurrency(item.bestPrice, item.currency || 'USD')}/unité
+                      {formatCurrency(item.bestPrice, item.currency || 'CDF')}/unité
                     </Text>
                     {lineTotal && item.quantity > 1 && (
                       <Text style={styles.lineTotalPrice}>
-                        = {formatCurrency(lineTotal, item.currency || 'USD')}
+                        = {formatCurrency(lineTotal, item.currency || 'CDF')}
                       </Text>
                     )}
                   </View>
@@ -580,11 +580,11 @@ export function ShoppingListDetailScreen() {
                   </View>
                   <View style={styles.priceContainer}>
                     <Text style={styles.estimatedPrice}>
-                      ~{formatCurrency(item.estimatedPrice, item.currency || 'USD')}/unité
+                      ~{formatCurrency(item.estimatedPrice, item.currency || 'CDF')}/unité
                     </Text>
                     {estimatedLineTotal && item.quantity > 1 && (
                       <Text style={styles.lineTotalEstimated}>
-                        = ~{formatCurrency(estimatedLineTotal, item.currency || 'USD')}
+                        = ~{formatCurrency(estimatedLineTotal, item.currency || 'CDF')}
                       </Text>
                     )}
                   </View>
@@ -605,7 +605,7 @@ export function ShoppingListDetailScreen() {
                 <View style={styles.savingsBadge}>
                   <Icon name="trending-down" size="xs" color={Colors.status.success} />
                   <Text style={styles.savingsText}>
-                    Économie: {formatCurrency((item.estimatedPrice - item.bestPrice) * (item.quantity || 1), item.currency || 'USD')}
+                    Économie: {formatCurrency((item.estimatedPrice - item.bestPrice) * (item.quantity || 1), item.currency || 'CDF')}
                   </Text>
                 </View>
               )}
@@ -677,7 +677,7 @@ export function ShoppingListDetailScreen() {
               
               list.items.forEach(item => {
                 const qty = item.quantity || 1;
-                const itemCurrency = item.currency || 'USD';
+                const itemCurrency = item.currency || 'CDF';
                 currencyCount.set(itemCurrency, (currencyCount.get(itemCurrency) || 0) + 1);
                 if (item.bestPrice) {
                   totalBestPrice += item.bestPrice * qty;
@@ -693,7 +693,7 @@ export function ShoppingListDetailScreen() {
               const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
               const topStores = Array.from(storeMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2);
               // Get the most common currency
-              const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'USD';
+              const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'CDF';
               
               return (
                 <>
@@ -793,7 +793,7 @@ export function ShoppingListDetailScreen() {
 
                 list.items.forEach(item => {
                   const qty = item.quantity || 1;
-                  const itemCurrency = item.currency || 'USD';
+                  const itemCurrency = item.currency || 'CDF';
                   currencyCount.set(itemCurrency, (currencyCount.get(itemCurrency) || 0) + 1);
                   if (item.bestPrice) {
                     totalBestPrice += item.bestPrice * qty;
@@ -815,7 +815,7 @@ export function ShoppingListDetailScreen() {
                 const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
                 const storeList = Array.from(storeBreakdown.entries()).sort((a, b) => b[1].total - a[1].total);
                 // Get the most common currency
-                const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'USD';
+                const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'CDF';
 
                 return (
                   <>

@@ -35,18 +35,10 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import {config} from '../config';
 import {ReceiptItem} from '../types';
-import {initializeSpellChecker, fixOCRErrors} from '../utils/spellChecker';
+// Removed fixOCRErrors import - it was causing problems like "Sadia" → "Soda", "Full" → "Fufu"
+// We now trust the AI parsing from Gemini instead of "correcting" already-good names
 
 const db = admin.firestore();
-
-// Initialize spell checker on cold start
-let spellCheckerInitialized = false;
-async function ensureSpellChecker(): Promise<void> {
-  if (!spellCheckerInitialized) {
-    await initializeSpellChecker();
-    spellCheckerInitialized = true;
-  }
-}
 
 // ============ DATA INTERFACES ============
 
@@ -55,6 +47,7 @@ async function ensureSpellChecker(): Promise<void> {
  */
 interface ItemPrice {
   storeName: string;
+  originalName: string; // Item name as it appeared in this store
   price: number;
   currency: 'USD' | 'CDF';
   date: admin.firestore.Timestamp;
@@ -314,11 +307,17 @@ function normalizeItemName(name: string): string {
     .replace(/\bv\s+in\b/gi, 'vin')       // "v in" -> "vin"
     .trim();
 
-  // ============ STEP 9: Aggressive fix for any OCR spacing errors ============
-  // Remove spaces between letters in words that are likely OCR mistakes
-  // "s u c r e" -> "sucre", "b a g" -> "bag", etc.
-  normalized = normalized.replace(/\b([a-z](?:\s+[a-z]){1,6})\b/g, (match) => {
-    return match.replace(/\s+/g, '');
+  // ============ STEP 9: Fix OCR spacing errors (ONLY 3+ consecutive single letters) ============
+  // This catches obvious OCR issues like "s u c r e" -> "sucre", "s p r i t e" -> "sprite"
+  // But PRESERVES normal text like "Poulet A Rotir" (the "A" is a valid French word)
+  // Pattern: Only match when we have 3+ single letters with spaces between them
+  normalized = normalized.replace(/\b([a-z]\s+[a-z]\s+[a-z](?:\s+[a-z])*)\b/g, (match) => {
+    // Only join if it creates a word-like string (all single letters)
+    const letters = match.split(/\s+/);
+    if (letters.every(l => l.length === 1)) {
+      return letters.join('');
+    }
+    return match;
   });
 
   // ============ STEP 10: Append size info as suffix ============
@@ -926,6 +925,69 @@ const CATEGORY_KEYWORDS_MAP: Record<string, {
  * Detect category and generate search keywords for an item
  * Returns category name and array of related search keywords
  */
+// Bilingual synonym map for search - French <-> English
+const BILINGUAL_SYNONYMS: Record<string, string[]> = {
+  // Meat
+  'poulet': ['chicken', 'volaille', 'poultry'],
+  'chicken': ['poulet', 'volaille', 'poultry'],
+  'boeuf': ['beef', 'viande', 'meat'],
+  'beef': ['boeuf', 'viande', 'meat'],
+  'viande': ['meat', 'boeuf', 'poulet', 'beef', 'chicken', 'porc', 'pork'],
+  'meat': ['viande', 'boeuf', 'poulet', 'beef', 'chicken', 'porc', 'pork'],
+  'poisson': ['fish', 'sardine', 'thon', 'mbisi'],
+  'fish': ['poisson', 'sardine', 'thon', 'mbisi'],
+  'porc': ['pork', 'viande', 'meat'],
+  'pork': ['porc', 'viande', 'meat'],
+  // Dairy
+  'lait': ['milk', 'dairy', 'lactose'],
+  'milk': ['lait', 'dairy', 'lactose'],
+  'oeuf': ['egg', 'oeufs', 'eggs'],
+  'oeufs': ['eggs', 'oeuf', 'egg'],
+  'egg': ['oeuf', 'oeufs', 'eggs'],
+  'eggs': ['oeufs', 'oeuf', 'egg'],
+  'fromage': ['cheese', 'dairy'],
+  'cheese': ['fromage', 'dairy'],
+  'beurre': ['butter', 'dairy'],
+  'butter': ['beurre', 'dairy'],
+  // Staples
+  'riz': ['rice', 'cereale'],
+  'rice': ['riz', 'cereale'],
+  'pain': ['bread', 'boulangerie', 'bakery'],
+  'bread': ['pain', 'boulangerie', 'bakery'],
+  'farine': ['flour'],
+  'flour': ['farine'],
+  'huile': ['oil', 'mafuta'],
+  'oil': ['huile', 'mafuta'],
+  'sucre': ['sugar'],
+  'sugar': ['sucre'],
+  'sel': ['salt', 'mungwa'],
+  'salt': ['sel', 'mungwa'],
+  // Beverages
+  'eau': ['water'],
+  'water': ['eau'],
+  'jus': ['juice'],
+  'juice': ['jus'],
+  'biere': ['beer', 'bière'],
+  'beer': ['biere', 'bière'],
+  'vin': ['wine'],
+  'wine': ['vin'],
+  // Fruits & Vegetables
+  'tomate': ['tomato', 'nyanya'],
+  'tomato': ['tomate', 'nyanya'],
+  'oignon': ['onion', 'kitunguu'],
+  'onion': ['oignon', 'kitunguu'],
+  'banane': ['banana'],
+  'banana': ['banane'],
+  'pomme': ['apple'],
+  'apple': ['pomme'],
+  'orange': ['orange'],
+  'carotte': ['carrot'],
+  'carrot': ['carotte'],
+  // Brands that are also product types
+  'sadia': ['chicken', 'poulet', 'volaille', 'poultry'],
+  'clover': ['milk', 'lait', 'dairy'],
+};
+
 function detectCategoryAndKeywords(name: string): { category: string | null; searchKeywords: string[] } {
   const normalizedName = name.toLowerCase()
     .normalize('NFD')
@@ -945,10 +1007,25 @@ function detectCategoryAndKeywords(name: string): { category: string | null; sea
         foundKeywords.push(...config.searchTerms);
         // Also add the category name in both languages
         foundKeywords.push(config.category.toLowerCase());
+        
+        // Add bilingual synonyms for the matched keyword
+        if (BILINGUAL_SYNONYMS[keyword]) {
+          foundKeywords.push(keyword); // Add the matched keyword itself
+          foundKeywords.push(...BILINGUAL_SYNONYMS[keyword]);
+        }
         break;
       }
     }
     if (detectedCategory) break;
+  }
+  
+  // Check for bilingual synonyms even if no category matched
+  // This ensures items like "Sadia Chicken" get "poulet" as a keyword
+  for (const [term, synonyms] of Object.entries(BILINGUAL_SYNONYMS)) {
+    if (normalizedName.includes(term)) {
+      foundKeywords.push(term);
+      foundKeywords.push(...synonyms);
+    }
   }
   
   // Also check for specific product types (wine brands -> wine keywords)
@@ -1012,7 +1089,7 @@ export const aggregateItemsOnReceipt = functions
 
       const items = receiptData.items as any[];
       const storeName = receiptData.storeName || 'Inconnu';
-      const currency = receiptData.currency || 'USD';
+      const currency = receiptData.currency || 'CDF';
       
       // Get receipt date as Timestamp for storage
       const rawDate = receiptData.scannedAt || receiptData.date || admin.firestore.Timestamp.now();
@@ -1053,10 +1130,10 @@ export const aggregateItemsOnReceipt = functions
         item: ReceiptItem;
         userItemRef: FirebaseFirestore.DocumentReference;
         cityItemRef: FirebaseFirestore.DocumentReference | null;
+        rawName: string;
       }> = [];
 
-      // Initialize spell checker for OCR error correction
-      await ensureSpellChecker();
+      // Note: Spell checker removed - we now trust AI parsing from Gemini
 
       // Track skipped items for debugging
       let skippedNoName = 0;
@@ -1075,8 +1152,15 @@ export const aggregateItemsOnReceipt = functions
           continue;
         }
 
-        // STEP 1: Fix OCR errors (spacing issues like "S prite" → "Sprite")
-        const correctedName = fixOCRErrors(item.name);
+        // STEP 1: TRUST THE AI PARSING - Don't "correct" already-good names!
+        // The spell checker was causing problems like:
+        // - "Sadia" → "Soda" (wrong!)
+        // - "Full" → "Fufu" (wrong!)
+        // - "Fume" → "Rum" (wrong!)
+        // If Gemini AI already parsed the receipt correctly, we should use that name directly.
+        // Only do minimal cleanup (trim whitespace, normalize multiple spaces)
+        const rawName = item.name;
+        const correctedName = item.name.trim().replace(/\s{2,}/g, ' ');
         
         // STEP 2: Get canonical name for grouping
         const itemNameNormalized = getCanonicalName(correctedName);
@@ -1093,6 +1177,17 @@ export const aggregateItemsOnReceipt = functions
         // Update item with corrected name for display
         item.name = correctedName;
 
+        // Debug log per item normalization
+        console.log('[ItemsAgg][Item]', {
+          receiptId,
+          userId,
+          storeName,
+          city: userCity || null,
+          rawName,
+          correctedName,
+          normalizedName: itemNameNormalized,
+        });
+
         const userItemRef = db.collection(userItemsPath).doc(itemNameNormalized);
         const cityItemRef = cityItemsPath ? db.collection(cityItemsPath).doc(itemNameNormalized) : null;
 
@@ -1101,6 +1196,7 @@ export const aggregateItemsOnReceipt = functions
           item,
           userItemRef,
           cityItemRef,
+          rawName,
         });
       }
 
@@ -1114,12 +1210,13 @@ export const aggregateItemsOnReceipt = functions
 
       // Now process each item with the fetched data
       for (let i = 0; i < itemRefs.length; i++) {
-        const {itemNameNormalized, item, userItemRef, cityItemRef} = itemRefs[i];
+        const {itemNameNormalized, item, userItemRef, cityItemRef, rawName} = itemRefs[i];
         const userItemDoc = userItemDocs[i];
         const cityItemDoc = cityItemDocs[i];
 
         const newPrice: ItemPrice = {
           storeName,
+          originalName: item.name, // Store the actual item name from this receipt
           price: item.unitPrice,
           currency,
           date: receiptDate,
@@ -1162,11 +1259,24 @@ export const aggregateItemsOnReceipt = functions
             ([, a], [, b]) => b - a,
           )[0][0] as 'USD' | 'CDF';
 
-          // Choose the best display name: prefer longer, more complete names
-          // This prevents "Yog" from overwriting "Yogurt" and vice versa
-          const existingName = existingData.name || '';
-          const newName = item.name || '';
-          const bestName = newName.length > existingName.length ? newName : existingName;
+          // FIXED: Always use the NEW name from the receipt
+          // We trust the AI parsing - if Gemini says "Sadia", use "Sadia"
+          // Old logic preferred longer names but that kept bad spellings like "Fufu" over "Full"
+          const bestName = item.name || existingData.name || '';
+
+          console.log('[ItemsAgg][UserItem][Update]', {
+            receiptId,
+            userId,
+            storeName,
+            city: userCity || null,
+            rawName,
+            correctedName: item.name,
+            bestName,
+            normalizedName: itemNameNormalized,
+            price: newPrice.price,
+            currency,
+            priceCount: updatedPrices.length,
+          });
 
           batch.update(userItemRef, {
             name: bestName, // Use longest/most complete name
@@ -1195,6 +1305,18 @@ export const aggregateItemsOnReceipt = functions
             totalPurchases: 1,
             lastPurchaseDate: receiptDate,
           };
+
+          console.log('[ItemsAgg][UserItem][Create]', {
+            receiptId,
+            userId,
+            storeName,
+            city: userCity || null,
+            rawName,
+            correctedName: item.name,
+            normalizedName: itemNameNormalized,
+            price: newPrice.price,
+            currency,
+          });
 
           batch.set(userItemRef, {
             ...newItem,
@@ -1330,10 +1452,25 @@ export const aggregateItemsOnReceipt = functions
             const recencyFactor = Math.max(0, 1 - (daysSinceLastPurchase / 365)); // Decay over 1 year
             const popularityScore = (userIds.length * 10) + (weeklyPurchaseRate * 5) + (recencyFactor * 20);
 
-            // Choose best display name
-            const existingCityName = cityData.name || '';
-            const newCityName = item.name || '';
-            const bestCityName = newCityName.length > existingCityName.length ? newCityName : existingCityName;
+            // FIXED: Always use the NEW name from the receipt
+            // We trust the AI parsing - if Gemini says "Sadia", use "Sadia"
+            // Old logic preferred longer names but that kept bad spellings like "Fufu" over "Full"
+            const bestCityName = item.name || cityData.name || '';
+
+            console.log('[ItemsAgg][CityItem][Update]', {
+              receiptId,
+              userId,
+              storeName,
+              city: userCity,
+              rawName,
+              correctedName: item.name,
+              bestName: bestCityName,
+              normalizedName: itemNameNormalized,
+              price: cityPrice.price,
+              currency,
+              priceCount: updatedCityPrices.length,
+              userCount: userIds.length,
+            });
             
             // Detect/update category and search keywords if not already set
             const updateData: Record<string, any> = {
@@ -1418,6 +1555,18 @@ export const aggregateItemsOnReceipt = functions
             if (searchKeywords.length > 0) {
               newCityItem.searchKeywords = searchKeywords;
             }
+
+            console.log('[ItemsAgg][CityItem][Create]', {
+              receiptId,
+              userId,
+              storeName,
+              city: userCity,
+              rawName,
+              correctedName: item.name,
+              normalizedName: itemNameNormalized,
+              price: cityPrice.price,
+              currency,
+            });
 
             batch.set(cityItemRef, newCityItem);
           }
@@ -1588,7 +1737,7 @@ export const rebuildItemsAggregation = functions
         }
 
         const storeName = receiptData.storeName || 'Inconnu';
-        const currency = receiptData.currency || 'USD';
+        const currency = receiptData.currency || 'CDF';
         const receiptDate =
           receiptData.scannedAt ||
           receiptData.date ||
@@ -1612,6 +1761,7 @@ export const rebuildItemsAggregation = functions
           const itemNameNormalized = getCanonicalName(item.name);
           const newPrice: ItemPrice = {
             storeName,
+            originalName: item.name,
             price: item.unitPrice,
             currency,
             date: receiptDate,
@@ -1796,6 +1946,7 @@ export const getCityItems = functions
           maxPrice: safeNumber(data.maxPrice, 0),
           userCount: safeNumber(data.userCount, 0),
           storeCount: safeNumber(data.storeCount, 0),
+          popularityScore: safeNumber(data.popularityScore, 0),
           lastPurchaseDate: safeToDate(data.lastPurchaseDate),
           prices: (data.prices || []).map((p: any) => ({
             ...p,
@@ -1806,7 +1957,30 @@ export const getCityItems = functions
         };
       });
 
-      console.log(`✅ Returning ${cityItems.length} items for city ${city}`);
+      // Sort by popularity (most purchased/popular items first)
+      // Sorting criteria (in order of priority):
+      // 1. popularityScore (combines userCount, purchase frequency, recency)
+      // 2. totalPurchases (if popularityScore is same)
+      // 3. userCount (if totalPurchases is same)
+      cityItems.sort((a, b) => {
+        // Primary: popularity score (higher is better)
+        const scoreDiff = (b.popularityScore || 0) - (a.popularityScore || 0);
+        if (Math.abs(scoreDiff) > 0.1) return scoreDiff;
+        
+        // Secondary: total purchases (higher is better)
+        const purchaseDiff = (b.totalPurchases || 0) - (a.totalPurchases || 0);
+        if (purchaseDiff !== 0) return purchaseDiff;
+        
+        // Tertiary: user count (more users = more popular)
+        return (b.userCount || 0) - (a.userCount || 0);
+      });
+
+      console.log(`✅ Returning ${cityItems.length} items for city ${city} (sorted by popularity)`);
+      if (cityItems.length > 0) {
+        console.log(`   Top 3 items: ${cityItems.slice(0, 3).map((i: any) => 
+          `${i.name} (score: ${i.popularityScore?.toFixed(1) || 0}, purchases: ${i.totalPurchases || 0})`
+        ).join(', ')}`);
+      }
 
       return {
         success: true,
@@ -1833,6 +2007,7 @@ export const getCityItems = functions
 /**
  * Backfill existing city items with category and searchKeywords
  * Call this function once to update all existing items
+ * Pass forceUpdate: true to regenerate keywords even for items that have them
  */
 export const backfillCityItemCategories = functions
   .region('europe-west1')
@@ -1843,14 +2018,14 @@ export const backfillCityItemCategories = functions
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { city, dryRun = false } = data;
+    const { city, dryRun = false, forceUpdate = false } = data;
 
     if (!city) {
       throw new functions.https.HttpsError('invalid-argument', 'City parameter is required');
     }
 
     try {
-      console.log(`🔄 Starting category backfill for city: ${city}, dryRun: ${dryRun}`);
+      console.log(`🔄 Starting category backfill for city: ${city}, dryRun: ${dryRun}, forceUpdate: ${forceUpdate}`);
       
       const cityItemsRef = db.collection(`artifacts/${config.app.id}/cityItems/${city}/items`);
       const snapshot = await cityItemsRef.get();
@@ -1867,8 +2042,8 @@ export const backfillCityItemCategories = functions
       for (const doc of snapshot.docs) {
         const data = doc.data();
         
-        // Skip if already has category and searchKeywords
-        if (data.category && data.searchKeywords && data.searchKeywords.length > 0) {
+        // Skip if already has category and searchKeywords (unless forceUpdate is true)
+        if (!forceUpdate && data.category && data.searchKeywords && data.searchKeywords.length > 0) {
           skippedCount++;
           continue;
         }
@@ -1885,12 +2060,13 @@ export const backfillCityItemCategories = functions
         if (!dryRun) {
           const updateData: Record<string, any> = {};
           
-          if (category && !data.category) {
-            updateData.category = category;
+          // Always update if forceUpdate, otherwise only if missing
+          if (forceUpdate || (!data.category && category)) {
+            if (category) updateData.category = category;
           }
           
-          if (searchKeywords.length > 0 && (!data.searchKeywords || data.searchKeywords.length === 0)) {
-            updateData.searchKeywords = searchKeywords;
+          if (forceUpdate || (!data.searchKeywords || data.searchKeywords.length === 0)) {
+            if (searchKeywords.length > 0) updateData.searchKeywords = searchKeywords;
           }
           
           if (Object.keys(updateData).length > 0) {
@@ -1917,6 +2093,7 @@ export const backfillCityItemCategories = functions
         updated: updatedCount,
         skipped: skippedCount,
         dryRun,
+        forceUpdate,
         sampleUpdates: updates.slice(0, 20), // Return first 20 for review
       };
     } catch (error: any) {

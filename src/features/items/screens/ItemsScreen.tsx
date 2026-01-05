@@ -215,7 +215,7 @@ export function ItemsScreen() {
                   prices: (data.prices || []).map((p: any) => ({
                     storeName: p.storeName || 'Inconnu',
                     price: p.price || 0,
-                    currency: p.currency || 'USD',
+                    currency: p.currency || 'CDF',
                     date: safeToDate(p.date),
                     receiptId: p.receiptId || '',
                   })),
@@ -223,7 +223,7 @@ export function ItemsScreen() {
                   maxPrice: data.maxPrice || 0,
                   avgPrice: data.avgPrice || 0,
                   storeCount: data.storeCount || 0,
-                  currency: data.currency || 'USD',
+                  currency: data.currency || 'CDF',
                 };
               });
 
@@ -263,7 +263,7 @@ export function ItemsScreen() {
                 prices: (data.prices || []).map((p: any) => ({
                   storeName: p.storeName || 'Inconnu',
                   price: p.price || 0,
-                  currency: p.currency || 'USD',
+                  currency: p.currency || 'CDF',
                   date: safeToDate(p.date),
                   receiptId: p.receiptId || '',
                 })),
@@ -271,7 +271,7 @@ export function ItemsScreen() {
                 maxPrice: data.maxPrice || 0,
                 avgPrice: data.avgPrice || 0,
                 storeCount: data.storeCount || 0,
-                currency: data.currency || 'USD',
+                currency: data.currency || 'CDF',
               };
             });
 

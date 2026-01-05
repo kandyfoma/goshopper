@@ -124,7 +124,7 @@ export default function VideoScanInstructionsModal({
               <View style={styles.headerDrag} />
               <View style={styles.headerTop}>
                 <View style={styles.headerContent}>
-                  <Text style={styles.headerTitle}>📹 Comment scanner en vidéo</Text>
+                  <Text style={styles.headerTitle}>Comment scanner en vidéo</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.closeButton}
@@ -143,26 +143,26 @@ export default function VideoScanInstructionsModal({
               {/* Rule 1 */}
               <View style={styles.ruleHeader}>
                 <Icon name="zap" size="sm" color={Colors.status.warning} />
-                <Text style={styles.ruleTitle}>🐌 RÈGLE #1: SCANNEZ TRÈS LENTEMENT!</Text>
+                <Text style={styles.ruleTitle}>RÈGLE #1: SCANNEZ TRÈS LENTEMENT!</Text>
               </View>
               <Text style={styles.ruleText}>Prenez 10-15 secondes pour tout le reçu.</Text>
 
               {/* Rule 2 */}
               <View style={styles.ruleHeader}>
                 <Icon name="list" size="sm" color={Colors.primary} />
-                <Text style={styles.ruleTitle}>📱 RÈGLE #2: SÉQUENCE CORRECTE</Text>
+                <Text style={styles.ruleTitle}>RÈGLE #2: SÉQUENCE CORRECTE</Text>
               </View>
               <View style={styles.stepsList}>
                 <View style={styles.stepRow}>
-                  <Text style={styles.stepNumber}>1️⃣</Text>
+                  <Text style={styles.stepNumber}>1.</Text>
                   <Text style={styles.stepText}>Commencez 5cm AU-DESSUS du nom du magasin</Text>
                 </View>
                 <View style={styles.stepRow}>
-                  <Text style={styles.stepNumber}>2️⃣</Text>
+                  <Text style={styles.stepNumber}>2.</Text>
                   <Text style={styles.stepText}>Descendez LENTEMENT ligne par ligne (1-2s par section)</Text>
                 </View>
                 <View style={styles.stepRow}>
-                  <Text style={styles.stepNumber}>3️⃣</Text>
+                  <Text style={styles.stepNumber}>3.</Text>
                   <Text style={styles.stepText}>Terminez 5cm APRÈS le total</Text>
                 </View>
               </View>
@@ -170,7 +170,7 @@ export default function VideoScanInstructionsModal({
               {/* Rule 3 */}
               <View style={styles.ruleHeader}>
                 <Icon name="sun" size="sm" color={Colors.accent} />
-                <Text style={styles.ruleTitle}>💡 RÈGLE #3: QUALITÉ</Text>
+                <Text style={styles.ruleTitle}>RÈGLE #3: QUALITÉ</Text>
               </View>
               <View style={styles.qualityList}>
                 <View style={styles.qualityRow}>
@@ -190,7 +190,7 @@ export default function VideoScanInstructionsModal({
               {/* Tip */}
               <View style={styles.tipHeader}>
                 <Icon name="info" size="sm" color={Colors.status.info} />
-                <Text style={styles.tipTitle}>⚠️ ASTUCE</Text>
+                <Text style={styles.tipTitle}>ASTUCE</Text>
               </View>
               <Text style={styles.tipText}>
                 Reçu court (&lt; 10 articles)?{'\n'}

@@ -82,7 +82,7 @@ export function UserProvider({children}: UserProviderProps) {
             const userProfile: UserProfile = {
               userId: user.uid,
               preferredLanguage: data?.preferredLanguage || 'fr',
-              preferredCurrency: data?.preferredCurrency || 'USD',
+              preferredCurrency: data?.preferredCurrency || 'CDF',
               notificationsEnabled: data?.notificationsEnabled ?? true,
               priceAlertsEnabled: data?.priceAlertsEnabled ?? true,
               displayName: data?.displayName || user.displayName,
@@ -291,7 +291,7 @@ export function UserProvider({children}: UserProviderProps) {
         const userProfile: UserProfile = {
           userId: user.uid,
           preferredLanguage: data?.preferredLanguage || 'fr',
-          preferredCurrency: data?.preferredCurrency || 'USD',
+          preferredCurrency: data?.preferredCurrency || 'CDF',
           notificationsEnabled: data?.notificationsEnabled ?? true,
           priceAlertsEnabled: data?.priceAlertsEnabled ?? true,
           displayName: data?.displayName,

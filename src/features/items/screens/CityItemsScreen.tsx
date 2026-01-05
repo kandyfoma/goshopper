@@ -44,6 +44,7 @@ interface CityItemData {
   searchKeywords?: string[]; // Keywords for enhanced search (e.g., ['wine', 'vin'] for 'merlot')
   prices: {
     storeName: string;
+    originalName?: string; // Item name as it appeared in this store
     price: number;
     currency: 'USD' | 'CDF';
     date: Date | any; // Can be Date or Firestore Timestamp
@@ -466,6 +467,10 @@ export function CityItemsScreen() {
             styles.itemCard,
             pressed && styles.itemCardPressed,
           ]}
+          onPress={() => {
+            // Navigate to detail screen with full item data
+            navigation.navigate('CityItemDetail', {item});
+          }}
           android_ripple={{color: Colors.primaryLight}}>
           {/* Card Header */}
           <View style={styles.itemHeader}>

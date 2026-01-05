@@ -12,6 +12,7 @@ export {offlineModeService} from './offlineModeService';
 export {widgetDataService} from './widgetDataService';
 export {ocrCorrectionService} from './ocrCorrectionService';
 export {translationService} from './translation';
+export {navigationService, navigationRef} from './navigationService';
 
 // Caching services
 export {cacheManager, CacheTTL, CachePriority} from './caching';

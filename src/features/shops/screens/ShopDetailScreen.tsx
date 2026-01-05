@@ -77,7 +77,7 @@ export function ShopDetailScreen() {
           storePhone: data.storePhone,
           receiptNumber: data.receiptNumber,
           date: safeToDate(data.scannedAt),
-          currency: data.currency || 'USD',
+          currency: data.currency || 'CDF',
           items: (data.items || []).map((item: any) => ({
             id: item.id || Math.random().toString(36).substring(7),
             name: item.name || 'Article inconnu',

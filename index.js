@@ -221,6 +221,28 @@ notifee.onBackgroundEvent(async ({type, detail}) => {
       console.log('User pressed notification', notification?.id);
       // Mark as read when user taps the notification
       await markNotificationAsRead(notification?.id);
+      
+      // Store navigation intent for when app opens
+      if (notification?.data) {
+        const data = notification.data;
+        console.log('[Background] Storing navigation intent:', data);
+        
+        if (data.type === 'scan_complete' && data.receiptId) {
+          // Store intent to navigate to receipt detail
+          await AsyncStorage.setItem('@goshopperai/pending_navigation', JSON.stringify({
+            screen: 'ReceiptDetail',
+            params: { receiptId: data.receiptId },
+            timestamp: Date.now(),
+          }));
+          console.log('[Background] Will navigate to receipt:', data.receiptId);
+        } else if (data.type === 'price_alert') {
+          await AsyncStorage.setItem('@goshopperai/pending_navigation', JSON.stringify({
+            screen: 'PriceAlerts',
+            params: {},
+            timestamp: Date.now(),
+          }));
+        }
+      }
       break;
     case EventType.ACTION_PRESS:
       console.log('User pressed action:', pressAction?.id);

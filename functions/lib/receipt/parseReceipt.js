@@ -430,6 +430,35 @@ REQUIRED OUTPUT FORMAT:
   "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
 }
 
+DATE PARSING (CRITICAL):
+- Convert ALL dates to YYYY-MM-DD format
+- DRC receipts typically use DD-MM-YY or DD/MM/YY format (day first!)
+- EXAMPLES:
+  - "05-01-26" = January 5, 2026 → "2026-01-05" (NOT 2005-01-26!)
+  - "26-01-05" = January 26, 2005 → "2005-01-26"
+  - "15/03/24" = March 15, 2024 → "2024-03-15"
+- If year is 2 digits (26), assume 20XX for years 00-30, 19XX for 31-99
+- If unsure, use the current year (2026) and assume DD-MM format
+
+OCR ERROR CORRECTION (CRITICAL):
+You must fix obvious OCR character recognition errors while preserving brand names:
+- FIX these common OCR mistakes:
+  - "Deufs" → "Oeufs" (eggs)
+  - "rermiers" → "fermiers" (farmers)
+  - "Fantta" → "Fanta"
+  - "0range" (zero) → "Orange"
+  - "Hu1le" → "Huile" (oil)
+  - "P0ulet" → "Poulet" (chicken)
+  - "R1z" → "Riz" (rice)
+  - "Su cre" → "Sucre" (sugar)
+  - "La1t" → "Lait" (milk)
+  - "B1ere" → "Bière" (beer)
+  - "Eau M1nerale" → "Eau Minerale"
+- PRESERVE brand names exactly: Sadia, Clover, Stork, Omo, Sunlight, Nido, etc.
+- DO NOT change brand names to similar words (e.g., keep "Sadia" as "Sadia", NOT "Soda")
+- Fix character substitutions: 0→O, 1→I/L, 5→S, 8→B when in the middle of words
+- Fix missing/swapped letters when the correct word is obvious from context
+
 CRITICAL - DO NOT RETURN EMPTY ITEMS:
 - If you can read the store name, you MUST also extract line items
 - Even blurry receipts have SOME readable text - extract whatever you can see
@@ -470,49 +499,144 @@ KEY RULES FOR JAMBO MART:
 4. Use UNIT_PRICE (3rd number on line 2), NOT the total
 5. MONTANT at bottom is the receipt total
 
-COMMON DRC RECEIPT PATTERNS:
-- Product names are often in UPPERCASE
-- Prices are usually 3-6 digit numbers (e.g., 500, 1500, 10000 CDF)
-- Look for patterns like: "PRODUCT NAME    PRICE" or "PRODUCT NAME...PRICE"
-- Numbers at the end of lines are usually prices or totals
+=====================================
+STORE-SPECIFIC FORMATS (CRITICAL):
+=====================================
 
-MULTI-LINE ITEM FORMAT (VERY IMPORTANT):
-Many receipts use a TWO-LINE format per item:
-- Line 1: Product NAME only (price column may show "Y", "-", or be empty)
-- Line 2: Details like "QTE: 2  P.U: 1500  TOTAL: 3000" or "2 x 1500 = 3000"
+**FORMAT 1: HYPER PSARO / CARREFOUR** (Weight-based items)
+Columns: Qte | Articles | Emb | Prix | Montant
+- Items can have DECIMAL quantities (weight in kg): .51, .91, 1.22
+- Unit price is PER KG, total is calculated
+- Product names span multiple lines with size info
 
-EXAMPLES OF MULTI-LINE ITEMS:
-Example 1:
-  "COCA COLA 500ML           Y"
-  "   1    1500         1500"
-  → {"name": "COCA COLA 500ML", "quantity": 1, "unitPrice": 1500}
+EXAMPLES:
+  "1   Baguette Francaise Sesame (H.P.) +/- 300gr   1  2450   2450"
+  → {"name": "Baguette Francaise Sesame 300gr", "quantity": 1, "unitPrice": 2450}
 
-Example 2:
-  "LAIT COWBELL 400G"
-  "   QTE: 2  PU: 2500  3000"
-  → {"name": "LAIT COWBELL 400G", "quantity": 2, "unitPrice": 2500}
+  ".51 Hache De Boeuf (H.P.)1  28500   14478"
+  → {"name": "Hache De Boeuf", "quantity": 0.51, "unitPrice": 28500}
+  (Note: 0.51 kg × 28500/kg = 14478 total - use unitPrice 28500, NOT 14478)
 
-SINGLE-LINE ITEM FORMAT:
-- "FANTA 500ML    2500" → {"name": "FANTA 500ML", "quantity": 1, "unitPrice": 2500}
-- "2X PAIN        1000" → {"name": "PAIN", "quantity": 2, "unitPrice": 500}
+  ".91Poulet Fume (H.P.)  1  14900   13529"
+  → {"name": "Poulet Fume", "quantity": 0.91, "unitPrice": 14900}
 
-KEY RULES:
-1. If Line 1 has a name but NO valid price (or shows "Y", "-", etc.), LOOK AT LINE 2
-2. Line 2 usually contains: quantity, unit price (P.U/PU), and total price
-3. The LAST number on Line 2 is usually the TOTAL for that item
-4. Calculate unitPrice = totalPrice / quantity if needed
-5. Look for the TOTAL/MONTANT/TTL line to get the receipt total
+KEY RULES FOR HYPER PSARO:
+1. Decimal at start (.51, .91) = weight in kg
+2. (H.P.) is internal code - REMOVE IT
+3. Use the UNIT PRICE column, not the MONTANT (total) column
+4. Keep size info like 300gr, 500ml, 450gr in product name
 
-CURRENCY RULES:
-- **DEFAULT is "CDF"** (Congolese Franc) - prices in DRC are usually 500+
-- Only use "USD" if you see $ symbol or "USD" text explicitly
-- Large numbers (1000, 5000, 10000) = CDF
-- Small decimals ($1.50, $5.00) = USD
+**FORMAT 2: TOP MARKET** (Numbered items with product codes)
+Columns: Nr | Article | Qte | Prix | Montant
+- Items are numbered 1-17+
+- Has product codes like SA-66080, BF836064, L3840
+- Has pack codes in parentheses: (4), (30), (40), (12), (24), (36)
+- Prices use commas: 60,394 means 60394
 
-CLEANUP:
-- Remove internal codes like (SA), (z4), (24) from product names
+EXAMPLES:
+  "1 Jamboo Classic RICE BASMATI 10 KG (4)   1 pc  60,394   60,394"
+  → {"name": "Jamboo Classic Rice Basmati 10 KG", "quantity": 1, "unitPrice": 60394}
+
+  "2 Egg (Oeuf (30))   5 Pkt  2,890   14,450"
+  → {"name": "Egg (Oeuf)", "quantity": 5, "unitPrice": 2890}
+
+  "8 17458 (BONI BIO Extra virgin org 75cl (12))   1 pc  33,061   33,061"
+  → {"name": "BONI BIO Extra virgin org 75cl", "quantity": 1, "unitPrice": 33061}
+
+  "10 SA-66080 (Johnson Baby Soap Bedtime 175G (36))   2 pc  4,015   8,030"
+  → {"name": "Johnson Baby Soap Bedtime 175G", "quantity": 2, "unitPrice": 4015}
+
+KEY RULES FOR TOP MARKET:
+1. Strip leading item numbers (1, 2, 3...)
+2. Strip product codes: SA-66080, BF836064, L3840, 17458
+3. Strip pack codes: (4), (30), (40), (12), (24), (36) - these are case quantities
+4. Keep actual product info in parentheses like (Oeuf), size like 75cl, 10 KG
+5. Convert comma prices: 60,394 → 60394
+6. Ignore "Round Off" line
+
+**FORMAT 3: JAMBO MART** (Two-line per item with Y/N flags)
+Columns: QTY | UNITE | PRIX | DISC% | MONTANT
+- Product name on Line 1 with Y or N at end (VAT flag - ignore)
+- Quantity, unit, and prices on Line 2
+
+EXAMPLES:
+  "Pepper Variety Red Per Kg (SA)          Y"
+  "0.372  KG  15,800.00      0      5,877.60"
+  → {"name": "Pepper Variety Red Per Kg", "quantity": 0.372, "unitPrice": 15800}
+
+  "Sadia Chicken 1.3kg                     N"
+  "2      PCS  12,400.00     0      24,800.00"
+  → {"name": "Sadia Chicken 1.3kg", "quantity": 2, "unitPrice": 12400}
+
+KEY RULES FOR JAMBO MART:
+1. The "Y" or "N" at end of product line is VAT flag - IGNORE IT
+2. The "(SA)" after product names is code - REMOVE IT
+3. Use UNIT_PRICE (PRIX column), NOT the MONTANT (total)
+4. Decimal quantities like 0.372 are weights in KG
+
+=====================================
+GENERAL RULES FOR ALL RECEIPTS:
+=====================================
+
+QUANTITY EXTRACTION:
+- Integer quantities: 1, 2, 5 = count of items
+- Decimal quantities: 0.372, 0.51, 1.22 = weight in KG
+- Always use the quantity value, even if decimal
+
+PRICE EXTRACTION:
+- Use UNIT PRICE (price per item/kg), NOT the line total
+- Remove commas from prices: 60,394 → 60394
+- Remove decimals if .00: 15,800.00 → 15800
+- If only total shown, calculate: unitPrice = total / quantity
+
+CODES TO REMOVE FROM PRODUCT NAMES:
+- (H.P.), (SA), (z4) - internal codes
+- (4), (12), (24), (30), (36), (40) - pack quantities
+- Leading codes: SA-66080, BF836064, L3840, 17458
+- Y, N at end of line - VAT flags
+
+KEEP IN PRODUCT NAMES:
+- Size/weight: 300gr, 500ml, 75cl, 10 KG, 1.3kg, 400g
+- Product descriptions in parentheses: (Oeuf), (Extra virgin)
+
+CURRENCY RULES (CRITICAL - READ VERY CAREFULLY):
+- **DEFAULT is "CDF"** (Congolese Franc)
+- DRC receipts are 99% in CDF - prices are large numbers (500, 1000, 5000, 50000+)
+
+CDF INDICATORS (if ANY of these appear, currency is CDF):
+- "(Fc)", "(FC)", "FC", "Fc", "CDF", "Franc", "Congolais"
+- "Montant TTC (Fc)", "Montant T.T.C. (FC)", "Total Due:FC"
+- Large numbers without $ sign (2450, 15800, 60394)
+
+IGNORE USD CONVERSIONS:
+- Many DRC receipts show a USD equivalent at the bottom for reference
+- "Total Facture :($) 35.803" = just a conversion, NOT the currency
+- "Total Due:USD 23.28" = just a conversion, NOT the currency
+- These conversions do NOT change the receipt currency
+
+EXAMPLES:
+- Receipt shows "Montant TTC (Fc): 82347" and "Total Facture :($) 35.80" → Currency is CDF
+- Receipt shows "Total Due:FC 53,541.40" and "Total Due:USD 23.28" → Currency is CDF
+- Receipt shows "Montant T.T.C. (FC): 249003" → Currency is CDF
+
+Only use "USD" if:
+1. ALL item prices are small decimals ($1.50, $5.00)
+2. No "(Fc)" or "(FC)" appears anywhere
+3. $ symbol is used for item prices (not just a total conversion)
+
+CLEANUP RULES:
+- Remove internal codes: (H.P.), (SA), (z4), (24)
+- Remove pack quantities: (4), (12), (24), (30), (36), (40)
+- Remove product codes from start: SA-66080, BF836064, L3840, 17458
+- Remove Y/N flags at end of lines
 - Fix OCR errors: "a00gr" → "400gr", "s00ml" → "500ml"
-- Keep size/weight info in product names (400g, 500ml, 1L, etc.)
+- Keep size/weight info: 400g, 500ml, 1L, 10 KG, 75cl, 1.3kg
+- Normalize case: "RICE BASMATI" → "Rice Basmati"
+
+TOTAL EXTRACTION:
+- Look for: "Montant TTC", "Montant T.T.C.", "Net Montant", "Total", "MONTANT"
+- Use the final total with tax included
+- The total should be in the same currency as the items
 
 IMPORTANT: If you recognize a store name but return 0 items, you have FAILED. Try harder to find the items!`;
 // FALLBACK PROMPT - Used when primary parsing returns empty items
@@ -549,10 +673,11 @@ COMMON DRC RECEIPT FORMATS:
    - "Product Name    5000"
 
 STEP 3 - OUTPUT JSON:
+DATE PARSING: DRC receipts use DD-MM-YY format. "05-01-26" = January 5, 2026 → "2026-01-05"
 {
   "storeName": "Store name from header",
   "rawText": "All text transcribed line by line",
-  "date": "YYYY-MM-DD or today's date",
+  "date": "YYYY-MM-DD format (convert DD-MM-YY to YYYY-MM-DD)",
   "currency": "CDF",
   "total": number (look for TOTAL, TTL, MONTANT, or largest number),
   "items": [
@@ -567,6 +692,8 @@ CRITICAL RULES:
 4. Guess product names from partial text
 5. Prices in DRC are typically 500-100000 CDF
 6. Look for columns: usually [Name] [Qty] [Price] [Total]
+7. FIX OCR ERRORS: "Deufs"→"Oeufs", "rermiers"→"fermiers", "0range"→"Orange"
+8. PRESERVE brand names: Sadia, Clover, Stork (do NOT change to similar words)
 
 EXAMPLE PATTERNS TO LOOK FOR:
 - "COCA 1500" → {"name": "COCA", "quantity": 1, "unitPrice": 1500}
@@ -620,288 +747,56 @@ function generateItemId() {
     return Math.random().toString(36).substring(2, 15);
 }
 /**
+ * Detect if a name has OCR spacing issues that need cleaning
+ * Returns true ONLY if we're confident there's an OCR error
+ */
+function hasOCRSpacingIssue(name) {
+    // Pattern 1: 3+ consecutive single letters with spaces (definitely OCR error)
+    // Matches: "S P R I T E", "P O U L E T", "B A N A N E"
+    // Does NOT match: "Poulet A Rotir" (A is a valid French word)
+    const consecutiveSingleLetters = /\b[A-Za-z]\s+[A-Za-z]\s+[A-Za-z](\s+[A-Za-z])*\b/;
+    if (consecutiveSingleLetters.test(name)) {
+        // Count how many single-letter sequences we have
+        const matches = name.match(/\b[A-Za-z]\s+(?=[A-Za-z]\b)/g);
+        if (matches && matches.length >= 2) {
+            // 3+ consecutive single letters = definitely OCR error
+            return true;
+        }
+    }
+    return false;
+}
+/**
  * Clean item name from OCR spacing errors
- * Fixes common AI vision issues like "B AG" -> "BAG", "TOMATE S" -> "TOMATES"
+ * ONLY applies cleaning when we detect clear OCR issues
+ * Clear receipts like "Poulet A Rotir Sadia" are left unchanged
  */
 function cleanItemName(name) {
     if (!name)
         return name;
     let cleaned = name.trim();
-    // === FIX 1: Remove spaces between single letter and rest of word ===
-    // "B AG" -> "BAG", "S AC" -> "SAC", "R IZ" -> "RIZ"
-    cleaned = cleaned.replace(/\b([A-Za-z])\s+([A-Za-z]{2,})\b/g, '$1$2');
-    // === FIX 2: Remove spaces before last letter ===
-    // "TOMATE S" -> "TOMATES", "BANANE S" -> "BANANES"
-    cleaned = cleaned.replace(/\b([A-Za-z]{2,})\s+([A-Za-z])\b/g, '$1$2');
-    // === FIX 3: Fix common split words (comprehensive list) ===
-    const splitWordFixes = [
-        // Common French words
-        [/\bB\s*A\s*G\b/gi, 'BAG'],
-        [/\bS\s*A\s*C\b/gi, 'SAC'],
-        [/\bR\s*I\s*Z\b/gi, 'RIZ'],
-        [/\bE\s*A\s*U\b/gi, 'EAU'],
-        [/\bV\s*I\s*N\b/gi, 'VIN'],
-        [/\bL\s*A\s*I\s*T\b/gi, 'LAIT'],
-        [/\bP\s*A\s*I\s*N\b/gi, 'PAIN'],
-        [/\bS\s*E\s*L\b/gi, 'SEL'],
-        [/\bT\s*H\s*E\b/gi, 'THE'],
-        [/\bC\s*A\s*F\s*E\b/gi, 'CAFE'],
-        [/\bH\s*U\s*I\s*L\s*E\b/gi, 'HUILE'],
-        [/\bS\s*U\s*C\s*R\s*E\b/gi, 'SUCRE'],
-        [/\bB\s*E\s*U\s*R\s*R\s*E\b/gi, 'BEURRE'],
-        [/\bF\s*R\s*O\s*M\s*A\s*G\s*E\b/gi, 'FROMAGE'],
-        [/\bP\s*O\s*U\s*L\s*E\s*T\b/gi, 'POULET'],
-        [/\bV\s*I\s*A\s*N\s*D\s*E\b/gi, 'VIANDE'],
-        [/\bP\s*O\s*I\s*S\s*S\s*O\s*N\b/gi, 'POISSON'],
-        [/\bL\s*E\s*G\s*U\s*M\s*E\s*S?\b/gi, 'LEGUMES'],
-        [/\bF\s*R\s*U\s*I\s*T\s*S?\b/gi, 'FRUITS'],
-        [/\bT\s*O\s*M\s*A\s*T\s*E\s*S?\b/gi, 'TOMATES'],
-        [/\bB\s*A\s*N\s*A\s*N\s*E\s*S?\b/gi, 'BANANES'],
-        [/\bO\s*R\s*A\s*N\s*G\s*E\s*S?\b/gi, 'ORANGES'],
-        [/\bO\s*I\s*G\s*N\s*O\s*N\s*S?\b/gi, 'OIGNONS'],
-        [/\bS\s*A\s*V\s*O\s*N\b/gi, 'SAVON'],
-        [/\bF\s*A\s*R\s*I\s*N\s*E\b/gi, 'FARINE'],
-        [/\bP\s*A\s*T\s*E\s*S?\b/gi, 'PATES'],
-        [/\bS\s*P\s*R\s*I\s*T\s*E\b/gi, 'SPRITE'],
-        [/\bF\s*A\s*N\s*T\s*A\b/gi, 'FANTA'],
-        [/\bC\s*O\s*C\s*A\b/gi, 'COCA'],
-        [/\bC\s*O\s*L\s*A\b/gi, 'COLA'],
-        [/\bB\s*I\s*E\s*R\s*E\b/gi, 'BIERE'],
-        [/\bY\s*A\s*O\s*U\s*R\s*T\b/gi, 'YAOURT'],
-        [/\bC\s*R\s*E\s*M\s*E\b/gi, 'CREME'],
-        [/\bO\s*E\s*U\s*F\s*S?\b/gi, 'OEUFS'],
-        [/\bP\s*O\s*M\s*M\s*E\s*S?\b/gi, 'POMMES'],
-        [/\bP\s*O\s*I\s*V\s*R\s*E\b/gi, 'POIVRE'],
-        [/\bM\s*A\s*Y\s*O\b/gi, 'MAYO'],
-        [/\bK\s*E\s*T\s*C\s*H\s*U\s*P\b/gi, 'KETCHUP'],
-        [/\bS\s*A\s*U\s*C\s*E\b/gi, 'SAUCE'],
-        [/\bJ\s*U\s*S\b/gi, 'JUS'],
-        [/\bS\s*O\s*D\s*A\b/gi, 'SODA'],
-        // English common words
-        [/\bM\s*I\s*L\s*K\b/gi, 'MILK'],
-        [/\bB\s*R\s*E\s*A\s*D\b/gi, 'BREAD'],
-        [/\bR\s*I\s*C\s*E\b/gi, 'RICE'],
-        [/\bO\s*I\s*L\b/gi, 'OIL'],
-        [/\bS\s*A\s*L\s*T\b/gi, 'SALT'],
-        [/\bS\s*U\s*G\s*A\s*R\b/gi, 'SUGAR'],
-        [/\bW\s*A\s*T\s*E\s*R\b/gi, 'WATER'],
-        [/\bJ\s*U\s*I\s*C\s*E\b/gi, 'JUICE'],
-        [/\bB\s*E\s*E\s*R\b/gi, 'BEER'],
-        [/\bC\s*H\s*E\s*E\s*S\s*E\b/gi, 'CHEESE'],
-        [/\bB\s*U\s*T\s*T\s*E\s*R\b/gi, 'BUTTER'],
-        [/\bC\s*H\s*I\s*C\s*K\s*E\s*N\b/gi, 'CHICKEN'],
-        [/\bF\s*I\s*S\s*H\b/gi, 'FISH'],
-        [/\bM\s*E\s*A\s*T\b/gi, 'MEAT'],
-        [/\bS\s*O\s*A\s*P\b/gi, 'SOAP'],
-        [/\bF\s*L\s*O\s*U\s*R\b/gi, 'FLOUR'],
-        // Brands
-        [/\bN\s*I\s*D\s*O\b/gi, 'NIDO'],
-        [/\bM\s*A\s*G\s*G\s*I\b/gi, 'MAGGI'],
-        [/\bN\s*E\s*S\s*T\s*L\s*E\b/gi, 'NESTLE'],
-        [/\bP\s*E\s*P\s*S\s*I\b/gi, 'PEPSI'],
-        [/\bP\s*R\s*I\s*M\s*U\s*S\b/gi, 'PRIMUS'],
-        [/\bS\s*K\s*O\s*L\b/gi, 'SKOL'],
-        [/\bT\s*E\s*M\s*B\s*O\b/gi, 'TEMBO'],
-    ];
-    for (const [pattern, replacement] of splitWordFixes) {
-        cleaned = cleaned.replace(pattern, replacement);
+    // === STEP 1: Check if cleaning is needed ===
+    // Only apply aggressive cleaning if we detect obvious OCR spacing errors
+    if (!hasOCRSpacingIssue(cleaned)) {
+        // Receipt is clear - just do minimal cleanup (multiple spaces only)
+        cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+        return cleaned;
     }
-    // === FIX 4: General pattern - remove single spaces between letters in ALL CAPS words ===
-    // "P E L O U S T O R E" -> "PELOUSTORE"
-    // But only if the result looks like a word (consecutive letters)
+    // === STEP 2: OCR issue detected - apply cleaning ===
+    console.log(`🔧 OCR spacing issue detected in: "${name}"`);
+    // Fix consecutive single letters with spaces: "S P R I T E" -> "SPRITE"
+    // This regex finds sequences of single letters separated by spaces
+    cleaned = cleaned.replace(/\b([A-Za-z])((?:\s+[A-Za-z]){2,})\b/g, (match) => {
+        // Join all the single letters together
+        return match.replace(/\s+/g, '');
+    });
+    // Also fix ALL CAPS with spaces: "P E L O U S T O R E" -> "PELOUSTORE"
     cleaned = cleaned.replace(/\b([A-Z](?:\s[A-Z]){2,})\b/g, (match) => {
         return match.replace(/\s/g, '');
     });
-    // === FIX 4.5: Aggressive fix for OCR spacing errors ===
-    // Remove spaces between letters in words that are likely OCR mistakes
-    // "s u c r e" -> "sucre", "b a g" -> "bag", etc.
-    cleaned = cleaned.replace(/\b([A-Za-z](?:\s+[A-Za-z]){1,6})\b/g, (match) => {
-        return match.replace(/\s+/g, '');
-    });
-    // === FIX 5: Clean up multiple spaces ===
+    // Clean up multiple spaces
     cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
-    // === FIX 6: Detect and fix corrupted names ===
-    if (isCorruptedName(cleaned)) {
-        console.warn(`🚨 Cloud Function detected corrupted item name: "${name}" → "${cleaned}", using fallback`);
-        return 'Article inconnu';
-    }
-    // === FIX 7: Try to reconstruct corrupted names ===
-    cleaned = reconstructCorruptedName(cleaned);
+    console.log(`🔧 Cleaned result: "${cleaned}"`);
     return cleaned;
-}
-/**
- * FIX: Improved corruption detection
- * Recognizes alphanumeric product codes (a00gr, z4, s00MI) as valid.
- */
-function isCorruptedName(name) {
-    const trimmed = name.trim();
-    if (trimmed.length < 3)
-        return true;
-    // Exception: Product size codes like "a00gr", "s00ml", "400gr", "500ml" are valid
-    const hasSizeCode = /\b[a-z]?\d{2,3}\s*(gr|g|ml|l|kg|oz|cl|mi)\b/i.test(trimmed);
-    if (hasSizeCode) {
-        // This is a legitimate product with size info, don't mark as corrupted
-        return false;
-    }
-    // Patterns for valid product suffixes/codes
-    const productCodePattern = /\b([a-z]\d+|\d+[a-z]+)\b/i;
-    if (productCodePattern.test(trimmed))
-        return false;
-    const strangeChars = trimmed.replace(/[a-zA-Z0-9\s\(\)\.\,\-\/\+]/g, '').length;
-    const ratio = strangeChars / trimmed.length;
-    return ratio > 0.35;
-}
-/**
- * Try to reconstruct corrupted names like "S prite e30 m l" → "Sprite 330ml"
- */
-function reconstructCorruptedName(name) {
-    // Handle specific corruption patterns
-    const patterns = [
-        {
-            // Pattern: "S prite e30 m l" → "Sprite 330ml" (split word)
-            regex: /^([A-Za-z])\s+([A-Za-z]{4,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/i,
-            reconstruct: (match) => {
-                const [, firstLetter, word, corruptedDigit, number, unit1, unit2] = match;
-                const reconstructedWord = firstLetter + word;
-                // Fix common corruption: 'e' → '3', 'o' → '0', etc.
-                const digitMap = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
-                const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
-                const reconstructedUnit = fixedDigit + number;
-                const reconstructedSize = (unit1 + unit2).toLowerCase();
-                return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
-            }
-        },
-        {
-            // Pattern: "Sprite e30 m l" → "Sprite 330ml" (word already reconstructed)
-            regex: /^([A-Za-z]{5,})\s+([a-z])(\d{2})\s+([a-z])\s+([a-z])$/,
-            reconstruct: (match) => {
-                const [, word, corruptedDigit, number, unit1, unit2] = match;
-                const digitMap = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
-                const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
-                const reconstructedUnit = fixedDigit + number;
-                const reconstructedSize = (unit1 + unit2).toLowerCase();
-                return `${word} ${reconstructedUnit}${reconstructedSize}`;
-            }
-        },
-        {
-            // Pattern: "S prite 330 m l" → "Sprite 330ml"
-            regex: /^([A-Za-z])\s+([a-z]{4,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
-            reconstruct: (match) => {
-                const [, firstLetter, word, number, unit1, unit2] = match;
-                const reconstructedWord = firstLetter + word;
-                const reconstructedSize = (unit1 + unit2).toLowerCase();
-                return `${reconstructedWord} ${number}${reconstructedSize}`;
-            }
-        },
-        {
-            // Pattern: "Sprite 330 m l" → "Sprite 330ml"
-            regex: /^([A-Za-z]{5,})\s+(\d{3})\s+([a-z])\s+([a-z])$/,
-            reconstruct: (match) => {
-                const [, word, number, unit1, unit2] = match;
-                const reconstructedSize = (unit1 + unit2).toLowerCase();
-                return `${word} ${number}${reconstructedSize}`;
-            }
-        },
-        {
-            // General pattern for spaced words and numbers
-            regex: /^([A-Za-z])\s+([a-z]{3,})\s+(\d{2,3})\s*([a-z]{0,2})\s*([a-z]{0,2})$/,
-            reconstruct: (match) => {
-                const [, firstLetter, word, number, unit1, unit2] = match;
-                const reconstructedWord = firstLetter + word;
-                const reconstructedSize = ((unit1 || '') + (unit2 || '')).toLowerCase();
-                if (reconstructedSize) {
-                    return `${reconstructedWord} ${number}${reconstructedSize}`;
-                }
-                return `${reconstructedWord} ${number}`;
-            }
-        },
-        {
-            // Pattern: "a00gr" → "400gr" (common OCR corruption in size labels)
-            regex: /\ba(\d{2})gr\b/i,
-            reconstruct: (match) => {
-                const [, number] = match;
-                return `4${number}gr`;
-            }
-        },
-        {
-            // Pattern: "s00ml" → "500ml" (common OCR corruption in size labels)
-            regex: /\bs(\d{2})ml\b/i,
-            reconstruct: (match) => {
-                const [, number] = match;
-                return `5${number}ml`;
-            }
-        },
-        {
-            // Pattern: "VIRGINMOJITO" → "Virgin Mojito" (concatenated drink name)
-            regex: /^VIRGINMOJITO$/i,
-            reconstruct: (match) => {
-                return `Virgin Mojito`;
-            }
-        },
-        {
-            // Pattern: "Castel lite e30 m l" or "Castel LITE e30 m L" → "Castel Lite 330ml" (two words + corrupted size)
-            regex: /^([A-Za-z]{3,})\s+([A-Za-z]{3,})\s+([a-z])(\d{2})\s+([a-z]{1,2})\s+([a-z])$/i,
-            reconstruct: (match) => {
-                const [, word1, word2, corruptedDigit, number, unit1, unit2] = match;
-                const reconstructedWord = word1.charAt(0).toUpperCase() + word1.slice(1).toLowerCase() + ' ' + word2.charAt(0).toUpperCase() + word2.slice(1).toLowerCase();
-                // Fix common corruption: 'e' → '3', 'o' → '0', etc.
-                const digitMap = { 'e': '3', 'o': '0', 'i': '1', 'l': '1' };
-                const fixedDigit = digitMap[corruptedDigit] || corruptedDigit;
-                const reconstructedUnit = fixedDigit + number;
-                const reconstructedSize = (unit1.toLowerCase() + unit2.toLowerCase()).replace(/ml/i, 'ml');
-                return `${reconstructedWord} ${reconstructedUnit}${reconstructedSize}`;
-            }
-        }
-    ];
-    for (const { regex, reconstruct } of patterns) {
-        const match = name.match(regex);
-        if (match) {
-            const result = reconstruct(match);
-            console.log(`[Cloud Function] Reconstructed "${name}" → "${result}"`);
-            return result;
-        }
-    }
-    // Apply size corrections for common OCR errors
-    let corrected = name;
-    // === OCR NUMBER CORRECTIONS ===
-    // 's' misread as '5' in sizes: s00 → 500, s50 → 550
-    corrected = corrected.replace(/\bs(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `5${num}${unit === 'mi' ? 'ml' : unit}`);
-    // 'a' misread as '4' in sizes: a00 → 400, a50 → 450
-    corrected = corrected.replace(/\ba(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `4${num}${unit === 'mi' ? 'ml' : unit}`);
-    // 'e' misread as '3' in sizes: e00 → 300, e30 → 330
-    corrected = corrected.replace(/\be(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `3${num}${unit === 'mi' ? 'ml' : unit}`);
-    // 'o' misread as '0' in sizes: o00 → 000 (usually part of larger number)
-    corrected = corrected.replace(/\bo(\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `0${num}${unit === 'mi' ? 'ml' : unit}`);
-    // 'l' or 'i' misread as '1' in sizes: l00 → 100, i50 → 150
-    corrected = corrected.replace(/\b[li](\d{2})(ml|mi|g|gr|l|cl|kg)\b/gi, (_, num, unit) => `1${num}${unit === 'mi' ? 'ml' : unit}`);
-    // === OCR UNIT CORRECTIONS ===
-    // 'mi' misread as 'ml': s00mi → 500ml
-    corrected = corrected.replace(/(\d+)mi\b/gi, '$1ml');
-    // 'gf' misread as 'gr': 400gf → 400gr
-    corrected = corrected.replace(/(\d+)gf\b/gi, '$1gr');
-    // === FIX NUMBERS IN PARENTHESES ===
-    // '(e0)' → '(30)' - e is misread 3
-    corrected = corrected.replace(/\(e(\d)\)/gi, '(3$1)');
-    // '(l0)' → '(10)' - l is misread 1
-    corrected = corrected.replace(/\([li](\d)\)/gi, '(1$1)');
-    // '(s0)' → '(50)' - s is misread 5
-    corrected = corrected.replace(/\(s(\d)\)/gi, '(5$1)');
-    // '(a0)' → '(40)' - a is misread 4
-    corrected = corrected.replace(/\(a(\d)\)/gi, '(4$1)');
-    // === FIX STANDALONE NUMBERS ===
-    // '+/- a50' → '+/- 450' (common in "450g" type descriptions)
-    corrected = corrected.replace(/\+\/-\s*a(\d+)/gi, '+/- 4$1');
-    corrected = corrected.replace(/\+\/-\s*s(\d+)/gi, '+/- 5$1');
-    corrected = corrected.replace(/\+\/-\s*e(\d+)/gi, '+/- 3$1');
-    // Remove trailing corrupted parentheses like "(z4)", "(l0)"
-    corrected = corrected.replace(/\s*\([a-z]\d+\)\s*$/gi, '');
-    // Remove 'z' prefix from numbers
-    corrected = corrected.replace(/\bz(\d+)\b/gi, '$1');
-    if (corrected !== name) {
-        console.log(`[Cloud Function] Applied size corrections "${name}" → "${corrected}"`);
-        return corrected;
-    }
-    return name;
 }
 /**
  * Check if two product names are similar (fuzzy match)
@@ -1053,6 +948,13 @@ async function parseVideoWithGemini(videoBase64, mimeType) {
     const VIDEO_PARSING_PROMPT = `You are an expert receipt scanner analyzing a video of a receipt from the Democratic Republic of Congo.
 The user has slowly scanned down the entire receipt. Extract ALL items visible throughout the video.
 
+⚠️ OCR ERROR CORRECTION (CRITICAL):
+Fix obvious OCR character recognition errors while preserving brand names:
+- FIX: "Deufs"→"Oeufs", "rermiers"→"fermiers", "Fantta"→"Fanta", "0range"→"Orange"
+- FIX: "Hu1le"→"Huile", "P0ulet"→"Poulet", "R1z"→"Riz", "La1t"→"Lait"
+- PRESERVE brand names: Sadia, Clover, Stork, Omo, Sunlight, Nido (do NOT change)
+- Fix 0→O, 1→I/L, 5→S when in middle of words
+
 🎬 VIDEO FRAME ANALYSIS STRATEGY:
 - The video shows a receipt being scanned from TOP to BOTTOM
 - FIRST few frames (0-2 seconds): Store name and header information
@@ -1180,21 +1082,117 @@ CURRENCY RULES (VERY IMPORTANT):
   * The word "USD" or "dollars" explicitly written on the receipt
   * Prices with decimal points AND small values (like $1.50, $10.00, $25.99)
 - **Use "CDF" (NOT "USD") when you see:**
-  * "FC" (Franc Congolais) written on receipt
+  * "FC" (Franc Congolais), "(Fc)", "(FC)" written on receipt
   * "CDF" written on receipt
+  * "Montant TTC (Fc)", "Montant T.T.C. (FC)", "Total Due:FC"
   * Large round numbers: 500, 1000, 2500, 5000, 10000, 15000, 50000, 100000
   * Prices WITHOUT dollar signs or "USD" text
   * NO explicit currency indicators (default is CDF for DRC)
+- **IGNORE USD CONVERSIONS at bottom:**
+  * Many DRC receipts show USD equivalent at bottom for reference
+  * "Total Facture :($) 35.80" = just conversion, NOT the currency
+  * "Total Due:USD 23.28" = just conversion, NOT the currency
+  * These conversions do NOT change the receipt currency to USD
 - **Price magnitude matters:**
   * If item prices are 1000+ → almost certainly CDF
   * If item prices are 0.50-100.00 with decimals → likely USD
 - **When in doubt: choose CDF** (it's the default currency in DRC)
+
+=====================================
+STORE-SPECIFIC FORMATS (CRITICAL):
+=====================================
+
+**FORMAT 1: HYPER PSARO / CARREFOUR** (Weight-based items)
+Columns: Qte | Articles | Emb | Prix | Montant
+- Items can have DECIMAL quantities (weight in kg): .51, .91, 1.22
+- Unit price is PER KG, total is calculated
+- Product names span multiple lines with size info
+
+EXAMPLES:
+  "1   Baguette Francaise Sesame (H.P.) +/- 300gr   1  2450   2450"
+  → {"name": "Baguette Francaise Sesame 300gr", "quantity": 1, "unitPrice": 2450}
+
+  ".51 Hache De Boeuf (H.P.)1  28500   14478"
+  → {"name": "Hache De Boeuf", "quantity": 0.51, "unitPrice": 28500}
+
+  ".91Poulet Fume (H.P.)  1  14900   13529"
+  → {"name": "Poulet Fume", "quantity": 0.91, "unitPrice": 14900}
+
+KEY RULES FOR HYPER PSARO:
+1. Decimal at start (.51, .91) = weight in kg
+2. (H.P.) is internal code - REMOVE IT
+3. Use the UNIT PRICE column (Prix), not the MONTANT (total) column
+4. Keep size info like 300gr, 500ml, 450gr in product name
+
+**FORMAT 2: TOP MARKET** (Numbered items with product codes)
+Columns: Nr | Article | Qte | Prix | Montant
+- Items are numbered 1-17+
+- Has product codes like SA-66080, BF836064, L3840
+- Has pack codes in parentheses: (4), (30), (40), (12), (24), (36)
+- Prices use commas: 60,394 means 60394
+
+EXAMPLES:
+  "1 Jamboo Classic RICE BASMATI 10 KG (4)   1 pc  60,394   60,394"
+  → {"name": "Jamboo Classic Rice Basmati 10 KG", "quantity": 1, "unitPrice": 60394}
+
+  "2 Egg (Oeuf (30))   5 Pkt  2,890   14,450"
+  → {"name": "Egg (Oeuf)", "quantity": 5, "unitPrice": 2890}
+
+  "10 SA-66080 (Johnson Baby Soap Bedtime 175G (36))   2 pc  4,015   8,030"
+  → {"name": "Johnson Baby Soap Bedtime 175G", "quantity": 2, "unitPrice": 4015}
+
+KEY RULES FOR TOP MARKET:
+1. Strip leading item numbers (1, 2, 3...)
+2. Strip product codes: SA-66080, BF836064, L3840, 17458
+3. Strip pack codes: (4), (30), (40), (12), (24), (36) - these are case quantities
+4. Keep actual product info in parentheses like (Oeuf), size like 75cl, 10 KG
+5. Convert comma prices: 60,394 → 60394
+6. Ignore "Round Off" line
+
+**FORMAT 3: JAMBO MART** (Two-line per item with Y/N flags)
+Columns: QTY | UNITE | PRIX | DISC% | MONTANT
+- Product name on Line 1 with Y or N at end (VAT flag - ignore)
+- Quantity, unit, and prices on Line 2
+
+EXAMPLES:
+  "Pepper Variety Red Per Kg (SA)          Y"
+  "0.372  KG  15,800.00      0      5,877.60"
+  → {"name": "Pepper Variety Red Per Kg", "quantity": 0.372, "unitPrice": 15800}
+
+  "Sadia Chicken 1.3kg                     N"
+  "2      PCS  12,400.00     0      24,800.00"
+  → {"name": "Sadia Chicken 1.3kg", "quantity": 2, "unitPrice": 12400}
+
+KEY RULES FOR JAMBO MART:
+1. The "Y" or "N" at end of product line is VAT flag - IGNORE IT
+2. The "(SA)" after product names is code - REMOVE IT
+3. Use UNIT_PRICE (PRIX column), NOT the MONTANT (total)
+4. Decimal quantities like 0.372 are weights in KG
+
+=====================================
+CLEANUP RULES FOR ALL STORES:
+=====================================
+- Remove internal codes: (H.P.), (SA), (z4)
+- Remove pack quantities: (4), (12), (24), (30), (36), (40)
+- Remove product codes: SA-66080, BF836064, L3840, 17458
+- Remove Y/N VAT flags at end of lines
+- Keep size/weight info: 300gr, 500ml, 75cl, 10 KG, 1.3kg
 
 VALIDATION BEFORE RESPONDING:
 1. Sum all item prices - does it roughly match your "total" field?
 2. Is the total next to a label like "TOTAL" or "MONTANT A PAYER"?
 3. Did you accidentally use a receipt number or customer ID as the total?
 4. Did you include ALL visible products (not filter out items with sizes)?
+
+DATE PARSING (CRITICAL):
+- Convert ALL dates to YYYY-MM-DD format
+- DRC receipts typically use DD-MM-YY or DD/MM/YY format (day first!)
+- EXAMPLES:
+  - "05-01-26" = January 5, 2026 → "2026-01-05" (NOT 2005-01-26!)
+  - "26-01-05" = January 26, 2005 → "2005-01-26"
+  - "15/03/24" = March 15, 2024 → "2024-03-15"
+- If year is 2 digits (26), assume 20XX for years 00-30, 19XX for 31-99
+- If unsure, use the current year (2026) and assume DD-MM format
 
 Return a JSON object with this EXACT structure:
 {
@@ -1859,7 +1857,7 @@ exports.parseReceipt = functions
     secrets: ['GEMINI_API_KEY'],
 })
     .https.onCall(async (data, context) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     // Check authentication
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to parse receipts');
@@ -2010,6 +2008,15 @@ exports.parseReceipt = functions
         // Create receipt document
         const receiptRef = db.collection(config_1.collections.receipts(userId)).doc();
         const now = admin.firestore.FieldValue.serverTimestamp();
+        // Debug log for receipt save
+        console.log('[ReceiptSave]', {
+            userId,
+            receiptId: receiptRef.id,
+            store: parsedReceipt.storeName || parsedReceipt.storeNameNormalized || 'unknown',
+            city: (userProfile === null || userProfile === void 0 ? void 0 : userProfile.defaultCity) || null,
+            itemCount: ((_d = parsedReceipt.items) === null || _d === void 0 ? void 0 : _d.length) || 0,
+            sampleItems: (parsedReceipt.items || []).slice(0, 5).map(item => item.name),
+        });
         await receiptRef.set({
             ...parsedReceipt,
             imageHash, // Store hash for duplicate detection
@@ -2028,7 +2035,7 @@ exports.parseReceipt = functions
         // Update user stats for achievements
         await updateUserStats(userId, parsedReceipt);
         // Log suspicious items before returning
-        const suspiciousItems = (_d = parsedReceipt.items) === null || _d === void 0 ? void 0 : _d.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
+        const suspiciousItems = (_e = parsedReceipt.items) === null || _e === void 0 ? void 0 : _e.filter(item => item.name && (item.name.includes('prite') || item.name.match(/\s+[a-z]\d+\s+[a-z]\s+[a-z]/)));
         if (suspiciousItems && suspiciousItems.length > 0) {
             console.log('[Cloud Function] Suspicious items being returned:', suspiciousItems.map(item => item.name));
         }

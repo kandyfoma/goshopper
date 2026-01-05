@@ -36,7 +36,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, Spinner, Modal, SwipeToDelete, Input, Button} from '@/shared/components';
-import {formatCurrency} from '@/shared/utils/helpers';
+import {formatCurrency, getExchangeRate} from '@/shared/utils/helpers';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
@@ -617,7 +617,7 @@ export function ShoppingListScreen() {
                   {(() => {
                     let totalUSD = 0;
                     let totalCDF = 0;
-                    const exchangeRate = 2700; // CDF per USD
+                    const exchangeRate = getExchangeRate(); // Get dynamic rate from globalSettings
                     
                     selectedList.items.forEach(item => {
                       const price = item.bestPrice || item.estimatedPrice || 0;

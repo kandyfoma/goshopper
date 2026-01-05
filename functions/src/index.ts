@@ -207,3 +207,6 @@ export {
   updateUserBehaviorProfile,
   calculateUserMLFeatures,
 } from './ml/behaviorProfile';
+
+// Admin functions
+export {countCityItems} from './admin/countCityItems';

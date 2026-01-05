@@ -30,9 +30,25 @@ export function formatCurrency(
 
 /**
  * Currency conversion rate (USD to CDF)
- * Update this periodically based on current exchange rate
+ * Default rate - will be overridden by globalSettingsService when available
  */
-export const USD_TO_CDF_RATE = 2200; // 1 USD = 2,200 CDF (Dec 2025)
+export let USD_TO_CDF_RATE = 2800; // 1 USD = 2,800 CDF (Jan 2026) - updated default
+
+/**
+ * Update the exchange rate (called by globalSettingsService)
+ */
+export function setExchangeRate(rate: number): void {
+  if (rate > 0) {
+    USD_TO_CDF_RATE = rate;
+  }
+}
+
+/**
+ * Get current exchange rate
+ */
+export function getExchangeRate(): number {
+  return USD_TO_CDF_RATE;
+}
 
 /**
  * Convert between USD and CDF
@@ -41,17 +57,20 @@ export function convertCurrency(
   amount: number,
   fromCurrency: 'USD' | 'CDF',
   toCurrency: 'USD' | 'CDF',
+  customRate?: number,
 ): number {
   if (fromCurrency === toCurrency) {
     return amount;
   }
   
+  const rate = customRate || USD_TO_CDF_RATE;
+  
   if (fromCurrency === 'USD' && toCurrency === 'CDF') {
-    return Math.round(amount * USD_TO_CDF_RATE);
+    return Math.round(amount * rate);
   }
   
   if (fromCurrency === 'CDF' && toCurrency === 'USD') {
-    return Math.round((amount / USD_TO_CDF_RATE) * 100) / 100;
+    return Math.round((amount / rate) * 100) / 100;
   }
   
   return amount;

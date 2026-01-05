@@ -44,7 +44,7 @@ import {CitySelectionScreen} from '@/features/onboarding/screens';
 import {FAQScreen, PrivacyPolicyScreen, TermsOfServiceScreen} from '@/features/legal';
 import {ShopsScreen, ShopDetailScreen} from '@/features/shops';
 import {CityItemsScreen} from '@/features/items/screens';
-import {ItemsScreen} from '@/features/items';
+import {ItemsScreen, CityItemDetailScreen} from '@/features/items';
 import {StatsScreen, CategoryDetailScreen} from '@/features/stats/screens';
 import {HistoryScreen} from '@/features/history/screens';
 
@@ -389,6 +389,11 @@ export function RootNavigator() {
         <Stack.Screen
           name="CityItems"
           component={CityItemsScreen}
+          options={{headerShown: false}}
+        />
+        <Stack.Screen
+          name="CityItemDetail"
+          component={CityItemDetailScreen}
           options={{headerShown: false}}
         />
         <Stack.Screen

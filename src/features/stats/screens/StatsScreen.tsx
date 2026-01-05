@@ -149,8 +149,8 @@ export function StatsScreen() {
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
   const [currentMonthReceipts, setCurrentMonthReceipts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('USD');
-  const [exchangeRate, setExchangeRate] = useState(2200); // Default rate
+  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('CDF');
+  const [exchangeRate, setExchangeRate] = useState(2800); // Default rate (Jan 2026)
 
   useEffect(() => {
     // Track screen view
@@ -165,7 +165,7 @@ export function StatsScreen() {
           const budget = await getCurrentMonthBudget(
             profile.userId,
             profile.defaultMonthlyBudget || profile.monthlyBudget,
-            profile.preferredCurrency || 'USD',
+            profile.preferredCurrency || 'CDF',
           );
           setMonthlyBudget(budget.amount);
         } catch (error) {
@@ -276,7 +276,7 @@ export function StatsScreen() {
       const currencyCount: Record<string, number> = {};
       currentMonthReceipts.forEach(doc => {
         const data = doc.data();
-        const currency = data.currency || 'USD';
+        const currency = data.currency || 'CDF';
         currencyCount[currency] = (currencyCount[currency] || 0) + 1;
       });
 

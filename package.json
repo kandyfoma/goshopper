@@ -15,6 +15,9 @@
     "build:ios": "bash scripts/build-ios-release.sh",
     "build:android:mac": "bash scripts/build-android-release.sh",
     "build:android:windows": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1",
+    "build:eas": "scripts\\build-eas.bat",
+    "build:eas:production": "eas build --platform android --profile production",
+    "build:eas:preview": "eas build --platform android --profile preview",
     "prebuild": "npm run clean",
     "postbuild:android:windows": "echo AAB file ready for upload to Play Console!",
     "postbuild:android:mac": "echo AAB file ready for upload to Play Console!"

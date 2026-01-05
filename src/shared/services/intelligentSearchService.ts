@@ -561,6 +561,37 @@ class IntelligentSearchService {
   // ===== MAIN SEARCH FUNCTION =====
 
   /**
+   * Check if query matches any word in item name via synonym
+   * "poulet" should match "Sadia Chicken 1.3kg" because chicken=poulet
+   */
+  hasSynonymWordMatch(query: string, itemName: string): boolean {
+    const queryWords = query.toLowerCase().split(' ').filter(w => w.length > 1);
+    const itemWords = itemName.toLowerCase().split(' ').filter(w => w.length > 1);
+    
+    for (const qWord of queryWords) {
+      // Get all variations of the query word
+      const queryVariations = this.getAllVariations(qWord);
+      
+      for (const iWord of itemWords) {
+        // Check if item word matches any variation of query word
+        for (const variation of queryVariations) {
+          const normalizedVariation = this.normalize(variation);
+          const normalizedItemWord = this.normalize(iWord);
+          
+          if (normalizedVariation === normalizedItemWord) {
+            return true;
+          }
+          // Also check if item word is a variation of query
+          if (this.areSynonyms(qWord, iWord)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Calculate comprehensive match score between query and item name
    */
   calculateMatchScore(query: string, itemName: string): {
@@ -588,9 +619,15 @@ class IntelligentSearchService {
       return { score: 0.95 * containScore, matchType: 'normalized', confidence: 0.95 };
     }
 
-    // 3. SYNONYM MATCH (multilingual)
+    // 3. SYNONYM MATCH (multilingual) - check full strings
     if (this.areSynonyms(processedQuery, processedItem)) {
       return { score: 0.92, matchType: 'synonym', confidence: 0.92 };
+    }
+
+    // 3.5 SYNONYM WORD MATCH - check if query word matches any word in item name
+    // This handles "poulet" matching "Sadia Chicken 1.3kg" 
+    if (this.hasSynonymWordMatch(query, itemName)) {
+      return { score: 0.88, matchType: 'synonym', confidence: 0.88 };
     }
 
     // 4. ORDER-INDEPENDENT WORD MATCH
@@ -650,6 +687,7 @@ class IntelligentSearchService {
     const maxResults = options?.maxResults ?? items.length;
 
     const results: SearchResult[] = [];
+    const processedQuery = this.preprocess(query);
 
     for (const item of items) {
       const itemName = item.name || item.displayName || '';
@@ -664,8 +702,28 @@ class IntelligentSearchService {
       const reverseMatch = this.calculateMatchScore(itemName, query);
       
       // Take the better score of the two directions
-      const bestScore = Math.max(forwardMatch.score, reverseMatch.score);
-      const bestMatch = forwardMatch.score >= reverseMatch.score ? forwardMatch : reverseMatch;
+      let bestScore = Math.max(forwardMatch.score, reverseMatch.score);
+      let bestMatch = forwardMatch.score >= reverseMatch.score ? forwardMatch : reverseMatch;
+
+      // Also check searchKeywords if available (for bilingual matching like poulet <-> chicken)
+      if (item.searchKeywords && Array.isArray(item.searchKeywords)) {
+        for (const keyword of item.searchKeywords) {
+          if (keyword.toLowerCase().includes(processedQuery) || processedQuery.includes(keyword.toLowerCase())) {
+            // Direct keyword match - high score
+            if (bestScore < 0.85) {
+              bestScore = 0.85;
+              bestMatch = { score: 0.85, matchType: 'synonym' as const, confidence: 0.85 };
+            }
+            break;
+          }
+          // Fuzzy keyword match
+          const keywordMatch = this.calculateMatchScore(query, keyword);
+          if (keywordMatch.score > bestScore) {
+            bestScore = keywordMatch.score;
+            bestMatch = keywordMatch;
+          }
+        }
+      }
 
       if (bestScore >= minScore) {
         results.push({

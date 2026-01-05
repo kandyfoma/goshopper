@@ -59,6 +59,7 @@ class SubscriptionService {
 
   /**
    * Check if trial has expired and auto-assign freemium tier
+   * Also handles paid subscription expiration
    * Freemium tier resets monthly based on user's join date (trialStartDate)
    */
   private async checkAndAssignFreemium(subscription: Subscription, userId: string): Promise<Subscription> {
@@ -71,7 +72,71 @@ class SubscriptionService {
     
     // If user has an active paid subscription, no need for freemium
     if (subscription.isSubscribed && subscription.status === 'active') {
+      // But check if it's actually expired (date has passed)
+      if (subscription.subscriptionEndDate) {
+        const endDate = new Date(subscription.subscriptionEndDate);
+        if (now > endDate) {
+          console.log('📦 Paid subscription expired, auto-assigning freemium tier for user:', userId);
+          const joinDate = subscription.trialStartDate || subscription.createdAt || new Date();
+          const { billingStart, billingEnd } = this.calculateFreemiumBillingPeriod(new Date(joinDate));
+          
+          await firestore()
+            .doc(COLLECTIONS.subscription(userId))
+            .update({
+              status: 'freemium',
+              planId: 'freemium',
+              isSubscribed: false,
+              monthlyScansUsed: 0,
+              currentBillingPeriodStart: billingStart,
+              currentBillingPeriodEnd: billingEnd,
+              subscriptionEndDate: firestore.FieldValue.delete(),
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+          
+          return {
+            ...subscription,
+            status: 'freemium',
+            planId: 'freemium',
+            isSubscribed: false,
+            monthlyScansUsed: 0,
+            currentBillingPeriodStart: billingStart,
+            currentBillingPeriodEnd: billingEnd,
+            subscriptionEndDate: undefined,
+          };
+        }
+      }
       return subscription;
+    }
+    
+    // If status is 'expired', convert to freemium
+    if (subscription.status === 'expired') {
+      console.log('📦 Converting expired subscription to freemium for user:', userId);
+      const joinDate = subscription.trialStartDate || subscription.createdAt || new Date();
+      const { billingStart, billingEnd } = this.calculateFreemiumBillingPeriod(new Date(joinDate));
+      
+      await firestore()
+        .doc(COLLECTIONS.subscription(userId))
+        .update({
+          status: 'freemium',
+          planId: 'freemium',
+          isSubscribed: false,
+          monthlyScansUsed: 0,
+          currentBillingPeriodStart: billingStart,
+          currentBillingPeriodEnd: billingEnd,
+          subscriptionEndDate: firestore.FieldValue.delete(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      
+      return {
+        ...subscription,
+        status: 'freemium',
+        planId: 'freemium',
+        isSubscribed: false,
+        monthlyScansUsed: 0,
+        currentBillingPeriodStart: billingStart,
+        currentBillingPeriodEnd: billingEnd,
+        subscriptionEndDate: undefined,
+      };
     }
     
     // If already on freemium, check if monthly reset is needed

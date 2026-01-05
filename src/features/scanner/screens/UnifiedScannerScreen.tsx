@@ -532,19 +532,7 @@ export function UnifiedScannerScreen() {
 
   // Capture and process single photo
   const handlePhotoCapture = useCallback(async (fromGallery: boolean = false) => {
-    // Debounce: Prevent rapid multiple scans
-    const now = Date.now();
-    if (now - lastScanTimeRef.current < SCAN_DEBOUNCE_MS) {
-      showToast('Veuillez patienter avant de scanner à nouveau', 'warning');
-      return;
-    }
-    if (isProcessingRef.current) {
-      showToast('Un scan est déjà en cours', 'warning');
-      return;
-    }
-    lastScanTimeRef.current = now;
-
-    // Check scan permission
+    // Check scan permission FIRST - before any camera/gallery interaction
     if (!canScan) {
       analyticsService.logCustomEvent('scan_blocked_subscription');
       setShowLimitModal(true);
@@ -564,6 +552,18 @@ export function UnifiedScannerScreen() {
       );
       return;
     }
+
+    // Debounce: Prevent rapid multiple scans
+    const now = Date.now();
+    if (now - lastScanTimeRef.current < SCAN_DEBOUNCE_MS) {
+      showToast('Veuillez patienter avant de scanner à nouveau', 'warning');
+      return;
+    }
+    if (isProcessingRef.current) {
+      showToast('Un scan est déjà en cours', 'warning');
+      return;
+    }
+    lastScanTimeRef.current = now;
 
     setState('capturing');
 
@@ -597,13 +597,6 @@ export function UnifiedScannerScreen() {
 
   // Handle video recording for long receipts
   const handleVideoScan = useCallback(async () => {
-    // Check scan permission
-    if (!canScan) {
-      analyticsService.logCustomEvent('video_scan_blocked_subscription');
-      setShowLimitModal(true);
-      return;
-    }
-
     // Validate user has a city set
     if (!profile?.defaultCity) {
       analyticsService.logCustomEvent('scan_blocked_no_city');
@@ -615,6 +608,13 @@ export function UnifiedScannerScreen() {
           {text: 'Configurer', onPress: () => navigation.push('Settings')},
         ]
       );
+      return;
+    }
+
+    // Check scan permission BEFORE showing instructions modal
+    if (!canScan) {
+      analyticsService.logCustomEvent('video_scan_blocked_subscription');
+      setShowLimitModal(true);
       return;
     }
 
@@ -637,13 +637,17 @@ export function UnifiedScannerScreen() {
       return;
     }
 
-    // Validate video duration
-    if (result.duration && result.duration < 5000) {
+    // Validate video duration (duration is in SECONDS)
+    // Skip validation if duration is 0 or undefined (library didn't return it)
+    const durationSeconds = result.duration || 0;
+    console.log(`📹 Video captured - duration: ${durationSeconds}s`);
+    
+    if (durationSeconds > 0 && durationSeconds < 3) {
       Alert.alert(
-        '⚠️ Vidéo trop rapide',
-        `Votre scan a duré ${(result.duration / 1000).toFixed(1)} secondes.\n\n` +
+        'Vidéo trop rapide',
+        `Votre scan a duré ${durationSeconds.toFixed(1)} secondes.\n\n` +
         'Pour de MEILLEURS RÉSULTATS:\n' +
-        '• Scannez pendant 10-15 secondes\n' +
+        '• Scannez pendant 5-10 secondes\n' +
         '• Bougez LENTEMENT du haut vers le bas\n' +
         '• Prenez votre temps sur chaque section\n\n' +
         'Voulez-vous réessayer plus lentement?',
@@ -652,8 +656,8 @@ export function UnifiedScannerScreen() {
             // Restart video recording
             setTimeout(() => {
               Alert.alert(
-                '📹 Rappel: Scannez LENTEMENT',
-                'Prenez 10-15 secondes. Qualité > Vitesse!',
+                'Rappel: Scannez LENTEMENT',
+                'Prenez 5-10 secondes. Qualité > Vitesse!',
                 [{text: 'OK', onPress: async () => {
                   const retryResult = await cameraService.recordVideo();
                   if (retryResult.success && retryResult.base64) {

@@ -106,7 +106,7 @@ export function ShopsScreen() {
                 phone: data.phone,
                 receiptCount: data.receiptCount || 0,
                 totalSpent: data.totalSpent || 0,
-                currency: data.currency || 'USD',
+                currency: data.currency || 'CDF',
                 lastVisit: safeToDate(data.lastVisit),
                 createdAt: safeToDate(data.createdAt),
                 updatedAt: safeToDate(data.updatedAt),

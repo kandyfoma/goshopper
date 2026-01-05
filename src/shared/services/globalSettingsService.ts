@@ -3,7 +3,7 @@
 
 import firestore from '@react-native-firebase/firestore';
 import {firebaseFirestore, APP_ID} from '@/shared/services/firebase/config';
-import {safeToDate} from '@/shared/utils/helpers';
+import {safeToDate, setExchangeRate as setHelperExchangeRate} from '@/shared/utils/helpers';
 
 export interface ExchangeRateSettings {
   usdToCdf: number; // Exchange rate: 1 USD = X CDF
@@ -16,8 +16,8 @@ export interface GlobalSettings {
   // Add other global settings here as needed
 }
 
-// Default settings
-const DEFAULT_EXCHANGE_RATE = 2200; // 1 USD = 2,200 CDF (Dec 2025)
+// Default settings - Updated to current rate (Jan 2026)
+const DEFAULT_EXCHANGE_RATE = 2800; // 1 USD = 2,800 CDF (Jan 2026)
 
 const DEFAULT_SETTINGS: GlobalSettings = {
   exchangeRates: {
@@ -45,18 +45,22 @@ class GlobalSettingsService {
       (docSnapshot) => {
         if (docSnapshot.exists) {
           const data = docSnapshot.data();
+          const rate = data?.exchangeRates?.usdToCdf || DEFAULT_EXCHANGE_RATE;
           this.settings = {
             exchangeRates: {
-              usdToCdf: data?.exchangeRates?.usdToCdf || DEFAULT_EXCHANGE_RATE,
+              usdToCdf: rate,
               lastUpdated: safeToDate(data?.exchangeRates?.lastUpdated),
               updatedBy: data?.exchangeRates?.updatedBy,
             },
           };
+          // Sync exchange rate to helpers.ts for convertCurrency function
+          setHelperExchangeRate(rate);
         } else {
           // Settings don't exist in Firestore - use in-memory defaults
           // (Only admins/Cloud Functions can create config documents)
           console.log('Global settings not found in Firestore, using defaults');
           this.settings = DEFAULT_SETTINGS;
+          setHelperExchangeRate(DEFAULT_EXCHANGE_RATE);
         }
 
         // Notify all listeners
