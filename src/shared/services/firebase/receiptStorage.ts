@@ -580,6 +580,11 @@ class ReceiptStorageService {
       console.log('🗑️ Clearing caches after receipt deletion...');
       await savingsTrackerService.clearStatsCache(userId);
       await widgetDataService.clearAllWidgetData();
+      
+      // Force cache invalidation for receipts and shops
+      await cacheInvalidation.invalidate(InvalidationTrigger.RECEIPT_DELETED, userId);
+      await cacheInvalidation.invalidate(InvalidationTrigger.SHOP_UPDATED, userId);
+      
       console.log('🗑️ Caches cleared');
     } catch (cacheError) {
       console.warn('🗑️ Failed to clear caches (non-critical):', cacheError);

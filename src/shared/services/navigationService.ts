@@ -19,7 +19,8 @@ class NavigationService {
    */
   navigate(screen: keyof RootStackParamList, params?: any) {
     if (navigationRef.isReady()) {
-      navigationRef.navigate(screen as never, params as never);
+      // @ts-ignore - Type assertion needed for dynamic navigation
+      navigationRef.navigate(screen, params);
     }
   }
 
@@ -49,7 +50,7 @@ class NavigationService {
       await AsyncStorage.removeItem(PENDING_NAVIGATION_KEY);
 
       // Wait a bit for navigation to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise<void>(resolve => setTimeout(resolve, 500));
 
       // Navigate to the target screen
       if (navigationRef.isReady()) {

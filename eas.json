@@ -30,6 +30,9 @@
       "ios": {
         "distribution": "store",
         "credentialsSource": "remote"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
       }
     }
   },

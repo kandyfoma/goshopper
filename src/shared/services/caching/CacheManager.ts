@@ -306,6 +306,45 @@ class CacheManager {
   }
 
   /**
+   * Get cache entry metadata (creation time, expiration, access count)
+   */
+  async getMetadata(
+    key: string,
+    namespace: CacheNamespace = 'temp'
+  ): Promise<{ timestamp: number; expiresAt: number; accessCount: number } | null> {
+    const fullKey = this.buildKey(namespace, key);
+
+    try {
+      // Check memory cache first
+      const memoryEntry = this.memoryCache.get(fullKey);
+      if (memoryEntry) {
+        return {
+          timestamp: memoryEntry.createdAt,
+          expiresAt: memoryEntry.expiresAt,
+          accessCount: memoryEntry.accessCount,
+        };
+      }
+
+      // Check disk cache
+      const diskData = await AsyncStorage.getItem(fullKey);
+      if (diskData) {
+        const entry: CacheEntry<any> = JSON.parse(diskData);
+        return {
+          timestamp: entry.createdAt,
+          expiresAt: entry.expiresAt,
+          accessCount: entry.accessCount,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      this.stats.errors++;
+      console.error('CacheManager: Error getting metadata', fullKey, error);
+      return null;
+    }
+  }
+
+  /**
    * Get cache statistics
    */
   getStats(): CacheStats {

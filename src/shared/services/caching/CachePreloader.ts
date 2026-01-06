@@ -6,6 +6,7 @@
 
 import {cacheManager, CacheTTL, CachePriority} from './CacheManager';
 import firestore from '@react-native-firebase/firestore';
+import {cityItemsRefreshService} from '@/features/items/services/cityItemsRefreshService';
 
 // Correct base path for GoShopper user data
 const USER_BASE_PATH = 'artifacts/goshopper/users';
@@ -25,11 +26,22 @@ class CachePreloader {
     this.isPreloading = true;
 
     try {
+      // Get user profile first to extract defaultCity
+      const userDoc = await firestore()
+        .collection(USER_BASE_PATH)
+        .doc(userId)
+        .get();
+
+      const userData = userDoc.data();
+      const defaultCity = userData?.defaultCity || userData?.city;
+
       await Promise.all([
         this.preloadUserProfile(userId),
         this.preloadRecentReceipts(userId),
         this.preloadShoppingLists(userId),
         this.preloadSubscription(userId),
+        // Preload city items if user has a default city
+        defaultCity ? this.preloadCityItems(defaultCity) : Promise.resolve(),
       ]);
 
       this.preloadComplete = true;
@@ -174,11 +186,25 @@ class CachePreloader {
   }
 
   /**
+   * Preload city items (community prices)
+   */
+  private async preloadCityItems(city: string): Promise<void> {
+    try {
+      console.log(`🔥 [CachePreloader] Preloading city items for: ${city}`);
+      await cityItemsRefreshService.preloadCityItems(city);
+    } catch (error) {
+      console.error('Failed to preload city items:', error);
+    }
+  }
+
+  /**
    * Reset preload state (e.g., on user logout)
    */
   reset(): void {
     this.preloadComplete = false;
     this.isPreloading = false;
+    // Stop all auto-refresh timers
+    cityItemsRefreshService.stopAllAutoRefresh();
   }
 
   /**

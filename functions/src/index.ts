@@ -129,6 +129,12 @@ export {
   sendManualScanLimitWarning,
 } from './notifications/scanLimitNotifications';
 
+export {
+  onReceiptCreatedForBudget,
+  sendManualBudgetWarning,
+  resetBudgetWarnings,
+} from './notifications/budgetNotifications';
+
 // Category insights for premium users
 export {
   sendCategoryInsights,

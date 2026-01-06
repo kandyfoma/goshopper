@@ -1,0 +1,27 @@
+# EAS Build ignore file
+# Files listed here will NOT be uploaded to EAS servers
+
+# Don't ignore .env - we need it for the build
+!.env
+
+# Ignore large files and build artifacts
+**/node_modules/**
+**/android/build/**
+**/android/app/build/**
+**/ios/build/**
+**/ios/Pods/**
+**/.gradle/**
+
+# Ignore local development files
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

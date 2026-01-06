@@ -110,11 +110,14 @@ export function MainTabNavigator() {
       case 'com.goshopperai.scan':
         navigation.navigate('Scanner');
         break;
-      case 'com.goshopperai.shopping':
-        navigation.navigate('ShoppingLists');
+      case 'com.goshopperai.stats':
+        navigation.navigate('Main', {screen: 'Stats'});
         break;
-      case 'com.goshopperai.history':
-        navigation.navigate('History');
+      case 'com.goshopperai.items':
+        navigation.navigate('Main', {screen: 'Items'});
+        break;
+      case 'com.goshopperai.dashboard':
+        navigation.navigate('Main', {screen: 'Home'});
         break;
       default:
         console.log('Unknown quick action type:', actionType);

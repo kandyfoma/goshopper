@@ -667,6 +667,35 @@ async function sendScanNotification(
 
     await messaging.send(message);
     console.log(`📱 Notification sent to user ${pendingScan.userId}`);
+
+    // Save notification to Firestore for notification history
+    try {
+      const notificationRef = db
+        .collection(`artifacts/${config.app.id}/users/${pendingScan.userId}/notifications`)
+        .doc();
+
+      await notificationRef.set({
+        id: notificationRef.id,
+        title: notification.title,
+        body: notification.body,
+        type: result.success ? 'receipt' : 'general',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        data: result.success
+          ? {
+              receiptId: result.receiptId,
+              storeName: result.receipt?.storeName,
+              total: result.receipt?.total,
+              currency: result.receipt?.currency,
+            }
+          : { error: result.error },
+      });
+
+      console.log(`💾 Notification saved to Firestore for user ${pendingScan.userId}`);
+    } catch (saveError) {
+      console.error('Error saving notification to Firestore:', saveError);
+      // Don't throw - FCM notification already sent
+    }
   } catch (error: any) {
     // Handle invalid token
     if (error.code === 'messaging/registration-token-not-registered' ||

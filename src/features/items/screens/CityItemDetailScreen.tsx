@@ -19,8 +19,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn, WatchItemButton, BackButton} from '@/shared/components';
-import {AppFooter} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, WatchItemButton, BackButton, AppFooter} from '@/shared/components';
 import {formatCurrency, safeToDate, formatDate} from '@/shared/utils/helpers';
 import {RootStackParamList} from '@/shared/types';
 
@@ -150,6 +149,11 @@ export const CityItemDetailScreen: React.FC = () => {
               <Icon name="shopping-bag" size="xl" color={Colors.text.inverse} />
             </View>
 
+            {/* Item Name */}
+            <Text style={styles.summaryItemName} numberOfLines={2}>
+              {item.name}
+            </Text>
+
             {/* Category */}
             {item.category && (
               <View style={styles.categoryBadge}>
@@ -257,11 +261,14 @@ export const CityItemDetailScreen: React.FC = () => {
                     <Text style={styles.storeName} numberOfLines={1}>
                       {store.storeName}
                     </Text>
-                    {store.prices.some(p => p.originalName && p.originalName !== item.name) && (
-                      <Text style={styles.storeOriginalName} numberOfLines={1}>
-                        {store.prices.find(p => p.originalName)?.originalName}
-                      </Text>
-                    )}
+                    {(() => {
+                      const uniqueOriginalNames = [...new Set(store.prices.map(p => p.originalName).filter(Boolean))].filter(name => name !== item.name);
+                      return uniqueOriginalNames.length > 0 ? (
+                        <Text style={styles.storeOriginalName} numberOfLines={2}>
+                          {uniqueOriginalNames.join(' / ')}
+                        </Text>
+                      ) : null;
+                    })()}
                     <Text style={styles.storeMeta}>
                       {store.priceCount} prix enregistré{store.priceCount > 1 ? 's' : ''}
                     </Text>
@@ -282,9 +289,16 @@ export const CityItemDetailScreen: React.FC = () => {
                 {store.prices.slice(0, 3).map((price, pIndex) => (
                   <View key={pIndex} style={styles.priceHistoryItem}>
                     <View style={styles.priceHistoryDot} />
-                    <Text style={styles.priceHistoryDate}>
-                      {formatDate(price.date)}
-                    </Text>
+                    <View style={styles.priceHistoryLeft}>
+                      <Text style={styles.priceHistoryDate}>
+                        {formatDate(price.date)}
+                      </Text>
+                      {price.originalName && price.originalName !== item.name && (
+                        <Text style={styles.priceHistoryOriginalName}>
+                          {price.originalName}
+                        </Text>
+                      )}
+                    </View>
                     <Text style={styles.priceHistoryValue}>
                       {formatCurrency(price.price, price.currency as 'USD' | 'CDF')}
                     </Text>
@@ -373,6 +387,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
+  },
+  summaryItemName: {
+    ...TextStyles.h3,
+    color: Colors.text.primary,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+    fontWeight: '600',
   },
   categoryBadge: {
     flexDirection: 'row',
@@ -561,10 +582,17 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Colors.primary,
   },
+  priceHistoryLeft: {
+    flex: 1,
+  },
   priceHistoryDate: {
     ...TextStyles.caption,
     color: Colors.text.tertiary,
-    flex: 1,
+  },
+  priceHistoryOriginalName: {
+    ...TextStyles.caption,
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
   priceHistoryValue: {
     ...TextStyles.caption,

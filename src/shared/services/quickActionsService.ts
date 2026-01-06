@@ -5,7 +5,7 @@ import QuickActions, {ShortcutItem} from 'react-native-quick-actions';
 import {Platform} from 'react-native';
 
 // Define quick action types
-export type QuickActionType = 'scan' | 'shopping' | 'history';
+export type QuickActionType = 'scan' | 'stats' | 'items' | 'dashboard';
 
 export interface QuickAction {
   type: QuickActionType;
@@ -25,18 +25,25 @@ const QUICK_ACTIONS: ShortcutItem[] = [
     userInfo: {url: 'goshopperai://scan'},
   },
   {
-    type: 'com.goshopperai.shopping',
-    title: 'Liste de courses',
-    subtitle: 'Voir ma liste',
-    icon: Platform.OS === 'ios' ? 'Search' : 'ic_shortcut_cart',
-    userInfo: {url: 'goshopperai://shopping'},
+    type: 'com.goshopperai.stats',
+    title: 'Statistiques',
+    subtitle: 'Voir mes stats',
+    icon: Platform.OS === 'ios' ? 'Time' : 'ic_shortcut_stats',
+    userInfo: {url: 'goshopperai://stats'},
   },
   {
-    type: 'com.goshopperai.history',
-    title: 'Historique',
-    subtitle: 'Mes tickets',
-    icon: Platform.OS === 'ios' ? 'Time' : 'ic_shortcut_history',
-    userInfo: {url: 'goshopperai://history'},
+    type: 'com.goshopperai.items',
+    title: 'Articles',
+    subtitle: 'Voir les articles',
+    icon: Platform.OS === 'ios' ? 'Search' : 'ic_shortcut_items',
+    userInfo: {url: 'goshopperai://items'},
+  },
+  {
+    type: 'com.goshopperai.dashboard',
+    title: 'Tableau de bord',
+    subtitle: 'Accueil',
+    icon: Platform.OS === 'ios' ? 'Home' : 'ic_shortcut_home',
+    userInfo: {url: 'goshopperai://dashboard'},
   },
 ];
 
@@ -89,8 +96,9 @@ export const quickActionsService = {
     // Extract action type from full type string
     const typeMap: Record<string, QuickActionType> = {
       'com.goshopperai.scan': 'scan',
-      'com.goshopperai.shopping': 'shopping',
-      'com.goshopperai.history': 'history',
+      'com.goshopperai.stats': 'stats',
+      'com.goshopperai.items': 'items',
+      'com.goshopperai.dashboard': 'dashboard',
     };
 
     const actionType = typeMap[data.type];
@@ -110,8 +118,9 @@ export const quickActionsService = {
   getScreenForAction(actionType: QuickActionType): string {
     const screenMap: Record<QuickActionType, string> = {
       scan: 'Scanner',
-      shopping: 'ShoppingLists',
-      history: 'History',
+      stats: 'Stats',
+      items: 'Items',
+      dashboard: 'Home',
     };
 
     return screenMap[actionType] || 'Home';

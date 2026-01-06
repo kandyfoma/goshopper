@@ -33,6 +33,7 @@ import {analyticsService} from '@/shared/services/analytics';
 import {cacheManager, CacheTTL} from '@/shared/services/caching';
 import {translationService} from '@/shared/services/translation';
 import {RootStackParamList} from '@/shared/types';
+import {cityItemsRefreshService} from '../services/cityItemsRefreshService';
 
 // City/Community item data (Tier 3: Community Prices - Anonymous)
 // Source: getCityItems Cloud Function → artifacts/{APP_ID}/users/*/items
@@ -151,9 +152,11 @@ export function CityItemsScreen() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isSilentRefreshing, setIsSilentRefreshing] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silentRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check feature access
   const hasAccess = hasFeatureAccess('priceComparison', subscription);
@@ -206,6 +209,25 @@ export function CityItemsScreen() {
       
       if (!profileLoading && userProfile?.defaultCity) {
         loadCityItemsData(false); // Use cache on initial load, only force refresh on pull-to-refresh
+        
+        // Start auto-refresh for this city
+        cityItemsRefreshService.startAutoRefresh(userProfile.defaultCity);
+        
+        // Subscribe to background updates
+        const unsubscribe = cityItemsRefreshService.subscribe(
+          userProfile.defaultCity,
+          (updatedItems) => {
+            console.log(`🔄 [CityItems] Received ${updatedItems.length} items from background refresh`);
+            setItems(updatedItems);
+            setIsSilentRefreshing(false);
+          }
+        );
+        
+        // Cleanup on unmount or when city changes
+        return () => {
+          cityItemsRefreshService.stopAutoRefresh(userProfile.defaultCity);
+          unsubscribe();
+        };
       } else if (!profileLoading) {
         setIsLoading(false);
       }
@@ -220,6 +242,51 @@ export function CityItemsScreen() {
     await loadCityItemsData(true); // Force refresh
     setRefreshing(false);
   };
+
+  // Silent refresh while user is reading - triggered after 10 seconds on page
+  useEffect(() => {
+    if (!userProfile?.defaultCity || !hasAccess || isLoading) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (silentRefreshTimeoutRef.current) {
+      clearTimeout(silentRefreshTimeoutRef.current);
+    }
+
+    // Start silent refresh after 10 seconds of being on the page
+    silentRefreshTimeoutRef.current = setTimeout(async () => {
+      console.log('🔄 [CityItems] Starting silent refresh while reading...');
+      setIsSilentRefreshing(true);
+      
+      try {
+        const result = await cityItemsRefreshService.refreshWhileReading(
+          userProfile.defaultCity
+        );
+        
+        if (result.success && !result.cached) {
+          // Data was refreshed, get updated items from cache
+          const updatedItems = await cityItemsRefreshService.getCachedItems(
+            userProfile.defaultCity
+          );
+          
+          if (updatedItems) {
+            setItems(updatedItems);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ [CityItems] Silent refresh error:', error);
+      } finally {
+        setIsSilentRefreshing(false);
+      }
+    }, 10000); // 10 seconds
+
+    return () => {
+      if (silentRefreshTimeoutRef.current) {
+        clearTimeout(silentRefreshTimeoutRef.current);
+      }
+    };
+  }, [userProfile?.defaultCity, hasAccess, isLoading, items.length]);
 
   // Memoize filtered and sorted items for performance
   const filteredAndSortedItems = useMemo(() => {
@@ -648,6 +715,11 @@ export function CityItemsScreen() {
                 <Text style={styles.title}>
                   Articles de {userProfile.defaultCity}
                 </Text>
+                {isSilentRefreshing && (
+                  <View style={styles.refreshIndicator}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                )}
               </View>
               <Text style={styles.subtitle}>
                 {items.length} produits communautaires
@@ -895,6 +967,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
+  },
+  refreshIndicator: {
+    marginLeft: Spacing.xs,
+    opacity: 0.7,
   },
   subtitle: {
     fontSize: Typography.fontSize.sm,
