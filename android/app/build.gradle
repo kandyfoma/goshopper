@@ -86,9 +86,9 @@ android {
         applicationId "com.goshopper.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.0.3"
-        setProperty("archivesBaseName", "goshopper-v1.0.3")
+        versionCode 10
+        versionName "7.0.1"
+        setProperty("archivesBaseName", "goshopper-v7.0.1")
     }
     signingConfigs {
         debug {
