@@ -23,6 +23,26 @@ function generateVerificationCode(): string {
 }
 
 /**
+ * Check if a phone number is a test number
+ */
+function isTestPhoneNumber(phoneNumber: string): boolean {
+  if (!phoneNumber) return false;
+  return phoneNumber.startsWith(config.testing.phonePrefix); // +243999999XXX
+}
+
+/**
+ * Get the verification code for a phone number
+ * Test numbers always get the fixed test OTP
+ */
+function getVerificationCode(phoneNumber?: string): string {
+  if (phoneNumber && isTestPhoneNumber(phoneNumber)) {
+    console.log(`🧪 TEST MODE: Using fixed OTP for test number: ${phoneNumber}`);
+    return config.testing.testOTP;
+  }
+  return generateVerificationCode();
+}
+
+/**
  * Generate a unique verification session ID
  */
 function generateSessionId(): string {
@@ -33,6 +53,14 @@ function generateSessionId(): string {
  * Send SMS via Africa's Talking or similar SMS gateway (for DRC)
  */
 async function sendSMS(phoneNumber: string, code: string): Promise<boolean> {
+  // Check if this is a test phone number
+  if (isTestPhoneNumber(phoneNumber)) {
+    console.log(`🧪 TEST MODE: Skipping SMS send for test number: ${phoneNumber}`);
+    console.log(`🧪 TEST MODE: Test OTP is: ${code} (always 123456)`);
+    console.log(`🧪 TEST MODE: SMS cost saved: $0.05`);
+    return true; // Pretend SMS was sent successfully
+  }
+
   try {
     // Africa's Talking SMS API
     const response = await fetch(`${config.sms.baseUrl}/version1/messaging`, {
@@ -223,7 +251,7 @@ export const sendVerificationCode = functions
       }
 
       // Generate verification code and session
-      const code = generateVerificationCode();
+      const code = getVerificationCode(inDRC ? phoneNumber : undefined);
       const sessionId = generateSessionId();
       const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000);
 

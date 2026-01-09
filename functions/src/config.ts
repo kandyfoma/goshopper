@@ -71,6 +71,16 @@ export const config = {
     trialDurationDays: 60, // 2 months
   },
 
+  // Test Phone Numbers (for worldwide beta testing - no SMS costs)
+  testing: {
+    phonePrefix: '+243999999', // Test phone numbers: +243999999XXX
+    testOTP: '123456', // Fixed OTP for test phone numbers
+    allowTestNumbersInProduction: true, // Enable test numbers even in production
+    // Testers enter: 999999001, 999999002, etc. (9 digits in phone field)
+    // Backend receives: +243999999001, +243999999002, etc.
+    // Each test number creates a separate account (up to 999 test accounts)
+  },
+
   // Pricing (USD)
   pricing: {
     freemium: {price: 0, scansPerMonth: 3}, // Freemium tier
