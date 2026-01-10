@@ -875,8 +875,10 @@ export function SettingsScreen() {
         variant="bottom-sheet"
         overlayOpacity={0.5}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+          enabled
+          style={{flex: 1}}>
           <ScrollView 
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -1528,7 +1530,8 @@ const styles = StyleSheet.create({
     maxHeight: Dimensions.get('window').height * 0.8,
   },
   deleteModalScrollContent: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Platform.OS === 'ios' ? Spacing['4xl'] : Spacing['6xl'], // Extra padding for keyboard
+    flexGrow: 1,
   },
   deleteCloseButton: {
     position: 'absolute',

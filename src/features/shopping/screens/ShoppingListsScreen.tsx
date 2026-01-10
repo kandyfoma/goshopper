@@ -426,11 +426,11 @@ export function ShoppingListsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Modern Header */}
       <FadeIn duration={400}>
-        <View style={[styles.header, {paddingTop: insets.top + Spacing.md}]}>
+        <View style={[styles.screenHeader, {paddingTop: insets.top + Spacing.md}]}>
           <BackButton />
           
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Mes Listes</Text>
+            <Text style={styles.screenHeaderTitle}>Mes Listes</Text>
             <Text style={styles.headerSubtitle}>
               {lists.length} liste{lists.length !== 1 ? 's' : ''}
             </Text>
@@ -549,12 +549,9 @@ export function ShoppingListsScreen() {
                 </View>
 
                 <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-                  {/* Hero illustration */}
+                  {/* Hero title */}
                   <View style={styles.modalHero}>
-                    <View style={styles.modalHeroIcon}>
-                      <Icon name="clipboard-list" size="xl" color={Colors.white} />
-                    </View>
-                    <Text style={styles.modalHeroText}>
+                    <Text style={styles.modalHeroTitle}>
                       Organisez vos courses intelligemment
                     </Text>
                   </View>
@@ -650,12 +647,9 @@ export function ShoppingListsScreen() {
             </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-              {/* Hero illustration */}
+              {/* Hero title */}
               <View style={styles.modalHero}>
-                <View style={styles.modalHeroIcon}>
-                  <Icon name="clipboard-list" size="xl" color={Colors.white} />
-                </View>
-                <Text style={styles.modalHeroText}>
+                <Text style={styles.modalHeroTitle}>
                   Organisez vos courses intelligemment
                 </Text>
               </View>
@@ -738,8 +732,8 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   
-  // Header
-  header: {
+  // Screen Header
+  screenHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -765,7 +759,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  headerTitle: {
+  screenHeaderTitle: {
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.text.primary,
@@ -1066,19 +1060,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     paddingTop: Spacing.md,
   },
-  modalHeroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  modalHeroText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
+  modalHeroTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.text.primary,
     textAlign: 'center',
   },
   modalInputSection: {

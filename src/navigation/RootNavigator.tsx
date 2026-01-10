@@ -110,8 +110,8 @@ export function RootNavigator() {
         // Safety check - if doc doesn't exist or has no data, profile is incomplete
         if (!userDoc.exists || !userData) {
           console.log('📝 RootNavigator: User document not found or empty');
-          setInitialRoute('UpdateProfile');
-          setIsCheckingProfile(false);
+          setIsProfileComplete(false);
+          setCheckingProfile(false);
           return;
         }
         
@@ -166,6 +166,8 @@ export function RootNavigator() {
     // Authenticated but profile incomplete - show profile setup
     initialRoute = 'ProfileSetup';
   }
+  // If authenticated and profile complete, go to Main (default)
+  // If not first launch and not authenticated, go to Main (allow anonymous browsing)
 
   return (
     <React.Fragment>
@@ -175,7 +177,8 @@ export function RootNavigator() {
           headerShown: false,
           animation: 'slide_from_right',
         }}>
-        {/* Welcome Screen - shown for first-time users who haven't logged in */}
+        {/* Welcome Screen - shown only for first-time users who haven't logged in */}
+        {/* Note: Social login users skip this by marking onboarding complete in AuthContext */}
         {isFirstLaunch && !isAuthenticated && (
           <Stack.Screen
             name="Welcome"

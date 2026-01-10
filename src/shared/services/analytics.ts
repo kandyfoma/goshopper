@@ -103,7 +103,7 @@ class AnalyticsService {
   }
 
   // Authentication Events
-  async logLogin(method: 'email' | 'google' | 'anonymous' | 'apple' | 'facebook' = 'email') {
+  async logLogin(method: 'email' | 'google' | 'anonymous' | 'apple' | 'phone'| 'facebook' = 'email') {
     try {
       await analytics().logLogin({method});
     } catch (error) {

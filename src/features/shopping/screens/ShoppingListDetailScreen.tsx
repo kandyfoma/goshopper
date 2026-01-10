@@ -12,6 +12,7 @@ import {
   Animated,
   ScrollView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -635,6 +636,32 @@ export function ShoppingListDetailScreen() {
   const checkedCount = list.items.filter(i => i.isChecked).length;
   const progress = list.items.length > 0 ? checkedCount / list.items.length : 0;
 
+  // Helper function to render search result item
+  const renderSearchResultItem = (item: CommunityItemData) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[
+        styles.searchResultItem,
+        (selectedItemForAdd?.id === item.id) ? styles.searchResultItemSelected : undefined,
+      ]}
+      onPress={() => setSelectedItemForAdd(item)}
+      activeOpacity={0.7}>
+      <View style={styles.searchResultContent}>
+        <View style={styles.searchResultInfo}>
+          <Text style={styles.searchResultName}>{item.name}</Text>
+          <Text style={styles.searchResultPrice}>
+            À partir de {formatCurrency(item.minPrice, item.currency)}
+          </Text>
+        </View>
+        <View style={styles.searchResultStats}>
+          <Text style={styles.searchResultStores}>
+            {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
       {/* Modern Header */}
@@ -767,7 +794,7 @@ export function ShoppingListDetailScreen() {
           <FlatList
             data={list.items}
             renderItem={renderItem}
-            keyExtractor={item => item.id}
+            keyExtractor={(item: ShoppingListItem) => item.id}
             contentContainerStyle={styles.itemsList}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -1031,30 +1058,7 @@ export function ShoppingListDetailScreen() {
                         </Text>
                       </View>
                       <View style={styles.searchResultsList}>
-                        {searchResults.map((item) => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={[
-                              styles.searchResultItem,
-                              selectedItemForAdd?.id === item.id && styles.searchResultItemSelected,
-                            ]}
-                            onPress={() => setSelectedItemForAdd(item)}
-                            activeOpacity={0.7}>
-                            <View style={styles.searchResultContent}>
-                              <View style={styles.searchResultInfo}>
-                                <Text style={styles.searchResultName}>{item.name}</Text>
-                                <Text style={styles.searchResultPrice}>
-                                  À partir de {formatCurrency(item.minPrice, item.currency)}
-                                </Text>
-                              </View>
-                              <View style={styles.searchResultStats}>
-                                <Text style={styles.searchResultStores}>
-                                  {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
-                                </Text>
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
+                        {searchResults.map(renderSearchResultItem)}
                       </View>
                     </View>
                   )}
@@ -1244,30 +1248,7 @@ export function ShoppingListDetailScreen() {
                     </Text>
                   </View>
                   <View style={styles.searchResultsList}>
-                    {searchResults.map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={[
-                          styles.searchResultItem,
-                          selectedItemForAdd?.id === item.id && styles.searchResultItemSelected,
-                        ]}
-                        onPress={() => setSelectedItemForAdd(item)}
-                        activeOpacity={0.7}>
-                        <View style={styles.searchResultContent}>
-                          <View style={styles.searchResultInfo}>
-                            <Text style={styles.searchResultName}>{item.name}</Text>
-                            <Text style={styles.searchResultPrice}>
-                              À partir de {formatCurrency(item.minPrice, item.currency)}
-                            </Text>
-                          </View>
-                          <View style={styles.searchResultStats}>
-                            <Text style={styles.searchResultStores}>
-                              {item.storeCount} magasin{item.storeCount > 1 ? 's' : ''}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                    {searchResults.map(renderSearchResultItem)}
                   </View>
                 </View>
               )}
@@ -2114,20 +2095,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: Spacing.md,
   },
-  searchResultInfo: {
-    flex: 1,
-  },
-  searchResultName: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
-    marginBottom: 2,
-  },
-  searchResultStats: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
-  },
   // RNModal styles
   modal: {
     margin: 0,
@@ -2234,6 +2201,124 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
+  },
+  searchResultItemSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  searchingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  searchingText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  priceComparisonContainer: {
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  priceComparisonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  priceComparisonTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+  },
+  priceList: {
+    gap: Spacing.sm,
+  },
+  priceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.md,
+  },
+  priceItemSelected: {
+    backgroundColor: Colors.primary,
+  },
+  priceItemBest: {
+    borderWidth: 2,
+    borderColor: Colors.status.success,
+  },
+  bestPriceBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.status.success,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bestPriceText: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.white,
+  },
+  priceItemContent: {
+    flex: 1,
+  },
+  priceStoreInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xs,
+  },
+  priceStoreName: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.text.primary,
+  },
+  priceStoreNameSelected: {
+    color: Colors.white,
+  },
+  priceCurrency: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.text.secondary,
+  },
+  priceAmountContainer: {
+    alignItems: 'flex-end',
+  },
+  priceAmount: {
+    fontSize: Typography.fontSize.lg,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.status.success,
+  },
+  priceAmountBest: {
+    color: Colors.white,
+  },
+  selectedCheck: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.full,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addItemButtonContainer: {
+    marginTop: Spacing.lg,
   },
   editNameContent: {
     paddingVertical: Spacing.lg,

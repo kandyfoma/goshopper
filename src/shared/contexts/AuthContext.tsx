@@ -8,6 +8,7 @@ import React, {
   useRef,
   ReactNode,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {User, AuthState} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {analyticsService} from '@/shared/services';
@@ -153,6 +154,15 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('google');
+      
+      // Mark onboarding as completed for social login users to prevent redirect loop
+      try {
+        await AsyncStorage.setItem('@goshopperai_onboarding_complete', 'completed');
+        console.log('✅ Onboarding marked as complete for Google sign-in user');
+      } catch (storageError) {
+        console.warn('Failed to save onboarding status:', storageError);
+      }
+      
       return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Google';
@@ -178,6 +188,15 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('apple');
+      
+      // Mark onboarding as completed for social login users to prevent redirect loop
+      try {
+        await AsyncStorage.setItem('@goshopperai_onboarding_complete', 'completed');
+        console.log('✅ Onboarding marked as complete for Apple sign-in user');
+      } catch (storageError) {
+        console.warn('Failed to save onboarding status:', storageError);
+      }
+      
       return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Apple';
@@ -203,6 +222,15 @@ export function AuthProvider({children}: AuthProviderProps) {
 
       // Track sign in event
       analyticsService.logLogin('facebook');
+      
+      // Mark onboarding as completed for social login users to prevent redirect loop
+      try {
+        await AsyncStorage.setItem('@goshopperai_onboarding_complete', 'completed');
+        console.log('✅ Onboarding marked as complete for Facebook sign-in user');
+      } catch (storageError) {
+        console.warn('Failed to save onboarding status:', storageError);
+      }
+      
       return user;
     } catch (err: any) {
       const errorMessage = err?.message || 'Échec de la connexion Facebook';

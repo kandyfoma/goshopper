@@ -706,4 +706,8 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
     lineHeight: Typography.fontSize.sm * 1.5,
   },
+  subtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+  },
 });
