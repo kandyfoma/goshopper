@@ -6,12 +6,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Dimensions,
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';

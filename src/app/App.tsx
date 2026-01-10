@@ -60,8 +60,8 @@ function NetworkAwareApp(): React.JSX.Element {
                           <BiometricSetupPrompt />
                           <StatusBar
                             barStyle="dark-content"
-                            backgroundColor="#FFFFFF"
-                            translucent={false}
+                            backgroundColor="transparent"
+                            translucent={true}
                           />
                           <RootNavigator />
                           <GlobalScanResultModal />
