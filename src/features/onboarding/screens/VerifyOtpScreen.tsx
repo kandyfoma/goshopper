@@ -11,6 +11,8 @@ import {
   Alert,
   TextInput,
   TouchableOpacity,
+  NativeModules,
+  NativeEventEmitter,
 } from 'react-native';
 import {useNavigation, useRoute, RouteProp as NavigationRouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -25,6 +27,9 @@ import {
   Spacing,
   BorderRadius,
 } from '@/shared/theme/theme';
+
+// SMS Retriever for Android auto-fill
+const SmsRetriever = Platform.OS === 'android' ? NativeModules.RNSmsRetriever : null;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type VerifyOtpRouteProp = NavigationRouteProp<RootStackParamList, 'VerifyOtp'>;
@@ -41,8 +46,70 @@ const VerifyOtpScreen: React.FC = () => {
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null); // Store session ID
+  const [isTestPhone, setIsTestPhone] = useState(false); // Track if test phone number
   
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  // Ref for phone check timeout (fix memory leak)
+  const phoneCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check if this is a test phone number
+  useEffect(() => {
+    const testPhonePattern = /^\+243999999\d{3}$/;
+    setIsTestPhone(testPhonePattern.test(phoneNumber));
+  }, [phoneNumber]);
+
+  // Start SMS Retriever listener for Android auto-fill
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !SmsRetriever) {
+      return;
+    }
+
+    let smsListener: any = null;
+
+    const startSmsRetriever = async () => {
+      try {
+        const registered = await SmsRetriever.startSmsRetriever();
+        if (registered) {
+          console.log('✅ SMS Retriever started');
+          
+          // Set up event listener for SMS
+          const eventEmitter = new NativeEventEmitter(SmsRetriever);
+          smsListener = eventEmitter.addListener('com.google.android.gms.auth.api.phone.SMS_RETRIEVED', (event: any) => {
+            if (event && event.message) {
+              console.log('📨 SMS received:', event.message);
+              
+              // Extract OTP from SMS (looking for 6-digit code)
+              const otpMatch = event.message.match(/\b(\d{6})\b/);
+              if (otpMatch && otpMatch[1]) {
+                const code = otpMatch[1];
+                console.log('🔑 Extracted OTP:', code);
+                
+                // Auto-fill OTP
+                const digits = code.split('');
+                setOtpCode(digits);
+                
+                // Clear any errors
+                if (error) {
+                  setError(null);
+                }
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.log('❌ SMS Retriever error (non-critical):', err);
+      }
+    };
+
+    startSmsRetriever();
+
+    // Cleanup
+    return () => {
+      if (smsListener) {
+        smsListener.remove();
+      }
+    };
+  }, []);
 
   // Send OTP when screen loads for phone verification
   useEffect(() => {
@@ -50,7 +117,9 @@ const VerifyOtpScreen: React.FC = () => {
       const sendInitialOTP = async () => {
         try {
           const result = await smsService.sendOTP(phoneNumber);
-          if (!result.success) {
+          if (result.success && result.sessionId) {
+            setSessionId(result.sessionId); // Store session ID
+          } else {
             setError(result.error || 'Erreur lors de l\'envoi du code');
           }
         } catch (err) {
@@ -110,11 +179,16 @@ const VerifyOtpScreen: React.FC = () => {
       return;
     }
 
+    if (!sessionId) {
+      setError('Session expirée. Veuillez demander un nouveau code');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const result = await smsService.verifyOTP(phoneNumber, code);
+      const result = await smsService.verifyOTP(phoneNumber, code, sessionId);
       
       if (result.success) {
         if (isPhoneVerification && user?.uid) {
@@ -213,7 +287,8 @@ const VerifyOtpScreen: React.FC = () => {
     try {
       const result = await smsService.sendOTP(phoneNumber);
       
-      if (result.success) {
+      if (result.success && result.sessionId) {
+        setSessionId(result.sessionId); // Update session ID for new OTP
         Alert.alert('Code envoyé', 'Un nouveau code de vérification a été envoyé');
         // Reset countdown
         setCountdown(60);
@@ -279,6 +354,16 @@ const VerifyOtpScreen: React.FC = () => {
                 : `Entrez le code à 6 chiffres envoyé au ${formatPhoneNumber(phoneNumber)}`
               }
             </Text>
+
+            {/* Test Phone Hint */}
+            {isTestPhone && (
+              <View style={styles.testPhoneHint}>
+                <Icon name="info" size="sm" color={Colors.accent} />
+                <Text style={styles.testPhoneText}>
+                  Mode test : Utilisez le code <Text style={styles.testCode}>123456</Text>
+                </Text>
+              </View>
+            )}
 
             {/* OTP Input */}
             <View style={styles.otpContainer}>
@@ -396,9 +481,31 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.text.secondary,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     lineHeight: Typography.lineHeight.relaxed,
     paddingHorizontal: Spacing.lg,
+  },
+  testPhoneHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  testPhoneText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+  },
+  testCode: {
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.accent,
+    fontSize: Typography.fontSize.md,
   },
   otpContainer: {
     flexDirection: 'row',

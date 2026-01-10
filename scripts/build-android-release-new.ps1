@@ -1,4 +1,4 @@
-# Android Release Build Script for GoShopper AI (PowerShell)
+﻿# Android Release Build Script for GoShopper AI (PowerShell)
 # This script generates a signed AAB for Play Store submission
 
 $ErrorActionPreference = "Stop"

@@ -17,7 +17,6 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import DateTimePicker, {DateTimePickerAndroid} from '@react-native-community/datetimepicker';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';

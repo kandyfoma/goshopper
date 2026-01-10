@@ -2,13 +2,6 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// Load .env file for react-native-config
-project.ext.envConfigFiles = [
-    debug: ".env",
-    release: ".env",
-]
-apply from: "../../node_modules/react-native-config/android/dotenv.gradle"
-
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -86,9 +79,9 @@ android {
         applicationId "com.goshopper.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "7.0.1"
-        setProperty("archivesBaseName", "goshopper-v7.0.1")
+        versionCode 11
+        versionName "7.0.2"
+        setProperty("archivesBaseName", "goshopper-v7.0.2")
     }
     signingConfigs {
         debug {
@@ -131,31 +124,54 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation("com.facebook.react:flipper-integration")
 
     // Facebook SDK
     implementation 'com.facebook.android:facebook-android-sdk:16.3.0'
 
     // Google Sign-In
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
-    
-    // Force compatible AndroidX versions to avoid SDK 35 requirement
-    constraints {
-        implementation('androidx.core:core:1.13.1') {
-            because 'Requires SDK 34 instead of 35'
-        }
-        implementation('androidx.core:core-ktx:1.13.1') {
-            because 'Requires SDK 34 instead of 35'
-        }
-    }
 
-    // Hermes is handled by the React Native Gradle Plugin based on hermesEnabled in gradle.properties
-    if (project.hasProperty('hermesEnabled') && hermesEnabled.toBoolean()) {
+    if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
+
+    // Native modules - added via autolinking
+    implementation project(':invertase_react-native-apple-authentication')
+    implementation project(':notifee_react-native')
+    implementation project(':react-native-async-storage_async-storage')
+    implementation project(':react-native-clipboard_clipboard')
+    implementation project(':react-native-community_blur')
+    implementation project(':react-native-community_netinfo')
+    implementation project(':react-native-firebase_analytics')
+    implementation project(':react-native-firebase_app')
+    implementation project(':react-native-firebase_auth')
+    implementation project(':react-native-firebase_firestore')
+    implementation project(':react-native-firebase_functions')
+    implementation project(':react-native-firebase_messaging')
+    implementation project(':react-native-firebase_storage')
+    implementation project(':react-native-google-signin_google-signin')
+    implementation project(':react-native-ml-kit_text-recognition')
+    implementation project(':react-native-voice_voice')
+    implementation project(':lottie-react-native')
+    implementation project(':react-native-biometrics')
+    implementation project(':react-native-compressor')
+    implementation project(':react-native-fbsdk-next')
+    implementation project(':react-native-fs')
+    implementation project(':react-native-gesture-handler')
+    implementation project(':react-native-haptic-feedback')
+    implementation project(':react-native-image-picker')
+    implementation project(':react-native-in-app-review')
+    implementation project(':react-native-linear-gradient')
+    implementation project(':react-native-quick-actions')
+    implementation project(':react-native-reanimated')
+    implementation project(':react-native-safe-area-context')
+    implementation project(':react-native-screens')
+    implementation project(':react-native-share')
+    implementation project(':react-native-shared-group-preferences')
+    implementation project(':react-native-svg')
+    implementation project(':react-native-video')
 }
 
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 apply plugin: 'com.google.gms.google-services'

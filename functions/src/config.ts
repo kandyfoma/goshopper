@@ -1,6 +1,13 @@
 /**
  * Configuration and environment variables
  */
+import { defineString, defineSecret } from 'firebase-functions/params'
+
+// Define secure parameters (stored in Firebase, not in repo)
+const africastalkingUsername = defineSecret('AFRICASTALKING_USERNAME')
+const africastalkingApiKey = defineSecret('AFRICASTALKING_API_KEY')
+const africastalkingSenderId = defineString('AFRICASTALKING_SENDER_ID', { default: 'GoShopperAI' })
+const africastalkingEnvironment = defineString('AFRICASTALKING_ENVIRONMENT', { default: 'production' })
 
 export const config = {
   // Firebase
@@ -38,14 +45,16 @@ export const config = {
   },
 
   // SMS Gateway (Africa's Talking for DRC)
+  // Using Firebase params - secrets stored securely in Firebase
   sms: {
-    apiKey: process.env.AFRICASTALKING_API_KEY || '',
-    username: process.env.AFRICASTALKING_USERNAME || 'sandbox',
-    senderId: process.env.AFRICASTALKING_SENDER_ID || 'GoShopperAI',
-    baseUrl:
-      process.env.AFRICASTALKING_ENVIRONMENT === 'production'
+    get apiKey() { return africastalkingApiKey.value() },
+    get username() { return africastalkingUsername.value() },
+    get senderId() { return africastalkingSenderId.value() },
+    get baseUrl() {
+      return africastalkingEnvironment.value() === 'production'
         ? 'https://api.africastalking.com'
-        : 'https://api.sandbox.africastalking.com',
+        : 'https://api.sandbox.africastalking.com'
+    },
   },
 
   // SendGrid (Email for international users)
@@ -90,6 +99,12 @@ export const config = {
     premium: {price: 4.99, scansPerMonth: 200}
   },
 };
+
+// Export params for use in function definitions
+export const smsParams = {
+  secrets: [africastalkingUsername, africastalkingApiKey],
+  params: [africastalkingSenderId, africastalkingEnvironment],
+}
 
 // Firestore collection paths
 export const collections = {

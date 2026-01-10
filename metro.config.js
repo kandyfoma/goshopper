@@ -8,18 +8,7 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
  */
 const config = {
   resolver: {
-    sourceExts: ['js', 'json', 'ts', 'tsx', 'jsx', 'shared'],
-    assetExts: ['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp'],
-    resolveRequest: (context, moduleName, platform) => {
-      // Fix for Supabase realtime-js module resolution
-      if (moduleName === '@supabase/realtime-js') {
-        return {
-          filePath: require.resolve('@supabase/realtime-js'),
-          type: 'sourceFile',
-        };
-      }
-      return context.resolveRequest(context, moduleName, platform);
-    },
+    sourceExts: ['js', 'json', 'ts', 'tsx', 'jsx'],
   },
   transformer: {
     getTransformOptions: async () => ({

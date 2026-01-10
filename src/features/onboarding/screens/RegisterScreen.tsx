@@ -11,12 +11,15 @@ import {
   Platform,
   ScrollView,
   Modal,
+  NativeModules,
+  NativeEventEmitter,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
 import {authService} from '@/shared/services/firebase';
 import {PhoneService} from '@/shared/services/phone';
+import {smsService} from '@/shared/services';
 import {countryCodeList, congoCities} from '@/shared/constants/countries';
 import {
   COUNTRIES_CITIES,
@@ -39,7 +42,7 @@ import {getFCMToken} from '@/shared/services/notificationService';
 import functions from '@react-native-firebase/functions';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type RegistrationStep = 'step1' | 'step2';
+type RegistrationStep = 'step1' | 'step2' | 'step3';
 
 export function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -57,7 +60,17 @@ export function RegisterScreen() {
   const [phoneExists, setPhoneExists] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
   
-  // Step 2: Password and terms
+  // Step 2: OTP Verification
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [verificationToken, setVerificationToken] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpInputRefs = React.useRef<Array<TextInput | null>>([]);
+  
+  // Step 3: Password and terms
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -159,6 +172,152 @@ export function RegisterScreen() {
     };
   }, []);
 
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  // SMS Retriever for Android auto-fill
+  useEffect(() => {
+    if (Platform.OS === 'android' && currentStep === 'step2') {
+      const {SmsRetriever} = NativeModules;
+      
+      if (SmsRetriever && SmsRetriever.startSmsRetriever) {
+        console.log('📱 Starting SMS Retriever...');
+        
+        SmsRetriever.startSmsRetriever()
+          .then(() => {
+            console.log('✅ SMS Retriever started');
+            
+            const eventEmitter = new NativeEventEmitter(SmsRetriever);
+            const subscription = eventEmitter.addListener('com.google.android.gms.auth.api.phone.SMS_RETRIEVED', (event) => {
+              console.log('📨 SMS received:', event.message);
+              
+              // Extract 6-digit OTP from SMS
+              const otpMatch = event.message.match(/\b\d{6}\b/);
+              if (otpMatch) {
+                const code = otpMatch[0];
+                console.log('🔢 OTP extracted:', code);
+                
+                // Auto-fill OTP
+                const otpArray = code.split('');
+                setOtp(otpArray);
+                
+                // Auto-verify after a short delay
+                setTimeout(() => {
+                  handleVerifyOtp(code);
+                }, 300);
+              }
+            });
+            
+            return () => subscription.remove();
+          })
+          .catch((error: any) => {
+            console.log('❌ SMS Retriever error:', error);
+          });
+      } else {
+        console.log('⚠️ SMS Retriever not available');
+      }
+    }
+  }, [currentStep]);
+
+  // OTP handling functions
+  const handleOtpChange = (value: string, index: number) => {
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+    
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    setOtpError('');
+    
+    // Auto-focus next input
+    if (value && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+    
+    // Auto-submit when all 6 digits are entered
+    if (newOtp.every(digit => digit !== '') && newOtp.join('').length === 6) {
+      handleVerifyOtp(newOtp.join(''));
+    }
+  };
+
+  const handleOtpKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleVerifyOtp = async (code?: string) => {
+    const otpCode = code || otp.join('');
+    
+    if (otpCode.length !== 6) {
+      setOtpError('Veuillez entrer les 6 chiffres');
+      return;
+    }
+    
+    setVerifyingOtp(true);
+    setOtpError('');
+    
+    try {
+      const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
+      console.log('🔐 Verifying OTP:', otpCode);
+      
+      const result = await smsService.verifyOTP(formattedPhone, otpCode, sessionId);
+      
+      if (result.success && result.verified) {
+        console.log('✅ OTP verified successfully');
+        setVerificationToken(result.verificationToken || result.token || '');
+        showToast('Numéro vérifié avec succès!', 'success');
+        setCurrentStep('step3');
+      } else {
+        throw new Error(result.error || 'Code de vérification incorrect');
+      }
+    } catch (err: any) {
+      console.error('❌ Error verifying OTP:', err);
+      setOtpError(err.message || 'Code invalide');
+      showToast('Code de vérification incorrect', 'error');
+      // Clear OTP inputs
+      setOtp(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    
+    setSendingOtp(true);
+    setOtpError('');
+    
+    try {
+      const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
+      console.log('📱 Resending OTP to:', formattedPhone);
+      
+      const result = await smsService.resendOTP(formattedPhone, selectedCountry.alpha2, 'fr');
+      
+      if (result.success && result.sessionId) {
+        console.log('✅ OTP resent, new session ID:', result.sessionId);
+        setSessionId(result.sessionId);
+        showToast('Nouveau code envoyé', 'success');
+        setResendCooldown(60);
+        // Clear OTP inputs
+        setOtp(['', '', '', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+      } else {
+        throw new Error(result.error || 'Échec du renvoi du code');
+      }
+    } catch (err: any) {
+      console.error('❌ Error resending OTP:', err);
+      showToast('Impossible de renvoyer le code', 'error');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   // Password validation with comprehensive edge cases
   const validatePassword = (pwd: string): string => {
     const validation = passwordService.validatePassword(
@@ -208,8 +367,13 @@ export function RegisterScreen() {
     );
   };
 
-  // Step 2 validation
+  // Step 2 validation (OTP)
   const isStep2Valid = (): boolean => {
+    return otp.every(digit => digit !== '') && otp.join('').length === 6;
+  };
+
+  // Step 3 validation (Password)
+  const isStep3Valid = (): boolean => {
     return (
       password !== '' &&
       confirmPassword !== '' &&
@@ -219,7 +383,7 @@ export function RegisterScreen() {
     );
   };
 
-  const handleStep1Continue = () => {
+  const handleStep1Continue = async () => {
     const error = validatePhoneNumber(phoneNumber);
     if (error) {
       setPhoneError(error);
@@ -227,7 +391,7 @@ export function RegisterScreen() {
     }
     
     if (!selectedCity) {
-      Alert.alert('Erreur', 'Veuillez sélectionner votre ville');
+      showToast('Veuillez sélectionner votre ville', 'error');
       return;
     }
     
@@ -235,11 +399,50 @@ export function RegisterScreen() {
       return; // User should see the error message already
     }
     
-    setCurrentStep('step2');
+    // Send OTP
+    setSendingOtp(true);
+    setError(null);
+    
+    try {
+      const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
+      console.log('📱 Sending OTP to:', formattedPhone);
+      
+      const result = await smsService.sendOTP(formattedPhone, selectedCountry.alpha2, 'fr');
+      
+      if (result.success && result.sessionId) {
+        console.log('✅ OTP sent, session ID:', result.sessionId);
+        setSessionId(result.sessionId);
+        setCurrentStep('step2');
+        
+        // Show info for test numbers
+        if (formattedPhone.includes('999999')) {
+          showToast('Numéro de test détecté. Utilisez le code: 123456', 'info', 5000);
+        } else {
+          showToast('Code de vérification envoyé par SMS', 'success');
+        }
+        
+        // Start resend cooldown
+        setResendCooldown(60);
+      } else {
+        throw new Error(result.error || 'Échec de l\'envoi du code');
+      }
+    } catch (err: any) {
+      console.error('❌ Error sending OTP:', err);
+      setError(err.message || 'Impossible d\'envoyer le code de vérification');
+      showToast('Erreur lors de l\'envoi du code', 'error');
+    } finally {
+      setSendingOtp(false);
+    }
   };
 
   const handleRegistration = async () => {
-    if (!isStep2Valid()) return;
+    if (!isStep3Valid()) return;
+    
+    if (!verificationToken) {
+      setError("Veuillez d'abord vérifier votre numéro");
+      setCurrentStep('step2');
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -247,26 +450,19 @@ export function RegisterScreen() {
     try {
       const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
       
-      // Re-check phone exists before registration (edge case: user went back and changed phone)
-      const phoneStillAvailable = !(await PhoneService.checkPhoneExists(formattedPhone));
-      if (!phoneStillAvailable) {
-        setError('Ce numéro est déjà utilisé');
-        setCurrentStep('step1');
-        setLoading(false);
-        return;
-      }
+      console.log('📝 Creating user with verified phone:', formattedPhone);
       
       // Suppress auth listener during registration to prevent auto-navigation
       // This allows biometric modal to show before navigation
       suppressAuthListener();
       
-      // Create user directly without OTP verification
-      // Phone verification can be done later from profile
+      // Create user with verified phone number
       const user = await authService.createUserWithPhone({
         phoneNumber: formattedPhone,
         password,
         city: selectedCity,
-        countryCode: selectedCountry.code
+        countryCode: selectedCountry.code,
+        verificationToken, // Pass the verification token from OTP
       });
       
       console.log('✅ User created:', user.uid);
@@ -370,6 +566,8 @@ export function RegisterScreen() {
             <Text style={styles.subtitle}>
               {currentStep === 'step1' 
                 ? 'Commençons par vos informations de base'
+                : currentStep === 'step2'
+                ? 'Vérifiez votre numéro de téléphone'
                 : 'Sécurisez votre compte'
               }
             </Text>
@@ -379,9 +577,13 @@ export function RegisterScreen() {
               <View style={[styles.progressStep, currentStep === 'step1' && styles.progressStepActive]}>
                 <Text style={[styles.progressStepText, currentStep === 'step1' && styles.progressStepTextActive]}>1</Text>
               </View>
-              <View style={[styles.progressLine, currentStep === 'step2' && styles.progressLineActive]} />
+              <View style={[styles.progressLine, (currentStep === 'step2' || currentStep === 'step3') && styles.progressLineActive]} />
               <View style={[styles.progressStep, currentStep === 'step2' && styles.progressStepActive]}>
                 <Text style={[styles.progressStepText, currentStep === 'step2' && styles.progressStepTextActive]}>2</Text>
+              </View>
+              <View style={[styles.progressLine, currentStep === 'step3' && styles.progressLineActive]} />
+              <View style={[styles.progressStep, currentStep === 'step3' && styles.progressStepActive]}>
+                <Text style={[styles.progressStepText, currentStep === 'step3' && styles.progressStepTextActive]}>3</Text>
               </View>
             </View>
           </View>
@@ -443,7 +645,8 @@ export function RegisterScreen() {
                 variant="primary"
                 title="Continuer"
                 onPress={handleStep1Continue}
-                disabled={!isStep1Valid()}
+                disabled={!isStep1Valid() || sendingOtp}
+                loading={sendingOtp}
                 icon={<Icon name="arrow-right" size="sm" color={Colors.white} />}
                 iconPosition="right"
               />
@@ -477,8 +680,95 @@ export function RegisterScreen() {
             </View>
           )}
 
-          {/* Step 2: Password and Terms */}
+          {/* Step 2: OTP Verification */}
           {currentStep === 'step2' && (
+            <View style={styles.form}>
+              {/* Phone Display */}
+              <View style={styles.otpPhoneDisplay}>
+                <Text style={styles.otpPhoneLabel}>Code envoyé au:</Text>
+                <Text style={styles.otpPhoneNumber}>
+                  {selectedCountry.code} {phoneNumber}
+                </Text>
+              </View>
+
+              {/* OTP Input */}
+              <View style={styles.otpContainer}>
+                <Text style={styles.label}>Code de vérification *</Text>
+                <View style={styles.otpInputsRow}>
+                  {otp.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={ref => otpInputRefs.current[index] = ref}
+                      style={[
+                        styles.otpInput,
+                        digit && styles.otpInputFilled,
+                        otpError && styles.inputError
+                      ]}
+                      value={digit}
+                      onChangeText={(value) => handleOtpChange(value, index)}
+                      onKeyPress={(e) => handleOtpKeyPress(e, index)}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      selectTextOnFocus
+                      editable={!verifyingOtp}
+                    />
+                  ))}
+                </View>
+                {otpError && <Text style={styles.errorText}>{otpError}</Text>}
+                
+                {/* Info Text */}
+                <Text style={styles.otpInfoText}>
+                  {PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber).includes('999999')
+                    ? '🧪 Numéro de test détecté - utilisez: 123456'
+                    : 'Entrez le code à 6 chiffres reçu par SMS'}
+                </Text>
+              </View>
+
+              {/* Resend Code */}
+              <View style={styles.resendContainer}>
+                {resendCooldown > 0 ? (
+                  <Text style={styles.resendCooldownText}>
+                    Renvoyer le code dans {resendCooldown}s
+                  </Text>
+                ) : (
+                  <TouchableOpacity onPress={handleResendOtp} disabled={sendingOtp}>
+                    <Text style={styles.resendText}>
+                      {sendingOtp ? 'Envoi...' : 'Renvoyer le code'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.buttonGroup}>
+                <Button
+                  variant="primary"
+                  title="Vérifier"
+                  onPress={() => handleVerifyOtp()}
+                  disabled={!isStep2Valid()}
+                  loading={verifyingOtp}
+                  icon={<Icon name="check-circle" size="sm" color={Colors.white} />}
+                  iconPosition="right"
+                />
+
+                <Button
+                  variant="outline"
+                  title="Retour"
+                  onPress={() => {
+                    setCurrentStep('step1');
+                    setOtp(['', '', '', '', '', '']);
+                    setOtpError('');
+                  }}
+                  disabled={verifyingOtp}
+                  icon={<Icon name="arrow-left" size="sm" color={Colors.text.primary} />}
+                  iconPosition="left"
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Step 3: Password and Terms */}
+          {currentStep === 'step3' && (
             <View style={styles.form}>
               {/* Password */}
               <View style={styles.inputContainer}>
@@ -1266,6 +1556,65 @@ const styles = StyleSheet.create({
   guestFooterHighlight: {
     fontWeight: Typography.fontWeight.bold,
     color: Colors.primary,
+  },
+
+  // OTP Verification Styles
+  otpPhoneDisplay: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  otpPhoneLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    marginBottom: Spacing.xs,
+  },
+  otpPhoneNumber: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+  },
+  otpContainer: {
+    marginBottom: Spacing.lg,
+  },
+  otpInputsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.base,
+  },
+  otpInput: {
+    width: 48,
+    height: 56,
+    borderWidth: 2,
+    borderColor: Colors.border.default,
+    borderRadius: BorderRadius.md,
+    textAlign: 'center',
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+    backgroundColor: Colors.white,
+  },
+  otpInputFilled: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.background.tertiary,
+  },
+  otpInfoText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  resendContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  resendText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
+  resendCooldownText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.tertiary,
   },
 });
 

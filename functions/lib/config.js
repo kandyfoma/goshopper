@@ -1,9 +1,15 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.collections = exports.smsParams = exports.config = void 0;
 /**
  * Configuration and environment variables
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.collections = exports.config = void 0;
+const params_1 = require("firebase-functions/params");
+// Define secure parameters (stored in Firebase, not in repo)
+const africastalkingUsername = (0, params_1.defineSecret)('AFRICASTALKING_USERNAME');
+const africastalkingApiKey = (0, params_1.defineSecret)('AFRICASTALKING_API_KEY');
+const africastalkingSenderId = (0, params_1.defineString)('AFRICASTALKING_SENDER_ID', { default: 'GoShopperAI' });
+const africastalkingEnvironment = (0, params_1.defineString)('AFRICASTALKING_ENVIRONMENT', { default: 'production' });
 exports.config = {
     // Firebase
     firebase: {
@@ -34,13 +40,16 @@ exports.config = {
         webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
     },
     // SMS Gateway (Africa's Talking for DRC)
+    // Using Firebase params - secrets stored securely in Firebase
     sms: {
-        apiKey: process.env.AFRICASTALKING_API_KEY || '',
-        username: process.env.AFRICASTALKING_USERNAME || 'sandbox',
-        senderId: process.env.AFRICASTALKING_SENDER_ID || 'GoShopperAI',
-        baseUrl: process.env.AFRICASTALKING_ENVIRONMENT === 'production'
-            ? 'https://api.africastalking.com'
-            : 'https://api.sandbox.africastalking.com',
+        get apiKey() { return africastalkingApiKey.value(); },
+        get username() { return africastalkingUsername.value(); },
+        get senderId() { return africastalkingSenderId.value(); },
+        get baseUrl() {
+            return africastalkingEnvironment.value() === 'production'
+                ? 'https://api.africastalking.com'
+                : 'https://api.sandbox.africastalking.com';
+        },
     },
     // SendGrid (Email for international users)
     sendgrid: {
@@ -62,6 +71,15 @@ exports.config = {
         trialScanLimit: 10, // Limited scans during trial
         trialDurationDays: 60, // 2 months
     },
+    // Test Phone Numbers (for worldwide beta testing - no SMS costs)
+    testing: {
+        phonePrefix: '+243999999', // Test phone numbers: +243999999XXX
+        testOTP: '123456', // Fixed OTP for test phone numbers
+        allowTestNumbersInProduction: true, // Enable test numbers even in production
+        // Testers enter: 999999001, 999999002, etc. (9 digits in phone field)
+        // Backend receives: +243999999001, +243999999002, etc.
+        // Each test number creates a separate account (up to 999 test accounts)
+    },
     // Pricing (USD)
     pricing: {
         freemium: { price: 0, scansPerMonth: 3 }, // Freemium tier
@@ -70,6 +88,11 @@ exports.config = {
         standard: { price: 2.99, scansPerMonth: 50 },
         premium: { price: 4.99, scansPerMonth: 200 }
     },
+};
+// Export params for use in function definitions
+exports.smsParams = {
+    secrets: [africastalkingUsername, africastalkingApiKey],
+    params: [africastalkingSenderId, africastalkingEnvironment],
 };
 // Firestore collection paths
 exports.collections = {

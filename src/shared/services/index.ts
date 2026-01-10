@@ -13,6 +13,7 @@ export {widgetDataService} from './widgetDataService';
 export {ocrCorrectionService} from './ocrCorrectionService';
 export {translationService} from './translation';
 export {navigationService, navigationRef} from './navigationService';
+export {smsService} from './sms';
 
 // Caching services
 export {cacheManager, CacheTTL, CachePriority} from './caching';

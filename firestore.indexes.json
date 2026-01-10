@@ -82,6 +82,16 @@
         {"fieldPath": "productNameNormalized", "order": "ASCENDING"},
         {"fieldPath": "__name__", "order": "ASCENDING"}
       ]
+    },
+    {
+      "collectionGroup": "webhook_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "retryCount", "order": "ASCENDING"},
+        {"fieldPath": "nextRetryAt", "order": "ASCENDING"},
+        {"fieldPath": "__name__", "order": "ASCENDING"}
+      ]
     }
   ],
   "fieldOverrides": [

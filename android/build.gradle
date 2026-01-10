@@ -1,42 +1,44 @@
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
-        minSdkVersion = 21
+        minSdkVersion = 24
         compileSdkVersion = 35
         targetSdkVersion = 35
-        ndkVersion = "25.1.8937393"
-        kotlinVersion = "1.8.0"
+        ndkVersion = "26.1.10909125"
+        kotlinVersion = "1.9.24"
+        androidGradlePluginVersion = "8.7.3"
     }
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.google.com' }
-        jcenter() // fallback
     }
     dependencies {
-        classpath("com.android.tools.build:gradle")
-        classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
-        classpath("com.google.gms:google-services:4.4.0")
+        // Pin versions to align with React Native 0.76.6 toolchain
+        classpath("com.android.tools.build:gradle:8.6.0")
+        // React Native Gradle plugin is included via includeBuild in settings.gradle
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 
-apply plugin: "com.facebook.react.rootproject"
+plugins {
+    id("com.facebook.react.rootproject")
+}
 
 allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.google.com' }
-        jcenter() // fallback
+        maven { url 'https://www.jitpack.io' }
     }
-    
+
     configurations.all {
         resolutionStrategy {
             force 'androidx.core:core:1.13.1'
             force 'androidx.core:core-ktx:1.13.1'
+            // Force all support library dependencies to use AndroidX
+            force 'androidx.appcompat:appcompat:1.6.1'
+            force 'androidx.legacy:legacy-support-v4:1.0.0'
         }
     }
 }
