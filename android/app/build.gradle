@@ -82,6 +82,11 @@ android {
         versionCode 11
         versionName "7.0.2"
         setProperty("archivesBaseName", "goshopper-v7.0.2")
+        
+        // Explicitly include required architectures
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
     }
     signingConfigs {
         debug {
@@ -119,23 +124,32 @@ android {
             }
         }
     }
+    
+    // Ensure native libraries are packaged correctly
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libfbjni.so'
+        pickFirst '**/libjsi.so'
+        pickFirst '**/libhermes.so'
+        pickFirst '**/libhermes_executor.so'
+    }
 }
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // Facebook SDK
-    implementation 'com.facebook.android:facebook-android-sdk:16.3.0'
-
-    // Google Sign-In
-    implementation 'com.google.android.gms:play-services-auth:20.7.0'
-
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
+
+    // Facebook SDK
+    implementation 'com.facebook.android:facebook-android-sdk:16.3.0'
+
+    // Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
     // Native modules - added via autolinking
     implementation project(':invertase_react-native-apple-authentication')
