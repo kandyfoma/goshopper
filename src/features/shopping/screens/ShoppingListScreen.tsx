@@ -738,7 +738,7 @@ export function ShoppingListScreen() {
         <View style={styles.quickActionsGrid}>
           <TouchableOpacity
             style={styles.quickAction}
-            onPress={() => navigation.push('Stats')}
+            onPress={() => navigation.navigate('Main', {screen: 'Stats'})}
             activeOpacity={0.7}>
             <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
               <Icon name="bar-chart" size="md" color={Colors.primary} />
@@ -747,7 +747,7 @@ export function ShoppingListScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickAction}
-            onPress={() => navigation.push('Shops')}
+            onPress={() => navigation.navigate('Main', {screen: 'Shops'})}
             activeOpacity={0.7}>
             <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
               <Icon name="shopping-bag" size="md" color={Colors.primary} />

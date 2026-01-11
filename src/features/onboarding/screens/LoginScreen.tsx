@@ -32,6 +32,7 @@ import {PhoneService} from '@/shared/services/phone';
 import {countryCodeList} from '@/shared/constants/countries';
 import {loginSecurityService} from '@/shared/services/security/loginSecurity';
 import {passwordService} from '@/shared/services/password';
+import {smsService} from '@/shared/services/sms';
 import {CapsLockIndicator} from '@/shared/components';
 
 
@@ -335,6 +336,34 @@ export function LoginScreen() {
     } catch (err: any) {
       // Record failed login attempt
       await loginSecurityService.recordAttempt(formattedPhone, false);
+      
+      // Check if phone verification is required (similar to LaboMedPlus)
+      if (err.code === 'permission-denied' || err.message?.includes('Phone not verified') || err.message?.includes('phone verification required')) {
+        console.log('📱 Phone verification required, redirecting to verification');
+        
+        // Send OTP and redirect to verification screen
+        try {
+          const otpResult = await smsService.sendOTP(formattedPhone);
+          if (otpResult.success && otpResult.sessionId) {
+            showToast('Vérification requise. Code envoyé à votre téléphone.', 'info', 3000);
+            
+            // Navigate to verification screen
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: formattedPhone,
+              isPhoneVerification: true,
+            });
+            return;
+          } else {
+            showToast('Erreur lors de l\'envoi du code de vérification', 'error', 5000);
+          }
+        } catch (otpError) {
+          console.error('Failed to send verification OTP:', otpError);
+          showToast('Erreur lors de l\'envoi du code de vérification', 'error', 5000);
+        }
+        
+        setLoading(false);
+        return;
+      }
       
       // Handle specific error messages
       let errorMessage = '';

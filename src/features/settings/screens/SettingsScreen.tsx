@@ -124,7 +124,6 @@ function SettingSection({
 export function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user, signOut, isAuthenticated} = useAuth();
-  const {scrollY} = useScroll();
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

@@ -73,7 +73,7 @@ async function sendSMS(phoneNumber: string, code: string): Promise<boolean> {
       body: new URLSearchParams({
         username: config.sms.username,
         to: phoneNumber,
-        message: `Votre code de vérification GoShopper est: ${code}. Valide pendant ${CODE_EXPIRY_MINUTES} minutes.`,
+        message: `GoShopper.com: Votre code de vérification sécurisé est ${code}. Valide pendant ${CODE_EXPIRY_MINUTES} minutes. Ne partagez jamais ce code.\n\n@goshopper.com #${code}`,
         from: config.sms.senderId,
       }),
     });

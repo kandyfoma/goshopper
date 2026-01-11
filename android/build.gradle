@@ -6,7 +6,7 @@ buildscript {
         targetSdkVersion = 35
         ndkVersion = "26.1.10909125"
         kotlinVersion = "1.9.24"
-        androidGradlePluginVersion = "8.7.3"
+        androidGradlePluginVersion = "8.8.0"
     }
     repositories {
         google()
@@ -14,7 +14,7 @@ buildscript {
     }
     dependencies {
         // Pin versions to align with React Native 0.76.6 toolchain
-        classpath("com.android.tools.build:gradle:8.6.0")
+        classpath("com.android.tools.build:gradle:8.8.0")
         // React Native Gradle plugin is included via includeBuild in settings.gradle
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
         classpath("com.google.gms:google-services:4.4.2")

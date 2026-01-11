@@ -47,6 +47,15 @@ export const getPhoneAuthToken = functions
         );
       }
 
+      // Check if phone is verified (similar to LaboMedPlus)
+      if (!userData?.phoneVerified) {
+        console.log(`Phone verification required for user: ${userId}`);
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Phone not verified',
+        );
+      }
+
       // Optionally verify password hash if provided (for extra security)
       if (passwordHash) {
         const passwordDoc = await db.collection('passwords').doc(userId).get();

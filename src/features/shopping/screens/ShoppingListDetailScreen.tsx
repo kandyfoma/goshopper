@@ -38,8 +38,11 @@ import {
 import {Icon, Spinner, SwipeToDelete, FadeIn, SlideIn, Input, Button, BackButton} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 
-type RouteParams = RouteProp<RootStackParamList, 'ShoppingListDetail'>;
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+// Import ProfileStackParamList for shopping screens
+import type {ProfileStackParamList} from '@/features/profile/navigation/ProfileStackNavigator';
+
+type RouteParams = RouteProp<ProfileStackParamList, 'ShoppingListDetail'>;
+type NavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
 
 // Client-side fallback keyword mapping for multi-language search
 const FALLBACK_KEYWORDS: Record<string, string[]> = {

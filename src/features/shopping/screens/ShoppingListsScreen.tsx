@@ -38,6 +38,9 @@ import {
 import {Icon, Spinner, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal, BackButton} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
+// Import ProfileStackParamList for shopping screens
+import type {ProfileStackParamList} from '@/features/profile/navigation/ProfileStackNavigator';
+
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 // Modern card color schemes for visual variety
@@ -49,7 +52,7 @@ const CARD_COLORS = [
   { bg: '#FDF2F8', accent: '#9D174D', icon: '#EC4899' },  // Rose Pink
 ];
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
 
 // Quick suggestions for list names
 const LIST_SUGGESTIONS = [
@@ -464,6 +467,8 @@ export function ShoppingListsScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

@@ -18,7 +18,7 @@ export type RootStackParamList = {
   ResetPassword: {phoneNumber: string; verificationToken: string};
   ChangePassword: undefined;
   ProfileSetup: {firstName?: string; surname?: string};
-  Main: undefined;
+  Main: {screen?: string; params?: any} | undefined;
   Scanner: undefined;
   ReceiptProcessing: {receiptId?: string; receiptImage?: string};
   ReceiptDetail: {receiptId: string; receipt?: Receipt};

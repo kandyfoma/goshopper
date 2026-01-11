@@ -1,4 +1,3 @@
-// Verify OTP Screen - SMS verification for password reset
 import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
@@ -48,9 +47,11 @@ const VerifyOtpScreen: React.FC = () => {
   const [canResend, setCanResend] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null); // Store session ID
   const [isTestPhone, setIsTestPhone] = useState(false); // Track if test phone number
+  const [webOtpSupported, setWebOtpSupported] = useState(false); // Web OTP API support
   
-  // Ref for phone check timeout (fix memory leak)
+  // Refs
   const phoneCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Check if this is a test phone number
   useEffect(() => {
@@ -109,6 +110,54 @@ const VerifyOtpScreen: React.FC = () => {
         smsListener.remove();
       }
     };
+  }, []);
+
+  // Web OTP API listener for automatic SMS detection (web platform)
+  useEffect(() => {
+    const isWebPlatform = Platform.OS === 'web';
+    
+    if (isWebPlatform && typeof window !== 'undefined' && 'OTPCredential' in window) {
+      setWebOtpSupported(true);
+      
+      // Start listening for OTP
+      const abortController = new AbortController();
+      
+      const listenForOtp = async () => {
+        try {
+          if (typeof navigator === 'undefined' || !navigator.credentials) return;
+          
+          const otpCredential = await navigator.credentials.get({
+            otp: { transport: ['sms'] },
+            signal: abortController.signal
+          }) as any;
+          
+          if (otpCredential && otpCredential.code) {
+            const code = otpCredential.code;
+            console.log('🔑 Web OTP received:', code);
+            
+            // Auto-fill the OTP
+            const digits = code.split('');
+            setOtpCode(digits);
+            
+            // Clear any errors
+            if (error) {
+              setError(null);
+            }
+          }
+        } catch (error: any) {
+          // Ignore abort errors, re-throw others
+          if (error?.name !== 'AbortError') {
+            console.log('Web OTP error:', error);
+          }
+        }
+      };
+      
+      listenForOtp();
+      
+      return () => {
+        abortController.abort();
+      };
+    }
   }, []);
 
   // Send OTP when screen loads for phone verification
@@ -365,6 +414,16 @@ const VerifyOtpScreen: React.FC = () => {
               </View>
             )}
 
+            {/* Web OTP Status */}
+            {webOtpSupported && (
+              <View style={styles.webOtpHint}>
+                <Icon name="smartphone" size="sm" color={Colors.status.success} />
+                <Text style={styles.webOtpText}>
+                  Détection automatique activée
+                </Text>
+              </View>
+            )}
+
             {/* OTP Input */}
             <View style={styles.otpContainer}>
               {otpCode.map((digit, index) => (
@@ -506,6 +565,23 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold,
     color: Colors.accent,
     fontSize: Typography.fontSize.md,
+  },
+  webOtpHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.status.success + '10', // Light success background
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  webOtpText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.status.success,
+    textAlign: 'center',
   },
   otpContainer: {
     flexDirection: 'row',
