@@ -22,7 +22,7 @@ import {firebase} from '@react-native-firebase/functions';
 import RNModal from 'react-native-modal';
 import {BlurView} from '@react-native-community/blur';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth, useUser} from '@/shared/contexts';
+import {useAuth, useUser, useScroll} from '@/shared/contexts';
 import {
   shoppingListService,
   ShoppingList,
@@ -92,6 +92,7 @@ export function ShoppingListDetailScreen() {
   const insets = useSafeAreaInsets();
   const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
+  const {scrollY} = useScroll();
 
   const listId = route.params?.listId;
 
@@ -797,6 +798,8 @@ export function ShoppingListDetailScreen() {
             keyExtractor={(item: ShoppingListItem) => item.id}
             contentContainerStyle={styles.itemsList}
             showsVerticalScrollIndicator={false}
+            onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+            scrollEventThrottle={16}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
@@ -1675,7 +1678,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     padding: Spacing.md,
     borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     ...Shadows.sm,
   },
   itemCardChecked: {
@@ -2023,7 +2026,7 @@ const styles = StyleSheet.create({
   quantitySelector: {
     backgroundColor: Colors.card.cream,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
+    padding: Spacing.sm,
   },
   quantitySelectorLabel: {
     fontSize: Typography.fontSize.sm,
@@ -2036,12 +2039,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   quantityBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -2058,8 +2061,8 @@ const styles = StyleSheet.create({
   searchResultsContainer: {
     backgroundColor: Colors.card.cream,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   searchResultsHeader: {
     flexDirection: 'row',
@@ -2221,8 +2224,8 @@ const styles = StyleSheet.create({
   priceComparisonContainer: {
     backgroundColor: Colors.card.cream,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   priceComparisonHeader: {
     flexDirection: 'row',

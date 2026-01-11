@@ -5,9 +5,9 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useRoute, RouteProp} from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import functions from '@react-native-firebase/functions';

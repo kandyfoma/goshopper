@@ -6,10 +6,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Pressable,
+  Animated,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {
@@ -22,6 +23,7 @@ import {
 import {Icon, FadeIn, SlideIn, WatchItemButton, BackButton, AppFooter} from '@/shared/components';
 import {formatCurrency, safeToDate, formatDate} from '@/shared/utils/helpers';
 import {RootStackParamList} from '@/shared/types';
+import {useScroll} from '@/shared/contexts';
 
 type RouteProps = RouteProp<RootStackParamList, 'CityItemDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -57,6 +59,7 @@ interface CityItemDetailData {
 export const CityItemDetailScreen: React.FC = () => {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProp>();
+  const {scrollY} = useScroll();
   const item = route.params?.item as CityItemDetailData;
 
   if (!item) {
@@ -141,7 +144,12 @@ export const CityItemDetailScreen: React.FC = () => {
         <WatchItemButton itemName={item.name} size="medium" />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
+      >
         {/* Item Summary Card */}
         <FadeIn>
           <View style={styles.summaryCard}>

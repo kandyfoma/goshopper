@@ -11,16 +11,17 @@ import {
   Alert,
   Linking,
   StatusBar,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
   Animated,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {useAuth, useUser, useSubscription, useTheme, useToast} from '@/shared/contexts';
+import {useScroll} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
 import {
@@ -123,6 +124,7 @@ function SettingSection({
 export function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {user, signOut, isAuthenticated} = useAuth();
+  const {scrollY} = useScroll();
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

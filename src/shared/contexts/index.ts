@@ -6,3 +6,4 @@ export {ToastProvider, useToast} from './ToastContext';
 export {ScanProcessingProvider, useScanProcessing} from './ScanProcessingContext';
 export {PaymentProcessingProvider, usePaymentProcessing} from './PaymentProcessingContext';
 export {OfflineModeProvider, useOfflineMode} from './OfflineModeContext';
+export {ScrollProvider, useScroll} from './ScrollContext';

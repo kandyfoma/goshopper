@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   TextInput,
   Alert,
@@ -16,12 +15,14 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Animated,
 } from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth, useUser, useToast} from '@/shared/contexts';
+import {useScroll} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -81,6 +82,7 @@ export function UpdateProfileScreen() {
   const {user, isAuthenticated} = useAuth();
   const {profile, isLoading: profileLoading} = useUser();
   const {showToast} = useToast();
+  const {scrollY} = useScroll();
   const insets = useSafeAreaInsets();
 
   // State declarations MUST come before any early returns
@@ -592,7 +594,10 @@ export function UpdateProfileScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+          scrollEventThrottle={16}
+        >
           {/* Avatar Section */}
           <View style={styles.avatarSection}>
             <View style={styles.avatar}>

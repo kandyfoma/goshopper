@@ -8,12 +8,12 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Animated,
   Pressable,
   RefreshControl,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
@@ -28,6 +28,7 @@ import {
 import {Icon, FadeIn, SlideIn, SubscriptionLimitModal, WatchItemButton} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription} from '@/shared/contexts';
+import {useScroll} from '@/shared/contexts';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import {analyticsService} from '@/shared/services/analytics';
 import {cacheManager, CacheTTL} from '@/shared/services/caching';
@@ -138,6 +139,7 @@ export function CityItemsScreen() {
   const {isAuthenticated} = useAuth();
   const {profile: userProfile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
+  const {scrollY} = useScroll();
   const [items, setItems] = useState<CityItemData[]>([]);
   const [displayedItems, setDisplayedItems] = useState<CityItemData[]>([]); // Items currently displayed
   const [page, setPage] = useState(1);
@@ -682,7 +684,7 @@ export function CityItemsScreen() {
           </Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}>
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'Settings'}})}>
             <Text style={styles.settingsButtonText}>Aller aux paramètres</Text>
           </TouchableOpacity>
         </View>
@@ -864,6 +866,8 @@ export function CityItemsScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
         // Performance Optimizations
         initialNumToRender={15}
         maxToRenderPerBatch={10}

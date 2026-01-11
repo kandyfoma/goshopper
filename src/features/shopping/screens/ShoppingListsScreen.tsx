@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   TextInput,
   RefreshControl,
@@ -15,7 +14,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,6 +22,7 @@ import RNModal from 'react-native-modal';
 import {BlurView} from '@react-native-community/blur';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth, useSubscription} from '@/shared/contexts';
+import {useScroll} from '@/shared/contexts';
 import {canCreateShoppingList} from '@/shared/utils/featureAccess';
 import {
   shoppingListService,
@@ -53,11 +53,11 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Quick suggestions for list names
 const LIST_SUGGESTIONS = [
-  '🛒 Courses de la semaine',
-  '🎉 Fête / Événement',
-  '🏠 Produits ménagers',
-  '🍳 Recette spéciale',
-  '👶 Bébé / Enfants',
+  'Courses de la semaine',
+  'Fête / Événement',
+  'Produits ménagers',
+  'Recette spéciale',
+  'Bébé / Enfants',
 ];
 
 export function ShoppingListsScreen() {
@@ -65,6 +65,7 @@ export function ShoppingListsScreen() {
   const insets = useSafeAreaInsets();
   const {user, isAuthenticated} = useAuth();
   const {subscription} = useSubscription();
+  const {scrollY} = useScroll();
 
   // Animation refs
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -780,7 +781,7 @@ const styles = StyleSheet.create({
   // Modern Card
   listCard: {
     borderRadius: BorderRadius['2xl'],
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
     overflow: 'hidden',
     ...Shadows.lg,
   },

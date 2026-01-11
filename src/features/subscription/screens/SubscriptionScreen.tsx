@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Animated,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -19,6 +20,7 @@ import {SCAN_PACKS} from '@/shared/types/scanPacks.types';
 import {formatCurrency} from '@/shared/utils/helpers';
 import {analyticsService} from '@/shared/services/analytics';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {useScroll} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -35,6 +37,7 @@ export function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const {user, isAuthenticated, isLoading: isAuthLoading} = useAuth();
   const {subscription, isTrialActive, trialDaysRemaining, scansRemaining, canScan} = useSubscription();
+  const {scrollY} = useScroll();
 
   // Hooks must be called unconditionally
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
@@ -186,7 +189,10 @@ export function SubscriptionScreen() {
             paddingBottom: insets.bottom + 100,
           },
         ]}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
+      >
         {/* Header */}
         <View style={styles.header}>
           <BackButton />

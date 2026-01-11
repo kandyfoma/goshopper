@@ -27,6 +27,7 @@ import {useAuth} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {networkAwareCache, CacheTTL, CachePriority} from '@/shared/services/caching';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {useScroll} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Shops'>;
 
@@ -56,6 +57,7 @@ export function ShopsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const {user} = useAuth();
+  const {scrollY} = useScroll();
   const [shops, setShops] = useState<Shop[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -266,6 +268,8 @@ export function ShopsScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <EmptyState
             icon="shopping-bag"

@@ -11,10 +11,10 @@ import {
   Animated,
   Easing,
   Dimensions,
-  SafeAreaView,
   AppState,
   AppStateStatus,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';

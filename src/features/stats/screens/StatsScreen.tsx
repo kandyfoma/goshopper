@@ -28,7 +28,7 @@ import {
 } from '@/shared/theme/theme';
 import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
-import {useAuth, useUser, useSubscription} from '@/shared/contexts';
+import {useAuth, useUser, useSubscription, useScroll} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
 import {SubscriptionLimitModal} from '@/shared/components';
@@ -118,6 +118,7 @@ export function StatsScreen() {
   const {user, isAuthenticated} = useAuth();
   const {profile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
+  const {scrollY} = useScroll();
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -712,6 +713,8 @@ export function StatsScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

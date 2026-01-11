@@ -6,9 +6,10 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -26,6 +27,7 @@ import {Icon, EmptyState, BackButton, FadeIn} from '@/shared/components';
 import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {useScroll} from '@/shared/contexts';
 
 type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'ShopDetail'>;
 type ShopDetailRouteProp = RouteProp<HomeStackParamList, 'ShopDetail'>;
@@ -36,6 +38,7 @@ export function ShopDetailScreen() {
   const insets = useSafeAreaInsets();
   const {shopId, shopName} = route.params;
   const {user} = useAuth();
+  const {scrollY} = useScroll();
 
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -237,6 +240,8 @@ export function ShopDetailScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <EmptyState
             icon="receipt"

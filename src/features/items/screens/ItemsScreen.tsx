@@ -8,13 +8,13 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Animated,
   Pressable,
   Modal,
   RefreshControl,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import {firebase} from '@react-native-firebase/functions';
@@ -28,7 +28,7 @@ import {
 import {Icon, FadeIn, SlideIn} from '@/shared/components';
 import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
-import {useAuth, useUser} from '@/shared/contexts';
+import {useAuth, useUser, useScroll} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
 import {cacheManager, CacheTTL} from '@/shared/services/caching';
 import {APP_ID} from '@/shared/services/firebase/config';
@@ -83,18 +83,8 @@ const matchesFallbackKeywords = (itemName: string, query: string): boolean => {
 export function ItemsScreen() {
   const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
+  const {scrollY} = useScroll();
   const navigation = useNavigation();
-  const [items, setItems] = useState<ItemData[]>([]);
-  const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const searchInputRef = useRef<TextInput>(null);
-  const searchAnimation = useRef(new Animated.Value(0)).current;
-  const unsubscribeRef = useRef<(() => void) | null>(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Track screen view

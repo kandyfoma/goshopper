@@ -6,18 +6,18 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Dimensions,
   StatusBar,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {CompositeNavigationProp} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
-import {useAuth, useSubscription, useUser} from '@/shared/contexts';
+import {useAuth, useSubscription, useUser, useScroll} from '@/shared/contexts';
 import {RootStackParamList, MainTabParamList} from '@/shared/types';
 import {ProfileStackParamList} from '../navigation/ProfileStackNavigator';
 import {
@@ -146,6 +146,7 @@ export function ProfileScreen() {
   const {user, signOut, isAuthenticated} = useAuth();
   const {subscription, trialScansUsed} = useSubscription();
   const {profile, isLoading: profileLoading} = useUser();
+  const {scrollY} = useScroll();
   const [currentBudget, setCurrentBudget] = useState(0);
   const [rebuildingItems, setRebuildingItems] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -336,7 +337,9 @@ export function ProfileScreen() {
       />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}>
         {/* Profile Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -506,7 +509,7 @@ export function ProfileScreen() {
               icon="trophy"
               title="Mes succès"
               iconColor="red"
-              onPress={() => navigation.push('Achievements')}
+              onPress={() => navigation.navigate('Achievements')}
             />
             <MenuItem
               icon="file-text"

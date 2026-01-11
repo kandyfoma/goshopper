@@ -19,11 +19,12 @@ import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {SubscriptionLimitModal} from '@/shared/components';
 import {useSubscription} from '@/shared/contexts';
 import {hasFeatureAccess} from '@/shared/utils/featureAccess';
+import {useScroll} from '@/shared/contexts';
 
 // Screens
 import {HomeStackNavigator} from '@/features/home/navigation/HomeStackNavigator';
+import {ItemsStackNavigator} from '@/features/items/navigation/ItemsStackNavigator';
 import {UnifiedScannerScreen} from '@/features/scanner/screens';
-import {ItemsScreen, CityItemsScreen} from '@/features/items';
 import {StatsStackNavigator} from '@/features/stats/navigation/StatsStackNavigator';
 import {ProfileStackNavigator} from '@/features/profile/navigation/ProfileStackNavigator';
 
@@ -40,6 +41,7 @@ export function MainTabNavigator() {
   const navigation = useNavigation<RootNavigationProp>();
   const {subscription, canScan} = useSubscription();
   const [showStatsLimitModal, setShowStatsLimitModal] = React.useState(false);
+  const {scrollY} = useScroll();
 
   // Check if user has access to stats
   const hasStatsAccess = hasFeatureAccess('stats', subscription);
@@ -136,7 +138,7 @@ export function MainTabNavigator() {
   return (
     <>
       <Tab.Navigator
-        tabBar={(props) => <ModernTabBar {...props} badges={notificationBadges} />}
+        tabBar={(props) => <ModernTabBar {...props} badges={notificationBadges} scrollY={scrollY} />}
         screenOptions={{
           headerShown: false,
           tabBarHideOnKeyboard: true,
@@ -152,7 +154,7 @@ export function MainTabNavigator() {
         />
         <Tab.Screen
           name="Items"
-          component={CityItemsScreen}
+          component={ItemsStackNavigator}
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon focused={focused} icon="shopping-bag" label="Articles" badge={notificationBadges.Items} />
@@ -194,6 +196,13 @@ export function MainTabNavigator() {
         <Tab.Screen
           name="Profile"
           component={ProfileStackNavigator}
+          listeners={{
+            tabPress: (e) => {
+              // Reset to ProfileMain when tapping the Profile tab
+              navigation.navigate('Main', {screen: 'Profile', params: {screen: 'ProfileMain'}});
+              e.preventDefault();
+            },
+          }}
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon focused={focused} icon="user" label="Profil" badge={notificationBadges.Profile} />

@@ -18,6 +18,7 @@ import {ToastProvider} from '@/shared/contexts/ToastContext';
 import {ScanProcessingProvider} from '@/shared/contexts/ScanProcessingContext';
 import {PaymentProcessingProvider} from '@/shared/contexts/PaymentProcessingContext';
 import {OfflineModeProvider} from '@/shared/contexts/OfflineModeContext';
+import {ScrollProvider} from '@/shared/contexts/ScrollContext';
 import {OfflineBanner, SplashScreen, GlobalScanProgressBanner, GlobalScanResultModal, GlobalPaymentProgressBanner, BiometricSetupPrompt, OfflineSyncBanner} from '@/shared/components';
 import ScanUsageWarning from '@/shared/components/ScanUsageWarning';
 import {initializeFirebase} from '@/shared/services/firebase/config';
@@ -51,21 +52,23 @@ function NetworkAwareApp(): React.JSX.Element {
                   <OfflineModeProvider>
                     <ScanProcessingProvider>
                       <PaymentProcessingProvider>
-                        <NavigationContainer ref={navigationRef}>
-                          <OfflineBanner />
-                          <OfflineSyncBanner />
-                          <GlobalScanProgressBanner />
-                          <GlobalPaymentProgressBanner />
-                          <ScanUsageWarning />
-                          <BiometricSetupPrompt />
-                          <StatusBar
-                            barStyle="dark-content"
-                            backgroundColor="transparent"
-                            translucent={true}
-                          />
-                          <RootNavigator />
-                          <GlobalScanResultModal />
-                        </NavigationContainer>
+                        <ScrollProvider>
+                          <NavigationContainer ref={navigationRef}>
+                            <OfflineBanner />
+                            <OfflineSyncBanner />
+                            <GlobalScanProgressBanner />
+                            <GlobalPaymentProgressBanner />
+                            <ScanUsageWarning />
+                            <BiometricSetupPrompt />
+                            <StatusBar
+                              barStyle="dark-content"
+                              backgroundColor="transparent"
+                              translucent={true}
+                            />
+                            <RootNavigator />
+                            <GlobalScanResultModal />
+                          </NavigationContainer>
+                        </ScrollProvider>
                       </PaymentProcessingProvider>
                     </ScanProcessingProvider>
                   </OfflineModeProvider>

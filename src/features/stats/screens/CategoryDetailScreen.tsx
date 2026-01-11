@@ -5,12 +5,12 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
   Animated,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -28,6 +28,7 @@ import {formatCurrency, safeToDate, convertCurrency} from '@/shared/utils/helper
 import {useAuth, useUser} from '@/shared/contexts';
 import {translationService} from '@/shared/services/translation';
 import {APP_ID} from '@/shared/services/firebase/config';
+import {useScroll} from '@/shared/contexts';
 
 // Category detection keywords - mirrors backend logic for consistent categorization
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -105,6 +106,7 @@ export function CategoryDetailScreen() {
   const {categoryName, categoryColor} = route.params;
   const {user} = useAuth();
   const {profile} = useUser();
+  const {scrollY} = useScroll();
 
   const [items, setItems] = useState<CategoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<CategoryItem[]>([]);
@@ -469,6 +471,8 @@ export function CategoryDetailScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <EmptyState
             icon="shopping-cart"

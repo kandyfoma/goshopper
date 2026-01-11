@@ -7,11 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   StatusBar,
   Animated,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import auth from '@react-native-firebase/auth';
@@ -238,8 +238,8 @@ export function ReceiptDetailScreen() {
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => {
-              // Navigate to History page
-              navigation.navigate('History');
+              // Navigate to History page in Profile tab
+              navigation.navigate('Main', {screen: 'Profile', params: {screen: 'History'}});
             }}
             activeOpacity={0.8}>
             <Icon name="arrow-left" size="sm" color={Colors.white} />
@@ -263,8 +263,8 @@ export function ReceiptDetailScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            // Navigate to History page after viewing receipt details
-            navigation.navigate('History');
+            // Navigate to History page in Profile tab after viewing receipt details
+            navigation.navigate('Main', {screen: 'Profile', params: {screen: 'History'}});
           }}>
           <Icon name="arrow-left" size="md" color={Colors.primary} />
         </TouchableOpacity>

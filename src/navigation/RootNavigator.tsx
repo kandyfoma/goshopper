@@ -31,22 +31,7 @@ import {
 } from '@/features/scanner/screens';
 import {SubscriptionScreen, SubscriptionDetailsScreen, SubscriptionDurationScreen} from '@/features/subscription/screens';
 import {MokoPaymentScreen} from '@/features/payment/screens/MokoPaymentScreen';
-import {SettingsScreen, DeveloperToolsScreen} from '@/features/settings/screens';
-import {UpdateProfileScreen, BudgetSettingsScreen, SupportScreen, ContactScreen, TermsScreen} from '@/features/profile/screens';
-
-// Phase 1.1 & 1.2 Screens
-import {NotificationsScreen} from '@/features/notifications';
-import {PriceAlertsScreen} from '@/features/alerts';
-import {ShoppingListsScreen, ShoppingListDetailScreen} from '@/features/shopping';
-import {AIAssistantScreen} from '@/features/assistant';
-import {AchievementsScreen} from '@/features/achievements';
 import {CitySelectionScreen} from '@/features/onboarding/screens';
-import {FAQScreen, PrivacyPolicyScreen, TermsOfServiceScreen} from '@/features/legal';
-import {ShopsScreen, ShopDetailScreen} from '@/features/shops';
-import {CityItemsScreen} from '@/features/items/screens';
-import {ItemsScreen, CityItemDetailScreen} from '@/features/items';
-import {StatsScreen, CategoryDetailScreen} from '@/features/stats/screens';
-import {HistoryScreen} from '@/features/history/screens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -250,23 +235,6 @@ export function RootNavigator() {
           }}
         />
         <Stack.Screen
-        name="UpdateProfile"
-        component={UpdateProfileScreen}
-        options={{
-          animation: 'slide_from_right',
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="BudgetSettings"
-        component={BudgetSettingsScreen}
-        options={{
-          animation: 'slide_from_right',
-          headerShown: false,
-        }}
-        />
-
-        <Stack.Screen
           name="ReceiptDetail"
           component={ReceiptDetailWithErrorBoundary}
           options={{headerShown: false}}
@@ -314,120 +282,6 @@ export function RootNavigator() {
             presentation: 'transparentModal',
             contentStyle: { backgroundColor: 'transparent' },
           }}
-        />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="DeveloperTools"
-          component={DeveloperToolsScreen}
-          options={{headerShown: false}}
-        />
-        {/* Phase 1.1 Screens */}
-        <Stack.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="PriceAlerts"
-          component={PriceAlertsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Achievements"
-          component={AchievementsScreen}
-          options={{headerShown: false}}
-        />
-        {/* Phase 1.2 Screens */}
-        <Stack.Screen
-          name="ShoppingLists"
-          component={ShoppingListsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="ShoppingListDetail"
-          component={ShoppingListDetailScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="AIAssistant"
-          component={AIAssistantScreen}
-          options={{headerShown: false}}
-        />
-        {/* Shops */}
-        <Stack.Screen
-          name="Shops"
-          component={ShopsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="ShopDetail"
-          component={ShopDetailScreen}
-          options={{headerShown: false}}
-        />
-        {/* Stats - Category Detail */}
-        <Stack.Screen
-          name="CategoryDetail"
-          component={CategoryDetailScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="FAQ"
-          component={FAQScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="PrivacyPolicy"
-          component={PrivacyPolicyScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="TermsOfService"
-          component={TermsOfServiceScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="CityItems"
-          component={CityItemsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="CityItemDetail"
-          component={CityItemDetailScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Items"
-          component={ItemsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="History"
-          component={HistoryScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Stats"
-          component={StatsScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Support"
-          component={SupportScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Contact"
-          component={ContactScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen
-          name="Terms"
-          component={TermsScreen}
-          options={{headerShown: false}}
         />
       </Stack.Navigator>
       <AppStateTracker />

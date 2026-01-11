@@ -20,7 +20,7 @@ import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import LinearGradient from 'react-native-linear-gradient';
 import {RootStackParamList, MainTabParamList} from '@/shared/types';
 import {HomeStackParamList} from '../navigation/HomeStackNavigator';
-import {useSubscription, useUser, useTheme, useAuth} from '@/shared/contexts';
+import {useSubscription, useUser, useTheme, useAuth, useScroll} from '@/shared/contexts';
 import {
   Colors,
   Typography,
@@ -381,6 +381,7 @@ export function HomeScreen() {
     scansRemaining,
   } = useSubscription();
   const {profile: userProfile} = useUser();
+  const {scrollY} = useScroll();
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
   const [monthlySpending, setMonthlySpending] = useState(0);
   const [itemsCount, setItemsCount] = useState(0);
@@ -688,7 +689,9 @@ export function HomeScreen() {
         />
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+          scrollEventThrottle={16}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.heroIconContainer}>
@@ -829,6 +832,8 @@ export function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -898,7 +903,7 @@ export function HomeScreen() {
               subtitle="mes articles"
               color="cosmos"
               icon="cart"
-              onPress={() => navigation.push('Items')}
+              onPress={() => navigation.navigate('Main', {screen: 'Items'})}
             />
           </View>
           <View style={styles.statsRow}>
@@ -957,19 +962,19 @@ export function HomeScreen() {
           <QuickAction
             icon="help"
             label="Assistant IA"
-            onPress={() => navigation.push('AIAssistant')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'AIAssistant'}})}
             color="yellow"
           />
           <QuickAction
             icon="trophy"
             label="Mes succès"
-            onPress={() => navigation.push('Achievements')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'Achievements'}})}
             color="blue"
           />
           <QuickAction
             icon="cart"
             label="Mes listes"
-            onPress={() => navigation.push('ShoppingLists')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'ShoppingLists'}})}
             color="crimson"
           />
         </View>

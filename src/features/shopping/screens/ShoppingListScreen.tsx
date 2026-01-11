@@ -20,7 +20,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
-import {useAuth, useUser} from '@/shared/contexts';
+import {useAuth, useUser, useScroll} from '@/shared/contexts';
 import {firebase} from '@react-native-firebase/functions';
 import {
   shoppingListService,
@@ -63,6 +63,7 @@ export function ShoppingListScreen() {
   const insets = useSafeAreaInsets();
   const {user, isAuthenticated} = useAuth();
   const {profile: userProfile} = useUser();
+  const {scrollY} = useScroll();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -600,6 +601,8 @@ export function ShoppingListScreen() {
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.itemsList}
                 showsVerticalScrollIndicator={false}
+                onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
+                scrollEventThrottle={16}
               />
               
               {/* Total Price Summary */}
@@ -753,7 +756,7 @@ export function ShoppingListScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickAction}
-            onPress={() => navigation.push('AIAssistant')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'AIAssistant'}})}
             activeOpacity={0.7}>
             <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
               <Icon name="sparkles" size="md" color={Colors.primary} />
@@ -762,7 +765,7 @@ export function ShoppingListScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickAction}
-            onPress={() => navigation.push('Achievements')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'Achievements'}})}
             activeOpacity={0.7}>
             <View style={[styles.quickActionIconContainer, {backgroundColor: Colors.primary + '15'}]}>
               <Icon name="trophy" size="md" color={Colors.primary} />

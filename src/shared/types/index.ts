@@ -38,38 +38,7 @@ export type RootStackParamList = {
     remainingScans?: number;
   };
   MokoPayment: {amount: number; planId: string; planName: string; isScanPack?: boolean; scanPackId?: string};
-  Settings: undefined;
-  DeveloperTools: undefined;
   CitySelection: undefined;
-  UpdateProfile: undefined;
-  History: undefined;
-  // Phase 1.1 Screens
-  Notifications: undefined;
-  PriceAlerts: undefined;
-  Achievements: undefined;
-  BudgetSettings: undefined;
-  // Phase 1.2 Screens
-  ShoppingLists: undefined;
-  ShoppingListDetail: {listId: string};
-  AIAssistant: undefined;
-  // Shops
-  Shops: undefined;
-  ShopDetail: {shopId: string; shopName: string};
-  // Stats
-  CategoryDetail: {categoryName: string; categoryColor: string};
-  // Legal Screens
-  FAQ: undefined;
-  PrivacyPolicy: undefined;
-  TermsOfService: undefined;
-  CityItems: undefined;
-  CityItemDetail: {item: any}; // City item with full price details
-  Items: undefined;
-  // Stats Screen
-  Stats: undefined;
-  // Support Screens
-  Support: undefined;
-  Contact: undefined;
-  Terms: undefined;
 };
 
 export type MainTabParamList = {

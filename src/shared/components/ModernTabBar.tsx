@@ -39,12 +39,12 @@ export function TabBarIcon({focused, icon, label, badge}: TabBarIconProps) {
       Animated.spring(scaleAnim, {
         toValue: focused ? 1.15 : 1,
         useNativeDriver: true,
-        tension: 300,
-        friction: 8,
+        tension: 200,
+        friction: 12,
       }),
       Animated.timing(opacityAnim, {
         toValue: focused ? 1 : 0.8,
-        duration: 200,
+        duration: 300,
         useNativeDriver: true,
       }),
     ]).start();
@@ -54,8 +54,8 @@ export function TabBarIcon({focused, icon, label, badge}: TabBarIconProps) {
     Animated.spring(badgeAnim, {
       toValue: validBadge ? 1 : 0,
       useNativeDriver: true,
-      tension: 300,
-      friction: 8,
+      tension: 200,
+      friction: 12,
     }).start();
   }, [validBadge]);
 
@@ -130,8 +130,8 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}, scrol
         Animated.spring(translateY, {
           toValue: 100, // Height of tab bar
           useNativeDriver: true,
-          tension: 300,
-          friction: 30,
+          tension: 120,
+          friction: 45,
         }).start();
       } else if (diff < 0 && !isVisible) {
         // Scrolling up - show tab bar
@@ -139,8 +139,8 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}, scrol
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
-          tension: 300,
-          friction: 30,
+          tension: 120,
+          friction: 45,
         }).start();
       }
 
