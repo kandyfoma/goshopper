@@ -132,7 +132,7 @@ export function ShoppingListDetailScreen() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigation.navigate('Login');
+      navigation.navigate('ProfileMain');
     }
   }, [isAuthenticated, navigation]);
 

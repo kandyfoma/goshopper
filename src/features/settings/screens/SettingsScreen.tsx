@@ -24,6 +24,7 @@ import {useAuth, useUser, useSubscription, useTheme, useToast} from '@/shared/co
 import {useScroll} from '@/shared/contexts';
 import {RootStackParamList} from '@/shared/types';
 import {biometricService, BiometricStatus} from '@/shared/services/biometric';
+import type {ProfileStackParamList} from '@/features/profile/navigation/ProfileStackNavigator';
 import {
   Colors,
   Typography,
@@ -38,7 +39,7 @@ import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatDate} from '@/shared/utils/helpers';
 import {receiptStorageService, authService} from '@/shared/services/firebase';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
 
 interface SettingItemProps {
   icon: string;
@@ -162,13 +163,6 @@ export function SettingsScreen() {
     checkBiometric();
   }, []);
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigation.navigate('Login');
-    }
-  }, [isAuthenticated, navigation]);
-
   // Don't render anything if not authenticated
   if (!isAuthenticated) {
     return null;
@@ -283,11 +277,9 @@ export function SettingsScreen() {
   const confirmSignOut = async () => {
     setShowLogoutModal(false);
     await signOut();
-    // Navigate to Home tab after sign out by resetting to Main
-    navigation.reset({
-      index: 0,
-      routes: [{name: 'Main'}],
-    });
+    // Sign out will automatically redirect to auth screens via RootNavigator
+    // Just navigate back to profile main
+    navigation.navigate('ProfileMain');
   };
 
   const handleDeleteData = () => {

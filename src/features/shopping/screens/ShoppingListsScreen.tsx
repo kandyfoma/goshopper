@@ -87,7 +87,7 @@ export function ShoppingListsScreen() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigation.navigate('Login');
+      navigation.navigate('ProfileMain');
     }
   }, [isAuthenticated, navigation]);
 
@@ -195,7 +195,7 @@ export function ShoppingListsScreen() {
       setNewListName('');
       
       // Navigate to the new list detail
-      navigation.navigate('ShoppingListDetail', {listId: list.id});
+      navigation.navigate('ShoppingListDetail', {listId: list.id, listName: list.name});
     } catch (error) {
       console.error('Create list error:', error);
       Alert.alert('Erreur', 'Impossible de créer la liste');
@@ -275,7 +275,7 @@ export function ShoppingListsScreen() {
             {backgroundColor: colorScheme.bg},
             !item.isActive && styles.listCardCompleted,
           ]}
-          onPress={() => navigation.navigate('ShoppingListDetail', {listId: item.id})}
+          onPress={() => navigation.navigate('ShoppingListDetail', {listId: item.id, listName: item.name})}
           onLongPress={() => setEditingListId(item.id)}
           activeOpacity={0.8}>
           {/* Accent bar */}
