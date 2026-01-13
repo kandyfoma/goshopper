@@ -71,7 +71,7 @@ export function RootNavigator() {
     };
 
     checkFirstLaunch();
-  }, []);
+  }, [isAuthenticated]); // Re-check when authentication state changes
 
   // Check if user profile is complete after authentication
   useEffect(() => {

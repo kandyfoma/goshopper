@@ -4,7 +4,7 @@
   "expo": {
     "name": "GoShopper",
     "slug": "goshopper",
-    "version": "7.0.4",
+    "version": "7.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.goshopper.app",
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./assets/favicon.png"
