@@ -7,8 +7,9 @@ import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
-import {Colors} from '@/shared/theme/theme';
+import {LightColors as Colors} from '@/shared/theme/theme';
 import {AppStateTracker, ErrorBoundary} from '@/shared/components';
+import {navigationService} from '@/shared/services/navigationService';
 
 // Screens
 import {MainTabNavigator} from './MainTabNavigator';
@@ -57,6 +58,8 @@ export function RootNavigator() {
     null,
   );
   const [checkingProfile, setCheckingProfile] = useState(false);
+  const [verificationInProgress, setVerificationInProgress] = useState(false);
+  const [verificationParams, setVerificationParams] = useState<any>(null);
 
   useEffect(() => {
     const checkFirstLaunch = async () => {
@@ -70,8 +73,56 @@ export function RootNavigator() {
       }
     };
 
+    const checkVerificationInProgress = async () => {
+      try {
+        const verificationFlag = await AsyncStorage.getItem('@goshopper_verification_in_progress');
+        const isInProgress = verificationFlag === 'true';
+        setVerificationInProgress(isInProgress);
+        
+        if (isInProgress) {
+          // Load verification params
+          const paramsString = await AsyncStorage.getItem('@goshopper_verification_params');
+          if (paramsString) {
+            const params = JSON.parse(paramsString);
+            setVerificationParams(params);
+            console.log('🔄 RootNavigator: Loaded verification params:', params);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking verification status:', error);
+        setVerificationInProgress(false);
+        setVerificationParams(null);
+      }
+    };
+
     checkFirstLaunch();
+    checkVerificationInProgress();
   }, [isAuthenticated]); // Re-check when authentication state changes
+
+  // Handle verification in progress navigation
+  useEffect(() => {
+    const handleVerificationNavigation = async () => {
+      if (verificationInProgress && navigationService.isReady()) {
+        try {
+          const paramsString = await AsyncStorage.getItem('@goshopper_verification_params');
+          if (paramsString) {
+            const params = JSON.parse(paramsString);
+            console.log('🔄 RootNavigator: Navigating to VerifyOtp with stored params');
+            navigationService.navigate('VerifyOtp', params);
+          } else {
+            console.log('🔄 RootNavigator: Verification in progress but no params found');
+          }
+        } catch (error) {
+          console.error('Error navigating to verification:', error);
+        }
+      }
+    };
+
+    // Use setTimeout to ensure navigation is ready
+    if (verificationInProgress) {
+      setTimeout(handleVerificationNavigation, 100);
+    }
+  }, [verificationInProgress]);
 
   // Check if user profile is complete after authentication
   useEffect(() => {
@@ -144,7 +195,10 @@ export function RootNavigator() {
   // Determine initial route based on state
   let initialRoute: keyof RootStackParamList = 'Main';
   
-  if (isFirstLaunch && !isAuthenticated) {
+  if (verificationInProgress) {
+    // If verification is in progress, go to VerifyOtp screen
+    initialRoute = 'VerifyOtp';
+  } else if (isFirstLaunch && !isAuthenticated) {
     // First time user who hasn't logged in yet - show Welcome screen
     initialRoute = 'Welcome';
   } else if (isAuthenticated && isProfileComplete === false) {

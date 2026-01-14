@@ -870,8 +870,7 @@ export function SettingsScreen() {
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-          enabled
-          style={{flex: 1}}>
+          enabled>
           <ScrollView 
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"

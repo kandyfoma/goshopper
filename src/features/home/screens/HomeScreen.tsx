@@ -929,7 +929,7 @@ export function HomeScreen() {
               subtitle="ce mois"
               color="yellow"
               icon="credit-card"
-              onPress={() => navigation.push('History')}
+              onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'History'}})}
             />
           </View>
         </View>
@@ -956,7 +956,7 @@ export function HomeScreen() {
           <QuickAction
             icon="shopping-bag"
             label="Mes Magasins"
-            onPress={() => navigation.push('Shops')}
+            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'ShoppingLists'}})}
             color="cosmos"
           />
           <QuickAction

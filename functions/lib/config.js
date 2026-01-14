@@ -33,12 +33,6 @@ exports.config = {
             : 'https://sandbox.mokoafrika.com/v1',
         callbackUrl: process.env.MOKO_CALLBACK_URL || '',
     },
-    // Stripe (Card payments for international users)
-    stripe: {
-        secretKey: process.env.STRIPE_SECRET_KEY || '',
-        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-    },
     // SMS Gateway (Africa's Talking for DRC)
     // Using Firebase params - secrets stored securely in Firebase
     sms: {

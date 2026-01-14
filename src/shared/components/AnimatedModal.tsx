@@ -9,6 +9,7 @@ import {
   Animated,
   Dimensions,
   ModalProps as RNModalProps,
+  Keyboard,
 } from 'react-native';
 import {BlurView} from '@react-native-community/blur';
 import {Colors, BorderRadius, Shadows, Spacing} from '@/shared/theme/theme';
@@ -48,6 +49,7 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
   const slideAnim = useRef(new Animated.Value(variant === 'bottom-sheet' ? screenHeight : 50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const keyboardShift = useRef(new Animated.Value(0)).current;
 
   // Animate entrance
   useEffect(() => {
@@ -57,6 +59,7 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
       slideAnim.setValue(variant === 'bottom-sheet' ? screenHeight : 50);
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
+      keyboardShift.setValue(0);
       
       Animated.parallel([
         Animated.spring(slideAnim, {
@@ -79,6 +82,37 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
       ]).start();
     }
   }, [visible]);
+
+  // Keyboard handling: shift modal up when keyboard is visible
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onKeyboardShow = (e: any) => {
+      const keyboardHeight = e?.endCoordinates?.height || 0;
+      Animated.timing(keyboardShift, {
+        toValue: -keyboardHeight,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const onKeyboardHide = () => {
+      Animated.timing(keyboardShift, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardShift]);
 
   const handleClose = () => {
     // Animate out
@@ -155,12 +189,12 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
             style={[
               variant === 'bottom-sheet' ? styles.bottomSheetContent : styles.centeredContent,
               {
-                transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim },
-                ],
-                opacity: fadeAnim,
-              },
+                    transform: [
+                      { translateY: Animated.add(slideAnim, keyboardShift) },
+                      { scale: scaleAnim },
+                    ],
+                    opacity: fadeAnim,
+                  },
             ]}>
             {/* Drag handle for bottom sheet */}
             {variant === 'bottom-sheet' && (
@@ -210,6 +244,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius['3xl'],
     ...Shadows.lg,
     paddingBottom: 34, // Safe area padding
+    maxHeight: '85%',
+    overflow: 'hidden',
   },
   centeredContent: {
     backgroundColor: Colors.white,
@@ -218,6 +254,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     padding: Spacing.xl,
+    maxHeight: '85%',
+    overflow: 'hidden',
   },
   handleContainer: {
     alignItems: 'center',

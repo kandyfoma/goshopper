@@ -32,7 +32,28 @@ type ResetPasswordRouteProp = RouteProp<RootStackParamList, 'ResetPassword'>;
 const ResetPasswordScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ResetPasswordRouteProp>();
-  const {phoneNumber, verificationToken} = route.params;
+  
+  // Safely extract params with fallbacks to prevent crashes
+  const phoneNumber = route.params?.phoneNumber || '';
+  const verificationToken = route.params?.verificationToken || '';
+  
+  // Redirect if missing required params
+  React.useEffect(() => {
+    if (!phoneNumber) {
+      console.error('ResetPasswordScreen: Missing phoneNumber param');
+      Alert.alert(
+        'Erreur',
+        'Session expiree. Veuillez recommencer.',
+        [{ text: 'OK', onPress: () => navigation.navigate('ForgotPassword') }]
+      );
+      return;
+    }
+    
+    // Also check for verification token
+    if (!verificationToken) {
+      console.warn('ResetPasswordScreen: Missing verificationToken, password reset may fail');
+    }
+  }, [phoneNumber, verificationToken, navigation]);
   
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -98,25 +119,38 @@ const ResetPasswordScreen: React.FC = () => {
     setErrors({password: '', confirmPassword: '', general: ''});
 
     try {
-      // In a real implementation, you would call your backend API
-      // to reset the password using the phone number and verification token
-      // For now, we'll simulate this with a delay
+      // Check if we have required params
+      if (!phoneNumber) {
+        throw new Error('Numero de telephone manquant');
+      }
       
-      // await authService.resetPasswordWithPhone(phoneNumber, password, verificationToken);
+      // Verify we have a valid session (verificationToken)
+      if (!verificationToken) {
+        console.warn('ResetPasswordScreen: No verification token, attempting reset anyway');
+      }
       
-      // Simulate API call
-      await new Promise<void>(resolve => setTimeout(() => resolve(), 1500));
+      // Reset password via authService
+      await authService.resetPasswordWithPhone(phoneNumber, password, verificationToken);
+      
+      // Clear any stored verification data
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.removeItem('@goshopper_verification_params');
+        await AsyncStorage.removeItem('@goshopper_verification_in_progress');
+      } catch (cleanupError) {
+        console.warn('Failed to clear verification data:', cleanupError);
+      }
       
       Alert.alert(
-        'Succès!',
-        'Votre mot de passe a été réinitialisé avec succès.',
+        'Succes!',
+        'Votre mot de passe a ete reinitialise avec succes.',
         [
           {
             text: 'Se connecter',
             onPress: () => {
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'SignIn' }],
+                routes: [{ name: 'Login' }],
               });
             },
           },
@@ -125,9 +159,26 @@ const ResetPasswordScreen: React.FC = () => {
       
     } catch (error: any) {
       console.error('Password reset error:', error);
+      
+      // Handle specific error types
+      const errorMsg = error?.message || '';
+      let displayError = 'Une erreur est survenue. Veuillez reessayer.';
+      
+      if (errorMsg.includes('network') || errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        displayError = 'Erreur reseau. Verifiez votre connexion.';
+      } else if (errorMsg.includes('Aucun compte')) {
+        displayError = 'Aucun compte trouve avec ce numero.';
+      } else if (errorMsg.includes('token') || errorMsg.includes('expired') || errorMsg.includes('session')) {
+        displayError = 'Session expiree. Veuillez recommencer.';
+        // Redirect back to forgot password after showing error
+        setTimeout(() => navigation.navigate('ForgotPassword'), 2000);
+      } else if (errorMsg) {
+        displayError = errorMsg;
+      }
+      
       setErrors(prev => ({
         ...prev,
-        general: error.message || 'Une erreur est survenue. Veuillez réessayer.'
+        general: displayError
       }));
     } finally {
       setLoading(false);
@@ -149,18 +200,23 @@ const ResetPasswordScreen: React.FC = () => {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('Login');
+                }
+              }}
             >
               <Icon name="arrow-left" size="md" color={Colors.text.primary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Nouveau mot de passe</Text>
           </View>
 
           <View style={styles.content}>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>Créer un nouveau mot de passe</Text>
+              <Text style={styles.title}>Creer un mot de passe</Text>
               <Text style={styles.subtitle}>
-                Créez un mot de passe sécurisé pour votre compte {phoneNumber}
+                Securisez votre compte avec un mot de passe fort
               </Text>
             </View>
 
@@ -279,40 +335,31 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   backButton: {
     padding: Spacing.sm,
-    marginRight: Spacing.md,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    marginLeft: -Spacing.sm,
   },
   content: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
   titleSection: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing['2xl'],
   },
   title: {
-    fontSize: Typography.fontSize['2xl'],
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
-    marginBottom: Spacing.sm,
-    lineHeight: 32,
+    marginBottom: Spacing.md,
   },
   subtitle: {
-    fontSize: Typography.fontSize.base,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.md,
     color: Colors.text.secondary,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   formSection: {
     flex: 1,

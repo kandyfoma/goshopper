@@ -20,6 +20,7 @@ interface AuthContextType extends AuthState {
   signInWithFacebook: () => Promise<User | null>;
   signOut: () => Promise<void>;
   setPhoneUser: (user: User) => void;
+  setSocialUser: (user: User) => void;
   suppressAuthListener: () => void;
   enableAuthListener: () => void;
 }
@@ -145,12 +146,8 @@ export function AuthProvider({children}: AuthProviderProps) {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithGoogle();
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-        error: null,
-      });
+      // Don't set user state here - let caller handle phone verification first
+      setState(prev => ({...prev, isLoading: false}));
 
       // Track sign in event
       analyticsService.logLogin('google');
@@ -179,12 +176,8 @@ export function AuthProvider({children}: AuthProviderProps) {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithApple();
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-        error: null,
-      });
+      // Don't set user state here - let caller handle phone verification first
+      setState(prev => ({...prev, isLoading: false}));
 
       // Track sign in event
       analyticsService.logLogin('apple');
@@ -213,12 +206,8 @@ export function AuthProvider({children}: AuthProviderProps) {
     setState(prev => ({...prev, isLoading: true, error: null}));
     try {
       const user = await authService.signInWithFacebook();
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-        error: null,
-      });
+      // Don't set user state here - let caller handle phone verification first
+      setState(prev => ({...prev, isLoading: false}));
 
       // Track sign in event
       analyticsService.logLogin('facebook');
@@ -280,6 +269,24 @@ export function AuthProvider({children}: AuthProviderProps) {
     });
   }, []);
 
+  // Set user after social login (Google/Apple/Facebook) - called after phone verification
+  const setSocialUser = useCallback((user: User) => {
+    setState({
+      user,
+      isLoading: false,
+      isAuthenticated: true,
+      error: null,
+    });
+    
+    // Track user authentication state
+    analyticsService.setUserId(user.uid);
+    
+    // Preload critical data for better performance
+    cachePreloader.preloadCriticalData(user.uid).catch(error => {
+      console.warn('Cache preload failed:', error);
+    });
+  }, []);
+
   // Suppress Firebase Auth listener (during phone registration to show biometric modal)
   const suppressAuthListener = useCallback(() => {
     console.log('🔇 Suppressing auth listener');
@@ -301,6 +308,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         signInWithFacebook,
         signOut,
         setPhoneUser,
+        setSocialUser,
         suppressAuthListener,
         enableAuthListener,
       }}>

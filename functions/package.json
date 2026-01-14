@@ -32,9 +32,7 @@
     "firebase-functions": "^4.7.0",
     "react-native-url-polyfill": "^3.0.0",
     "sharp": "^0.34.5",
-    "sharp-phash": "^2.2.0",
-    "stripe": "^14.25.0",
-    "africastalking": "^1.0.0-alpha.3"
+    "sharp-phash": "^2.2.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

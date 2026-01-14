@@ -40,11 +40,6 @@ export {
 } from './payments/mokoAfrika';
 export {purchaseScanPack} from './payments/scanPacks';
 export {
-  createCardPaymentIntent,
-  confirmCardPayment,
-  stripeWebhook,
-} from './payments/stripe';
-export {
   requestRefund,
   getRefundStatus,
   listUserRefunds,
@@ -96,6 +91,10 @@ export {
   completeRegistration,
   checkIdentifierAvailability,
 } from './auth/verification';
+export {
+  deleteUserData,
+  checkIdentifierAvailabilityV2,
+} from './auth/cleanup';
 export {
   getPhoneAuthToken,
 } from './auth/phoneAuth';
@@ -216,3 +215,11 @@ export {
 
 // Admin functions
 export {countCityItems} from './admin/countCityItems';
+export {adminPanel} from './admin/index';
+export {isAdmin} from './admin/auth';
+export {
+  getAllUsers,
+  setUserAdminStatus,
+  getAdminStats,
+  adminDeleteUser,
+} from './admin/adminFunctions';

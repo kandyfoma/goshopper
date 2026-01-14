@@ -90,50 +90,76 @@ function App(): React.JSX.Element {
     // Initialize Firebase on app start
     const init = async () => {
       try {
+        console.log('🚀 Starting app initialization...');
         await initializeFirebase();
+        console.log('✅ Firebase initialized');
 
         // Initialize Cache System (early for better performance)
         await cacheInitializer.initialize();
+        console.log('✅ Cache initialized');
 
         // Initialize Analytics
         await analyticsService.initialize();
+        console.log('✅ Analytics initialized');
 
         // Wait for all interactions to complete before requesting permissions
+        console.log('⏳ Waiting for interactions...');
         await new Promise(resolve => {
           InteractionManager.runAfterInteractions(() => {
             resolve(undefined);
           });
         });
+        console.log('✅ Interactions complete');
 
         // Initialize Push Notifications (after interaction is complete)
+        console.log('⏳ Initializing push notifications...');
         await pushNotificationService.init();
+        console.log('✅ Push notifications initialized');
 
         // Initialize Notification Channels (Android only)
+        console.log('⏳ Initializing notification channels...');
         await initializeNotificationChannels();
+        console.log('✅ Notification channels initialized');
 
         // Initialize Notification Actions (mark as read, etc.)
+        console.log('⏳ Initializing notification actions...');
         await notificationActionsService.initialize();
+        console.log('✅ Notification actions initialized');
 
         // Initialize Quick Actions (App Icon Shortcuts)
+        console.log('⏳ Initializing quick actions...');
         quickActionsService.initialize();
+        console.log('✅ Quick actions initialized');
 
         // Initialize In-App Review tracking
+        console.log('⏳ Initializing in-app review...');
         await inAppReviewService.initialize();
+        console.log('✅ In-app review initialized');
 
         // Initialize Spotlight Search
+        console.log('⏳ Initializing spotlight search...');
         await spotlightSearchService.initialize();
+        console.log('✅ Spotlight search initialized');
 
         // Initialize Offline Service
+        console.log('⏳ Initializing offline service...');
         await offlineService.initialize();
+        console.log('✅ Offline service initialized');
 
         // Initialize Widget Data Service
+        console.log('⏳ Initializing widget data service...');
         await widgetDataService.initialize();
+        console.log('✅ Widget data service initialized');
 
         // Check for pending navigation from notifications
         // This handles deep linking when user taps notification
+        console.log('⏳ Scheduling pending navigation check...');
         setTimeout(async () => {
           await navigationService.checkPendingNavigation();
         }, 1000);
+
+        console.log('✅ All services initialized successfully!');
+        console.log('🎉 Setting loading to false...');
 
         // Pre-translate common search terms in background
         InteractionManager.runAfterInteractions(async () => {

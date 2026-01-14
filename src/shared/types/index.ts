@@ -14,10 +14,10 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  VerifyOtp: {phoneNumber: string; isRegistration?: boolean; registrationData?: {password: string; city: string; countryCode: string}; isPhoneVerification?: boolean};
+  VerifyOtp: {phoneNumber: string; sessionId?: string; isRegistration?: boolean; registrationData?: {password: string; city: string; countryCode: string}; isPhoneVerification?: boolean; fromSocial?: 'google' | 'apple' | 'facebook'; socialUser?: any};
   ResetPassword: {phoneNumber: string; verificationToken: string};
   ChangePassword: undefined;
-  ProfileSetup: {firstName?: string; surname?: string};
+  ProfileSetup: {firstName?: string; surname?: string; fromSocial?: 'google' | 'apple' | 'facebook'; socialUser?: any};
   Main: {screen?: string; params?: any} | undefined;
   Scanner: undefined;
   ReceiptProcessing: {receiptId?: string; receiptImage?: string};

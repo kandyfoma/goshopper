@@ -11,13 +11,14 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {CompositeNavigationProp} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
-import {useAuth, useSubscription, useUser, useScroll} from '@/shared/contexts';
+import {useAuth, useSubscription, useUser, useScroll, useToast} from '@/shared/contexts';
 import {RootStackParamList, MainTabParamList} from '@/shared/types';
 import {ProfileStackParamList} from '../navigation/ProfileStackNavigator';
 import {
@@ -33,6 +34,7 @@ import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {firebase} from '@react-native-firebase/functions';
 import {analyticsService} from '@/shared/services/analytics';
 import {getCurrentMonthBudget} from '@/shared/services/firebase/budgetService';
+import {smsService} from '@/shared/services/sms';
 
 const {width} = Dimensions.get('window');
 
@@ -147,9 +149,11 @@ export function ProfileScreen() {
   const {subscription, trialScansUsed} = useSubscription();
   const {profile, isLoading: profileLoading} = useUser();
   const {scrollY} = useScroll();
+  const {showToast} = useToast();
   const [currentBudget, setCurrentBudget] = useState(0);
   const [rebuildingItems, setRebuildingItems] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [verifyingPhone, setVerifyingPhone] = useState(false);
 
   const [userStats, setUserStats] = useState({
     totalReceipts: 0,
@@ -198,7 +202,51 @@ export function ProfileScreen() {
 
     loadBudget();
   }, [profile?.userId, profile?.defaultMonthlyBudget, profile?.monthlyBudget, profile?.preferredCurrency]);
+  // Handle phone verification
+  const handleVerifyPhone = async () => {
+    if (!profile?.phoneNumber) {
+      Alert.alert('Erreur', 'Aucun numéro de téléphone à vérifier');
+      return;
+    }
 
+    setVerifyingPhone(true);
+    try {
+      // Format phone number with country code if needed
+      let phoneToVerify = profile.phoneNumber;
+      if (!phoneToVerify.startsWith('+')) {
+        phoneToVerify = `+243${phoneToVerify.replace(/^0+/, '')}`;
+      }
+
+      // Send OTP
+      const otpResult = await smsService.sendOTP(phoneToVerify);
+      
+      if (otpResult.success && otpResult.sessionId) {
+        showToast('Code de vérification envoyé', 'success', 3000);
+        analyticsService.logCustomEvent('phone_verification_started');
+        
+        // Navigate to verification screen
+        navigation.push('VerifyOtp', {
+          phoneNumber: phoneToVerify,
+          sessionId: otpResult.sessionId,
+          isPhoneVerification: true,
+          isRegistration: false,
+        });
+      } else {
+        Alert.alert(
+          'Erreur',
+          otpResult.error || 'Impossible d\'envoyer le code de vérification',
+        );
+      }
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      Alert.alert(
+        'Erreur',
+        error?.message || 'Une erreur est survenue lors de l\'envoi du code',
+      );
+    } finally {
+      setVerifyingPhone(false);
+    }
+  };
   useEffect(() => {
     const fetchUserStats = async () => {
       // Skip if user or userId is not available
@@ -449,16 +497,10 @@ export function ProfileScreen() {
               <MenuItem
                 icon="phone"
                 title="Vérifier votre numéro"
-                subtitle="Non vérifié"
+                subtitle={verifyingPhone ? "Envoi du code..." : "Non vérifié"}
                 iconColor="yellow"
-                onPress={() => {
-                  analyticsService.logCustomEvent('phone_verification_started');
-                  navigation.push('VerifyOtp', {
-                    phoneNumber: profile.phoneNumber!,
-                    isRegistration: false,
-                    isPhoneVerification: true,
-                  });
-                }}
+                onPress={handleVerifyPhone}
+                disabled={verifyingPhone}
               />
             )}
             <MenuItem

@@ -8,14 +8,8 @@ import * as admin from 'firebase-admin';
 import {addDays} from 'date-fns';
 import {config, collections} from '../config';
 import {Subscription} from '../types';
-import Stripe from 'stripe';
 
 const db = admin.firestore();
-
-// Initialize Stripe
-const stripe = new Stripe(config.stripe.secretKey, {
-  apiVersion: '2023-10-16',
-});
 
 // Configuration
 const RENEWAL_LOOKBACK_DAYS = 1; // Process subscriptions expiring in next 1 day
@@ -38,154 +32,6 @@ function generateRenewalTransactionId(subscriptionId: string): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 6);
   return `GSA-RENEW-${timestamp}-${random}`.toUpperCase();
-}
-
-/**
- * Process Stripe auto-renewal
- */
-async function processStripeRenewal(
-  userId: string,
-  subscription: Subscription,
-  subscriptionRef: FirebaseFirestore.DocumentReference,
-): Promise<{success: boolean; message: string; transactionId?: string}> {
-  try {
-    // Check if we have Stripe payment intent
-    if (!subscription.stripePaymentIntentId) {
-      return {
-        success: false,
-        message: 'No Stripe payment method on file',
-      };
-    }
-
-    // C1 FIX: Check for pending downgrade and apply before renewal
-    let planId = subscription.planId || 'basic';
-    let amount = BASE_PRICES[planId] || BASE_PRICES.basic;
-    let appliedDowngrade = false;
-    
-    if (subscription.pendingDowngradePlanId) {
-      const now = new Date();
-      const downgradeDate = subscription.pendingDowngradeEffectiveDate instanceof admin.firestore.Timestamp
-        ? subscription.pendingDowngradeEffectiveDate.toDate()
-        : subscription.pendingDowngradeEffectiveDate
-        ? new Date(subscription.pendingDowngradeEffectiveDate)
-        : now;
-      
-      if (now >= downgradeDate) {
-        // Apply downgrade now before renewal
-        planId = subscription.pendingDowngradePlanId;
-        amount = BASE_PRICES[planId] || BASE_PRICES.basic;
-        appliedDowngrade = true;
-        
-        console.log(`📉 Applying scheduled downgrade before renewal: ${subscription.planId} → ${planId}`);
-      }
-    }
-    
-    const amountCents = Math.round(amount * 100);
-
-    // Get original payment intent to retrieve customer and payment method
-    const originalIntent = await stripe.paymentIntents.retrieve(
-      subscription.stripePaymentIntentId,
-    );
-
-    if (!originalIntent.customer || !originalIntent.payment_method) {
-      return {
-        success: false,
-        message: 'No payment method found in original payment',
-      };
-    }
-
-    const customerId =
-      typeof originalIntent.customer === 'string'
-        ? originalIntent.customer
-        : originalIntent.customer.id;
-
-    const paymentMethodId =
-      typeof originalIntent.payment_method === 'string'
-        ? originalIntent.payment_method
-        : originalIntent.payment_method.id;
-
-    // Create new payment intent for renewal
-    const transactionId = generateRenewalTransactionId(userId);
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: 'usd',
-      customer: customerId,
-      payment_method: paymentMethodId,
-      off_session: true, // This is a background charge
-      confirm: true, // Automatically confirm the payment
-      description: `GoShopperAI ${planId} plan auto-renewal`,
-      metadata: {
-        userId,
-        planId,
-        transactionId,
-        type: 'auto_renewal',
-      },
-    });
-
-    if (paymentIntent.status === 'succeeded') {
-      // Payment successful - extend subscription
-      const now = new Date();
-      const currentEndDate =
-        subscription.subscriptionEndDate instanceof admin.firestore.Timestamp
-          ? subscription.subscriptionEndDate.toDate()
-          : new Date(subscription.subscriptionEndDate!);
-
-      const newStartDate = currentEndDate > now ? currentEndDate : now;
-      const newEndDate = addDays(newStartDate, 30); // 1 month renewal
-
-      // C2 FIX: Use transaction for atomic update
-      await admin.firestore().runTransaction(async (transaction) => {
-        const latestDoc = await transaction.get(subscriptionRef);
-        if (!latestDoc.exists) {
-          throw new Error('Subscription not found');
-        }
-
-        const updateData: any = {
-          subscriptionEndDate: admin.firestore.Timestamp.fromDate(newEndDate),
-          lastPaymentDate: admin.firestore.Timestamp.fromDate(now),
-          lastPaymentAmount: amount,
-          transactionId,
-          stripePaymentIntentId: paymentIntent.id,
-          status: 'active',
-          autoRenewFailureCount: 0,
-          lastRenewalAttemptDate: admin.firestore.Timestamp.fromDate(now),
-          expirationNotificationSent: false,
-          expirationNotificationDate: null,
-          daysUntilExpiration: null,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-        
-        // Clear pending downgrade if applied
-        if (appliedDowngrade) {
-          updateData.planId = planId;
-          updateData.subscriptionPrice = amount;
-          updateData.pendingDowngradePlanId = admin.firestore.FieldValue.delete();
-          updateData.pendingDowngradeEffectiveDate = admin.firestore.FieldValue.delete();
-        }
-        
-        transaction.update(subscriptionRef, updateData);
-      });
-
-      console.log(`✅ Stripe renewal successful for user ${userId}: ${transactionId}`);
-
-      return {
-        success: true,
-        message: 'Renewal successful',
-        transactionId,
-      };
-    } else {
-      return {
-        success: false,
-        message: `Payment failed with status: ${paymentIntent.status}`,
-      };
-    }
-  } catch (error: any) {
-    console.error('Stripe renewal error:', error);
-    return {
-      success: false,
-      message: error.message || 'Stripe payment failed',
-    };
-  }
 }
 
 /**
@@ -507,12 +353,10 @@ export const processAutoRenewals = functions
 
         // Process renewal based on payment provider
         let result;
-        if (subscription.paymentProvider === 'stripe') {
-          result = await processStripeRenewal(userId, subscription, doc.ref);
-        } else if (subscription.paymentProvider === 'moko_afrika') {
+        if (subscription.paymentProvider === 'moko_afrika') {
           result = await processMokoRenewal(userId, subscription, doc.ref);
         } else {
-          console.log(`⏭️ Skipping - unknown payment provider: ${subscription.paymentProvider}`);
+          console.log(`⏭️ Skipping - unknown or unsupported payment provider: ${subscription.paymentProvider}`);
           skippedCount++;
           continue;
         }
@@ -617,14 +461,12 @@ export const manuallyRenewSubscription = functions
 
       // Process renewal based on provider
       let result;
-      if (subscription.paymentProvider === 'stripe') {
-        result = await processStripeRenewal(userId, subscription, subscriptionRef);
-      } else if (subscription.paymentProvider === 'moko_afrika') {
+      if (subscription.paymentProvider === 'moko_afrika') {
         result = await processMokoRenewal(userId, subscription, subscriptionRef);
       } else {
         throw new functions.https.HttpsError(
           'failed-precondition',
-          'No valid payment method on file',
+          'No valid payment method on file or unsupported payment provider',
         );
       }
 

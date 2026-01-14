@@ -84,11 +84,10 @@ export interface Subscription {
   currency?: 'USD' | 'CDF';
 
   // Payment info
-  paymentMethod?: 'mobile_money' | 'card';
-  paymentProvider?: 'moko_afrika' | 'stripe';
+  paymentMethod?: 'mobile_money';
+  paymentProvider?: 'moko_afrika';
   mobileMoneyProvider?: 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
   transactionId?: string;
-  stripePaymentIntentId?: string;
   customerPhone?: string;
   customerEmail?: string;
 
@@ -188,7 +187,6 @@ export interface PaymentRecord {
   planId: string;
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   mokoReference?: string;
-  stripePaymentIntentId?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;

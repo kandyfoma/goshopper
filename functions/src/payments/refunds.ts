@@ -1,21 +1,15 @@
 /**
  * Refund Management System
- * Handles refunds for Moko Afrika (mobile money) and Stripe (cards)
+ * Handles refunds for Moko Afrika (mobile money)
  * Supports prorated refunds, full refunds, and partial refunds
  */
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import axios from 'axios';
-import Stripe from 'stripe';
 import {config} from '../config';
 
 const db = admin.firestore();
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
-});
 
 // Refund reasons
 export type RefundReason =
@@ -47,10 +41,9 @@ export interface Refund {
   reason: RefundReason;
   reasonDetails?: string;
   status: RefundStatus;
-  paymentProvider: 'moko_afrika' | 'stripe';
+  paymentProvider: 'moko_afrika';
   
   // Provider-specific IDs
-  stripeRefundId?: string;
   mokoRefundReference?: string;
   
   // Processing details
@@ -243,12 +236,10 @@ async function processRefund(refundId: string): Promise<void> {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    if (refund.paymentProvider === 'stripe') {
-      await processStripeRefund(refund, refundRef);
-    } else if (refund.paymentProvider === 'moko_afrika') {
+    if (refund.paymentProvider === 'moko_afrika') {
       await processMokoRefund(refund, refundRef);
     } else {
-      throw new Error(`Unknown payment provider: ${refund.paymentProvider}`);
+      throw new Error(`Unsupported payment provider: ${refund.paymentProvider}`);
     }
 
     // Mark as completed
@@ -273,52 +264,6 @@ async function processRefund(refundId: string): Promise<void> {
 
     // TODO: Send notification to admins about failed refund
   }
-}
-
-/**
- * Process Stripe refund
- */
-async function processStripeRefund(
-  refund: Refund,
-  refundRef: admin.firestore.DocumentReference,
-): Promise<void> {
-  // Find original Stripe payment intent
-  const paymentsQuery = await db
-    .collectionGroup('payments')
-    .where('transactionId', '==', refund.paymentTransactionId)
-    .limit(1)
-    .get();
-
-  if (paymentsQuery.empty) {
-    throw new Error('Original payment not found');
-  }
-
-  const payment = paymentsQuery.docs[0].data();
-  const paymentIntentId = payment.stripePaymentIntentId;
-
-  if (!paymentIntentId) {
-    throw new Error('Stripe payment intent ID not found');
-  }
-
-  // Create Stripe refund
-  const stripeRefund = await stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    amount: Math.round(refund.amount * 100), // Stripe uses cents
-    reason: mapRefundReason(refund.reason),
-    metadata: {
-      refund_id: refund.id,
-      user_id: refund.userId,
-      reason: refund.reason,
-    },
-  });
-
-  // Store Stripe refund ID
-  await refundRef.update({
-    stripeRefundId: stripeRefund.id,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  console.log(`Stripe refund created: ${stripeRefund.id}`);
 }
 
 /**
@@ -387,20 +332,6 @@ async function processMokoRefund(
       );
     }
     throw error;
-  }
-}
-
-/**
- * Map refund reason to Stripe-compatible reason
- */
-function mapRefundReason(reason: RefundReason): 'duplicate' | 'fraudulent' | 'requested_by_customer' {
-  switch (reason) {
-    case 'duplicate_payment':
-      return 'duplicate';
-    case 'fraudulent_transaction':
-      return 'fraudulent';
-    default:
-      return 'requested_by_customer';
   }
 }
 

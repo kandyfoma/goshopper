@@ -12,11 +12,13 @@ import {
   NativeModules,
   NativeEventEmitter,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute, RouteProp as NavigationRouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '@/shared/types';
 import {useAuth} from '@/shared/contexts';
+import {useToast} from '@/shared/contexts';
 import {smsService} from '@/shared/services/sms';
 import {authService, userBehaviorService} from '@/shared/services/firebase';
 import {Button, Icon} from '@/shared/components';
@@ -33,11 +35,71 @@ const SmsRetriever = Platform.OS === 'android' ? NativeModules.RNSmsRetriever : 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type VerifyOtpRouteProp = NavigationRouteProp<RootStackParamList, 'VerifyOtp'>;
 
+/**
+ * Format phone number for display
+ */
+const formatPhoneNumber = (phoneNumber: string | undefined): string => {
+  if (!phoneNumber) return '';
+  
+  // For DRC numbers (+243xxxxxxxxx), format as +243 xxx xxx xxx
+  if (phoneNumber.startsWith('+243')) {
+    return phoneNumber.replace(/(\+243)(\d{3})(\d{3})(\d{4})/, '$1 $2 $3 $4');
+  }
+  
+  // For other formats, just return as is for now
+  return phoneNumber;
+};
+
 const VerifyOtpScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<VerifyOtpRouteProp>();
-  const {user} = useAuth();
-  const {phoneNumber, isRegistration = false, registrationData, isPhoneVerification = false} = route.params;
+  const {user, enableAuthListener, setSocialUser, setPhoneUser} = useAuth();
+  const {showToast} = useToast();
+  
+  // Get params from route or AsyncStorage as fallback
+  const routeParams = route.params || {};
+  const {phoneNumber, isRegistration = false, registrationData, isPhoneVerification = false, fromSocial, sessionId: initialSessionId, socialUser: socialUserParam} = routeParams;
+  
+  // If params are missing, try to load from AsyncStorage
+  const [storedParams, setStoredParams] = useState<any>(null);
+  
+  useEffect(() => {
+    const loadStoredParams = async () => {
+      console.log('🎯 [VerifyOtpScreen] Checking if params needed from AsyncStorage...', { phoneNumber, initialSessionId });
+      
+      if (!phoneNumber || !initialSessionId) {
+        try {
+          const stored = await AsyncStorage.getItem('@goshopper_verification_params');
+          console.log('🎯 [VerifyOtpScreen] AsyncStorage result:', stored);
+          
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setStoredParams(parsed);
+            console.log('🎯 [VerifyOtpScreen] Loaded params from AsyncStorage:', parsed);
+          } else {
+            console.log('🎯 [VerifyOtpScreen] No stored params found in AsyncStorage');
+          }
+        } catch (error) {
+          console.error('🎯 [VerifyOtpScreen] Error loading stored params:', error);
+        }
+      } else {
+        console.log('🎯 [VerifyOtpScreen] Route params are complete, no need for AsyncStorage');
+      }
+    };
+    
+    loadStoredParams();
+  }, [phoneNumber, initialSessionId]);
+  
+  // Use stored params if route params are missing
+  const effectiveParams = storedParams || routeParams;
+  const effectivePhoneNumber = effectiveParams.phoneNumber || phoneNumber;
+  const effectiveSessionId = effectiveParams.sessionId || initialSessionId;
+  const effectiveIsPhoneVerification = effectiveParams.isPhoneVerification || isPhoneVerification;
+  const effectiveFromSocial = effectiveParams.fromSocial || fromSocial;
+  const effectiveSocialUser = effectiveParams.socialUser || socialUserParam;
+  
+  // Use the user from context, or the socialUser passed as param (for social login verification)
+  const effectiveUser = user || effectiveSocialUser;
   
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -50,14 +112,64 @@ const VerifyOtpScreen: React.FC = () => {
   const [webOtpSupported, setWebOtpSupported] = useState(false); // Web OTP API support
   
   // Refs
-  const phoneCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  // Check if this is a test phone number
+  // Track screen mount/unmount and clear OTP on mount
   useEffect(() => {
-    const testPhonePattern = /^\+243999999\d{3}$/;
-    setIsTestPhone(testPhonePattern.test(phoneNumber));
-  }, [phoneNumber]);
+    console.log('🎯 [VerifyOtpScreen] MOUNTED - params:', {
+      phoneNumber: effectivePhoneNumber,
+      isPhoneVerification: effectiveIsPhoneVerification,
+      fromSocial: effectiveFromSocial,
+      hasSessionId: !!effectiveSessionId,
+      hasSocialUser: !!effectiveSocialUser,
+    });
+    
+    // Clear OTP inputs on mount
+    setOtpCode(['', '', '', '', '', '']);
+    setError(null);
+    
+    // Validate required params - redirect if missing after AsyncStorage check
+    const validateParams = async () => {
+      // Wait longer for AsyncStorage to fully load (especially on slower devices)
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
+      
+      // Re-check if we have phone number after waiting
+      const hasPhoneNumber = effectivePhoneNumber || storedParams?.phoneNumber;
+      const hasSessionId = effectiveSessionId || storedParams?.sessionId;
+      
+      if (!hasPhoneNumber || !hasSessionId) {
+        console.error('🎯 [VerifyOtpScreen] Missing required params after wait:', { 
+          hasPhoneNumber, 
+          hasSessionId,
+          effectivePhoneNumber,
+          storedParams 
+        });
+        Alert.alert(
+          'Session expiree',
+          'Veuillez recommencer le processus de verification.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+        );
+      } else {
+        console.log('✅ [VerifyOtpScreen] Params validated successfully:', {
+          phoneNumber: hasPhoneNumber,
+          sessionId: hasSessionId
+        });
+      }
+    };
+    
+    validateParams();
+    
+    return () => {
+      console.log('🎯 [VerifyOtpScreen] UNMOUNTING');
+    };
+  }, [effectivePhoneNumber, effectiveIsPhoneVerification, effectiveFromSocial, effectiveSessionId, effectiveSocialUser, storedParams, navigation]);
+
+  // Set sessionId from params
+  useEffect(() => {
+    if (effectiveSessionId && !sessionId) {
+      setSessionId(effectiveSessionId);
+    }
+  }, [effectiveSessionId, sessionId]);
 
   // Start SMS Retriever listener for Android auto-fill
   useEffect(() => {
@@ -116,84 +228,106 @@ const VerifyOtpScreen: React.FC = () => {
   useEffect(() => {
     const isWebPlatform = Platform.OS === 'web';
     
-    if (isWebPlatform && typeof window !== 'undefined' && 'OTPCredential' in window) {
-      setWebOtpSupported(true);
-      
-      // Start listening for OTP
-      const abortController = new AbortController();
-      
-      const listenForOtp = async () => {
-        try {
-          if (typeof navigator === 'undefined' || !navigator.credentials) return;
+    if (isWebPlatform) {
+      // Type guard for web environment - check if window and navigator exist
+      try {
+        const hasWebAPIs = typeof (globalThis as any).window !== 'undefined' && 
+                          'OTPCredential' in (globalThis as any).window;
+        
+        if (hasWebAPIs) {
+          setWebOtpSupported(true);
           
-          const otpCredential = await navigator.credentials.get({
-            otp: { transport: ['sms'] },
-            signal: abortController.signal
-          }) as any;
+          // Start listening for OTP
+          const abortController = new AbortController();
           
-          if (otpCredential && otpCredential.code) {
-            const code = otpCredential.code;
-            console.log('🔑 Web OTP received:', code);
-            
-            // Auto-fill the OTP
-            const digits = code.split('');
-            setOtpCode(digits);
-            
-            // Clear any errors
-            if (error) {
-              setError(null);
+          const listenForOtp = async () => {
+            try {
+              const nav = (globalThis as any).navigator;
+              if (!nav || !nav.credentials) return;
+              
+              const otpCredential = await nav.credentials.get({
+                otp: { transport: ['sms'] },
+                signal: abortController.signal
+              }) as any;
+              
+              if (otpCredential && otpCredential.code) {
+                const code = otpCredential.code;
+                console.log('🔑 Web OTP received:', code);
+                
+                // Auto-fill the OTP
+                const digits = code.split('');
+                setOtpCode(digits);
+                
+                // Clear any errors
+                if (error) {
+                  setError(null);
+                }
+              }
+            } catch (error: any) {
+              // Ignore abort errors, re-throw others
+              if (error?.name !== 'AbortError') {
+                console.log('Web OTP error:', error);
+              }
             }
-          }
-        } catch (error: any) {
-          // Ignore abort errors, re-throw others
-          if (error?.name !== 'AbortError') {
-            console.log('Web OTP error:', error);
-          }
+          };
+          
+          listenForOtp();
+          
+          return () => {
+            abortController.abort();
+          };
         }
-      };
-      
-      listenForOtp();
-      
-      return () => {
-        abortController.abort();
-      };
+      } catch (err) {
+        console.log('Web OTP not supported:', err);
+      }
     }
   }, []);
 
-  // Send OTP when screen loads for phone verification
+  // Get sessionId from route params (ProfileScreen sends OTP before navigating here)
   useEffect(() => {
-    if (isPhoneVerification) {
-      const sendInitialOTP = async () => {
-        try {
-          const result = await smsService.sendOTP(phoneNumber);
-          if (result.success && result.sessionId) {
-            setSessionId(result.sessionId); // Store session ID
-          } else {
-            setError(result.error || 'Erreur lors de l\'envoi du code');
-          }
-        } catch (err) {
-          setError('Erreur réseau. Veuillez réessayer.');
-        }
-      };
-      sendInitialOTP();
+    if (initialSessionId) {
+      setSessionId(initialSessionId);
+      console.log('📋 Received sessionId from params:', initialSessionId);
     }
-  }, [isPhoneVerification, phoneNumber]);
+  }, [initialSessionId]);
 
+  // Use ref to track countdown timer for proper cleanup
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useEffect(() => {
+    // Only start timer if countdown is greater than 0
+    if (countdown <= 0) {
+      setCanResend(true);
+      return;
+    }
+    
+    // Clear any existing timer before starting new one
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+    }
+    
     // Start countdown timer
-    const timer = setInterval(() => {
+    countdownTimerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           setCanResend(true);
-          clearInterval(timer);
+          if (countdownTimerRef.current) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    };
+  }, [countdown]);
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) return; // Prevent multiple characters
@@ -224,12 +358,12 @@ const VerifyOtpScreen: React.FC = () => {
     const code = otpCode.join('');
     
     if (code.length !== 6) {
-      setError('Veuillez saisir le code complet à 6 chiffres');
+      setError('Veuillez saisir le code complet a 6 chiffres');
       return;
     }
 
     if (!sessionId) {
-      setError('Session expirée. Veuillez demander un nouveau code');
+      setError('Session expiree. Veuillez demander un nouveau code');
       return;
     }
 
@@ -237,16 +371,59 @@ const VerifyOtpScreen: React.FC = () => {
     setError(null);
 
     try {
-      const result = await smsService.verifyOTP(phoneNumber, code, sessionId);
+      // Add timeout wrapper for slow networks (30 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('TIMEOUT')), 30000);
+      });
+      
+      const verifyPromise = smsService.verifyOTP(effectivePhoneNumber, code, sessionId);
+      const result = await Promise.race([verifyPromise, timeoutPromise]);
+      
+      // Check if OTP was already used or session verified
+      if (!result.success && (result.error?.includes('already been verified') || result.error?.includes('Session deja verifiee') || result.error?.includes('already been verified'))) {
+        showToast('Ce code a déjà été utilisé. Demandez un nouveau code.', 'warning');
+        setError('Ce code a deja ete utilise ou la session est expiree. Veuillez demander un nouveau code.');
+        setOtpCode(['', '', '', '', '', '']);
+        setSessionId(null); // Clear invalid session
+        inputRefs.current[0]?.focus();
+        setLoading(false);
+        return;
+      }
+      
+      // Check for session expiration errors from backend
+      if (!result.success && (result.error?.includes('expired') || result.error?.includes('not found') || result.error?.includes('expiree') || result.error?.includes('deadline-exceeded'))) {
+        Alert.alert(
+          'Session expiree',
+          'Votre session de verification a expire. Veuillez recommencer le processus.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Clear any stored verification data
+                AsyncStorage.removeItem('@goshopper_verification_in_progress').catch(console.error);
+                AsyncStorage.removeItem('@goshopper_verification_params').catch(console.error);
+                // Navigate to login
+                navigation.reset({
+                  index: 0,
+                  routes: [{name: 'Login'}]
+                });
+              }
+            }
+          ],
+          { cancelable: false }
+        );
+        setLoading(false);
+        return;
+      }
       
       if (result.success) {
-        if (isPhoneVerification && user?.uid) {
-          // Verify phone for existing user
+        if (isPhoneVerification && effectiveUser?.uid) {
+          // Verify phone for existing user (including social login users)
           try {
             // Extract country code from phone number
             let countryCode = 'CD'; // Default to DRC
-            if (phoneNumber.startsWith('+')) {
-              const match = phoneNumber.match(/^\+(\d{1,3})/);
+            if (effectivePhoneNumber.startsWith('+')) {
+              const match = effectivePhoneNumber.match(/^\+(\d{1,3})/);
               if (match) {
                 const code = match[1];
                 if (code === '243') countryCode = 'CD';
@@ -255,18 +432,44 @@ const VerifyOtpScreen: React.FC = () => {
               }
             }
             
-            await authService.verifyUserPhone(user.uid, phoneNumber, countryCode);
+            await authService.verifyUserPhone(effectiveUser.uid, effectivePhoneNumber, countryCode);
             
-            Alert.alert(
-              'Numéro vérifié!',
-              'Votre numéro de téléphone a été vérifié avec succès.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => navigation.goBack()
-                }
-              ]
-            );
+            // Clear verification in progress flag
+            await AsyncStorage.removeItem('@goshopper_verification_in_progress').catch(console.error);
+            await AsyncStorage.removeItem('@goshopper_verification_params').catch(console.error);
+            
+            // If this is from social login, complete the sign-in
+            if (effectiveFromSocial) {
+              // Get the current Firebase user (fully mapped with all required fields)
+              const currentUser = authService.getCurrentUser();
+              
+              if (currentUser) {
+                // Enable the auth listener and complete social sign-in
+                enableAuthListener();
+                setSocialUser(currentUser);
+                
+                console.log('✅ Phone verified for social user, navigating to Main');
+                
+                // Navigate to main app
+                navigation.reset({
+                  index: 0,
+                  routes: [{name: 'Main'}]
+                });
+              } else {
+                console.error('❌ No current Firebase user found after social login verification');
+                setError('Session expirée. Veuillez vous reconnecter.');
+                enableAuthListener();
+                navigation.reset({
+                  index: 0,
+                  routes: [{name: 'Login'}]
+                });
+              }
+            } else {
+              console.log('✅ Phone verified successfully');
+              
+              // Navigate back after verification
+              navigation.goBack();
+            }
           } catch (verifyError: any) {
             setError(verifyError.message || 'Erreur lors de la vérification');
           }
@@ -275,7 +478,7 @@ const VerifyOtpScreen: React.FC = () => {
           try {
             // First create the user account
             const user = await authService.createUserWithPhone({
-              phoneNumber,
+              phoneNumber: effectivePhoneNumber,
               password: registrationData.password,
               city: registrationData.city,
               countryCode: registrationData.countryCode
@@ -286,9 +489,9 @@ const VerifyOtpScreen: React.FC = () => {
               await authService.completeRegistration({
                 userId: user.uid,
                 verificationToken: result.token,
-                phoneNumber,
+                phoneNumber: effectivePhoneNumber,
                 countryCode: registrationData.countryCode,
-                displayName: phoneNumber
+                displayName: effectivePhoneNumber
               });
               
               // Initialize behavior profile for new user
@@ -296,24 +499,60 @@ const VerifyOtpScreen: React.FC = () => {
                 .catch(err => console.log('Failed to initialize behavior profile:', err));
             }
             
-            // Show success message and navigate to main app
-            Alert.alert('Bienvenue!', 'Votre compte a été créé avec succès!', [
-              {
-                text: 'Commencer',
-                onPress: () => navigation.reset({
-                  index: 0,
-                  routes: [{name: 'Main'}]
-                })
-              }
-            ]);
+            // Navigate to main app after successful registration
+            console.log('New user registered, navigating to Main');
+            navigation.reset({
+              index: 0,
+              routes: [{name: 'Main'}]
+            });
           } catch (regError: any) {
             setError(regError.message || 'Erreur lors de la création du compte');
           }
         } else {
-          // Navigate to reset password screen for forgot password flow
-          navigation.navigate('ResetPassword', { 
-            phoneNumber,
-            verificationToken: result.token || 'verified' 
+          // Phone verification during login - check for pending login and retry
+          console.log('✅ Phone verified for login, checking for pending login credentials');
+          
+          // Clear verification in progress flag
+          await AsyncStorage.removeItem('@goshopper_verification_in_progress').catch(console.error);
+          await AsyncStorage.removeItem('@goshopper_verification_params').catch(console.error);
+          
+          // Check if there's a pending login to complete
+          try {
+            const pendingLoginStr = await AsyncStorage.getItem('@goshopper_pending_login');
+            if (pendingLoginStr) {
+              const pendingLogin = JSON.parse(pendingLoginStr);
+              console.log('🔄 Found pending login, retrying login process');
+              
+              // Clear the stored credentials
+              await AsyncStorage.removeItem('@goshopper_pending_login').catch(console.error);
+              
+              // Retry the login with verified phone
+              // Note: The auth service will mark phone as verified on successful login
+              const userCredential = await authService.signInWithPhone(pendingLogin.phoneNumber, pendingLogin.password);
+              
+              // Set user in AuthContext (this triggers navigation to main app)
+              setPhoneUser(userCredential);
+              console.log('✅ Login completed after phone verification:', userCredential.uid);
+              
+              // Navigate to main app
+              navigation.reset({
+                index: 0,
+                routes: [{name: 'Main'}]
+              });
+              return;
+            }
+          } catch (loginError) {
+            console.error('❌ Failed to retry login after verification:', loginError);
+            showToast('Erreur lors de la connexion. Veuillez réessayer.', 'error');
+            setLoading(false);
+            // Fall back to navigating to login screen
+          }
+          
+          // Fallback: navigate back to login screen
+          console.log('📱 No pending login found, navigating back to Login');
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'Login'}]
           });
         }
       } else {
@@ -322,8 +561,51 @@ const VerifyOtpScreen: React.FC = () => {
         setOtpCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       }
-    } catch (err) {
-      setError('Erreur réseau. Veuillez réessayer.');
+    } catch (err: any) {
+      console.error('\u274c OTP verification error:', err);
+      
+      // Handle specific error types
+      const errorMsg = err?.message || err?.code || '';
+      if (errorMsg === 'TIMEOUT') {
+        setError('Delai depasse. Verifiez votre connexion et reessayez.');
+      } else if (errorMsg.includes('network') || errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        setError('Erreur reseau. Verifiez votre connexion.');
+      } else if (errorMsg.includes('timeout')) {
+        setError('Delai depasse. Veuillez reessayer.');
+      } else if (errorMsg.includes('expired') || errorMsg.includes('expiree') || errorMsg.includes('not found') || errorMsg.includes('deadline-exceeded')) {
+        // Session expired - redirect to login automatically
+        Alert.alert(
+          'Session expiree',
+          'Votre session de verification a expire. Veuillez recommencer le processus.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Clear any stored verification data
+                AsyncStorage.removeItem('@goshopper_verification_in_progress').catch(console.error);
+                AsyncStorage.removeItem('@goshopper_verification_params').catch(console.error);
+                // Navigate to login
+                navigation.reset({
+                  index: 0,
+                  routes: [{name: 'Login'}]
+                });
+              }
+            }
+          ],
+          { cancelable: false }
+        );
+        setSessionId(null);
+        return; // Don't show inline error, the alert handles it
+      } else if (errorMsg.includes('attempts') || errorMsg.includes('tentatives')) {
+        setError('Trop de tentatives. Veuillez demander un nouveau code.');
+        setSessionId(null);
+      } else {
+        setError('Erreur lors de la verification. Veuillez reessayer.');
+      }
+      
+      // Clear OTP on error for retry
+      setOtpCode(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
@@ -334,42 +616,53 @@ const VerifyOtpScreen: React.FC = () => {
     setError(null);
 
     try {
-      const result = await smsService.sendOTP(phoneNumber);
+      const result = await smsService.sendOTP(effectivePhoneNumber);
       
       if (result.success && result.sessionId) {
         setSessionId(result.sessionId); // Update session ID for new OTP
-        Alert.alert('Code envoyé', 'Un nouveau code de vérification a été envoyé');
-        // Reset countdown
+        Alert.alert('Code envoye', 'Un nouveau code de verification a ete envoye');
+        // Reset countdown and trigger countdown timer restart via state
         setCountdown(60);
         setCanResend(false);
-        
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              setCanResend(true);
-              clearInterval(timer);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        // Clear OTP inputs for new code
+        setOtpCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
       } else {
-        setError(result.error || 'Erreur lors du renvoi du code');
+        // Handle specific error messages from backend
+        const errorMsg = result.error || 'Erreur lors du renvoi du code';
+        
+        // Check for daily limit error
+        if (errorMsg.includes('Limite quotidienne') || errorMsg.includes('daily limit')) {
+          Alert.alert(
+            'Limite atteinte',
+            'Vous avez atteint la limite de 3 codes par jour. Veuillez reessayer demain.',
+            [{ text: 'OK' }]
+          );
+        } else if (errorMsg.includes('attendre') || errorMsg.includes('wait')) {
+          // Cooldown error - show inline
+          setError(errorMsg);
+        } else {
+          setError(errorMsg);
+        }
       }
-    } catch (err) {
-      setError('Erreur réseau. Veuillez réessayer.');
+    } catch (err: any) {
+      // Handle network errors gracefully
+      const errorMsg = err?.message || 'Erreur reseau. Veuillez reessayer.';
+      if (errorMsg.includes('Limite quotidienne') || errorMsg.includes('resource-exhausted')) {
+        Alert.alert(
+          'Limite atteinte',
+          'Vous avez atteint la limite de 3 codes par jour. Veuillez reessayer demain.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setResendLoading(false);
     }
   };
 
-  const formatPhoneNumber = (phone: string) => {
-    // Format phone number for display (hide middle digits)
-    if (phone.length > 6) {
-      return phone.slice(0, 3) + '****' + phone.slice(-3);
-    }
-    return phone;
-  };
+  // formatPhoneNumber is defined at module level above
 
   return (
     <SafeAreaView style={styles.container}>
@@ -383,7 +676,14 @@ const VerifyOtpScreen: React.FC = () => {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.goBack()}>
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  // If can't go back, navigate to Login screen
+                  navigation.navigate('Login');
+                }
+              }}>
               <Icon name="arrow-left" size="md" color={Colors.text.primary} />
             </TouchableOpacity>
           </View>
@@ -399,10 +699,15 @@ const VerifyOtpScreen: React.FC = () => {
             <Text style={styles.title}>{isRegistration ? 'Finaliser l\'inscription' : 'Vérification'}</Text>
             <Text style={styles.subtitle}>
               {isRegistration 
-                ? `Entrez le code de vérification envoyé au ${formatPhoneNumber(phoneNumber)} pour créer votre compte`
-                : `Entrez le code à 6 chiffres envoyé au ${formatPhoneNumber(phoneNumber)}`
+                ? 'Entrez le code de vérification envoyé au numéro ci-dessous pour créer votre compte'
+                : 'Entrez le code à 6 chiffres envoyé au numéro ci-dessous'
               }
             </Text>
+            
+            {/* Phone Number Display */}
+            <View style={styles.phoneDisplay}>
+              <Text style={styles.phoneNumber}>{formatPhoneNumber(effectivePhoneNumber || '')}</Text>
+            </View>
 
             {/* Test Phone Hint */}
             {isTestPhone && (
@@ -529,20 +834,31 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   title: {
-    fontSize: Typography.fontSize['2xl'],
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
+    fontSize: (Typography.fontSize as any)['2xl'] ?? 28,
+    fontWeight: (Typography.fontWeight as any).bold ?? '700',
+    color: Colors.text.primary ?? '#780000',
+    textAlign: 'center' as const,
+    marginBottom: Spacing.md ?? 12,
+    paddingHorizontal: Spacing.md ?? 12,
   },
   subtitle: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-    lineHeight: Typography.lineHeight.relaxed,
-    paddingHorizontal: Spacing.lg,
+    fontSize: (Typography.fontSize as any).base ?? 16,
+    color: Colors.text.secondary ?? '#003049',
+    textAlign: 'center' as const,
+    marginBottom: Spacing.md ?? 12,
+    lineHeight: 22,
+    paddingHorizontal: Spacing.lg ?? 16,
+  },
+  phoneDisplay: {
+    alignItems: 'center' as const,
+    marginBottom: Spacing.lg ?? 16,
+  },
+  phoneNumber: {
+    fontSize: (Typography.fontSize as any).lg ?? 18,
+    fontWeight: (Typography.fontWeight as any).bold ?? '700',
+    color: Colors.text.primary ?? '#780000',
+    textAlign: 'center' as const,
+    paddingHorizontal: Spacing.md ?? 12,
   },
   testPhoneHint: {
     flexDirection: 'row',
@@ -557,30 +873,30 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   testPhoneText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
+    fontSize: Typography.fontSize.sm || 14,
+    color: Colors.text.secondary || '#003049',
     textAlign: 'center',
   },
   testCode: {
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.accent,
-    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.bold || '700',
+    color: Colors.accent || '#003049',
+    fontSize: Typography.fontSize.md || 16,
   },
   webOtpHint: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.status.success + '10', // Light success background
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
-    marginHorizontal: Spacing.lg,
-    gap: Spacing.sm,
+    backgroundColor: Colors.status.success + '10' || '#22C55E10',
+    borderRadius: BorderRadius.lg || 12,
+    paddingVertical: Spacing.sm || 8,
+    paddingHorizontal: Spacing.md || 12,
+    marginBottom: Spacing.lg || 16,
+    marginHorizontal: Spacing.lg || 16,
+    gap: Spacing.sm || 8,
   },
   webOtpText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.status.success,
+    fontSize: Typography.fontSize.sm || 14,
+    color: Colors.status.success || '#22C55E',
     textAlign: 'center',
   },
   otpContainer: {
@@ -611,34 +927,34 @@ const styles = StyleSheet.create({
     borderColor: Colors.status.error,
   },
   errorText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.status.error,
+    fontSize: Typography.fontSize.sm || 14,
+    color: Colors.status.error || '#C1121F',
     textAlign: 'center',
-    marginBottom: Spacing.md,
-    marginTop: Spacing.xs,
-    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md || 12,
+    marginTop: Spacing.xs || 4,
+    paddingHorizontal: Spacing.md || 12,
   },
   resendSection: {
     alignItems: 'center',
-    marginTop: Spacing['2xl'],
-    marginBottom: Spacing.md,
-    paddingTop: Spacing.lg,
+    marginTop: Spacing['2xl'] || 32,
+    marginBottom: Spacing.md || 12,
+    paddingTop: Spacing.lg || 16,
   },
   resendText: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
-    marginBottom: Spacing.sm,
+    fontSize: Typography.fontSize.md || 16,
+    color: Colors.text.secondary || '#003049',
+    marginBottom: Spacing.sm || 8,
     textAlign: 'center',
   },
   resendLink: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.accent,
+    fontSize: Typography.fontSize.md || 16,
+    fontWeight: Typography.fontWeight.semiBold || '600',
+    color: Colors.accent || '#003049',
     textAlign: 'center',
   },
   countdownText: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.tertiary,
+    fontSize: Typography.fontSize.md || 16,
+    color: Colors.text.tertiary || '#669BBC',
     textAlign: 'center',
   },
   wrongNumberSection: {
@@ -647,12 +963,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   wrongNumberButton: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm || 8,
+    paddingHorizontal: Spacing.lg || 16,
   },
   wrongNumberText: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text.secondary,
+    fontSize: Typography.fontSize.md || 16,
+    color: Colors.text.secondary || '#003049',
     textDecorationLine: 'underline',
     textAlign: 'center',
   },

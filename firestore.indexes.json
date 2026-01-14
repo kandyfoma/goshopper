@@ -92,6 +92,15 @@
         {"fieldPath": "nextRetryAt", "order": "ASCENDING"},
         {"fieldPath": "__name__", "order": "ASCENDING"}
       ]
+    },
+    {
+      "collectionGroup": "verifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "identifier", "order": "ASCENDING"},
+        {"fieldPath": "verified", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
     }
   ],
   "fieldOverrides": [

@@ -15,11 +15,8 @@ const MAX_RETRY_ATTEMPTS = 5;
 const RETRY_DELAYS_MINUTES = [1, 5, 30, 120, 720]; // 1min, 5min, 30min, 2hrs, 12hrs
 
 // Webhook event types
-type WebhookProvider = 'stripe' | 'moko_afrika';
+type WebhookProvider = 'moko_afrika';
 type WebhookEventType =
-  | 'payment_intent.succeeded'
-  | 'payment_intent.payment_failed'
-  | 'charge.refunded'
   | 'payment.completed'
   | 'payment.failed'
   | 'refund.completed'
@@ -198,10 +195,10 @@ export const processWebhookRetries = functions
 
         try {
           // Process based on provider
-          if (webhook.provider === 'stripe') {
-            await processStripeWebhookRetry(webhook);
-          } else if (webhook.provider === 'moko_afrika') {
+          if (webhook.provider === 'moko_afrika') {
             await processMokoWebhookRetry(webhook);
+          } else {
+            throw new Error(`Unsupported webhook provider: ${webhook.provider}`);
           }
 
           // Success - mark as completed
@@ -232,104 +229,6 @@ export const processWebhookRetries = functions
       return null;
     }
   });
-
-/**
- * Process Stripe webhook retry
- */
-async function processStripeWebhookRetry(webhook: WebhookEvent): Promise<void> {
-  const {eventType, payload, userId, transactionId} = webhook;
-
-  if (eventType === 'payment_intent.succeeded') {
-    const paymentIntent = payload.data.object;
-    const metadata = paymentIntent.metadata;
-
-    if (!userId || !transactionId) {
-      throw new Error('Missing userId or transactionId in webhook metadata');
-    }
-
-    // Update payment record
-    const paymentRef = db
-      .collection(`artifacts/${config.app.id}/users`)
-      .doc(userId)
-      .collection('payments')
-      .doc(transactionId);
-
-    const paymentDoc = await paymentRef.get();
-    if (!paymentDoc.exists) {
-      throw new Error(`Payment not found: ${transactionId}`);
-    }
-
-    const payment = paymentDoc.data();
-    
-    // C5 FIX: Check BOTH payment AND subscription status for true idempotency
-    const subscriptionRef = db
-      .collection(`artifacts/${config.app.id}/users`)
-      .doc(userId)
-      .collection('subscription')
-      .doc(userId);
-    
-    if (payment?.status === 'completed') {
-      // Verify subscription was also activated
-      const subscriptionDoc = await subscriptionRef.get();
-      const subscription = subscriptionDoc.data();
-      
-      if (subscription?.isSubscribed && subscription?.transactionId === transactionId) {
-        console.log(`Payment and subscription already processed: ${transactionId}`);
-        return; // Fully idempotent
-      }
-      
-      console.warn(`Payment completed but subscription not activated - completing activation`);
-      // Fall through to activate subscription
-    }
-
-    const now = new Date();
-    const endDate = addHours(now, 24 * 30); // 30 days
-
-    // Use transaction to ensure atomic payment+subscription update
-    await admin.firestore().runTransaction(async (transaction) => {
-      transaction.update(paymentRef, {
-        status: 'completed',
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      
-      transaction.set(subscriptionRef, {
-        userId,
-        isSubscribed: true,
-        planId: metadata.planId,
-        status: 'active',
-        subscriptionEndDate: admin.firestore.Timestamp.fromDate(endDate),
-        lastPaymentDate: admin.firestore.Timestamp.fromDate(now),
-        lastPaymentAmount: paymentIntent.amount / 100,
-        transactionId,
-        stripePaymentIntentId: paymentIntent.id,
-        autoRenew: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, {merge: true});
-    });
-
-    console.log(`✅ Stripe payment processed: ${transactionId}`);
-  } else if (eventType === 'payment_intent.payment_failed') {
-    if (!userId || !transactionId) {
-      throw new Error('Missing userId or transactionId');
-    }
-
-    const paymentRef = db
-      .collection(`artifacts/${config.app.id}/users`)
-      .doc(userId)
-      .collection('payments')
-      .doc(transactionId);
-
-    await paymentRef.update({
-      status: 'failed',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    console.log(`✅ Stripe payment failure processed: ${transactionId}`);
-  } else {
-    console.log(`⏭️ Skipping unknown Stripe event type: ${eventType}`);
-  }
-}
 
 /**
  * Process Moko Afrika webhook retry
@@ -513,14 +412,12 @@ export const retryWebhookEvent = functions
       });
 
       // Process retry
-      if (webhook.provider === 'stripe') {
-        await processStripeWebhookRetry(webhook);
-      } else if (webhook.provider === 'moko_afrika') {
+      if (webhook.provider === 'moko_afrika') {
         await processMokoWebhookRetry(webhook);
       } else {
         throw new functions.https.HttpsError(
           'invalid-argument',
-          'Unknown webhook provider',
+          'Unknown or unsupported webhook provider',
         );
       }
 

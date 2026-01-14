@@ -44,7 +44,7 @@ const crypto = __importStar(require("crypto"));
 const config_1 = require("../config");
 const db = admin.firestore();
 // Verification code settings
-const CODE_EXPIRY_MINUTES = 10;
+const CODE_EXPIRY_MINUTES = 15;
 const MAX_ATTEMPTS = 3;
 const RESEND_COOLDOWN_SECONDS = 60;
 /**
@@ -81,39 +81,89 @@ function generateSessionId() {
 /**
  * Send SMS via Africa's Talking or similar SMS gateway (for DRC)
  */
-async function sendSMS(phoneNumber, code) {
-    var _a, _b, _c;
+async function sendSMS(phoneNumber, code, userName) {
+    var _a;
     // Check if this is a test phone number
     if (isTestPhoneNumber(phoneNumber)) {
         console.log(`🧪 TEST MODE: Skipping SMS send for test number: ${phoneNumber}`);
         console.log(`🧪 TEST MODE: Test OTP is: ${code} (always 123456)`);
         console.log(`🧪 TEST MODE: SMS cost saved: $0.05`);
-        return true; // Pretend SMS was sent successfully
+        return { success: true }; // Pretend SMS was sent successfully
     }
     try {
-        // Africa's Talking SMS API
-        const response = await fetch(`${config_1.config.sms.baseUrl}/version1/messaging`, {
+        // Africa's Talking SMS API - matching LaboMedPlus implementation
+        const greeting = userName ? `Bonjour ${userName},\n\n` : '';
+        const message = `${greeting}GoShopper: Code ${code}. Valide ${CODE_EXPIRY_MINUTES} minutes.
+
+goshopper.app`;
+        // Get credentials - try multiple sources
+        const username = process.env.AFRICASTALKING_USERNAME || config_1.config.sms.username || 'kandy';
+        const apiKey = process.env.AFRICASTALKING_API_KEY || config_1.config.sms.apiKey || '';
+        const baseUrl = config_1.config.sms.baseUrl || 'https://api.africastalking.com';
+        console.log(`📤 Sending SMS to ${phoneNumber} via Africa's Talking`);
+        console.log(`📝 Message: ${message.substring(0, 50)}...`);
+        console.log(`🔑 Username: ${username}`);
+        console.log(`🔑 API Key: ${apiKey ? apiKey.substring(0, 15) + '...' : 'NOT SET'}`);
+        console.log(`🌐 Base URL: ${baseUrl}`);
+        console.log(`📧 Sender ID: ${config_1.config.sms.senderId || 'NOT SET'}`);
+        if (!apiKey) {
+            console.error('❌ API Key is empty or not set!');
+            return { success: false, error: 'API Key not configured' };
+        }
+        // Build request body - omit 'from' field if senderId is not set or is default
+        const bodyParams = {
+            username: username,
+            to: phoneNumber,
+            message: message,
+        };
+        // Only add 'from' if we have a valid sender ID (not the default)
+        // Africa's Talking will use a default shortcode if 'from' is omitted
+        if (config_1.config.sms.senderId && config_1.config.sms.senderId !== 'GoShopperAI') {
+            bodyParams.from = config_1.config.sms.senderId;
+        }
+        else {
+            console.log('⚠️ Using default Africa\'s Talking sender ID (no custom sender)');
+        }
+        const requestBody = new URLSearchParams(bodyParams).toString();
+        console.log(`📦 Request body: ${requestBody.substring(0, 100)}...`);
+        const response = await fetch(`${baseUrl}/version1/messaging`, {
             method: 'POST',
             headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                apiKey: config_1.config.sms.apiKey,
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+                'apiKey': apiKey,
             },
-            body: new URLSearchParams({
-                username: config_1.config.sms.username,
-                to: phoneNumber,
-                message: `GoShopper.com: Votre code de vérification sécurisé est ${code}. Valide pendant ${CODE_EXPIRY_MINUTES} minutes. Ne partagez jamais ce code.\n\n@goshopper.com #${code}`,
-                from: config_1.config.sms.senderId,
-            }),
+            body: requestBody,
         });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ SMS API returned status ${response.status}: ${errorText}`);
+            return { success: false, error: `API returned ${response.status}: ${errorText.substring(0, 100)}` };
+        }
         const result = await response.json();
-        console.log('SMS sent:', result);
-        return ((_c = (_b = (_a = result.SMSMessageData) === null || _a === void 0 ? void 0 : _a.Recipients) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.statusCode) === 101;
+        console.log('✅ SMS API Response:', JSON.stringify(result, null, 2));
+        // Check response format: { SMSMessageData: { Recipients: [{ status: 'Success' }] } }
+        const recipients = ((_a = result.SMSMessageData) === null || _a === void 0 ? void 0 : _a.Recipients) || [];
+        if (recipients.length > 0) {
+            const status = recipients[0].status;
+            const statusCode = recipients[0].statusCode;
+            console.log(`📊 SMS Status: ${status}, Code: ${statusCode}`);
+            // statusCode 101 = Success, or status = 'Success'
+            if (statusCode === 101 || status === 'Success') {
+                return { success: true };
+            }
+            else {
+                return { success: false, error: `SMS failed with status: ${status} (${statusCode})` };
+            }
+        }
+        console.error('❌ No recipients in SMS response');
+        return { success: false, error: 'No recipients in API response' };
     }
     catch (error) {
-        console.error('SMS sending error:', error);
-        // Fallback to Firebase SMS if primary fails
-        return false;
+        console.error('❌ SMS sending error:', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error('Error details:', errorMsg);
+        return { success: false, error: `Exception: ${errorMsg}` };
     }
 }
 /**
@@ -194,6 +244,9 @@ function isInDRC(phoneNumber, countryCode) {
  */
 exports.sendVerificationCode = functions
     .region(config_1.config.app.region)
+    .runWith({
+    secrets: ['AFRICASTALKING_API_KEY', 'AFRICASTALKING_USERNAME'],
+})
     .https.onCall(async (data, context) => {
     const { phoneNumber, email, countryCode, language = 'fr' } = data;
     // Determine if user is in DRC
@@ -222,22 +275,50 @@ exports.sendVerificationCode = functions
     const identifier = inDRC ? phoneNumber : email;
     const verificationType = inDRC ? 'phone' : 'email';
     try {
-        // Check for existing verification to prevent spam
-        const existingQuery = await db
-            .collection('verifications')
-            .where('identifier', '==', identifier)
-            .where('verified', '==', false)
-            .orderBy('createdAt', 'desc')
-            .limit(1)
-            .get();
-        if (!existingQuery.empty) {
-            const existing = existingQuery.docs[0].data();
-            const createdAt = existing.createdAt.toDate();
-            const secondsSinceCreation = (Date.now() - createdAt.getTime()) / 1000;
-            if (secondsSinceCreation < RESEND_COOLDOWN_SECONDS) {
-                const remainingSeconds = Math.ceil(RESEND_COOLDOWN_SECONDS - secondsSinceCreation);
-                throw new functions.https.HttpsError('resource-exhausted', `Please wait ${remainingSeconds} seconds before requesting a new code`);
+        // Check for existing verification to prevent spam AND enforce daily limit
+        console.log(`📋 Checking for existing verifications for: ${identifier}`);
+        try {
+            const existingQuery = await db
+                .collection('verifications')
+                .where('identifier', '==', identifier)
+                .where('verified', '==', false)
+                .orderBy('createdAt', 'desc')
+                .limit(1)
+                .get();
+            if (!existingQuery.empty) {
+                const existing = existingQuery.docs[0].data();
+                const createdAt = existing.createdAt.toDate();
+                const secondsSinceCreation = (Date.now() - createdAt.getTime()) / 1000;
+                if (secondsSinceCreation < RESEND_COOLDOWN_SECONDS) {
+                    const remainingSeconds = Math.ceil(RESEND_COOLDOWN_SECONDS - secondsSinceCreation);
+                    throw new functions.https.HttpsError('resource-exhausted', `Please wait ${remainingSeconds} seconds before requesting a new code`);
+                }
             }
+        }
+        catch (indexError) {
+            console.warn('⚠️ Index query failed, skipping spam check:', indexError);
+            // Continue without spam check if index isn't ready
+        }
+        // Enforce daily OTP limit (3 per day per user/device)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        try {
+            const todayVerifications = await db
+                .collection('verifications')
+                .where('identifier', '==', identifier)
+                .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(todayStart))
+                .get();
+            if (todayVerifications.size >= 3) {
+                console.warn(`⚠️ Daily OTP limit reached for ${identifier}`);
+                throw new functions.https.HttpsError('resource-exhausted', 'Limite quotidienne atteinte. Vous avez demande 3 codes aujourd\'hui. Reessayez demain.');
+            }
+        }
+        catch (limitError) {
+            if (limitError instanceof functions.https.HttpsError) {
+                throw limitError;
+            }
+            console.warn('⚠️ Daily limit check failed:', limitError);
+            // Continue if limit check fails
         }
         // Generate verification code and session
         const code = getVerificationCode(inDRC ? phoneNumber : undefined);
@@ -259,26 +340,55 @@ exports.sendVerificationCode = functions
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         // Send verification code
-        let sent = false;
+        let smsResult;
+        let emailResult;
         if (inDRC) {
-            sent = await sendSMS(phoneNumber, code);
+            // Try to get user's name from the database
+            let userName;
+            try {
+                const userQuery = await db
+                    .collection('artifacts')
+                    .doc(config_1.config.app.id)
+                    .collection('users')
+                    .where('phoneNumber', '==', phoneNumber)
+                    .limit(1)
+                    .get();
+                if (!userQuery.empty) {
+                    const userData = userQuery.docs[0].data();
+                    if (userData.firstName && userData.surname) {
+                        userName = `${userData.firstName} ${userData.surname}`;
+                    }
+                    else if (userData.firstName) {
+                        userName = userData.firstName;
+                    }
+                }
+            }
+            catch (nameError) {
+                console.warn('⚠️ Could not fetch user name:', nameError);
+                // Continue without name
+            }
+            smsResult = await sendSMS(phoneNumber, code, userName);
+            if (!smsResult.success) {
+                // Delete the verification record if sending failed
+                await db.collection('verifications').doc(sessionId).delete();
+                const errorDetails = smsResult.error || 'Unknown error';
+                console.error(`❌ SMS sending failed: ${errorDetails}`);
+                throw new functions.https.HttpsError('internal', `SMS failed: ${errorDetails}`);
+            }
         }
         else {
-            sent = await sendVerificationEmail(email, code, language);
-        }
-        if (!sent) {
-            // Delete the verification record if sending failed
-            await db.collection('verifications').doc(sessionId).delete();
-            throw new functions.https.HttpsError('internal', `Failed to send verification ${verificationType === 'phone' ? 'SMS' : 'email'}`);
+            emailResult = await sendVerificationEmail(email, code, language);
+            if (!emailResult) {
+                // Delete the verification record if sending failed
+                await db.collection('verifications').doc(sessionId).delete();
+                throw new functions.https.HttpsError('internal', 'Failed to send verification email');
+            }
         }
         return {
             success: true,
             sessionId,
             type: verificationType,
             expiresIn: CODE_EXPIRY_MINUTES * 60,
-            message: inDRC
-                ? 'Code de vérification envoyé par SMS'
-                : 'Verification code sent to your email',
         };
     }
     catch (error) {
@@ -336,9 +446,32 @@ exports.verifyCode = functions
             verified: true,
             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        // If this is phone verification, mark the user's phone as verified
+        if (verification.type === 'phone') {
+            try {
+                const phoneNumber = verification.identifier;
+                const usersRef = db
+                    .collection('artifacts')
+                    .doc(config_1.config.app.id)
+                    .collection('users');
+                const userQuery = await usersRef.where('phoneNumber', '==', phoneNumber).limit(1).get();
+                if (!userQuery.empty) {
+                    const userId = userQuery.docs[0].id;
+                    await usersRef.doc(userId).update({
+                        phoneVerified: true,
+                        verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    console.log(`✅ Phone marked as verified for user: ${userId}`);
+                }
+            }
+            catch (updateError) {
+                console.warn('⚠️ Could not mark phone as verified:', updateError);
+                // Continue - verification is still valid
+            }
+        }
         // Generate verification token for registration completion
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+        const tokenExpiresAt = new Date(Date.now() + 45 * 60 * 1000); // 45 minutes
         await verificationRef.update({
             verificationToken,
             tokenExpiresAt: admin.firestore.Timestamp.fromDate(tokenExpiresAt),
@@ -468,16 +601,42 @@ exports.checkIdentifierAvailability = functions
     try {
         const field = phoneNumber ? 'phoneNumber' : 'email';
         const value = phoneNumber || email;
-        // Search in user profiles
-        const usersQuery = await db
-            .collectionGroup('profile')
-            .where(field, '==', value)
-            .limit(1)
-            .get();
-        return {
-            available: usersQuery.empty,
-            field,
-        };
+        // First, try to search for verified profiles only (preferred)
+        try {
+            const usersQuery = await db
+                .collectionGroup('profile')
+                .where(field, '==', value)
+                .where('verified', '==', true)
+                .limit(1)
+                .get();
+            return {
+                available: usersQuery.empty,
+                field,
+            };
+        }
+        catch (indexError) {
+            // If compound index doesn't exist, fall back to simple check
+            console.warn('⚠️ Compound index query failed, using fallback:', indexError);
+            const fallbackQuery = await db
+                .collectionGroup('profile')
+                .where(field, '==', value)
+                .limit(1)
+                .get();
+            // For fallback, check if any found profiles are actually verified
+            if (!fallbackQuery.empty) {
+                const profile = fallbackQuery.docs[0].data();
+                // Consider unavailable only if the profile is verified
+                const isVerifiedProfile = profile.verified === true;
+                return {
+                    available: !isVerifiedProfile,
+                    field,
+                };
+            }
+            return {
+                available: true,
+                field,
+            };
+        }
     }
     catch (error) {
         console.error('Check identifier error:', error);

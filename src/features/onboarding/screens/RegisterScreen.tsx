@@ -34,7 +34,7 @@ import {
   Spacing,
   BorderRadius,
 } from '@/shared/theme/theme';
-import {Icon, Button, BiometricModal} from '@/shared/components';
+import {Icon, Button, BiometricModal, BackButton} from '@/shared/components';
 import {passwordService} from '@/shared/services/password';
 import {useAuth, useToast} from '@/shared/contexts';
 import {biometricService} from '@/shared/services/biometric';
@@ -270,15 +270,31 @@ export function RegisterScreen() {
       if (result.success && result.verified) {
         console.log('✅ OTP verified successfully');
         setVerificationToken(result.verificationToken || result.token || '');
-        showToast('Numéro vérifié avec succès!', 'success');
         setCurrentStep('step3');
       } else {
         throw new Error(result.error || 'Code de vérification incorrect');
       }
     } catch (err: any) {
       console.error('❌ Error verifying OTP:', err);
-      setOtpError(err.message || 'Code invalide');
-      showToast('Code de vérification incorrect', 'error');
+      
+      // Handle specific error cases with user-friendly messages
+      const errorMessage = err.message || 'Code invalide';
+      
+      if (errorMessage.includes('already been verified') || errorMessage.includes('Session deja verifiee')) {
+        showToast('Ce code a déjà été utilisé. Demandez un nouveau code.', 'warning');
+        setOtpError('Session déjà vérifiée - demandez un nouveau code');
+        // Clear the session to force resend
+        setSessionId('');
+        setCurrentStep('step1'); // Go back to phone input to get new code
+      } else if (errorMessage.includes('expired') || errorMessage.includes('deadline-exceeded')) {
+        showToast('Code expiré. Demandez un nouveau code.', 'warning');
+        setOtpError('Code expiré');
+        setCurrentStep('step1');
+      } else {
+        setOtpError(errorMessage);
+        showToast('Code de vérification incorrect', 'error');
+      }
+      
       // Clear OTP inputs
       setOtp(['', '', '', '', '', '']);
       otpInputRefs.current[0]?.focus();
@@ -302,7 +318,6 @@ export function RegisterScreen() {
       if (result.success && result.sessionId) {
         console.log('✅ OTP resent, new session ID:', result.sessionId);
         setSessionId(result.sessionId);
-        showToast('Nouveau code envoyé', 'success');
         setResendCooldown(60);
         // Clear OTP inputs
         setOtp(['', '', '', '', '', '']);
@@ -384,6 +399,10 @@ export function RegisterScreen() {
   };
 
   const handleStep1Continue = async () => {
+    // Clear previous errors
+    setError(null);
+    setNetworkError(null);
+    
     const error = validatePhoneNumber(phoneNumber);
     if (error) {
       setPhoneError(error);
@@ -391,12 +410,18 @@ export function RegisterScreen() {
     }
     
     if (!selectedCity) {
-      showToast('Veuillez sélectionner votre ville', 'error');
+      showToast('Veuillez selectionner votre ville', 'error');
       return;
     }
     
     if (phoneExists) {
       return; // User should see the error message already
+    }
+    
+    // Check for network error before proceeding
+    if (networkError) {
+      showToast('Verifiez votre connexion internet', 'error');
+      return;
     }
     
     // Send OTP
@@ -417,8 +442,6 @@ export function RegisterScreen() {
         // Show info for test numbers
         if (formattedPhone.includes('999999')) {
           showToast('Numéro de test détecté. Utilisez le code: 123456', 'info', 5000);
-        } else {
-          showToast('Code de vérification envoyé par SMS', 'success');
         }
         
         // Start resend cooldown
@@ -427,9 +450,20 @@ export function RegisterScreen() {
         throw new Error(result.error || 'Échec de l\'envoi du code');
       }
     } catch (err: any) {
-      console.error('❌ Error sending OTP:', err);
-      setError(err.message || 'Impossible d\'envoyer le code de vérification');
-      showToast('Erreur lors de l\'envoi du code', 'error');
+      console.error('\u274c Error sending OTP:', err);
+      
+      // Handle daily limit error
+      const errorMsg = err.message || '';
+      if (errorMsg.includes('Limite quotidienne') || errorMsg.includes('3 codes')) {
+        setError('Limite quotidienne atteinte. Reessayez demain.');
+        showToast('Limite de 3 codes par jour atteinte', 'error', 5000);
+      } else if (errorMsg.includes('attendre')) {
+        setError(errorMsg);
+        showToast(errorMsg, 'warning');
+      } else {
+        setError(err.message || 'Impossible d\'envoyer le code de verification');
+        showToast('Erreur lors de l\'envoi du code', 'error');
+      }
     } finally {
       setSendingOtp(false);
     }
@@ -506,8 +540,6 @@ export function RegisterScreen() {
         // Set user in AuthContext to log them in (this triggers navigation)
         setPhoneUser(user);
         console.log('✅ User set in AuthContext');
-        // Show success toast
-        showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
       }
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -521,8 +553,18 @@ export function RegisterScreen() {
     setSocialLoading('google');
     setError(null);
     try {
-      await signInWithGoogle();
+      // Suppress auth listener during sign-in
+      suppressAuthListener();
+      const userCredential = await signInWithGoogle();
+      
+      if (userCredential) {
+        // For register screen, just complete sign-in
+        // Phone verification will be handled in ProfileSetup if needed
+        enableAuthListener();
+        // Navigation handled by auth state change
+      }
     } catch (err: any) {
+      enableAuthListener();
       setError(err?.message || 'Échec de la connexion Google');
     } finally {
       setSocialLoading(null);
@@ -533,8 +575,18 @@ export function RegisterScreen() {
     setSocialLoading('apple');
     setError(null);
     try {
-      await signInWithApple();
+      // Suppress auth listener during sign-in
+      suppressAuthListener();
+      const userCredential = await signInWithApple();
+      
+      if (userCredential) {
+        // For register screen, just complete sign-in
+        // Phone verification will be handled in ProfileSetup if needed
+        enableAuthListener();
+        // Navigation handled by auth state change
+      }
     } catch (err: any) {
+      enableAuthListener();
       setError(err?.message || 'Échec de la connexion Apple');
     } finally {
       setSocialLoading(null);
@@ -745,7 +797,7 @@ export function RegisterScreen() {
                   variant="primary"
                   title="Vérifier"
                   onPress={() => handleVerifyOtp()}
-                  disabled={!isStep2Valid()}
+                  disabled={!isStep3Valid()}
                   loading={verifyingOtp}
                   icon={<Icon name="check-circle" size="sm" color={Colors.white} />}
                   iconPosition="right"
@@ -770,13 +822,33 @@ export function RegisterScreen() {
           {/* Step 3: Password and Terms */}
           {currentStep === 'step3' && (
             <View style={styles.form}>
+              {/* Header with Back Button */}
+              <View style={styles.stepHeader}>
+                <BackButton
+                  onPress={() => {
+                    setCurrentStep('step2');
+                    setPassword('');
+                    setConfirmPassword('');
+                    setPasswordError('');
+                    setConfirmPasswordError('');
+                  }}
+                  style={styles.backButton}
+                />
+                <View style={styles.stepHeaderContent}>
+                  <Text style={styles.stepTitle}>Créer un mot de passe</Text>
+                  <Text style={styles.stepSubtitle}>
+                    Sécurisez votre compte avec un mot de passe fort
+                  </Text>
+                </View>
+              </View>
+
               {/* Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Mot de passe *</Text>
-                <View style={[styles.inputWrapper, passwordError ? styles.inputError : null]}>
-                  <Icon name="lock" size="md" color={Colors.text.secondary} />
+                <View style={[styles.passwordInputWrapper, passwordError ? styles.inputError : null]}>
+                  <Icon name="lock-closed" size="md" color={Colors.text.secondary} />
                   <TextInput
-                    style={styles.input}
+                    style={styles.passwordInput}
                     placeholder="Au moins 6 caractères avec 1 chiffre"
                     placeholderTextColor={Colors.text.tertiary}
                     value={password}
@@ -788,24 +860,30 @@ export function RegisterScreen() {
                   />
                   <TouchableOpacity
                     style={styles.eyeButton}
-                    onPress={() => setShowPassword(!showPassword)}>
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
                     <Icon
                       name={showPassword ? 'eye-off' : 'eye'}
-                      size="sm"
+                      size="md"
                       color={Colors.text.secondary}
                     />
                   </TouchableOpacity>
                 </View>
-                {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+                {passwordError && (
+                  <View style={styles.errorContainer}>
+                    <Icon name="alert-circle" size="sm" color={Colors.error} />
+                    <Text style={styles.errorText}>{passwordError}</Text>
+                  </View>
+                )}
               </View>
 
               {/* Confirm Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Confirmer le mot de passe *</Text>
-                <View style={[styles.inputWrapper, confirmPasswordError ? styles.inputError : null]}>
-                  <Icon name="lock" size="md" color={Colors.text.secondary} />
+                <View style={[styles.passwordInputWrapper, confirmPasswordError ? styles.inputError : null]}>
+                  <Icon name="shield-check" size="md" color={Colors.text.secondary} />
                   <TextInput
-                    style={styles.input}
+                    style={styles.passwordInput}
                     placeholder="Répétez votre mot de passe"
                     placeholderTextColor={Colors.text.tertiary}
                     value={confirmPassword}
@@ -817,66 +895,100 @@ export function RegisterScreen() {
                   />
                   <TouchableOpacity
                     style={styles.eyeButton}
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
                     <Icon
                       name={showConfirmPassword ? 'eye-off' : 'eye'}
-                      size="sm"
+                      size="md"
                       color={Colors.text.secondary}
                     />
                   </TouchableOpacity>
                 </View>
-                {confirmPasswordError && <Text style={styles.errorText}>{confirmPasswordError}</Text>}
+                {confirmPasswordError && (
+                  <View style={styles.errorContainer}>
+                    <Icon name="alert-circle" size="sm" color={Colors.error} />
+                    <Text style={styles.errorText}>{confirmPasswordError}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Password Requirements */}
+              <View style={styles.passwordRequirements}>
+                <Text style={styles.requirementsTitle}>Exigences du mot de passe :</Text>
+                <View style={styles.requirementItem}>
+                  <Icon
+                    name={password.length >= 6 ? "checkmark-circle" : "ellipse-outline"}
+                    size="sm"
+                    color={password.length >= 6 ? Colors.success : Colors.text.tertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    password.length >= 6 && styles.requirementMet
+                  ]}>
+                    Au moins 6 caractères
+                  </Text>
+                </View>
+                <View style={styles.requirementItem}>
+                  <Icon
+                    name={/\d/.test(password) ? "checkmark-circle" : "ellipse-outline"}
+                    size="sm"
+                    color={/\d/.test(password) ? Colors.success : Colors.text.tertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    /\d/.test(password) && styles.requirementMet
+                  ]}>
+                    Au moins 1 chiffre
+                  </Text>
+                </View>
               </View>
 
               {/* Terms and Privacy */}
-              <TouchableOpacity 
-                style={styles.termsRow}
-                onPress={() => setAcceptedTerms(!acceptedTerms)}
-                activeOpacity={0.7}>
-                <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
-                  {acceptedTerms && <Icon name="check" size="sm" color={Colors.white} />}
-                </View>
-                <Text style={styles.termsText}>
-                  J'accepte les{' '}
-                  <Text 
-                    style={styles.termsLink}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      navigation.navigate('TermsOfService' as any);
-                    }}>
-                    conditions d'utilisation
-                  </Text>
-                  {' '}et la{' '}
-                  <Text 
-                    style={styles.termsLink}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      navigation.navigate('PrivacyPolicy' as any);
-                    }}>
-                    politique de confidentialité
-                  </Text>
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.termsContainer}>
+                <TouchableOpacity 
+                  style={styles.termsRow}
+                  onPress={() => setAcceptedTerms(!acceptedTerms)}
+                  activeOpacity={0.7}
+                  hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                  <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+                    {acceptedTerms && <Icon name="checkmark" size="sm" color={Colors.white} />}
+                  </View>
+                  <View style={styles.termsTextContainer}>
+                    <Text style={styles.termsText}>
+                      J'accepte les{' '}
+                      <Text 
+                        style={styles.termsLink}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          navigation.navigate('TermsOfService' as any);
+                        }}>
+                        conditions d'utilisation
+                      </Text>
+                      {' '}et la{' '}
+                      <Text 
+                        style={styles.termsLink}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          navigation.navigate('PrivacyPolicy' as any);
+                        }}>
+                        politique de confidentialité
+                      </Text>
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
 
-              {/* Buttons */}
-              <View style={styles.buttonGroup}>
+              {/* Create Account Button */}
+              <View style={styles.createAccountContainer}>
                 <Button
                   variant="primary"
                   title="Créer mon compte"
                   onPress={handleRegistration}
-                  disabled={!isStep2Valid()}
+                  disabled={!isStep3Valid()}
                   loading={loading}
                   icon={<Icon name="user-plus" size="sm" color={Colors.white} />}
                   iconPosition="right"
-                />
-
-                <Button
-                  variant="outline"
-                  title="Retour"
-                  onPress={() => setCurrentStep('step1')}
-                  disabled={loading}
-                  icon={<Icon name="arrow-left" size="sm" color={Colors.text.primary} />}
-                  iconPosition="left"
+                  style={styles.createAccountButton}
                 />
               </View>
             </View>
@@ -1126,9 +1238,6 @@ export function RegisterScreen() {
               setPendingUser(null);
               console.log('✅ User set in AuthContext after biometric setup');
             }
-            
-            // Show success toast
-            showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
           }
         }}
         onDecline={() => {
@@ -1144,9 +1253,6 @@ export function RegisterScreen() {
             setPendingUser(null);
             console.log('✅ User set in AuthContext after declining biometric');
           }
-          
-          // Show success toast
-          showToast('Compte créé avec succès! Bienvenue sur GoShopper 🎉', 'success', 3000);
         }}
       />
     </SafeAreaView>
@@ -1346,6 +1452,94 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: Spacing.xs,
+  },
+  // Step 3 Password creation specific styles
+  stepHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.xl,
+    gap: Spacing.base,
+  },
+  stepHeaderContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
+  },
+  stepSubtitle: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.secondary,
+    lineHeight: 22,
+  },
+  passwordInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'ios' ? Spacing.base : Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: '#FDB913',
+    shadowColor: Colors.primary.main,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text.primary,
+    marginLeft: Spacing.sm,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  passwordRequirements: {
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.base,
+    marginBottom: Spacing.lg,
+  },
+  requirementsTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  requirementText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+  },
+  requirementMet: {
+    color: Colors.success,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  termsContainer: {
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.base,
+    marginBottom: Spacing.xl,
+  },
+  termsTextContainer: {
+    flex: 1,
+  },
+  createAccountContainer: {
+    paddingTop: Spacing.base,
+  },
+  createAccountButton: {
+    shadowColor: Colors.primary.main,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   termsRow: {
     flexDirection: 'row',

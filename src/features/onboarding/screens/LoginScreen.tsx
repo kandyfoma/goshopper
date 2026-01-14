@@ -17,6 +17,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -79,7 +80,7 @@ const getErrorMessage = (errorCode: string): string => {
 export function LoginScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const {signInWithGoogle, signInWithApple, signInWithFacebook, setPhoneUser} = useAuth();
+  const {signInWithGoogle, signInWithApple, signInWithFacebook, setPhoneUser, setSocialUser, suppressAuthListener, enableAuthListener} = useAuth();
   const {showToast} = useToast();
 
   // Form state
@@ -345,20 +346,35 @@ export function LoginScreen() {
         try {
           const otpResult = await smsService.sendOTP(formattedPhone);
           if (otpResult.success && otpResult.sessionId) {
-            showToast('Vérification requise. Code envoyé à votre téléphone.', 'info', 3000);
+            showToast('Verification requise. Code envoye a votre telephone.', 'info', 3000);
             
-            // Navigate to verification screen
+            // Store login credentials temporarily for retry after verification
+            await AsyncStorage.setItem('@goshopper_pending_login', JSON.stringify({
+              phoneNumber: formattedPhone,
+              password: password,
+              countryCode: selectedCountry.code
+            })).catch(console.error);
+            
+            // Navigate to verification screen with sessionId
             navigation.navigate('VerifyOtp', {
               phoneNumber: formattedPhone,
+              sessionId: otpResult.sessionId,
               isPhoneVerification: true,
             });
             return;
           } else {
-            showToast('Erreur lors de l\'envoi du code de vérification', 'error', 5000);
+            // Handle daily limit or other errors
+            const errorMsg = otpResult.error || "Erreur lors de l'envoi du code";
+            if (errorMsg.includes('Limite quotidienne')) {
+              showToast('Limite de codes atteinte. Reessayez demain.', 'error', 5000);
+            } else {
+              showToast(errorMsg, 'error', 5000);
+            }
           }
-        } catch (otpError) {
+        } catch (otpError: any) {
           console.error('Failed to send verification OTP:', otpError);
-          showToast('Erreur lors de l\'envoi du code de vérification', 'error', 5000);
+          const errorMsg = otpError?.message || "Erreur lors de l'envoi du code";
+          showToast(errorMsg, 'error', 5000);
         }
         
         setLoading(false);
@@ -494,15 +510,139 @@ export function LoginScreen() {
     setSocialLoading('google');
     setError(null);
     try {
+      // Suppress Firebase Auth listener during verification check
+      suppressAuthListener();
       const userCredential = await signInWithGoogle();
       console.log('[LoginScreen] Google sign in result:', {
         userId: userCredential?.uid,
         email: userCredential?.email,
       });
       
+      if (!userCredential) {
+        enableAuthListener();
+        setError('Échec de la connexion Google');
+        setSocialLoading(null);
+        return;
+      }
+      
+      // After social sign-in, check if phone verification is needed
+      let needsPhoneVerification = false;
+      let phoneToVerify: string | null = null;
+      let needsPhoneNumber = false;
+      
+      try {
+        const profile = await authService.getUserProfile(userCredential.uid);
+        console.log('[LoginScreen] Google user profile:', {
+          hasProfile: !!profile,
+          phoneNumber: profile?.phoneNumber,
+          phoneVerified: profile?.phoneVerified,
+        });
+        
+        // Check if user has no phone number at all - needs complete registration
+        if (!profile || !profile.phoneNumber) {
+          needsPhoneNumber = true;
+          console.log('📱 [LoginScreen] No phone number found - routing to CompleteRegistration');
+        }
+        // If profile exists and phone is present but not verified, need OTP
+        else if (profile.phoneNumber && !profile.phoneVerified) {
+          needsPhoneVerification = true;
+          phoneToVerify = profile.phoneNumber;
+          
+          // Ensure phone number is in correct format (with country code)
+          if (!phoneToVerify.startsWith('+')) {
+            phoneToVerify = `+243${phoneToVerify.replace(/^0+/, '')}`;
+          }
+          console.log('📱 Phone verification required for Google user:', phoneToVerify);
+        }
+      } catch (profileErr) {
+        console.warn('Could not fetch user profile after Google sign-in:', profileErr);
+        // Continue - user may need to complete profile setup
+        needsPhoneNumber = true;
+      }
+
+      // If user needs to add phone number, navigate to ProfileSetup
+      if (needsPhoneNumber) {
+        console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number...');
+        setSocialLoading(null);
+        enableAuthListener();
+        setSocialUser(userCredential);
+        navigation.navigate('ProfileSetup', {
+          fromSocial: 'google',
+          socialUser: userCredential,
+        });
+        return;
+      }
+
+      // If phone verification is needed, send OTP and navigate
+      if (needsPhoneVerification && phoneToVerify) {
+        try {
+          const otpResult = await smsService.sendOTP(phoneToVerify);
+          console.log('📱 [LoginScreen] OTP result:', {
+            success: otpResult.success,
+            sessionId: otpResult.sessionId,
+            error: otpResult.error,
+          });
+          
+          if (otpResult.success && otpResult.sessionId) {
+            console.log('📱 [LoginScreen] Navigating to VerifyOtp screen...');
+            showToast('Code de vérification envoyé.', 'info', 3000);
+            // Keep listener suppressed - VerifyOtpScreen will enable it after verification
+            setSocialLoading(null);
+            
+            // Store verification params for RootNavigator
+            const verificationParams = {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'google',
+              socialUser: {
+                uid: userCredential.uid,
+                email: userCredential.email,
+                displayName: userCredential.displayName,
+              },
+            };
+            
+            // Wait for AsyncStorage writes to complete before navigation
+            try {
+              await AsyncStorage.setItem('@goshopper_verification_in_progress', 'true');
+              await AsyncStorage.setItem('@goshopper_verification_params', JSON.stringify(verificationParams));
+              console.log('📱 [LoginScreen] Verification params stored in AsyncStorage');
+            } catch (storageError) {
+              console.error('📱 [LoginScreen] Failed to store params:', storageError);
+            }
+            
+            // Navigate to VerifyOtp with params directly
+            console.log('📱 [LoginScreen] Navigating with params:', verificationParams);
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'google',
+              socialUser: userCredential,
+            });
+            return; // Important: Exit here, don't complete sign-in yet
+          } else {
+            console.warn('Failed to send OTP after Google sign-in', otpResult);
+            showToast('Veuillez vérifier votre téléphone plus tard', 'warning', 4000);
+            // Fall through to complete sign-in anyway
+          }
+        } catch (otpErr) {
+          console.error('Error sending OTP after Google sign-in:', otpErr);
+          showToast('Veuillez vérifier votre téléphone plus tard', 'warning', 4000);
+          // Fall through to complete sign-in anyway
+        }
+      }
+
+      // Phone is verified or no phone number or OTP failed - complete sign-in
+      console.log('📱 [LoginScreen] Completing sign-in without verification');
+      enableAuthListener();
+      setSocialUser(userCredential);
+      console.log('✅ Google sign-in completed, user set in context');
+      
       // Note: Biometric auth is NOT supported for social logins
       // because we cannot store/re-use OAuth tokens automatically
     } catch (err: any) {
+      enableAuthListener(); // Re-enable listener on error
       setError(err?.message || 'Échec de la connexion Google');
     } finally {
       setSocialLoading(null);
@@ -514,9 +654,118 @@ export function LoginScreen() {
     setSocialLoading('apple');
     setError(null);
     try {
+      // Suppress Firebase Auth listener during verification check
+      suppressAuthListener();
       const userCredential = await signInWithApple();
-      // Note: Biometric auth is NOT supported for social logins
+      
+      if (!userCredential) {
+        enableAuthListener();
+        setError('Échec de la connexion Apple');
+        setSocialLoading(null);
+        return;
+      }
+      
+      // Check phone verification for Apple sign-in
+      let needsPhoneVerification = false;
+      let phoneToVerify: string | null = null;
+      let needsPhoneNumber = false;
+      
+      try {
+        const profile = await authService.getUserProfile(userCredential.uid);
+        
+        // Check if user has no phone number at all - needs complete registration
+        if (!profile || !profile.phoneNumber) {
+          needsPhoneNumber = true;
+          console.log('📱 [LoginScreen] No phone number found (Apple) - routing to CompleteRegistration');
+        }
+        // If profile exists and phone is present but not verified, need OTP
+        else if (profile.phoneNumber && !profile.phoneVerified) {
+          needsPhoneVerification = true;
+          phoneToVerify = profile.phoneNumber;
+          if (!phoneToVerify.startsWith('+')) {
+            phoneToVerify = `+243${phoneToVerify.replace(/^0+/, '')}`;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not check phone verification for Apple user:', err);
+        needsPhoneNumber = true;
+      }
+      
+      // If user needs to add phone number, navigate to ProfileSetup
+      if (needsPhoneNumber) {
+        console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number (Apple)...');
+        setSocialLoading(null);
+        enableAuthListener();
+        setSocialUser(userCredential);
+        navigation.navigate('ProfileSetup', {
+          fromSocial: 'apple',
+          socialUser: userCredential,
+        });
+        return;
+      }
+      
+      // If phone verification is needed, send OTP and navigate
+      if (needsPhoneVerification && phoneToVerify) {
+        try {
+          const otpResult = await smsService.sendOTP(phoneToVerify);
+          if (otpResult.success && otpResult.sessionId) {
+            showToast('Code de verification envoye.', 'info', 3000);
+            setSocialLoading(null);
+            
+            // Store verification params for persistence (matching Google pattern)
+            const verificationParams = {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'apple',
+              socialUser: {
+                uid: userCredential.uid,
+                email: userCredential.email,
+                displayName: userCredential.displayName,
+              },
+            };
+            
+            try {
+              await AsyncStorage.setItem('@goshopper_verification_in_progress', 'true');
+              await AsyncStorage.setItem('@goshopper_verification_params', JSON.stringify(verificationParams));
+              console.log('[LoginScreen] Apple verification params stored');
+            } catch (storageError) {
+              console.error('[LoginScreen] Failed to store Apple params:', storageError);
+            }
+            
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'apple',
+              socialUser: userCredential,
+            });
+            return;
+          } else {
+            // Handle daily limit error
+            const errorMsg = otpResult.error || '';
+            if (errorMsg.includes('Limite quotidienne')) {
+              showToast('Limite de codes atteinte. Reessayez demain.', 'error', 5000);
+            } else {
+              showToast('Veuillez verifier votre telephone plus tard', 'warning', 4000);
+            }
+          }
+        } catch (otpErr: any) {
+          console.error('Error sending OTP after Apple sign-in:', otpErr);
+          const errorMsg = otpErr?.message || '';
+          if (errorMsg.includes('Limite quotidienne')) {
+            showToast('Limite de codes atteinte. Reessayez demain.', 'error', 5000);
+          } else {
+            showToast('Veuillez verifier votre telephone plus tard', 'warning', 4000);
+          }
+        }
+      }
+      
+      // Complete sign-in
+      enableAuthListener();
+      setSocialUser(userCredential);
     } catch (err: any) {
+      enableAuthListener(); // Re-enable listener on error
       setError(err?.message || 'Échec de la connexion Apple');
     } finally {
       setSocialLoading(null);
@@ -528,9 +777,118 @@ export function LoginScreen() {
     setSocialLoading('facebook');
     setError(null);
     try {
+      // Suppress Firebase Auth listener during verification check
+      suppressAuthListener();
       const userCredential = await signInWithFacebook();
-      // Note: Biometric auth is NOT supported for social logins
+      
+      if (!userCredential) {
+        enableAuthListener();
+        setError('Échec de la connexion Facebook');
+        setSocialLoading(null);
+        return;
+      }
+      
+      // Check phone verification for Facebook sign-in
+      let needsPhoneVerification = false;
+      let phoneToVerify: string | null = null;
+      let needsPhoneNumber = false;
+      
+      try {
+        const profile = await authService.getUserProfile(userCredential.uid);
+        
+        // Check if user has no phone number at all - needs complete registration
+        if (!profile || !profile.phoneNumber) {
+          needsPhoneNumber = true;
+          console.log('📱 [LoginScreen] No phone number found (Facebook) - routing to CompleteRegistration');
+        }
+        // If profile exists and phone is present but not verified, need OTP
+        else if (profile.phoneNumber && !profile.phoneVerified) {
+          needsPhoneVerification = true;
+          phoneToVerify = profile.phoneNumber;
+          if (!phoneToVerify.startsWith('+')) {
+            phoneToVerify = `+243${phoneToVerify.replace(/^0+/, '')}`;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not check phone verification for Facebook user:', err);
+        needsPhoneNumber = true;
+      }
+      
+      // If user needs to add phone number, navigate to ProfileSetup
+      if (needsPhoneNumber) {
+        console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number (Facebook)...');
+        setSocialLoading(null);
+        enableAuthListener();
+        setSocialUser(userCredential);
+        navigation.navigate('ProfileSetup', {
+          fromSocial: 'facebook',
+          socialUser: userCredential,
+        });
+        return;
+      }
+      
+      // If phone verification is needed, send OTP and navigate
+      if (needsPhoneVerification && phoneToVerify) {
+        try {
+          const otpResult = await smsService.sendOTP(phoneToVerify);
+          if (otpResult.success && otpResult.sessionId) {
+            showToast('Code de verification envoye.', 'info', 3000);
+            setSocialLoading(null);
+            
+            // Store verification params for persistence (matching Google pattern)
+            const verificationParams = {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'facebook',
+              socialUser: {
+                uid: userCredential.uid,
+                email: userCredential.email,
+                displayName: userCredential.displayName,
+              },
+            };
+            
+            try {
+              await AsyncStorage.setItem('@goshopper_verification_in_progress', 'true');
+              await AsyncStorage.setItem('@goshopper_verification_params', JSON.stringify(verificationParams));
+              console.log('[LoginScreen] Facebook verification params stored');
+            } catch (storageError) {
+              console.error('[LoginScreen] Failed to store Facebook params:', storageError);
+            }
+            
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: phoneToVerify!,
+              sessionId: otpResult.sessionId!,
+              isPhoneVerification: true,
+              fromSocial: 'facebook',
+              socialUser: userCredential,
+            });
+            return;
+          } else {
+            // Handle daily limit error
+            const errorMsg = otpResult.error || '';
+            if (errorMsg.includes('Limite quotidienne')) {
+              showToast('Limite de codes atteinte. Reessayez demain.', 'error', 5000);
+            } else {
+              showToast('Veuillez verifier votre telephone plus tard', 'warning', 4000);
+            }
+          }
+        } catch (otpErr: any) {
+          console.error('Error sending OTP after Facebook sign-in:', otpErr);
+          const errorMsg = otpErr?.message || '';
+          if (errorMsg.includes('Limite quotidienne')) {
+            showToast('Limite de codes atteinte. Reessayez demain.', 'error', 5000);
+          } else {
+            showToast('Veuillez verifier votre telephone plus tard', 'warning', 4000);
+          }
+        }
+      }
+      
+      // Complete sign-in
+      enableAuthListener();
+      setSocialUser(userCredential);
     } catch (err: any) {
+      enableAuthListener(); // Re-enable listener on error
       setError(err?.message || 'Échec de la connexion Facebook');
     } finally {
       setSocialLoading(null);

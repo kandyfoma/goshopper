@@ -45,12 +45,12 @@ const ForgotPasswordScreen: React.FC = () => {
 
   const handleSendOTP = async () => {
     if (!phoneNumber.trim()) {
-      setError('Veuillez saisir votre numéro de téléphone');
+      setError('Veuillez saisir votre numero de telephone');
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
-      setError('Veuillez saisir un numéro de téléphone valide');
+      setError('Veuillez saisir un numero de telephone valide');
       return;
     }
 
@@ -61,25 +61,57 @@ const ForgotPasswordScreen: React.FC = () => {
       const formattedPhone = PhoneService.formatPhoneNumber(selectedCountry.code, phoneNumber);
       
       // Check if phone exists in database
-      const phoneExists = await PhoneService.checkPhoneExists(formattedPhone);
+      let phoneExists = false;
+      try {
+        phoneExists = await PhoneService.checkPhoneExists(formattedPhone);
+      } catch (checkError: any) {
+        console.error('Error checking phone:', checkError);
+        // Network error checking phone - show specific error
+        if (checkError?.message?.includes('network') || checkError?.message?.includes('Network')) {
+          setError('Erreur reseau. Verifiez votre connexion.');
+          setLoading(false);
+          return;
+        }
+        // Continue anyway - let the OTP flow handle if phone doesn't exist
+      }
       
       if (!phoneExists) {
-        setError('Ce numéro n\'existe pas. Veuillez vous inscrire.');
+        setError('Ce numero n\'existe pas. Veuillez vous inscrire.');
         setLoading(false);
         return;
       }
       
       const result = await smsService.sendOTP(formattedPhone);
       
-      if (result.success) {
-        // Navigate to OTP verification screen
-        navigation.navigate('VerifyOtp', { phoneNumber: formattedPhone });
+      if (result.success && result.sessionId) {
+        // Navigate to OTP verification screen with sessionId
+        navigation.navigate('VerifyOtp', { 
+          phoneNumber: formattedPhone,
+          sessionId: result.sessionId,
+          isPhoneVerification: false, // This is forgot password flow
+        });
       } else {
-        setError(result.error || 'Erreur lors de l\'envoi du code');
+        // Handle specific error messages
+        const errorMsg = result.error || 'Erreur lors de l\'envoi du code';
+        if (errorMsg.includes('Limite quotidienne') || errorMsg.includes('3 codes')) {
+          setError('Limite quotidienne atteinte (3 codes). Reessayez demain.');
+        } else if (errorMsg.includes('attendre') || errorMsg.includes('wait')) {
+          setError(errorMsg);
+        } else {
+          setError(errorMsg);
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error in forgot password:', err);
-      setError('Erreur réseau. Veuillez réessayer.');
+      const errorMsg = err?.message || '';
+      
+      if (errorMsg.includes('network') || errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        setError('Erreur reseau. Verifiez votre connexion.');
+      } else if (errorMsg.includes('Limite quotidienne') || errorMsg.includes('resource-exhausted')) {
+        setError('Limite quotidienne atteinte (3 codes). Reessayez demain.');
+      } else {
+        setError('Erreur lors de l\'envoi du code. Veuillez reessayer.');
+      }
     } finally {
       setLoading(false);
     }
