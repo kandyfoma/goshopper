@@ -331,8 +331,8 @@ function getHtmlTemplate(title, content, activePage = '') {
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            height: 3px;
+            background: var(--primary);
         }
         
         .stat-card:hover {
@@ -346,23 +346,6 @@ function getHtmlTemplate(title, content, activePage = '') {
             align-items: flex-start;
             margin-bottom: 1rem;
         }
-        
-        .stat-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-        
-        .stat-icon.primary { background: var(--primary-light); color: var(--primary); }
-        .stat-icon.secondary { background: #dbeafe; color: var(--secondary); }
-        .stat-icon.warning { background: #fef3c7; color: var(--warning); }
-        .stat-icon.danger { background: #fee2e2; color: var(--danger); }
-        .stat-icon.info { background: #cffafe; color: var(--info); }
-        .stat-icon.success { background: var(--primary-light); color: var(--success); }
         
         .stat-content h3 {
             font-size: 0.875rem;
@@ -534,12 +517,12 @@ function getHtmlTemplate(title, content, activePage = '') {
             gap: 0.35rem;
         }
         
-        .badge-primary { background: var(--primary-light); color: var(--primary-dark); }
-        .badge-secondary { background: #dbeafe; color: #1e40af; }
-        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-primary { background: var(--gray-100); color: var(--primary); }
+        .badge-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .badge-success { background: var(--gray-100); color: var(--success); }
         .badge-warning { background: #fef3c7; color: #92400e; }
-        .badge-danger { background: #fee2e2; color: #991b1b; }
-        .badge-info { background: #cffafe; color: #155e75; }
+        .badge-danger { background: #fee2e2; color: var(--danger); }
+        .badge-info { background: var(--gray-100); color: var(--primary); }
         
         /* Alerts */
         .alert {
@@ -552,25 +535,20 @@ function getHtmlTemplate(title, content, activePage = '') {
             border-left: 4px solid;
         }
         
-        .alert i {
-            font-size: 1.25rem;
-            margin-top: 0.1rem;
-        }
-        
         .alert-success {
-            background: #d1fae5;
-            color: #065f46;
+            background: white;
+            color: var(--success);
             border-color: var(--success);
         }
         
         .alert-error {
-            background: #fee2e2;
-            color: #991b1b;
+            background: white;
+            color: var(--danger);
             border-color: var(--danger);
         }
         
         .alert-warning {
-            background: #fef3c7;
+            background: white;
             color: #92400e;
             border-color: var(--warning);
         }

@@ -212,14 +212,14 @@ function serveLoginPage(res: any) {
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script>
-        // Initialize Firebase
+        // Initialize Firebase - Config is public and safe (protected by Firebase Security Rules)
         const firebaseConfig = {
-            apiKey: "AIzaSyCtJUo1dPGSfUAjMIShOFRSK0iLfI15TDM",
-            authDomain: "goshopperai.firebaseapp.com",
-            projectId: "goshopperai",
-            storageBucket: "goshopperai.firebasestorage.app",
-            messagingSenderId: "427625756513",
-            appId: "1:427625756513:android:e5c7c1d47dc0a80b6c0ff3"
+            apiKey: "${process.env.FIREBASE_API_KEY || 'AIzaSyCtJUo1dPGSfUAjMIShOFRSK0iLfI15TDM'}",
+            authDomain: "${process.env.FIREBASE_AUTH_DOMAIN || 'goshopperai.firebaseapp.com'}",
+            projectId: "${process.env.FIREBASE_PROJECT_ID || 'goshopperai'}",
+            storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET || 'goshopperai.firebasestorage.app'}",
+            messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID || '427625756513'}",
+            appId: "${process.env.FIREBASE_APP_ID || '1:427625756513:android:e5c7c1d47dc0a80b6c0ff3'}"
         };
         
         firebase.initializeApp(firebaseConfig);
