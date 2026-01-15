@@ -383,7 +383,7 @@ export function ProfileScreen() {
         backgroundColor="#FFFFFF"
         translucent={false}
       />
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: false})}
@@ -604,7 +604,7 @@ export function ProfileScreen() {
         
         {/* Extra bottom padding to ensure content is scrollable */}
         <View style={{height: 100}} />
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Logout Confirmation Modal */}
       <AnimatedModal

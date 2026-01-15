@@ -180,7 +180,7 @@ export function SubscriptionScreen() {
         translucent
       />
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
@@ -464,7 +464,7 @@ export function SubscriptionScreen() {
             </Text>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

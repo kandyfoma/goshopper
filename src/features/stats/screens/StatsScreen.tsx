@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -709,7 +710,7 @@ export function StatsScreen() {
           </View>
         </FadeIn>
 
-        <ScrollView
+        <Animated.ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -1126,7 +1127,7 @@ export function StatsScreen() {
             )}
           </View>
         </SlideIn>
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
 
     {/* Subscription Limit Modal */}

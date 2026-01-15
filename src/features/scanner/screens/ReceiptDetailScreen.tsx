@@ -281,7 +281,7 @@ export function ReceiptDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         onScroll={Animated.event(
@@ -571,7 +571,7 @@ export function ReceiptDetailScreen() {
         
         {/* Bottom padding for tab bar */}
         <View style={{height: 100}} />
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Main Footer Tabs */}
       <ModernTabBar
