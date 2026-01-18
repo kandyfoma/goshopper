@@ -564,11 +564,11 @@ export function LoginScreen() {
       if (needsPhoneNumber) {
         console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number...');
         setSocialLoading(null);
-        // Don't enable listener yet - ProfileSetup will handle it after phone is added
-        navigation.navigate('ProfileSetup', {
-          fromSocial: 'google',
-          socialUser: userCredential,
-        });
+        // Set the social user in auth context (will mark profile as incomplete)
+        setSocialUser(userCredential);
+        // Enable auth listener so RootNavigator can detect auth state and show ProfileSetup
+        enableAuthListener();
+        // RootNavigator will now redirect to ProfileSetup automatically
         return;
       }
 

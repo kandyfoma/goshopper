@@ -1,6 +1,7 @@
 // User Behavior Tracking Service
 // Tracks user actions for ML/AI recommendations and analytics
 import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 import {APP_ID} from './config';
 import {
   UserBehaviorProfile,
@@ -356,6 +357,13 @@ export async function trackUserSession(
   sessionDuration: number, // in seconds
 ): Promise<void> {
   try {
+    // Verify user is authenticated before tracking
+    const currentUser = auth().currentUser;
+    if (!currentUser || currentUser.uid !== userId) {
+      // User not authenticated or userId mismatch - skip tracking
+      return;
+    }
+
     await updateEngagementMetrics(userId, {
       totalSessions: firestore.FieldValue.increment(1),
       lastSessionDate: new Date(),

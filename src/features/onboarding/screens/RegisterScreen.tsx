@@ -553,20 +553,102 @@ export function RegisterScreen() {
     setSocialLoading('google');
     setError(null);
     try {
+      console.log('🔍 [RegisterScreen] Starting Google sign-in...');
       // Suppress auth listener during sign-in
       suppressAuthListener();
       const userCredential = await signInWithGoogle();
       
-      if (userCredential) {
-        // For register screen, just complete sign-in
-        // Phone verification will be handled in ProfileSetup if needed
+      if (!userCredential) {
+        console.log('❌ [RegisterScreen] No user credential returned');
         enableAuthListener();
-        // Navigation handled by auth state change
+        setSocialLoading(null);
+        return;
       }
+
+      console.log('[RegisterScreen] Google sign in result:', {
+        email: userCredential.email,
+        userId: userCredential.id,
+      });
+
+      // Check if user has phone number and if it's verified
+      const hasPhone = !!userCredential.phoneNumber;
+      const phoneVerified = userCredential.phoneVerified === true;
+
+      console.log('[RegisterScreen] Google user profile:', {
+        hasProfile: hasPhone,
+        phoneNumber: userCredential.phoneNumber,
+        phoneVerified: phoneVerified,
+      });
+
+      let needsPhoneNumber = false;
+      let needsPhoneVerification = false;
+      let phoneToVerify = '';
+
+      if (!hasPhone) {
+        // No phone number at all - need to collect it
+        needsPhoneNumber = true;
+        console.log('📱 [RegisterScreen] No phone number found - routing to ProfileSetup');
+      } else if (!phoneVerified) {
+        // Has phone but not verified
+        needsPhoneVerification = true;
+        phoneToVerify = userCredential.phoneNumber || '';
+        console.log('📱 [RegisterScreen] Phone exists but not verified:', phoneToVerify);
+      } else {
+        // Has verified phone - complete sign-in
+        console.log('✅ [RegisterScreen] Phone already verified - completing sign-in');
+      }
+
+      // If user needs to add phone number, enable listener and let RootNavigator show ProfileSetup
+      if (needsPhoneNumber) {
+        console.log('📱 [RegisterScreen] Enabling auth listener for ProfileSetup...');
+        setSocialLoading(null);
+        // Set the social user in auth context (will mark profile as incomplete)
+        // This is handled by signInWithGoogle through the auth listener
+        enableAuthListener();
+        // RootNavigator will now redirect to ProfileSetup automatically
+        return;
+      }
+
+      // If phone verification is needed, send OTP and navigate
+      if (needsPhoneVerification && phoneToVerify) {
+        try {
+          const otpResult = await smsService.sendOTP(phoneToVerify);
+          console.log('📱 [RegisterScreen] OTP result:', {
+            success: otpResult.success,
+            hasSessionId: !!otpResult.sessionId,
+          });
+
+          if (otpResult.success && otpResult.sessionId) {
+            setSocialLoading(null);
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: phoneToVerify,
+              sessionId: otpResult.sessionId,
+              fromSocial: 'google',
+              socialUser: userCredential,
+            });
+            // Don't enable auth listener yet - wait for verification to complete
+            return;
+          } else {
+            throw new Error(otpResult.message || 'Failed to send OTP');
+          }
+        } catch (otpError: any) {
+          console.error('❌ [RegisterScreen] OTP send failed:', otpError);
+          enableAuthListener();
+          setError(otpError?.message || 'Échec de l\'envoi du code de vérification');
+          setSocialLoading(null);
+          return;
+        }
+      }
+
+      // User has verified phone - complete sign-in
+      console.log('✅ [RegisterScreen] Completing Google sign-in with verified phone');
+      enableAuthListener();
+      setSocialLoading(null);
+      // Navigation handled by auth state change
     } catch (err: any) {
+      console.error('❌ [RegisterScreen] Google sign-in error:', err);
       enableAuthListener();
       setError(err?.message || 'Échec de la connexion Google');
-    } finally {
       setSocialLoading(null);
     }
   };
@@ -575,20 +657,101 @@ export function RegisterScreen() {
     setSocialLoading('apple');
     setError(null);
     try {
+      console.log('🍎 [RegisterScreen] Starting Apple sign-in...');
       // Suppress auth listener during sign-in
       suppressAuthListener();
       const userCredential = await signInWithApple();
       
-      if (userCredential) {
-        // For register screen, just complete sign-in
-        // Phone verification will be handled in ProfileSetup if needed
+      if (!userCredential) {
+        console.log('❌ [RegisterScreen] No user credential returned');
         enableAuthListener();
-        // Navigation handled by auth state change
+        setSocialLoading(null);
+        return;
       }
+
+      console.log('[RegisterScreen] Apple sign in result:', {
+        email: userCredential.email,
+        userId: userCredential.id,
+      });
+
+      // Check if user has phone number and if it's verified
+      const hasPhone = !!userCredential.phoneNumber;
+      const phoneVerified = userCredential.phoneVerified === true;
+
+      console.log('[RegisterScreen] Apple user profile:', {
+        hasProfile: hasPhone,
+        phoneNumber: userCredential.phoneNumber,
+        phoneVerified: phoneVerified,
+      });
+
+      let needsPhoneNumber = false;
+      let needsPhoneVerification = false;
+      let phoneToVerify = '';
+
+      if (!hasPhone) {
+        // No phone number at all - need to collect it
+        needsPhoneNumber = true;
+        console.log('📱 [RegisterScreen] No phone number found - routing to ProfileSetup');
+      } else if (!phoneVerified) {
+        // Has phone but not verified
+        needsPhoneVerification = true;
+        phoneToVerify = userCredential.phoneNumber || '';
+        console.log('📱 [RegisterScreen] Phone exists but not verified:', phoneToVerify);
+      } else {
+        // Has verified phone - complete sign-in
+        console.log('✅ [RegisterScreen] Phone already verified - completing sign-in');
+      }
+
+      // If user needs to add phone number, enable listener and let RootNavigator show ProfileSetup
+      if (needsPhoneNumber) {
+        console.log('📱 [RegisterScreen] Enabling auth listener for ProfileSetup...');
+        setSocialLoading(null);
+        // Set the social user in auth context (will mark profile as incomplete)
+        enableAuthListener();
+        // RootNavigator will now redirect to ProfileSetup automatically
+        return;
+      }
+
+      // If phone verification is needed, send OTP and navigate
+      if (needsPhoneVerification && phoneToVerify) {
+        try {
+          const otpResult = await smsService.sendOTP(phoneToVerify);
+          console.log('📱 [RegisterScreen] OTP result:', {
+            success: otpResult.success,
+            hasSessionId: !!otpResult.sessionId,
+          });
+
+          if (otpResult.success && otpResult.sessionId) {
+            setSocialLoading(null);
+            navigation.navigate('VerifyOtp', {
+              phoneNumber: phoneToVerify,
+              sessionId: otpResult.sessionId,
+              fromSocial: 'apple',
+              socialUser: userCredential,
+            });
+            // Don't enable auth listener yet - wait for verification to complete
+            return;
+          } else {
+            throw new Error(otpResult.message || 'Failed to send OTP');
+          }
+        } catch (otpError: any) {
+          console.error('❌ [RegisterScreen] OTP send failed:', otpError);
+          enableAuthListener();
+          setError(otpError?.message || 'Échec de l\'envoi du code de vérification');
+          setSocialLoading(null);
+          return;
+        }
+      }
+
+      // User has verified phone - complete sign-in
+      console.log('✅ [RegisterScreen] Completing Apple sign-in with verified phone');
+      enableAuthListener();
+      setSocialLoading(null);
+      // Navigation handled by auth state change
     } catch (err: any) {
+      console.error('❌ [RegisterScreen] Apple sign-in error:', err);
       enableAuthListener();
       setError(err?.message || 'Échec de la connexion Apple');
-    } finally {
       setSocialLoading(null);
     }
   };
