@@ -903,7 +903,7 @@ export function HomeScreen() {
               subtitle="mes articles"
               color="cosmos"
               icon="cart"
-              onPress={() => navigation.navigate('Main', {screen: 'Items'})}
+              onPress={() => navigation.navigate('Main', {screen: 'Items', params: {screen: 'ItemsMain'}})}
             />
           </View>
           <View style={styles.statsRow}>
@@ -956,7 +956,7 @@ export function HomeScreen() {
           <QuickAction
             icon="shopping-bag"
             label="Mes Magasins"
-            onPress={() => navigation.navigate('Main', {screen: 'Profile', params: {screen: 'ShoppingLists'}})}
+            onPress={() => navigation.push('Shops')}
             color="cosmos"
           />
           <QuickAction
