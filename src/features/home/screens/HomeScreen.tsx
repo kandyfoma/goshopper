@@ -903,7 +903,7 @@ export function HomeScreen() {
               subtitle="mes articles"
               color="cosmos"
               icon="cart"
-              onPress={() => navigation.navigate('Main', {screen: 'Items', params: {screen: 'ItemsMain'}})}
+              onPress={() => navigation.navigate('Main', {screen: 'Items', params: {screen: 'BrowseItems'}})}
             />
           </View>
           <View style={styles.statsRow}>
@@ -911,8 +911,8 @@ export function HomeScreen() {
               title="Budget"
               value={
                 currentBudget > 0
-                  ? `${currentBudget.toLocaleString()} ${displayCurrency}`
-                  : `0 ${displayCurrency}`
+                  ? formatCurrency(currentBudget, displayCurrency)
+                  : formatCurrency(0, displayCurrency)
               }
               subtitle="mensuel"
               color="yellow"
@@ -924,7 +924,7 @@ export function HomeScreen() {
               value={
                 isLoadingStats
                   ? '—'
-                  : `${(Number.isFinite(monthlySpending) ? monthlySpending : 0).toLocaleString(undefined, {maximumFractionDigits: 0})} ${displayCurrency}`
+                  : formatCurrency(Number.isFinite(monthlySpending) ? monthlySpending : 0, displayCurrency)
               }
               subtitle="ce mois"
               color="yellow"
@@ -944,8 +944,17 @@ export function HomeScreen() {
         {/* AI Recommendations */}
         <Recommendations
           onItemPress={item => {
-            // Navigate to item details or price comparison
-            console.log('Item pressed:', item);
+            // Navigate to city item detail to see all prices across stores
+            navigation.navigate('Main', {
+              screen: 'Items',
+              params: {
+                screen: 'CityItemDetail',
+                params: {
+                  itemId: item.id,
+                  itemName: item.name,
+                },
+              },
+            });
           }}
           limit={5}
         />

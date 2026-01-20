@@ -42,8 +42,8 @@ export function formatMonthKey(monthKey: string, locale: string = 'fr-FR'): stri
 export async function getCurrentMonthBudget(
   userId: string,
   defaultBudget?: number,
-  currency: 'USD' | 'CDF' = 'USD',
-): Promise<{amount: number; currency: 'USD' | 'CDF'; isCustom: boolean}> {
+  currency: string = 'USD',
+): Promise<{amount: number; currency: string; isCustom: boolean}> {
   try {
     const monthKey = getCurrentMonthKey();
     const budgetRef = firestore()
@@ -108,7 +108,7 @@ export async function getCurrentMonthBudget(
 export async function updateCurrentMonthBudget(
   userId: string,
   amount: number,
-  currency: 'USD' | 'CDF' = 'USD',
+  currency: string = 'USD',
 ): Promise<void> {
   try {
     const monthKey = getCurrentMonthKey();
@@ -195,7 +195,7 @@ export async function getBudgetHistory(
  */
 export function subscribeToCurrentMonthBudget(
   userId: string,
-  callback: (budget: {amount: number; currency: 'USD' | 'CDF'; isCustom: boolean}) => void,
+  callback: (budget: {amount: number; currency: string; isCustom: boolean}) => void,
 ): () => void {
   const monthKey = getCurrentMonthKey();
   const budgetRef = firestore()

@@ -181,7 +181,7 @@ export function RootNavigator() {
   if (
     isFirstLaunch === null ||
     isLoading ||
-    (isAuthenticated && checkingProfile)
+    (isAuthenticated && (checkingProfile || isProfileComplete === null))
   ) {
     return (
       <View style={styles.loadingContainer}>

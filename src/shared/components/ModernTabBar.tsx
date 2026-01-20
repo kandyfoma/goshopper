@@ -174,8 +174,15 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}, scrol
 
               if (!isFocused && !event.defaultPrevented) {
                 // Navigate to Main tab navigator with nested screen
-                // This ensures we always go to the tab, not root stack screens
-                navigation.navigate('Main', {screen: route.name});
+                // For Items tab, always go to ItemsMain (City Items) instead of current screen
+                if (route.name === 'Items') {
+                  navigation.navigate('Main', {
+                    screen: 'Items',
+                    params: { screen: 'ItemsMain' }
+                  });
+                } else {
+                  navigation.navigate('Main', {screen: route.name});
+                }
               }
             };
 

@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -39,7 +40,7 @@ interface Shop {
   phone?: string;
   receiptCount: number;
   totalSpent: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
   lastVisit: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -201,10 +202,7 @@ export function ShopsScreen() {
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statText, {color: subtextColor}]}>
-              {item.currency === 'CDF' 
-                ? `${Math.round(item.totalSpent).toLocaleString('fr-CD')} FC`
-                : item.totalSpent.toFixed(2)
-              }
+              {formatCurrency(item.totalSpent, item.currency)}
             </Text>
           </View>
         </View>

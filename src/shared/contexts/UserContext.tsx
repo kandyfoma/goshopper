@@ -14,7 +14,7 @@ import {UserProfile} from '@/shared/types';
 import {COLLECTIONS} from '@/shared/services/firebase/config';
 import {analyticsService} from '@/shared/services';
 import {cachePreloader} from '@/shared/services/caching';
-import {safeToDate} from '@/shared/utils/helpers';
+import {safeToDate, getCurrencyForCountry, detectCountryCodeFromPhone} from '@/shared/utils/helpers';
 
 const USER_PROFILE_CACHE_KEY = '@goshopperai_user_profile';
 
@@ -24,7 +24,7 @@ interface UserContextType {
   error: string | null;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updatePreferredLanguage: (language: 'fr' | 'ln' | 'sw') => Promise<void>;
-  updatePreferredCurrency: (currency: 'USD' | 'CDF') => Promise<void>;
+  updatePreferredCurrency: (currency: string) => Promise<void>;
   toggleNotifications: (enabled: boolean) => Promise<void>;
   togglePriceAlerts: (enabled: boolean) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -82,7 +82,7 @@ export function UserProvider({children}: UserProviderProps) {
             const userProfile: UserProfile = {
               userId: user.uid,
               preferredLanguage: data?.preferredLanguage || 'fr',
-              preferredCurrency: data?.preferredCurrency || 'CDF',
+              preferredCurrency: data?.preferredCurrency || (data?.countryCode ? getCurrencyForCountry(data.countryCode) : 'CDF'),
               notificationsEnabled: data?.notificationsEnabled ?? true,
               priceAlertsEnabled: data?.priceAlertsEnabled ?? true,
               displayName: data?.displayName || user.displayName,
@@ -113,6 +113,55 @@ export function UserProvider({children}: UserProviderProps) {
 
             setProfile(userProfile);
             setError(null);
+
+            // Update country code based on phone number if not set or incorrect
+            if (data?.phoneNumber && (!data?.countryCode || data.countryCode === 'CD')) {
+              const detectedCountryCode = detectCountryCodeFromPhone(data.phoneNumber);
+              if (detectedCountryCode && detectedCountryCode !== data?.countryCode) {
+                console.log('Updating country code from', data?.countryCode, 'to', detectedCountryCode, 'based on phone number');
+                try {
+                  await updateProfile({ countryCode: detectedCountryCode });
+                  // Update the local profile
+                  userProfile.countryCode = detectedCountryCode;
+                  setProfile(userProfile);
+                  
+                  // Update cached profile
+                  await AsyncStorage.setItem(
+                    USER_PROFILE_CACHE_KEY,
+                    JSON.stringify(userProfile),
+                  );
+                } catch (error) {
+                  console.error('Failed to update country code:', error);
+                }
+              }
+            }
+
+            // Update preferred currency based on country if it's not appropriate
+            const finalCountryCode = userProfile.countryCode || data?.countryCode;
+            if (finalCountryCode) {
+              const countryCurrency = getCurrencyForCountry(finalCountryCode);
+              const currentCurrency = userProfile.preferredCurrency;
+              
+              // Update if currency doesn't match country or is a default that should be changed
+              if (countryCurrency !== currentCurrency && 
+                  (currentCurrency === 'CDF' || currentCurrency === 'USD' || !currentCurrency)) {
+                console.log('Updating preferred currency from', currentCurrency, 'to', countryCurrency, 'for country', finalCountryCode);
+                try {
+                  await updateProfile({ preferredCurrency: countryCurrency });
+                  // Update the local profile
+                  userProfile.preferredCurrency = countryCurrency;
+                  setProfile(userProfile);
+                  
+                  // Update cached profile
+                  await AsyncStorage.setItem(
+                    USER_PROFILE_CACHE_KEY,
+                    JSON.stringify(userProfile),
+                  );
+                } catch (error) {
+                  console.error('Failed to update preferred currency:', error);
+                }
+              }
+            }
 
             // Track user properties for analytics
             analyticsService.setUserProperties(userProfile);
@@ -255,7 +304,7 @@ export function UserProvider({children}: UserProviderProps) {
   );
 
   const updatePreferredCurrency = useCallback(
-    async (currency: 'USD' | 'CDF') => {
+    async (currency: string) => {
       await updateProfile({preferredCurrency: currency});
     },
     [updateProfile],

@@ -49,7 +49,7 @@ export interface Subscription {
   expiryDate?: Date; // Alias for subscriptionEndDate
   lastPaymentDate?: Date;
   lastPaymentAmount?: number;
-  currency?: 'USD' | 'CDF';
+  currency?: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
 
   // Payment info
   paymentMethod?: PaymentMethodType;

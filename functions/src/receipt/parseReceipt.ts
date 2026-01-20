@@ -56,6 +56,44 @@ function normalizeProductName(name: string): string {
 }
 
 /**
+ * Normalizes currency code to standard 3-letter ISO format.
+ * Handles common variations and defaults to CDF for DRC.
+ */
+function normalizeCurrency(currency?: string): string {
+  if (!currency) return 'CDF'; // Default for DRC
+  
+  const curr = currency.toUpperCase().trim();
+  
+  // Handle common variations
+  if (curr === 'FC' || curr === 'FRANC' || curr === 'FRANCS' || curr === 'CONGOLAIS') {
+    return 'CDF';
+  }
+  if (curr === '$' || curr === 'DOLLAR' || curr === 'DOLLARS') {
+    return 'USD';
+  }
+  if (curr === '€' || curr === 'EURO' || curr === 'EUROS') {
+    return 'EUR';
+  }
+  if (curr === '£' || curr === 'POUND' || curr === 'POUNDS') {
+    return 'GBP';
+  }
+  if (curr === '₹' || curr === 'RUPEE' || curr === 'RUPEES') {
+    return 'INR';
+  }
+  if (curr === 'R' || curr === 'RAND') {
+    return 'ZAR';
+  }
+  
+  // If it's already a 3-letter code, use it
+  if (/^[A-Z]{3}$/.test(curr)) {
+    return curr;
+  }
+  
+  // Default to CDF for unrecognized currencies (assume DRC)
+  return 'CDF';
+}
+
+/**
  * Fix quantity parsing for weight/volume units
  * Handles cases where "1.000kg" is misread as 1000 instead of 1.0 kg
  * 
@@ -490,7 +528,7 @@ REQUIRED OUTPUT FORMAT:
 {
   "storeName": "Store name from receipt header",
   "date": "YYYY-MM-DD format",
-  "currency": "CDF or USD",
+  "currency": "3-letter ISO code (USD, EUR, GBP, INR, ZAR, CDF, etc.)",
   "total": number (final total amount),
   "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
 }
@@ -664,30 +702,36 @@ KEEP IN PRODUCT NAMES:
 - Size/weight: 300gr, 500ml, 75cl, 10 KG, 1.3kg, 400g
 - Product descriptions in parentheses: (Oeuf), (Extra virgin)
 
-CURRENCY RULES (CRITICAL - READ VERY CAREFULLY):
-- **DEFAULT is "CDF"** (Congolese Franc)
-- DRC receipts are 99% in CDF - prices are large numbers (500, 1000, 5000, 50000+)
+CURRENCY DETECTION (CRITICAL - READ VERY CAREFULLY):
 
-CDF INDICATORS (if ANY of these appear, currency is CDF):
-- "(Fc)", "(FC)", "FC", "Fc", "CDF", "Franc", "Congolais"
-- "Montant TTC (Fc)", "Montant T.T.C. (FC)", "Total Due:FC"
-- Large numbers without $ sign (2450, 15800, 60394)
+STEP 1: Look for currency symbols and codes on the receipt:
+- $ or USD → "USD"
+- € or EUR or Euro → "EUR"
+- £ or GBP or Pound → "GBP"
+- ₹ or INR or Rupee → "INR"
+- R or ZAR or Rand → "ZAR"
+- FC, Fc, (FC), (Fc), CDF, Franc, Congolais → "CDF"
+- ₦ or NGN or Naira → "NGN"
+- KES or KSh or Shilling → "KES"
+- Any other currency: extract the 3-letter ISO code (THB, JPY, AUD, etc.)
 
-IGNORE USD CONVERSIONS:
-- Many DRC receipts show a USD equivalent at the bottom for reference
-- "Total Facture :($) 35.803" = just a conversion, NOT the currency
-- "Total Due:USD 23.28" = just a conversion, NOT the currency
-- These conversions do NOT change the receipt currency
+STEP 2: IGNORE secondary conversions:
+- Many receipts show a secondary currency for reference (e.g., "Total USD: 23.28")
+- Use the currency that appears WITH ITEM PRICES, not just the total
+- If CDF items are shown with USD conversion at bottom → Currency is CDF
+
+STEP 3: Default behavior:
+- If receipt is from Congo/DRC (store names like Shoprite Kinshasa, City Market Kinshasa, etc.) → Default to "CDF"
+- If no clear currency indicator → Use "CDF" as fallback for DRC receipts
+- For non-DRC receipts with no clear currency → Use "USD"
 
 EXAMPLES:
-- Receipt shows "Montant TTC (Fc): 82347" and "Total Facture :($) 35.80" → Currency is CDF
-- Receipt shows "Total Due:FC 53,541.40" and "Total Due:USD 23.28" → Currency is CDF
-- Receipt shows "Montant T.T.C. (FC): 249003" → Currency is CDF
-
-Only use "USD" if:
-1. ALL item prices are small decimals ($1.50, $5.00)
-2. No "(Fc)" or "(FC)" appears anywhere
-3. $ symbol is used for item prices (not just a total conversion)
+- Receipt shows "Montant TTC (Fc): 82347" → Currency is "CDF"
+- Receipt shows "Total: $45.99" → Currency is "USD"
+- Receipt shows "Total: €12.50" → Currency is "EUR"
+- Receipt shows "Total: ₹499" → Currency is "INR"
+- Indian store with "Total: 499.00" and ₹ symbol → Currency is "INR"
+- Receipt shows "FC 82347" and "USD 35.80" → Currency is "CDF" (FC is primary)
 
 CLEANUP RULES:
 - Remove internal codes: (H.P.), (SA), (z4), (24)
@@ -744,7 +788,7 @@ DATE PARSING: DRC receipts use DD-MM-YY format. "05-01-26" = January 5, 2026 →
   "storeName": "Store name from header",
   "rawText": "All text transcribed line by line",
   "date": "YYYY-MM-DD format (convert DD-MM-YY to YYYY-MM-DD)",
-  "currency": "CDF",
+  "currency": "3-letter ISO code - detect from receipt (CDF, USD, EUR, GBP, INR, etc.)",
   "total": number (look for TOTAL, TTL, MONTANT, or largest number),
   "items": [
     {"name": "product name (even partial)", "quantity": 1, "unitPrice": number}
@@ -1513,7 +1557,7 @@ CRITICAL OUTPUT RULES:
           parsed = {
             storeName: storeNameMatch[1],
             date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
-            currency: currencyMatch ? currencyMatch[1] : 'CDF',
+            currency: currencyMatch ? currencyMatch[1].toUpperCase() : 'CDF',
             items: extractedItems,
             total: totalMatch ? parseFloat(totalMatch[1]) : 0,
           };
@@ -1569,9 +1613,8 @@ CRITICAL OUTPUT RULES:
         storePhone: parsed.storePhone,
         receiptNumber: parsed.receiptNumber,
         date: parsed.date || new Date().toISOString().split('T')[0],
-        // Fix: Default to CDF (Franc Congolais) unless explicitly USD
-        // DRC uses FC (Franc Congolais = CDF) as default currency
-        currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
+        // Use detected currency or default to CDF for DRC
+        currency: normalizeCurrency(parsed.currency),
         items: deduplicatedItems,
         subtotal: parsed.subtotal ? Number(parsed.subtotal) : undefined,
         tax: parsed.tax ? Number(parsed.tax) : undefined,
@@ -2014,9 +2057,8 @@ async function parseWithGemini(
         storePhone: parsed.storePhone || null,
         receiptNumber: parsed.receiptNumber || null,
         date: parsed.date || new Date().toISOString().split('T')[0],
-        // Fix: Default to CDF (Franc Congolais) unless explicitly USD
-        // DRC uses FC (Franc Congolais = CDF) as default currency
-        currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
+        // Use detected currency or default to CDF for DRC
+        currency: normalizeCurrency(parsed.currency),
         items: deduplicatedItems,
         total: finalTotal,
       };

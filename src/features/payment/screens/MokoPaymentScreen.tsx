@@ -179,6 +179,7 @@ export function MokoPaymentScreen() {
         phoneNumber: phoneNumber,
         planId: planId,
         planName: planName,
+        currency: profile?.preferredCurrency || 'USD',
       });
       
       // Show toast

@@ -33,7 +33,7 @@ export interface Shop {
   phone?: string;
   receiptCount: number;
   totalSpent: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
   lastVisit: Date;
   createdAt: Date;
   updatedAt: Date;

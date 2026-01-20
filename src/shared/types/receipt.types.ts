@@ -30,7 +30,7 @@ export interface Receipt {
   receiptNumber?: string;
   date: Date;
   purchaseDate?: Date; // Alias for date
-  currency: 'USD' | 'CDF';
+  currency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
 
   // Items and totals
   items: ReceiptItem[];

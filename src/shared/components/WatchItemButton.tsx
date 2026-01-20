@@ -34,7 +34,7 @@ interface WatchItemButtonProps {
   city?: string;
   currentPrice?: number;
   currentStore?: string;
-  currency?: 'USD' | 'CDF';
+  currency?: string;
   size?: 'small' | 'medium' | 'large';
   showLabel?: boolean;
 }

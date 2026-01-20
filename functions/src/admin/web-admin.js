@@ -793,6 +793,9 @@ function getHtmlTemplate(title, content, activePage = '') {
                     <a href="/notifications" class="nav-link ${activePage === 'notifications' ? 'active' : ''}">
                         <span>Notifications</span>
                     </a>
+                    <a href="/scheduled-notifications" class="nav-link ${activePage === 'scheduled-notifications' ? 'active' : ''}">
+                        <span>Scheduled Notifications</span>
+                    </a>
                 </div>
             </nav>
             
@@ -856,11 +859,38 @@ function formatCurrency(amount, currency = 'USD') {
   
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   
+  // Special handling for CDF (Congolese Franc) - no decimals, large numbers
   if (currency === 'CDF' || currency === 'FC') {
     return `${numAmount.toFixed(0)} FC`;
   }
   
-  return `$${numAmount.toFixed(2)}`;
+  // Common currency symbols
+  const currencySymbols = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'INR': '₹',
+    'ZAR': 'R ',
+    'JPY': '¥',
+    'CNY': '¥',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'NGN': '₦',
+    'KES': 'KSh ',
+    'GHS': 'GH₵',
+    'TZS': 'TSh ',
+    'UGX': 'USh ',
+  };
+  
+  const symbol = currencySymbols[currency] || '';
+  const decimals = ['JPY', 'KRW'].includes(currency) ? 0 : 2; // Japanese Yen and Korean Won have no decimals
+  
+  if (symbol) {
+    return `${symbol}${numAmount.toFixed(decimals)}`;
+  }
+  
+  // Fallback: show amount with currency code
+  return `${numAmount.toFixed(decimals)} ${currency}`;
 }
 
 // Helper function to safely convert dates
@@ -934,17 +964,17 @@ app.get('/', async (req, res) => {
     const receipts = await db.collectionGroup('receipts').get();
     console.log(`Found ${receipts.size} receipts`);
 
-    console.log('Fetching alerts...');
-    const alerts = await db
-      .collectionGroup('priceAlerts')
-      .where('isActive', '==', true)
-      .get();
-    console.log(`Found ${alerts.size} alerts`);
+    console.log('Fetching items...');
+    const items = await db.collectionGroup('items').get();
+    console.log(`Found ${items.size} items`);
 
     let totalSpending = 0;
     receipts.docs.forEach(doc => {
       totalSpending += doc.data().total || 0;
     });
+
+    // Calculate total scans (receipts + individual items)
+    const totalScans = receipts.size + items.size;
 
     const content = `
         <div class="top-bar">
@@ -1003,7 +1033,7 @@ app.get('/', async (req, res) => {
                 </div>
                 <div class="stat-content">
                     <h3>Total Spending</h3>
-                    <div class="stat-number">$${totalSpending.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                    <div class="stat-number">${formatCurrency(totalSpending, 'CDF')}</div>
                     <div class="stat-change">
                         
                         <span>Tracked spending</span>
@@ -1018,11 +1048,11 @@ app.get('/', async (req, res) => {
                     </div>
                 </div>
                 <div class="stat-content">
-                    <h3>Active Alerts</h3>
-                    <div class="stat-number">${alerts.size.toLocaleString()}</div>
+                    <h3>Total Scans</h3>
+                    <div class="stat-number">${totalScans.toLocaleString()}</div>
                     <div class="stat-change">
                         
-                        <span>Price alerts</span>
+                        <span>Receipts + Items</span>
                     </div>
                 </div>
             </div>
@@ -1105,6 +1135,12 @@ app.get('/users', async (req, res) => {
             <span class="badge badge-primary">${profile.trialScansRemaining || 0} remaining</span>
           </td>
           <td>
+            <span class="badge badge-info">${profile.totalScans || 0} total</span>
+          </td>
+          <td>
+            <span class="badge badge-success">${formatCurrency(profile.totalSavings || 0, profile.currency || 'CDF')}</span>
+          </td>
+          <td>
             <code style="font-size: 0.75rem; color: var(--gray-500);">${user.uid.substring(0, 8)}...</code>
           </td>
           <td style="text-align: right;">
@@ -1140,12 +1176,14 @@ app.get('/users', async (req, res) => {
                             <th>Contact</th>
                             <th>Subscription</th>
                             <th>Trial Scans</th>
+                            <th>Total Scans</th>
+                            <th>Savings</th>
                             <th>UID</th>
                             <th style="text-align: right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${tableRows || '<tr><td colspan="6" class="empty-state"><div><h3>No users found</h3></div></td></tr>'}
+                        ${tableRows || '<tr><td colspan="8" class="empty-state"><div><h3>No users found</h3></div></td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -1205,8 +1243,9 @@ app.get('/users/:userId', async (req, res) => {
       sortedReceipts.slice(0, 5).forEach(doc => {
         const data = doc.data();
         const currency = data.currency || 'USD';
+        const receiptId = doc.id;
         receiptsHtml += `<tr>
-          <td><strong>${data.storeName || 'Unknown Store'}</strong></td>
+          <td><a href="/receipts/${userId}/${receiptId}" style="color: var(--primary); text-decoration: none; font-weight: 600;">${data.storeName || 'Unknown Store'}</a></td>
           <td><span class="badge badge-success">${formatCurrency(data.total || 0, currency)}</span></td>
           <td>${formatDate(data.date)}</td>
         </tr>`;
@@ -1304,7 +1343,7 @@ app.get('/users/:userId', async (req, res) => {
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="color: var(--gray-600); font-size: 0.875rem;">Total Savings</span>
-                            <div style="font-size: 1.75rem; font-weight: 700; color: var(--success);">$${profileData.totalSavings || 0}</div>
+                            <div style="font-size: 1.75rem; font-weight: 700; color: var(--success);">${formatCurrency(profileData.totalSavings || 0, profileData.currency || 'CDF')}</div>
                         </div>
                     </div>
                 </div>
@@ -1446,6 +1485,19 @@ app.get('/users/:userId/edit', async (req, res) => {
                     
                     <div>
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-700);">
+                            Total Scans
+                        </label>
+                        <input 
+                            type="number" 
+                            name="totalScans" 
+                            value="${profileData.totalScans || 0}"
+                            min="0"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 0.875rem; font-family: inherit;"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-700);">
                             Total Savings
                         </label>
                         <input 
@@ -1523,6 +1575,7 @@ app.post('/users/:userId/update', async (req, res) => {
       phoneNumber,
       subscriptionStatus,
       trialScansRemaining,
+      totalScans,
       totalSavings,
       is_admin
     } = req.body;
@@ -1546,6 +1599,9 @@ app.post('/users/:userId/update', async (req, res) => {
     }
     if (trialScansRemaining !== undefined) {
       profileUpdateData.trialScansRemaining = parseInt(trialScansRemaining, 10);
+    }
+    if (totalScans !== undefined) {
+      profileUpdateData.totalScans = parseInt(totalScans, 10);
     }
     if (totalSavings !== undefined) {
       profileUpdateData.totalSavings = parseFloat(totalSavings);
@@ -1731,11 +1787,22 @@ app.get('/receipts', async (req, res) => {
       return dateB - dateA;
     });
 
+    // Get unique user IDs to fetch user data
+    const userIds = [...new Set(sortedReceipts.map(doc => doc.ref.path.split('/')[3]))];
+    const userPromises = userIds.map(userId => auth.getUser(userId).catch(() => null));
+    const users = await Promise.all(userPromises);
+    const userMap = {};
+    users.forEach((user, index) => {
+      if (user) userMap[userIds[index]] = user;
+    });
+
     let tableRows = '';
     sortedReceipts.forEach(doc => {
       const data = doc.data();
       const userId = doc.ref.path.split('/')[3];
       const currency = data.currency || 'USD';
+      const user = userMap[userId];
+      const phoneNumber = user?.phoneNumber || 'N/A';
 
       tableRows += `
         <tr>
@@ -1751,7 +1818,7 @@ app.get('/receipts', async (req, res) => {
             </div>
           </td>
           <td>
-            <code style="font-size: 0.75rem; color: var(--gray-500);">${userId.substring(0, 12)}...</code>
+            <span class="badge badge-info">${phoneNumber}</span>
           </td>
           <td>
             <span class="badge badge-success" style="font-size: 0.875rem;">${formatCurrency(data.total || 0, currency)}</span>
@@ -1788,7 +1855,7 @@ app.get('/receipts', async (req, res) => {
                     <thead>
                         <tr>
                             <th>Store</th>
-                            <th>User ID</th>
+                            <th>Phone</th>
                             <th>Total</th>
                             <th>Date</th>
                             <th style="text-align: right;">Actions</th>
@@ -2104,29 +2171,56 @@ app.get('/receipts/:userId/:receiptId/delete', async (req, res) => {
 
 app.get('/prices', async (req, res) => {
   try {
-    // Try different collection paths since prices might be stored differently
-    let prices = await db.collectionGroup('prices').limit(50).get();
+    // Get items that contain price data
+    const items = await db.collectionGroup('items').limit(100).get();
     
-    // If no prices found, try checking items with price data
-    if (prices.empty) {
-      prices = await db.collectionGroup('items').limit(50).get();
-    }
-
-    // Sort prices by date client-side
-    const sortedPrices = prices.docs.sort((a, b) => {
-      const dateA = getDateValue(a.data().recordedAt || a.data().createdAt || a.data().date);
-      const dateB = getDateValue(b.data().recordedAt || b.data().createdAt || b.data().date);
+    let tableRows = '';
+    let totalPrices = 0;
+    
+    // Extract individual price records from items
+    const allPrices = [];
+    
+    items.forEach(itemDoc => {
+      const itemData = itemDoc.data();
+      const itemName = itemData.name || itemData.itemName || itemData.productName || 'Unknown Item';
+      const itemId = itemDoc.id;
+      
+      // Extract prices from the prices array
+      if (itemData.prices && Array.isArray(itemData.prices)) {
+        itemData.prices.forEach((priceRecord, index) => {
+          if (priceRecord && typeof priceRecord === 'object' && priceRecord.price !== undefined) {
+            allPrices.push({
+              id: `${itemId}_${index}`, // Create unique ID for each price record
+              itemName: itemName,
+              storeName: priceRecord.storeName || priceRecord.store || 'Unknown Store',
+              price: priceRecord.price,
+              currency: priceRecord.currency || itemData.currency || 'CDF',
+              date: priceRecord.date || priceRecord.recordedAt || priceRecord.createdAt,
+              userId: priceRecord.userId,
+              receiptId: priceRecord.receiptId,
+              itemId: itemId
+            });
+          }
+        });
+      }
+    });
+    
+    // Sort prices by date (newest first)
+    allPrices.sort((a, b) => {
+      const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || 0);
+      const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || 0);
       return dateB - dateA;
     });
-
-    let tableRows = '';
-    sortedPrices.forEach(doc => {
-      const data = doc.data();
-      const productName = data.productName || data.name || data.itemName || 'Unknown Product';
-      const storeName = data.storeName || data.store || 'Unknown Store';
-      const price = data.price || data.unitPrice || data.currentPrice || 0;
-      const currency = data.currency || 'USD';
-      const date = data.recordedAt || data.createdAt || data.date;
+    
+    totalPrices = allPrices.length;
+    
+    // Create table rows for each price record
+    allPrices.forEach(priceRecord => {
+      const productName = priceRecord.itemName;
+      const storeName = priceRecord.storeName;
+      const price = priceRecord.price;
+      const currency = priceRecord.currency;
+      const date = priceRecord.date;
       
       tableRows += `
         <tr>
@@ -2139,11 +2233,11 @@ app.get('/prices', async (req, res) => {
             </div>
           </td>
           <td>${storeName}</td>
-          <td><span class="badge badge-warning" style="font-size: 0.875rem;">${price.toFixed(2)} ${currency}</span></td>
+          <td><span class="badge badge-warning" style="font-size: 0.875rem;">${price > 0 ? formatCurrency(price, currency) : '<span style="color: red;">0</span>'}</span></td>
           <td>${formatDate(date)}</td>
           <td style="text-align: right;">
             <div class="btn-group">
-              <a href="/prices/${doc.id}" class="btn btn-sm btn-primary">View</a>
+              <a href="/items/${priceRecord.itemId}" class="btn btn-sm btn-primary">View Item</a>
             </div>
           </td>
         </tr>
@@ -2160,7 +2254,7 @@ app.get('/prices', async (req, res) => {
                     
                     <input type="text" placeholder="Search prices..." data-search>
                 </div>
-                <span class="badge badge-warning">${prices.size} total</span>
+                <span class="badge badge-warning">${totalPrices} total</span>
             </div>
         </div>
         
@@ -2224,15 +2318,103 @@ app.get('/items', async (req, res) => {
     });
 
     let tableRows = '';
+    
+    // Get unique user IDs to fetch user data
+    const userIds = [...new Set(sortedItems.map(doc => doc.ref.path.split('/')[3]))];
+    
+    // Fetch both Firebase Auth users and Firestore profiles
+    const userPromises = userIds.map(async (userId) => {
+      try {
+        const [authUser, profileDoc] = await Promise.all([
+          auth.getUser(userId).catch(() => null),
+          db.doc(`artifacts/${config.app.id}/users/${userId}`).get()
+        ]);
+        
+        return {
+          auth: authUser,
+          profile: profileDoc.exists ? profileDoc.data() : {}
+        };
+      } catch (error) {
+        console.error(`Error fetching user ${userId}:`, error);
+        return { auth: null, profile: {} };
+      }
+    });
+    
+    const userResults = await Promise.all(userPromises);
+    const userMap = {};
+    userResults.forEach((result, index) => {
+      userMap[userIds[index]] = result;
+    });
+    
     sortedItems.forEach(doc => {
       const data = doc.data();
       const itemName = data.name || data.itemName || data.productName || 'Unknown Item';
-      const price = data.price || data.unitPrice || data.currentPrice || 0;
+      
+      // Enhanced price field checking - try multiple possible price fields
+      let price = 0;
+      
+      // Check for direct numeric price fields first
+      const priceFields = ['unitPrice', 'price', 'currentPrice', 'priceValue', 'minPrice', 'maxPrice', 'avgPrice', 
+                          'cost', 'value', 'amount', 'salePrice', 'regularPrice', 'discountedPrice'];
+      for (const field of priceFields) {
+        if (data[field] !== undefined && data[field] !== null && !isNaN(data[field]) && data[field] > 0) {
+          price = parseFloat(data[field]);
+          break;
+        }
+      }
+      
+      // If still no price, check prices array
+      if (price === 0 && data.prices) {
+        if (Array.isArray(data.prices) && data.prices.length > 0) {
+          // Take the first valid numeric price from the array
+          for (const p of data.prices) {
+            if (!isNaN(p) && p > 0) {
+              price = parseFloat(p);
+              break;
+            }
+          }
+        } else if (!isNaN(data.prices) && data.prices > 0) {
+          // prices might be a single number
+          price = parseFloat(data.prices);
+        }
+      }
+      
+      // Final fallback - if still 0, check for any field containing 'price' with a numeric value
+      if (price === 0) {
+        const allFields = Object.keys(data);
+        for (const field of allFields) {
+          if (field.toLowerCase().includes('price') && 
+              data[field] !== undefined && 
+              data[field] !== null && 
+              !isNaN(data[field]) && 
+              data[field] > 0) {
+            price = parseFloat(data[field]);
+            break;
+          }
+        }
+      }
+      
       const currency = data.currency || 'USD';
       const quantity = data.quantity || 1;
-      const storeName = data.storeName || data.store || 'Unknown';
+      const storeName = data.storeName || data.store || 'Unknown Store';
       const category = data.category || 'Uncategorized';
       const userId = doc.ref.path.split('/')[3];
+      const userData = userMap[userId];
+      const phoneNumber = userData?.profile?.phoneNumber || userData?.profile?.mobileNumber || userData?.auth?.phoneNumber || 'N/A';
+      const userCity = userData?.profile?.city || 'N/A';
+      
+      // Debug: Show what fields are available only when price is 0
+      let debugInfo = '';
+      if (price === 0) {
+        const priceRelatedFields = Object.keys(data).filter(key => 
+          key.toLowerCase().includes('price') || 
+          key.toLowerCase().includes('cost') || 
+          key.toLowerCase().includes('value') ||
+          key.toLowerCase().includes('amount')
+        );
+        const fieldValues = priceRelatedFields.map(field => `${field}: ${JSON.stringify(data[field])}`).join(', ');
+        debugInfo = ` <small style="color: red;">[Fields: ${priceRelatedFields.join(', ')}] [Values: ${fieldValues}]</small>`;
+      }
       
       tableRows += `
         <tr>
@@ -2242,19 +2424,21 @@ app.get('/items', async (req, res) => {
                 
               </div>
               <div>
-                <strong>${itemName}</strong>
+                <strong>${itemName}${debugInfo}</strong>
                 <div style="font-size: 0.75rem; color: var(--gray-500);">${category}</div>
               </div>
             </div>
           </td>
           <td>${storeName}</td>
-          <td><span class="badge badge-primary">${formatCurrency(price, currency)}</span></td>
+          <td><span class="badge badge-primary">${price > 0 ? formatCurrency(price, currency) : `<span style="color: red;">0 - Check fields</span>`}</span></td>
           <td>${quantity}</td>
-          <td><span class="badge badge-success">${formatCurrency(price * quantity, currency)}</span></td>
+          <td><span class="badge badge-info">${phoneNumber}</span></td>
+          <td><span class="badge badge-secondary">${userCity}</span></td>
           <td style="text-align: right;">
             <div class="btn-group">
               <a href="/items/${userId}/${doc.id}" class="btn btn-sm btn-primary">View</a>
               <a href="/items/${userId}/${doc.id}/edit" class="btn btn-sm btn-secondary">Edit</a>
+              <a href="/items/${userId}/${doc.id}/delete" class="btn btn-sm btn-danger" data-confirm="Are you sure you want to delete this item?">Delete</a>
             </div>
           </td>
         </tr>
@@ -2284,12 +2468,13 @@ app.get('/items', async (req, res) => {
                             <th>Store</th>
                             <th>Unit Price</th>
                             <th>Quantity</th>
-                            <th>Total</th>
+                            <th>Phone</th>
+                            <th>City</th>
                             <th style="text-align: right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${tableRows || '<tr><td colspan="6" class="empty-state"><div><h3>No items found</h3></div></td></tr>'}
+                        ${tableRows || '<tr><td colspan="7" class="empty-state"><div><h3>No items found</h3></div></td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -2341,74 +2526,138 @@ app.get('/items/:userId/:itemId', async (req, res) => {
 
     const data = itemDoc.data();
     const currency = data.currency || 'USD';
+    
+    // Get user information
+    const user = await auth.getUser(userId);
+    const userProfile = await db
+      .doc(`artifacts/${config.app.id}/users/${userId}`)
+      .get();
+    const profileData = userProfile.exists ? userProfile.data() : {};
 
     const content = `
         <div class="top-bar">
             <div class="page-title">
                 <h2>Item Details</h2>
+                <div style="font-size: 0.875rem; color: var(--gray-600); margin-top: 0.25rem;">
+                    Scanned by ${user.displayName || user.email || 'Anonymous User'}
+                </div>
             </div>
             <div class="top-bar-actions">
                 <a href="/items/${userId}/${itemId}/edit" class="btn btn-primary">
                     Edit Item
                 </a>
+                <a href="/items/${userId}/${itemId}/delete" class="btn btn-danger" data-confirm="Are you sure you want to delete this item?">
+                    Delete Item
+                </a>
             </div>
         </div>
         
         <div class="content-card">
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <span class="detail-label">Item Name</span>
-                    <span class="detail-value">${data.name || data.itemName || data.productName || 'N/A'}</span>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                <div>
+                    <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 1.5rem 0; color: var(--gray-900);">
+                        📦 Item Information
+                    </h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Item Name</span>
+                            <span class="detail-value">${data.name || data.itemName || data.productName || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Category</span>
+                            <span class="detail-value">${data.category || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Brand</span>
+                            <span class="detail-value">${data.brand || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Barcode</span>
+                            <span class="detail-value"><code>${data.barcode || 'N/A'}</code></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Store</span>
+                            <span class="detail-value">${data.storeName || data.store || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Created</span>
+                            <span class="detail-value">${formatDate(data.createdAt || data.date)}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Category</span>
-                    <span class="detail-value">${data.category || 'N/A'}</span>
+                
+                <div>
+                    <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 1.5rem 0; color: var(--gray-900);">
+                        💰 Pricing Information
+                    </h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Unit Price</span>
+                            <span class="detail-value"><span class="badge badge-primary" style="font-size: 1rem; padding: 0.5rem 1rem;">${formatCurrency(data.unitPrice || data.price || data.currentPrice || 0, currency)}</span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Quantity</span>
+                            <span class="detail-value"><span class="badge badge-secondary">${data.quantity || 1}</span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Total Value</span>
+                            <span class="detail-value"><span class="badge badge-success" style="font-size: 1rem; padding: 0.5rem 1rem;">${formatCurrency((data.price || 0) * (data.quantity || 1), currency)}</span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Currency</span>
+                            <span class="detail-value">${currency}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Store</span>
-                    <span class="detail-value">${data.storeName || data.store || 'N/A'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Unit Price</span>
-                    <span class="detail-value"><span class="badge badge-primary">${formatCurrency(data.price || data.unitPrice || data.currentPrice || 0, currency)}</span></span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Quantity</span>
-                    <span class="detail-value">${data.quantity || 1}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Total</span>
-                    <span class="detail-value"><span class="badge badge-success">${formatCurrency((data.price || 0) * (data.quantity || 1), currency)}</span></span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Currency</span>
-                    <span class="detail-value">${currency}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Brand</span>
-                    <span class="detail-value">${data.brand || 'N/A'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Barcode</span>
-                    <span class="detail-value">${data.barcode || 'N/A'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Created</span>
-                    <span class="detail-value">${formatDate(data.createdAt || data.date)}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Item ID</span>
-                    <span class="detail-value"><code>${itemId}</code></span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">User ID</span>
-                    <span class="detail-value"><code>${userId}</code></span>
+            </div>
+            
+            <div>
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 1.5rem 0; color: var(--gray-900);">
+                    👤 User Information
+                </h3>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">User Name</span>
+                        <span class="detail-value">${user.displayName || 'N/A'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Email</span>
+                        <span class="detail-value">${user.email || 'N/A'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phone</span>
+                        <span class="detail-value">${user.phoneNumber || 'N/A'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">User ID</span>
+                        <span class="detail-value"><code>${userId}</code></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Subscription</span>
+                        <span class="detail-value">
+                            ${profileData.subscriptionStatus === 'active' 
+                              ? '<span class="badge badge-success">Active</span>' 
+                              : profileData.subscriptionStatus === 'trial' 
+                              ? '<span class="badge badge-info">Trial</span>'
+                              : '<span class="badge badge-secondary">None</span>'}
+                        </span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Trial Scans Left</span>
+                        <span class="detail-value"><span class="badge badge-primary">${profileData.trialScansRemaining || 0}</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Total Scans</span>
+                        <span class="detail-value"><span class="badge badge-success">${profileData.totalScans || 0}</span></span>
+                    </div>
                 </div>
             </div>
             
             <div style="margin-top: 2rem; display: flex; gap: 1rem;">
                 <a href="/items" class="btn btn-secondary">Back to Items</a>
+                <a href="/users/${userId}" class="btn btn-outline">View User</a>
                 <a href="/items/${userId}/${itemId}/edit" class="btn btn-primary">Edit Item</a>
+                <a href="/items/${userId}/${itemId}/delete" class="btn btn-danger" data-confirm="Are you sure you want to delete this item?">Delete Item</a>
             </div>
         </div>
     `;
@@ -2490,7 +2739,7 @@ app.get('/items/:userId/:itemId/edit', async (req, res) => {
                     
                     <div class="form-group">
                         <label for="price">Unit Price *</label>
-                        <input type="number" id="price" name="price" step="0.01" value="${data.price || data.unitPrice || data.currentPrice || 0}" required>
+                        <input type="number" id="price" name="price" step="0.01" value="${data.unitPrice || data.price || data.currentPrice || 0}" required>
                     </div>
                     
                     <div class="form-group">
@@ -2561,7 +2810,7 @@ app.post('/items/:userId/:itemId/update', async (req, res) => {
       category: category || '',
       storeName: storeName || '',
       brand: brand || '',
-      price: parseFloat(price) || 0,
+      unitPrice: parseFloat(price) || 0,
       quantity: parseInt(quantity) || 1,
       currency: currency || 'USD',
       barcode: barcode || '',
@@ -2619,6 +2868,66 @@ app.post('/items/:userId/:itemId/update', async (req, res) => {
                 </div>
             </div>
             <a href="/items/${userId}/${itemId}/edit" class="btn btn-primary">Back to Edit</a>
+        </div>`,
+        'items'
+      ),
+    );
+  }
+});
+
+// Item Delete Route
+app.get('/items/:userId/:itemId/delete', async (req, res) => {
+  try {
+    const {userId, itemId} = req.params;
+
+    await db
+      .collection('artifacts')
+      .doc('goshopper')
+      .collection('users')
+      .doc(userId)
+      .collection('items')
+      .doc(itemId)
+      .delete();
+
+    res.send(
+      getHtmlTemplate(
+        'Item Deleted',
+        `<div class="top-bar">
+            <div class="page-title">
+                <h2>Success</h2>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="alert alert-success">
+                
+                <div>
+                    <strong>Item deleted successfully!</strong>
+                    <p style="margin: 0.5rem 0 0 0;">Item ${itemId} has been permanently removed.</p>
+                </div>
+            </div>
+            <a href="/items" class="btn btn-primary">Back to Items</a>
+        </div>`,
+        'items'
+      ),
+    );
+  } catch (error) {
+    res.send(
+      getHtmlTemplate(
+        'Error',
+        `<div class="top-bar">
+            <div class="page-title">
+                <h2>Error</h2>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="alert alert-error">
+                
+                <div>
+                    <strong>Error deleting item</strong>
+                    <p style="margin: 0.5rem 0 0 0;">${error.message}</p>
+                </div>
+            </div>
+            <a href="/items" class="btn btn-primary">Back to Items</a>
         </div>`,
         'items'
       ),
@@ -2805,145 +3114,493 @@ app.get('/alerts/:userId/:alertId/delete', async (req, res) => {
 
 app.get('/analytics', async (req, res) => {
   try {
-    // Get various analytics
+    console.log('Loading analytics...');
+    
+    // Get all data
     const users = await auth.listUsers();
     const receipts = await db.collectionGroup('receipts').get();
-    const alerts = await db.collectionGroup('priceAlerts').get();
+    const items = await db.collectionGroup('items').get();
+    const userProfiles = await db.collection(`artifacts/${config.app.id}/users`).get();
 
-    // Calculate spending by month
-    const monthlySpending = {};
-    receipts.docs.forEach(doc => {
+    console.log(`Processing ${users.users.length} users, ${receipts.size} receipts, ${items.size} items`);
+
+    // ===== USER BEHAVIOR ANALYTICS =====
+    
+    // Get active users (users with scans in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const activeUsers = new Set();
+    const userScans = {};
+    const userCities = {};
+    
+    userProfiles.docs.forEach(doc => {
       const data = doc.data();
-      const date = data.date?.toDate();
-      if (date) {
-        const monthKey = `${date.getFullYear()}-${String(
-          date.getMonth() + 1,
-        ).padStart(2, '0')}`;
-        monthlySpending[monthKey] =
-          (monthlySpending[monthKey] || 0) + (data.total || 0);
+      if (data.city) {
+        userCities[data.city] = (userCities[data.city] || 0) + 1;
+      }
+      if (data.totalScans) {
+        userScans[doc.id] = data.totalScans;
       }
     });
 
-    // Calculate category breakdown
+    receipts.docs.forEach(doc => {
+      const data = doc.data();
+      const userId = doc.ref.path.split('/')[3];
+      const date = data.date?.toDate();
+      if (date && date > thirtyDaysAgo) {
+        activeUsers.add(userId);
+      }
+    });
+
+    items.docs.forEach(doc => {
+      const userId = doc.ref.path.split('/')[3];
+      const data = doc.data();
+      const date = data.createdAt?.toDate();
+      if (date && date > thirtyDaysAgo) {
+        activeUsers.add(userId);
+      }
+    });
+
+    // Most active users
+    const topActiveUsers = Object.entries(userScans)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // ===== SHOP ANALYTICS =====
+    
+    const shopVisits = {};
+    const shopSpending = {};
+    
+    receipts.docs.forEach(doc => {
+      const data = doc.data();
+      const shop = data.storeName || 'Unknown Store';
+      shopVisits[shop] = (shopVisits[shop] || 0) + 1;
+      shopSpending[shop] = (shopSpending[shop] || 0) + (data.total || 0);
+    });
+
+    items.docs.forEach(doc => {
+      const data = doc.data();
+      const shop = data.storeName || data.store || 'Unknown Store';
+      shopVisits[shop] = (shopVisits[shop] || 0) + 1;
+    });
+
+    const topShops = Object.entries(shopVisits)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // ===== ITEM ANALYTICS =====
+    
+    const itemCounts = {};
+    const itemSpending = {};
+    
+    receipts.docs.forEach(doc => {
+      const data = doc.data();
+      (data.items || []).forEach(item => {
+        const name = item.name || item.itemName || 'Unknown Item';
+        const qty = item.quantity || 1;
+        itemCounts[name] = (itemCounts[name] || 0) + qty;
+        itemSpending[name] = (itemSpending[name] || 0) + ((item.unitPrice || 0) * qty);
+      });
+    });
+
+    items.docs.forEach(doc => {
+      const data = doc.data();
+      const name = data.name || data.itemName || data.productName || 'Unknown Item';
+      const qty = data.quantity || 1;
+      itemCounts[name] = (itemCounts[name] || 0) + qty;
+    });
+
+    const topItems = Object.entries(itemCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // ===== CITY ANALYTICS =====
+    
+    const topCities = Object.entries(userCities)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // ===== CATEGORY ANALYTICS =====
+    
     const categories = {};
     receipts.docs.forEach(doc => {
       const data = doc.data();
       (data.items || []).forEach(item => {
         const cat = item.category || 'Other';
-        categories[cat] =
-          (categories[cat] || 0) + (item.unitPrice || 0) * (item.quantity || 1);
+        categories[cat] = (categories[cat] || 0) + (item.unitPrice || 0) * (item.quantity || 1);
       });
+    });
+
+    items.docs.forEach(doc => {
+      const data = doc.data();
+      const cat = data.category || 'Other';
+      const price = data.unitPrice || data.price || 0;
+      const qty = data.quantity || 1;
+      categories[cat] = (categories[cat] || 0) + (price * qty);
     });
 
     const topCategories = Object.entries(categories)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 5);
+      .slice(0, 10);
+
+    // ===== TIME-BASED ANALYTICS =====
+    
+    const monthlyScans = {};
+    const monthlySpending = {};
+    
+    receipts.docs.forEach(doc => {
+      const data = doc.data();
+      const date = data.date?.toDate();
+      if (date) {
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthlyScans[monthKey] = (monthlyScans[monthKey] || 0) + 1;
+        monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + (data.total || 0);
+      }
+    });
+
+    items.docs.forEach(doc => {
+      const data = doc.data();
+      const date = data.createdAt?.toDate();
+      if (date) {
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthlyScans[monthKey] = (monthlyScans[monthKey] || 0) + 1;
+      }
+    });
+
+    // Get user details for top active users
+    const topUserDetails = await Promise.all(
+      topActiveUsers.slice(0, 10).map(async ([userId, scans]) => {
+        try {
+          const user = await auth.getUser(userId);
+          return {
+            name: user.displayName || user.email || user.phoneNumber || 'Anonymous',
+            scans: scans,
+            userId: userId
+          };
+        } catch (error) {
+          return {
+            name: 'Unknown User',
+            scans: scans,
+            userId: userId
+          };
+        }
+      })
+    );
+
+    const totalSpending = receipts.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+    const totalScans = receipts.size + items.size;
 
     const content = `
         <div class="top-bar">
             <div class="page-title">
-                <h2>Analytics Dashboard</h2>
+                <h2>📊 Analytics & Insights</h2>
+                <div style="font-size: 0.875rem; color: var(--gray-600); margin-top: 0.25rem;">
+                    Comprehensive app usage analytics for sponsors and advertisers
+                </div>
             </div>
             <div class="top-bar-actions">
-                <span class="badge badge-info">Live Data</span>
+                <span class="badge badge-success">Live Data</span>
             </div>
         </div>
 
+        <!-- Key Metrics -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon primary">
-                        
-                    </div>
+                    <div class="stat-icon primary">👥</div>
                 </div>
                 <div class="stat-content">
-                    <h3>Registered Users</h3>
+                    <h3>Total Users</h3>
                     <div class="stat-number">${users.users.length.toLocaleString()}</div>
+                    <div class="stat-change positive">
+                        <span>${activeUsers.size} active (30 days)</span>
+                    </div>
                 </div>
             </div>
             
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon secondary">
-                        
-                    </div>
+                    <div class="stat-icon secondary">📱</div>
                 </div>
                 <div class="stat-content">
-                    <h3>Total Receipts</h3>
-                    <div class="stat-number">${receipts.size.toLocaleString()}</div>
+                    <h3>Total Scans</h3>
+                    <div class="stat-number">${totalScans.toLocaleString()}</div>
+                    <div class="stat-change positive">
+                        <span>${receipts.size} receipts, ${items.size} items</span>
+                    </div>
                 </div>
             </div>
             
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon info">
-                        
-                    </div>
+                    <div class="stat-icon warning">💰</div>
                 </div>
                 <div class="stat-content">
-                    <h3>Price Alerts</h3>
-                    <div class="stat-number">${alerts.size.toLocaleString()}</div>
+                    <h3>Total Spending</h3>
+                    <div class="stat-number">${formatCurrency(totalSpending, 'CDF')}</div>
+                    <div class="stat-change">
+                        <span>Tracked spending</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon info">🏪</div>
+                </div>
+                <div class="stat-content">
+                    <h3>Unique Shops</h3>
+                    <div class="stat-number">${Object.keys(shopVisits).length.toLocaleString()}</div>
+                    <div class="stat-change">
+                        <span>Stores tracked</span>
+                    </div>
                 </div>
             </div>
         </div>
-        
+
+        <!-- Top Shops (Most Visited) -->
+        <div class="content-card">
+            <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                🏪 Most Visited Shops
+                <span style="font-size: 0.875rem; font-weight: 400; color: var(--gray-600); margin-left: 1rem;">Perfect for retail partnerships</span>
+            </h3>
+            <div style="display: grid; gap: 1rem;">
+                ${topShops.length > 0 ? topShops.map(([shop, visits], index) => {
+                  const spending = shopSpending[shop] || 0;
+                  const maxVisits = topShops[0][1];
+                  const percentage = (visits / maxVisits) * 100;
+                  const avg = visits > 0 ? spending / visits : 0;
+                  return `
+                    <div style="padding: 1.25rem; background: linear-gradient(135deg, ${index === 0 ? '#667eea 0%, #764ba2' : index === 1 ? '#f093fb 0%, #f5576c' : index === 2 ? '#4facfe 0%, #00f2fe' : '#43e97b 0%, #38f9d7'} 100%); border-radius: 12px; color: white; position: relative; overflow: hidden;">
+                      <div style="position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.1); width: ${percentage}%; transition: width 0.3s ease;"></div>
+                      <div style="position: relative; z-index: 1; display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 1.5rem; align-items: center;">
+                        <div style="font-size: 2rem; font-weight: 700; opacity: 0.9;">#${index + 1}</div>
+                        <div>
+                          <div style="font-size: 1.125rem; font-weight: 700;">${shop}</div>
+                          <div style="opacity: 0.9; font-size: 0.875rem; margin-top: 0.25rem;">${visits} visits</div>
+                        </div>
+                        <div style="text-align: center;">
+                          <div style="font-size: 0.75rem; opacity: 0.9;">Total Spent</div>
+                          <div style="font-size: 1rem; font-weight: 700;">${formatCurrency(spending, 'CDF')}</div>
+                        </div>
+                        <div style="text-align: center;">
+                          <div style="font-size: 0.75rem; opacity: 0.9;">Avg/Visit</div>
+                          <div style="font-size: 1rem; font-weight: 700;">${formatCurrency(avg, 'CDF')}</div>
+                        </div>
+                        <div style="width: 60px; height: 60px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🏪</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('') : '<div class="empty-state"><div><h3>No shop data</h3></div></div>'}
+            </div>
+        </div>
+
+        <!-- Two Column Layout -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            
+            <!-- Most Bought Items -->
             <div class="content-card">
-                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Monthly Spending</h3>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th style="text-align: right;">Total Spending</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${Object.entries(monthlySpending).length > 0 ? Object.entries(monthlySpending)
-                              .sort()
-                              .reverse()
-                              .map(
-                                ([month, total]) =>
-                                  `<tr>
-                                    <td><strong>${month}</strong></td>
-                                    <td style="text-align: right;"><span class="badge badge-success">${formatCurrency(total, currency)}</span></td>
-                                  </tr>`,
-                              )
-                              .join('') : '<tr><td colspan="2" class="empty-state" style="padding: 2rem;"><div><h3>No spending data</h3></div></td></tr>'}
-                        </tbody>
-                    </table>
+                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                    🛒 Most Bought Items
+                </h3>
+                <div style="display: grid; gap: 0.75rem;">
+                    ${topItems.length > 0 ? topItems.map(([item, count], index) => {
+                      const maxCount = topItems[0][1];
+                      const percentage = (count / maxCount) * 100;
+                      const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#a8edea', '#ff6b6b', '#feca57'];
+                      return `
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                          <div style="min-width: 28px; font-weight: 700; color: var(--gray-600);">#${index + 1}</div>
+                          <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                              <span style="font-weight: 600; color: var(--gray-800);">${item}</span>
+                              <span style="font-weight: 700; color: ${colors[index % colors.length]};">${count.toLocaleString()}</span>
+                            </div>
+                            <div style="height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden;">
+                              <div style="height: 100%; background: linear-gradient(90deg, ${colors[index % colors.length]}, ${colors[(index + 1) % colors.length]}); width: ${percentage}%; transition: width 0.5s ease;"></div>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('') : '<div class="empty-state"><div><h3>No item data</h3></div></div>'}
                 </div>
             </div>
 
+            <!-- Top Categories -->
             <div class="content-card">
-                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Top Categories</h3>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th style="text-align: right;">Total Spent</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${topCategories.length > 0 ? topCategories
-                              .map(
-                                ([category, total]) =>
-                                  `<tr>
-                                    <td><strong>${category}</strong></td>
-                                    <td style="text-align: right;"><span class="badge badge-warning">${formatCurrency(total, currency)}</span></td>
-                                  </tr>`,
-                              )
-                              .join('') : '<tr><td colspan="2" class="empty-state" style="padding: 2rem;"><div><h3>No category data</h3></div></td></tr>'}
-                        </tbody>
-                    </table>
+                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                    📦 Top Categories
+                </h3>
+                <div style="display: grid; gap: 0.75rem;">
+                    ${topCategories.length > 0 ? topCategories.map(([category, total], index) => {
+                      const maxTotal = topCategories[0][1];
+                      const percentage = (total / maxTotal) * 100;
+                      const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#a8edea', '#ff6b6b', '#feca57'];
+                      return `
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                          <div style="min-width: 28px; font-weight: 700; color: var(--gray-600);">#${index + 1}</div>
+                          <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                              <span style="font-weight: 600; color: var(--gray-800);">${category}</span>
+                              <span style="font-weight: 700; color: ${colors[index % colors.length]};">${formatCurrency(total, 'CDF')}</span>
+                            </div>
+                            <div style="height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden;">
+                              <div style="height: 100%; background: linear-gradient(90deg, ${colors[index % colors.length]}, ${colors[(index + 1) % colors.length]}); width: ${percentage}%; transition: width 0.5s ease;"></div>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('') : '<div class="empty-state"><div><h3>No category data</h3></div></div>'}
                 </div>
+            </div>
+        </div>
+
+        <!-- City Analytics -->
+        <div class="content-card">
+            <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                🌍 App Usage by City
+                <span style="font-size: 0.875rem; font-weight: 400; color: var(--gray-600); margin-left: 1rem;">Geographic reach and expansion opportunities</span>
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                ${topCities.length > 0 ? topCities.map(([city, count], index) => {
+                  const percentage = ((count / users.users.length) * 100).toFixed(1);
+                  const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#a8edea'];
+                  return `
+                    <div style="padding: 1.5rem; background: linear-gradient(135deg, ${colors[index % colors.length]} 0%, ${colors[(index + 1) % colors.length]} 100%); border-radius: 12px; color: white; text-align: center;">
+                      <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;">#${index + 1}</div>
+                      <div style="font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem;">${city}</div>
+                      <div style="font-size: 2rem; font-weight: 700; margin: 1rem 0;">${count}</div>
+                      <div style="opacity: 0.9; font-size: 0.875rem;">users</div>
+                      <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.2); border-radius: 8px;">
+                        <div style="font-size: 1.5rem; font-weight: 700;">${percentage}%</div>
+                        <div style="opacity: 0.9; font-size: 0.75rem;">market share</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('') : '<div class="empty-state"><div><h3>No city data</h3></div></div>'}
+            </div>
+        </div>
+
+        <!-- Most Active Users -->
+        <div class="content-card">
+            <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                ⭐ Most Active Users
+                <span style="font-size: 0.875rem; font-weight: 400; color: var(--gray-600); margin-left: 1rem;">Power users and brand ambassadors</span>
+            </h3>
+            <div style="display: grid; gap: 1rem;">
+                ${topUserDetails.length > 0 ? topUserDetails.map((user, index) => {
+                  const maxScans = topUserDetails[0].scans;
+                  const percentage = (user.scans / maxScans) * 100;
+                  const bgColors = ['linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'];
+                  const gradient = index < 5 ? bgColors[index] : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                  return `
+                    <div style="display: grid; grid-template-columns: auto 1fr auto auto; gap: 1.5rem; align-items: center; padding: 1.25rem; background: ${gradient}; border-radius: 12px; color: white;">
+                      <div style="width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700;">
+                        ${index + 1}
+                      </div>
+                      <div>
+                        <div style="font-size: 1.125rem; font-weight: 700;">${user.name}</div>
+                        <div style="opacity: 0.9; font-size: 0.875rem; margin-top: 0.25rem;">
+                          <div style="height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden; margin-top: 0.5rem;">
+                            <div style="height: 100%; background: rgba(255,255,255,0.9); width: ${percentage}%; transition: width 0.5s ease;"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style="text-align: center; padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.2); border-radius: 8px;">
+                        <div style="font-size: 1.75rem; font-weight: 700;">${user.scans}</div>
+                        <div style="opacity: 0.9; font-size: 0.75rem;">scans</div>
+                      </div>
+                      <a href="/users/${user.userId}" class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; text-decoration: none; border-radius: 6px; font-weight: 600;">View</a>
+                    </div>
+                  `;
+                }).join('') : '<div class="empty-state"><div><h3>No user activity data</h3></div></div>'}
+            </div>
+        </div>
+
+        <!-- Monthly Trends -->
+        <div class="content-card">
+            <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--gray-900);">
+                📈 Monthly Trends
+                <span style="font-size: 0.875rem; font-weight: 400; color: var(--gray-600); margin-left: 1rem;">Growth and engagement over time</span>
+            </h3>
+            <div style="display: grid; gap: 1rem;">
+                ${Object.entries(monthlyScans).length > 0 ? Object.entries(monthlyScans)
+                  .sort()
+                  .reverse()
+                  .slice(0, 12)
+                  .map(([month, scans], index) => {
+                    const spending = monthlySpending[month] || 0;
+                    const avg = scans > 0 ? spending / scans : 0;
+                    const maxScans = Math.max(...Object.values(monthlyScans));
+                    const scanPercentage = (scans / maxScans) * 100;
+                    return `
+                      <div style="padding: 1.25rem; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 12px; border-left: 4px solid ${index < 3 ? '#667eea' : '#4facfe'};">
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 2rem; align-items: center;">
+                          <div style="min-width: 100px;">
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900);">${month}</div>
+                            <div style="font-size: 0.875rem; color: var(--gray-600); margin-top: 0.25rem;">${scans} scans</div>
+                          </div>
+                          <div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 0.75rem;">
+                              <div>
+                                <div style="font-size: 0.75rem; color: var(--gray-600);">Scans</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: #667eea;">${scans}</div>
+                              </div>
+                              <div>
+                                <div style="font-size: 0.75rem; color: var(--gray-600);">Spending</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: #43e97b;">${formatCurrency(spending, 'CDF')}</div>
+                              </div>
+                              <div>
+                                <div style="font-size: 0.75rem; color: var(--gray-600);">Avg/Scan</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: #f093fb;">${formatCurrency(avg, 'CDF')}</div>
+                              </div>
+                            </div>
+                            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden;">
+                              <div style="height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); width: ${scanPercentage}%; transition: width 0.5s ease;"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('') : '<div class="empty-state"><div><h3>No monthly data</h3></div></div>'}
+            </div>
+        </div>
+
+        <!-- Engagement Summary for Sponsors -->
+        <div class="content-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: white;">
+                💼 Sponsor Opportunity Summary
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 1.5rem;">
+                <div>
+                    <div style="font-size: 2rem; font-weight: 700;">${users.users.length.toLocaleString()}</div>
+                    <div style="opacity: 0.9;">Total Users</div>
+                </div>
+                <div>
+                    <div style="font-size: 2rem; font-weight: 700;">${activeUsers.size.toLocaleString()}</div>
+                    <div style="opacity: 0.9;">Active Users (30d)</div>
+                </div>
+                <div>
+                    <div style="font-size: 2rem; font-weight: 700;">${totalScans.toLocaleString()}</div>
+                    <div style="opacity: 0.9;">Total Scans</div>
+                </div>
+                <div>
+                    <div style="font-size: 2rem; font-weight: 700;">${Object.keys(userCities).length}</div>
+                    <div style="opacity: 0.9;">Cities Reached</div>
+                </div>
+            </div>
+            <div style="margin-top: 2rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                <strong>Key Insights:</strong> Our app is used in ${Object.keys(userCities).length} cities with ${activeUsers.size} active users scanning ${totalScans.toLocaleString()} items. 
+                Top shopping destination: ${topShops[0] ? topShops[0][0] : 'N/A'} with ${topShops[0] ? topShops[0][1] : 0} visits.
+                Most popular item: ${topItems[0] ? topItems[0][0] : 'N/A'}.
             </div>
         </div>
     `;
 
     res.send(getHtmlTemplate('Analytics', content, 'analytics'));
   } catch (error) {
+    console.error('Analytics error:', error);
     res.send(
       getHtmlTemplate(
         'Error',
@@ -2982,35 +3639,49 @@ app.get('/notifications', (req, res) => {
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
             <div class="content-card">
                 <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Broadcast to All Users</h3>
-                <form method="POST" action="/notifications/broadcast">
+                <form method="POST" action="/notifications/broadcast" id="broadcastForm">
                     <div class="form-group">
                         <label for="broadcastTitle">Title</label>
-                        <input type="text" id="broadcastTitle" name="title" required placeholder="Enter notification title">
+                        <input type="text" id="broadcastTitle" name="title" maxlength="50" required placeholder="Enter notification title">
+                        <small class="char-counter" id="broadcastTitleCounter">0/50 characters</small>
                     </div>
                     <div class="form-group">
                         <label for="broadcastBody">Message</label>
-                        <textarea id="broadcastBody" name="body" required placeholder="Enter your message here..." rows="4"></textarea>
+                        <textarea id="broadcastBody" name="body" maxlength="160" required placeholder="Enter your message here..." rows="4"></textarea>
+                        <small class="char-counter" id="broadcastBodyCounter">0/160 characters</small>
                     </div>
-                    <button type="submit" class="btn btn-success btn-lg" style="width: 100%;">Send Broadcast</button>
+                    <div class="form-group">
+                        <label for="broadcastImage">Image URL (optional)</label>
+                        <input type="url" id="broadcastImage" name="image" placeholder="https://example.com/image.jpg">
+                        <small style="color: var(--gray-500); font-size: 0.75rem;">Leave empty for text-only notifications</small>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-lg" id="broadcastBtn" style="width: 100%;" disabled>Send Broadcast</button>
                 </form>
             </div>
 
             <div class="content-card">
                 <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Send to Specific User</h3>
-                <form method="POST" action="/notifications/user">
+                <form method="POST" action="/notifications/user" id="userForm">
                     <div class="form-group">
                         <label for="userId">User ID</label>
                         <input type="text" id="userId" name="userId" required placeholder="Enter user ID">
                     </div>
                     <div class="form-group">
                         <label for="userTitle">Title</label>
-                        <input type="text" id="userTitle" name="title" required placeholder="Enter notification title">
+                        <input type="text" id="userTitle" name="title" maxlength="50" required placeholder="Enter notification title">
+                        <small class="char-counter" id="userTitleCounter">0/50 characters</small>
                     </div>
                     <div class="form-group">
                         <label for="userBody">Message</label>
-                        <textarea id="userBody" name="body" required placeholder="Enter your message here..." rows="4"></textarea>
+                        <textarea id="userBody" name="body" maxlength="160" required placeholder="Enter your message here..." rows="4"></textarea>
+                        <small class="char-counter" id="userBodyCounter">0/160 characters</small>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Send to User</button>
+                    <div class="form-group">
+                        <label for="userImage">Image URL (optional)</label>
+                        <input type="url" id="userImage" name="image" placeholder="https://example.com/image.jpg">
+                        <small style="color: var(--gray-500); font-size: 0.75rem;">Leave empty for text-only notifications</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg" id="userBtn" style="width: 100%;" disabled>Send to User</button>
                 </form>
             </div>
         </div>
@@ -3047,14 +3718,1043 @@ app.get('/notifications', (req, res) => {
                 </div>
             </div>
         </div>
+
+        <script>
+            // Character counter and validation functions
+            function updateCharCounter(inputId, counterId, maxLength) {
+                const input = document.getElementById(inputId);
+                const counter = document.getElementById(counterId);
+                const currentLength = input.value.length;
+                
+                counter.textContent = currentLength + '/' + maxLength + ' characters';
+                
+                // Change color based on usage
+                if (currentLength > maxLength * 0.9) {
+                    counter.style.color = 'var(--error-600)';
+                } else if (currentLength > maxLength * 0.8) {
+                    counter.style.color = 'var(--warning-600)';
+                } else {
+                    counter.style.color = 'var(--gray-500)';
+                }
+            }
+
+            function validateForm(formId, titleId, bodyId, buttonId) {
+                const title = document.getElementById(titleId).value.trim();
+                const body = document.getElementById(bodyId).value.trim();
+                const button = document.getElementById(buttonId);
+                
+                // Enable button only if both title and body have content
+                const isValid = title.length > 0 && body.length > 0;
+                button.disabled = !isValid;
+                
+                // Update button appearance
+                if (isValid) {
+                    button.classList.remove('btn-disabled');
+                } else {
+                    button.classList.add('btn-disabled');
+                }
+            }
+
+            // Initialize validation for broadcast form
+            document.getElementById('broadcastTitle').addEventListener('input', function() {
+                updateCharCounter('broadcastTitle', 'broadcastTitleCounter', 50);
+                validateForm('broadcastForm', 'broadcastTitle', 'broadcastBody', 'broadcastBtn');
+            });
+            
+            document.getElementById('broadcastBody').addEventListener('input', function() {
+                updateCharCounter('broadcastBody', 'broadcastBodyCounter', 160);
+                validateForm('broadcastForm', 'broadcastTitle', 'broadcastBody', 'broadcastBtn');
+            });
+
+            // Initialize validation for user form
+            document.getElementById('userTitle').addEventListener('input', function() {
+                updateCharCounter('userTitle', 'userTitleCounter', 50);
+                validateForm('userForm', 'userTitle', 'userBody', 'userBtn');
+            });
+            
+            document.getElementById('userBody').addEventListener('input', function() {
+                updateCharCounter('userBody', 'userBodyCounter', 160);
+                validateForm('userForm', 'userTitle', 'userBody', 'userBtn');
+            });
+
+            // Initialize counters on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                updateCharCounter('broadcastTitle', 'broadcastTitleCounter', 50);
+                updateCharCounter('broadcastBody', 'broadcastBodyCounter', 160);
+                updateCharCounter('userTitle', 'userTitleCounter', 50);
+                updateCharCounter('userBody', 'userBodyCounter', 160);
+                
+                validateForm('broadcastForm', 'broadcastTitle', 'broadcastBody', 'broadcastBtn');
+                validateForm('userForm', 'userTitle', 'userBody', 'userBtn');
+            });
+        </script>
+
+        <style>
+            .char-counter {
+                font-size: 0.75rem;
+                color: var(--gray-500);
+                float: right;
+                margin-top: 0.25rem;
+            }
+            
+            .btn-disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                pointer-events: none;
+            }
+            
+            .form-group {
+                margin-bottom: 1rem;
+            }
+            
+            .form-group input, .form-group textarea {
+                width: 100%;
+                padding: 0.75rem;
+                border: 1px solid var(--gray-300);
+                border-radius: 8px;
+                font-size: 0.875rem;
+                transition: border-color 0.2s;
+            }
+            
+            .form-group input:focus, .form-group textarea:focus {
+                outline: none;
+                border-color: var(--primary-500);
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            }
+        </style>
     `;
 
   res.send(getHtmlTemplate('Notifications', content, 'notifications'));
 });
 
+// Scheduled Notifications Page
+app.get('/scheduled-notifications', async (req, res) => {
+  try {
+    // Get scheduled notifications from Firestore
+    const scheduledNotificationsRef = db.collection('scheduledNotifications');
+    const snapshot = await scheduledNotificationsRef.orderBy('scheduledTime', 'desc').get();
+    
+    let tableRows = '';
+    let totalScheduled = 0;
+    let totalSent = 0;
+    let totalPending = 0;
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const id = doc.id;
+      const title = data.title || 'Untitled';
+      const message = data.message || '';
+      const scheduledTime = data.scheduledTime;
+      const status = data.status || 'pending';
+      const targetType = data.targetType || 'all'; // 'all', 'user', 'segment'
+      const targetValue = data.targetValue || '';
+      const recurring = data.recurring || false;
+      const recurringPattern = data.recurringPattern || '';
+      const createdAt = data.createdAt;
+      
+      // Count stats
+      totalScheduled++;
+      if (status === 'sent') totalSent++;
+      else if (status === 'pending') totalPending++;
+      
+      // Format scheduled time
+      const scheduledDate = scheduledTime?.toDate ? scheduledTime.toDate() : new Date(scheduledTime);
+      const now = new Date();
+      const isPast = scheduledDate < now;
+      
+      // Status badge
+      let statusBadge = '';
+      if (status === 'sent') {
+        statusBadge = '<span class="badge badge-success">Sent</span>';
+      } else if (status === 'pending') {
+        statusBadge = '<span class="badge badge-warning">Pending</span>';
+      } else if (status === 'failed') {
+        statusBadge = '<span class="badge badge-danger">Failed</span>';
+      } else if (status === 'cancelled') {
+        statusBadge = '<span class="badge badge-secondary">Cancelled</span>';
+      }
+      
+      // Target display
+      let targetDisplay = 'All Users';
+      if (targetType === 'user') {
+        targetDisplay = `User: ${targetValue}`;
+      } else if (targetType === 'segment') {
+        targetDisplay = `Segment: ${targetValue}`;
+      }
+      
+      // Recurring display
+      const recurringDisplay = recurring ? 
+        `<small style="color: var(--success); font-weight: 500;">Recurring: ${recurringPattern}</small>` : 
+        '<small style="color: var(--gray-500);">One-time</small>';
+      
+      tableRows += `
+        <tr>
+          <td>
+            <div>
+              <strong>${title}</strong>
+              <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.25rem;">${message.substring(0, 50)}${message.length > 50 ? '...' : ''}</div>
+            </div>
+          </td>
+          <td>${targetDisplay}</td>
+          <td>
+            <div>${formatDate(scheduledTime)}</div>
+            <div style="margin-top: 0.25rem;">${recurringDisplay}</div>
+          </td>
+          <td>${statusBadge}</td>
+          <td style="text-align: right;">
+            <div class="btn-group">
+              <a href="/scheduled-notifications/${id}" class="btn btn-sm btn-primary">View</a>
+              <a href="/scheduled-notifications/${id}/edit" class="btn btn-sm btn-secondary">Edit</a>
+              <button onclick="deleteScheduledNotification('${id}')" class="btn btn-sm btn-danger">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+    
+    const content = `
+        <div class="top-bar">
+            <div class="page-title">
+                <h2>Scheduled Notifications</h2>
+            </div>
+            <div class="top-bar-actions">
+                <div class="search-box">
+                    <input type="text" placeholder="Search scheduled notifications..." data-search>
+                </div>
+                <a href="/scheduled-notifications/create" class="btn btn-primary">
+                    <span>+ Create Scheduled Notification</span>
+                </a>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            <div class="stat-card">
+                <div class="stat-icon primary">
+                    <span style="font-size: 1.5rem;">📅</span>
+                </div>
+                <div class="stat-content">
+                    <h3>${totalScheduled}</h3>
+                    <p>Total Scheduled</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon warning">
+                    <span style="font-size: 1.5rem;">⏳</span>
+                </div>
+                <div class="stat-content">
+                    <h3>${totalPending}</h3>
+                    <p>Pending</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon success">
+                    <span style="font-size: 1.5rem;">✅</span>
+                </div>
+                <div class="stat-content">
+                    <h3>${totalSent}</h3>
+                    <p>Sent</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content-card">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Notification</th>
+                            <th>Target</th>
+                            <th>Schedule</th>
+                            <th>Status</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows || '<tr><td colspan="5" class="empty-state"><div><h3>No scheduled notifications</h3><p>Create your first scheduled notification to get started.</p></div></td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <script>
+            function deleteScheduledNotification(id) {
+                if (confirm('Are you sure you want to delete this scheduled notification?')) {
+                    fetch('/scheduled-notifications/' + id, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error deleting notification: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error deleting notification');
+                    });
+                }
+            }
+        </script>
+    `;
+
+    res.send(getHtmlTemplate('Scheduled Notifications', content, 'scheduled-notifications'));
+  } catch (error) {
+    console.error('❌ Error loading scheduled notifications:', error);
+    res.send(
+      getHtmlTemplate(
+        'Error',
+        `<div class="top-bar">
+            <div class="page-title">
+                <h2>Error</h2>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="alert alert-error">
+                <div>
+                    <strong>Error loading scheduled notifications</strong>
+                    <p style="margin: 0.5rem 0 0 0;">${error.message}</p>
+                </div>
+            </div>
+            <a href="/scheduled-notifications" class="btn btn-primary">Retry</a>
+        </div>`,
+        'scheduled-notifications'
+      ),
+    );
+  }
+});
+
+// Create Scheduled Notification Page
+app.get('/scheduled-notifications/create', (req, res) => {
+  const content = `
+        <div class="top-bar">
+            <div class="page-title">
+                <h2>Create Scheduled Notification</h2>
+            </div>
+            <div class="top-bar-actions">
+                <a href="/scheduled-notifications" class="btn btn-secondary">
+                    <span>← Back to Scheduled Notifications</span>
+                </a>
+            </div>
+        </div>
+        
+        <div class="content-card">
+            <form method="POST" action="/scheduled-notifications" id="createForm">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Notification Details</h3>
+                        
+                        <div class="form-group">
+                            <label for="title">Title *</label>
+                            <input type="text" id="title" name="title" maxlength="50" required placeholder="Enter notification title">
+                            <small class="char-counter" id="titleCounter">0/50 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="message">Message *</label>
+                            <textarea id="message" name="message" maxlength="160" required placeholder="Enter your message here..." rows="4"></textarea>
+                            <small class="char-counter" id="messageCounter">0/160 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="image">Image URL (optional)</label>
+                            <input type="url" id="image" name="image" placeholder="https://example.com/image.jpg">
+                            <small style="color: var(--gray-500); font-size: 0.75rem;">Leave empty for text-only notifications</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="targetType">Target Audience *</label>
+                            <select id="targetType" name="targetType" required onchange="toggleTargetFields()">
+                                <option value="all">All Users</option>
+                                <option value="user">Specific User</option>
+                                <option value="segment">User Segment</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="userField" style="display: none;">
+                            <label for="targetValue">User ID *</label>
+                            <input type="text" id="targetValue" name="targetValue" placeholder="Enter user ID">
+                        </div>
+                        
+                        <div class="form-group" id="segmentField" style="display: none;">
+                            <label for="targetValue">Segment Name *</label>
+                            <input type="text" id="targetValue" name="targetValue" placeholder="e.g., premium_users, new_users">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Schedule Settings</h3>
+                        
+                        <div class="form-group">
+                            <label for="scheduledDate">Scheduled Date *</label>
+                            <input type="date" id="scheduledDate" name="scheduledDate" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scheduledTime">Scheduled Time *</label>
+                            <input type="time" id="scheduledTime" name="scheduledTime" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="recurring" name="recurring" onchange="toggleRecurringFields()">
+                                Recurring Notification
+                            </label>
+                        </div>
+                        
+                        <div id="recurringFields" style="display: none;">
+                            <div class="form-group">
+                                <label for="recurringPattern">Recurring Pattern *</label>
+                                <select id="recurringPattern" name="recurringPattern">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="endDate">End Date (optional)</label>
+                                <input type="date" id="endDate" name="endDate">
+                                <small style="color: var(--gray-500); font-size: 0.75rem;">Leave empty for indefinite recurrence</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="timezone">Timezone</label>
+                            <select id="timezone" name="timezone">
+                                <option value="UTC">UTC</option>
+                                <option value="Africa/Kinshasa" selected>Africa/Kinshasa (UTC+1)</option>
+                                <option value="America/New_York">America/New_York (UTC-5)</option>
+                                <option value="Europe/London">Europe/London (UTC+0)</option>
+                                <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--gray-200);">
+                    <button type="submit" class="btn btn-success btn-lg" id="createBtn" disabled>
+                        <span>📅 Schedule Notification</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <script>
+            function toggleTargetFields() {
+                const targetType = document.getElementById('targetType').value;
+                const userField = document.getElementById('userField');
+                const segmentField = document.getElementById('segmentField');
+                const targetValue = document.getElementById('targetValue');
+                
+                userField.style.display = targetType === 'user' ? 'block' : 'none';
+                segmentField.style.display = targetType === 'segment' ? 'block' : 'none';
+                
+                if (targetType === 'all') {
+                    targetValue.required = false;
+                } else {
+                    targetValue.required = true;
+                }
+                
+                validateForm();
+            }
+            
+            function toggleRecurringFields() {
+                const recurring = document.getElementById('recurring').checked;
+                const recurringFields = document.getElementById('recurringFields');
+                const recurringPattern = document.getElementById('recurringPattern');
+                
+                recurringFields.style.display = recurring ? 'block' : 'none';
+                recurringPattern.required = recurring;
+                
+                validateForm();
+            }
+            
+            function updateCharCounter(inputId, counterId, maxLength) {
+                const input = document.getElementById(inputId);
+                const counter = document.getElementById(counterId);
+                const currentLength = input.value.length;
+                
+                counter.textContent = currentLength + '/' + maxLength + ' characters';
+                
+                if (currentLength > maxLength * 0.9) {
+                    counter.style.color = 'var(--danger)';
+                } else if (currentLength > maxLength * 0.8) {
+                    counter.style.color = 'var(--warning)';
+                } else {
+                    counter.style.color = 'var(--gray-500)';
+                }
+            }
+            
+            function validateForm() {
+                const title = document.getElementById('title').value.trim();
+                const message = document.getElementById('message').value.trim();
+                const scheduledDate = document.getElementById('scheduledDate').value;
+                const scheduledTime = document.getElementById('scheduledTime').value;
+                const targetType = document.getElementById('targetType').value;
+                const targetValue = document.getElementById('targetValue').value.trim();
+                const recurring = document.getElementById('recurring').checked;
+                const recurringPattern = document.getElementById('recurringPattern').value;
+                
+                let isValid = title.length > 0 && message.length > 0 && scheduledDate && scheduledTime;
+                
+                if (targetType !== 'all') {
+                    isValid = isValid && targetValue.length > 0;
+                }
+                
+                if (recurring) {
+                    isValid = isValid && recurringPattern;
+                }
+                
+                const createBtn = document.getElementById('createBtn');
+                createBtn.disabled = !isValid;
+            }
+            
+            // Initialize character counters
+            document.getElementById('title').addEventListener('input', function() {
+                updateCharCounter('title', 'titleCounter', 50);
+                validateForm();
+            });
+            
+            document.getElementById('message').addEventListener('input', function() {
+                updateCharCounter('message', 'messageCounter', 160);
+                validateForm();
+            });
+            
+            // Initialize other validations
+            ['scheduledDate', 'scheduledTime', 'targetValue', 'recurringPattern'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('input', validateForm);
+                    element.addEventListener('change', validateForm);
+                }
+            });
+            
+            document.getElementById('targetType').addEventListener('change', validateForm);
+            
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('scheduledDate').min = today;
+            
+            // Initialize form validation on page load
+            document.addEventListener('DOMContentLoaded', validateForm);
+        </script>
+    `;
+
+  res.send(getHtmlTemplate('Create Scheduled Notification', content, 'scheduled-notifications'));
+});
+
+// POST route to create scheduled notification
+app.post('/scheduled-notifications', async (req, res) => {
+  try {
+    const {
+      title,
+      message,
+      image,
+      targetType,
+      targetValue,
+      scheduledDate,
+      scheduledTime,
+      recurring,
+      recurringPattern,
+      endDate,
+      timezone
+    } = req.body;
+    
+    // Combine date and time
+    const scheduledDateTime = new Date(scheduledDate + 'T' + scheduledTime);
+    
+    // Adjust for timezone if provided
+    if (timezone && timezone !== 'UTC') {
+      // For simplicity, we'll store as UTC and handle timezone conversion in the scheduler
+      // In a production system, you'd want proper timezone handling
+    }
+    
+    const scheduledNotification = {
+      title: title.trim(),
+      message: message.trim(),
+      image: image ? image.trim() : null,
+      targetType,
+      targetValue: targetValue ? targetValue.trim() : null,
+      scheduledTime: scheduledDateTime,
+      recurring: recurring === 'on',
+      recurringPattern: recurring === 'on' ? recurringPattern : null,
+      endDate: endDate ? new Date(endDate) : null,
+      timezone: timezone || 'UTC',
+      status: 'pending',
+      createdAt: new Date(),
+      createdBy: 'admin' // In a real system, you'd get this from session/auth
+    };
+    
+    const docRef = await db.collection('scheduledNotifications').add(scheduledNotification);
+    
+    console.log('✅ Scheduled notification created:', docRef.id);
+    res.redirect('/scheduled-notifications');
+  } catch (error) {
+    console.error('❌ Error creating scheduled notification:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// View Scheduled Notification Details
+app.get('/scheduled-notifications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('scheduledNotifications').doc(id).get();
+    
+    if (!doc.exists) {
+      return res.send(getHtmlTemplate('Not Found', 
+        '<div class="content-card"><h2>Scheduled notification not found</h2><a href="/scheduled-notifications" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    const data = doc.data();
+    
+    let imageHtml = '';
+    if (data.image) {
+      imageHtml = `
+        <div class="form-group">
+            <label>Image</label>
+            <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                <img src="${data.image}" alt="Notification image" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                <br><small><a href="${data.image}" target="_blank">View full image</a></small>
+            </div>
+        </div>
+      `;
+    }
+    
+    let targetDisplay = 'All Users';
+    if (data.targetType === 'user') {
+      targetDisplay = 'User: ' + data.targetValue;
+    } else if (data.targetType === 'segment') {
+      targetDisplay = 'Segment: ' + data.targetValue;
+    }
+    
+    let statusBadge = '';
+    if (data.status === 'sent') {
+      statusBadge = '<span class="badge badge-success">Sent</span>';
+    } else if (data.status === 'pending') {
+      statusBadge = '<span class="badge badge-warning">Pending</span>';
+    } else if (data.status === 'failed') {
+      statusBadge = '<span class="badge badge-danger">Failed</span>';
+    } else if (data.status === 'cancelled') {
+      statusBadge = '<span class="badge badge-secondary">Cancelled</span>';
+    }
+    
+    let recurringHtml = '';
+    if (data.recurring) {
+      const endDateText = data.endDate ? 'until ' + formatDate(data.endDate) : '(indefinite)';
+      recurringHtml = `
+        <div class="form-group">
+            <label>Recurring</label>
+            <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                Yes - ${data.recurringPattern} ${endDateText}
+            </div>
+        </div>
+      `;
+    } else {
+      recurringHtml = `
+        <div class="form-group">
+            <label>Recurring</label>
+            <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">No</div>
+        </div>
+      `;
+    }
+    
+    let sentAtHtml = '';
+    if (data.sentAt) {
+      sentAtHtml = `
+        <div class="form-group">
+            <label>Sent At</label>
+            <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                ${formatDate(data.sentAt)}
+            </div>
+        </div>
+      `;
+    }
+    
+    const content = `
+        <div class="top-bar">
+            <div class="page-title">
+                <h2>Scheduled Notification Details</h2>
+            </div>
+            <div class="top-bar-actions">
+                <a href="/scheduled-notifications" class="btn btn-secondary">
+                    <span>← Back to Scheduled Notifications</span>
+                </a>
+                <a href="/scheduled-notifications/${id}/edit" class="btn btn-primary">
+                    <span>Edit</span>
+                </a>
+            </div>
+        </div>
+        
+        <div class="content-card">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div>
+                    <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Notification Details</h3>
+                    
+                    <div class="form-group">
+                        <label>Title</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">${data.title}</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Message</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px; white-space: pre-wrap;">${data.message}</div>
+                    </div>
+                    
+                    ${imageHtml}
+                    
+                    <div class="form-group">
+                        <label>Target Audience</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                            ${targetDisplay}
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Schedule Information</h3>
+                    
+                    <div class="form-group">
+                        <label>Scheduled Time</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                            ${formatDate(data.scheduledTime)}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                            ${statusBadge}
+                        </div>
+                    </div>
+                    
+                    ${recurringHtml}
+                    
+                    <div class="form-group">
+                        <label>Created</label>
+                        <div style="padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                            ${formatDate(data.createdAt)}
+                        </div>
+                    </div>
+                    
+                    ${sentAtHtml}
+                </div>
+            </div>
+        </div>
+    `;
+
+    res.send(getHtmlTemplate('Scheduled Notification Details', content, 'scheduled-notifications'));
+  } catch (error) {
+    console.error('❌ Error loading scheduled notification:', error);
+    res.send(getHtmlTemplate('Error', 
+      '<div class="content-card"><h2>Error loading notification</h2><p>' + error.message + '</p><a href="/scheduled-notifications" class="btn btn-primary">Back</a></div>',
+      'scheduled-notifications'));
+  }
+});
+
+// Edit Scheduled Notification Page
+app.get('/scheduled-notifications/:id/edit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('scheduledNotifications').doc(id).get();
+    
+    if (!doc.exists) {
+      return res.send(getHtmlTemplate('Not Found', 
+        '<div class="content-card"><h2>Scheduled notification not found</h2><a href="/scheduled-notifications" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    const data = doc.data();
+    const scheduledDateTime = data.scheduledTime?.toDate ? data.scheduledTime.toDate() : new Date(data.scheduledTime);
+    const dateStr = scheduledDateTime.toISOString().split('T')[0];
+    const timeStr = scheduledDateTime.toTimeString().slice(0, 5);
+    
+    const content = `
+        <div class="top-bar">
+            <div class="page-title">
+                <h2>Edit Scheduled Notification</h2>
+            </div>
+            <div class="top-bar-actions">
+                <a href="/scheduled-notifications/${id}" class="btn btn-secondary">
+                    <span>← Back to Details</span>
+                </a>
+            </div>
+        </div>
+        
+        <div class="content-card">
+            <form method="POST" action="/scheduled-notifications/${id}" id="editForm">
+                <input type="hidden" name="_method" value="PUT">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Notification Details</h3>
+                        
+                        <div class="form-group">
+                            <label for="title">Title *</label>
+                            <input type="text" id="title" name="title" maxlength="50" required value="${data.title || ''}">
+                            <small class="char-counter" id="titleCounter">${(data.title || '').length}/50 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="message">Message *</label>
+                            <textarea id="message" name="message" maxlength="160" required rows="4">${data.message || ''}</textarea>
+                            <small class="char-counter" id="messageCounter">${(data.message || '').length}/160 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="image">Image URL (optional)</label>
+                            <input type="url" id="image" name="image" value="${data.image || ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="targetType">Target Audience *</label>
+                            <select id="targetType" name="targetType" required onchange="toggleTargetFields()">
+                                <option value="all" ${data.targetType === 'all' ? 'selected' : ''}>All Users</option>
+                                <option value="user" ${data.targetType === 'user' ? 'selected' : ''}>Specific User</option>
+                                <option value="segment" ${data.targetType === 'segment' ? 'selected' : ''}>User Segment</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="userField" style="${data.targetType === 'user' ? 'display: block;' : 'display: none;'}">
+                            <label for="targetValue">User ID *</label>
+                            <input type="text" id="targetValue" name="targetValue" value="${data.targetValue || ''}">
+                        </div>
+                        
+                        <div class="form-group" id="segmentField" style="${data.targetType === 'segment' ? 'display: block;' : 'display: none;'}">
+                            <label for="targetValue">Segment Name *</label>
+                            <input type="text" id="targetValue" name="targetValue" value="${data.targetValue || ''}">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Schedule Settings</h3>
+                        
+                        <div class="form-group">
+                            <label for="scheduledDate">Scheduled Date *</label>
+                            <input type="date" id="scheduledDate" name="scheduledDate" required value="${dateStr}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scheduledTime">Scheduled Time *</label>
+                            <input type="time" id="scheduledTime" name="scheduledTime" required value="${timeStr}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="recurring" name="recurring" ${data.recurring ? 'checked' : ''} onchange="toggleRecurringFields()">
+                                Recurring Notification
+                            </label>
+                        </div>
+                        
+                        <div id="recurringFields" style="${data.recurring ? 'display: block;' : 'display: none;'}">
+                            <div class="form-group">
+                                <label for="recurringPattern">Recurring Pattern *</label>
+                                <select id="recurringPattern" name="recurringPattern">
+                                    <option value="daily" ${data.recurringPattern === 'daily' ? 'selected' : ''}>Daily</option>
+                                    <option value="weekly" ${data.recurringPattern === 'weekly' ? 'selected' : ''}>Weekly</option>
+                                    <option value="monthly" ${data.recurringPattern === 'monthly' ? 'selected' : ''}>Monthly</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="endDate">End Date (optional)</label>
+                                <input type="date" id="endDate" name="endDate" value="${data.endDate ? (data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate)).toISOString().split('T')[0] : ''}">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status" name="status">
+                                <option value="pending" ${data.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                <option value="cancelled" ${data.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--gray-200);">
+                    <button type="submit" class="btn btn-success btn-lg" id="updateBtn">
+                        <span>💾 Update Notification</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <script>
+            function toggleTargetFields() {
+                const targetType = document.getElementById('targetType').value;
+                const userField = document.getElementById('userField');
+                const segmentField = document.getElementById('segmentField');
+                const targetValue = document.getElementById('targetValue');
+                
+                userField.style.display = targetType === 'user' ? 'block' : 'none';
+                segmentField.style.display = targetType === 'segment' ? 'block' : 'none';
+                
+                if (targetType === 'all') {
+                    targetValue.required = false;
+                } else {
+                    targetValue.required = true;
+                }
+            }
+            
+            function toggleRecurringFields() {
+                const recurring = document.getElementById('recurring').checked;
+                const recurringFields = document.getElementById('recurringFields');
+                const recurringPattern = document.getElementById('recurringPattern');
+                
+                recurringFields.style.display = recurring ? 'block' : 'none';
+                recurringPattern.required = recurring;
+            }
+            
+            function updateCharCounter(inputId, counterId, maxLength) {
+                const input = document.getElementById(inputId);
+                const counter = document.getElementById(counterId);
+                const currentLength = input.value.length;
+                
+                counter.textContent = currentLength + '/' + maxLength + ' characters';
+                
+                if (currentLength > maxLength * 0.9) {
+                    counter.style.color = 'var(--danger)';
+                } else if (currentLength > maxLength * 0.8) {
+                    counter.style.color = 'var(--warning)';
+                } else {
+                    counter.style.color = 'var(--gray-500)';
+                }
+            }
+            
+            // Initialize character counters
+            document.getElementById('title').addEventListener('input', function() {
+                updateCharCounter('title', 'titleCounter', 50);
+            });
+            
+            document.getElementById('message').addEventListener('input', function() {
+                updateCharCounter('message', 'messageCounter', 160);
+            });
+            
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                toggleTargetFields();
+                toggleRecurringFields();
+            });
+        </script>
+    `;
+
+    res.send(getHtmlTemplate('Edit Scheduled Notification', content, 'scheduled-notifications'));
+  } catch (error) {
+    console.error('❌ Error loading edit form:', error);
+    res.send(getHtmlTemplate('Error', 
+      '<div class="content-card"><h2>Error loading edit form</h2><p>' + error.message + '</p><a href="/scheduled-notifications" class="btn btn-primary">Back</a></div>',
+      'scheduled-notifications'));
+  }
+});
+
+// PUT route to update scheduled notification
+app.post('/scheduled-notifications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { _method, ...updateData } = req.body;
+    
+    if (_method !== 'PUT') {
+      return res.status(400).json({ success: false, error: 'Invalid method' });
+    }
+    
+    const {
+      title,
+      message,
+      image,
+      targetType,
+      targetValue,
+      scheduledDate,
+      scheduledTime,
+      recurring,
+      recurringPattern,
+      endDate,
+      status
+    } = updateData;
+    
+    // Validate required fields
+    if (!title || !message || !targetType || !scheduledDate || !scheduledTime) {
+      return res.send(getHtmlTemplate('Validation Error', 
+        '<div class="content-card"><h2>Validation Error</h2><p>All required fields must be filled.</p><a href="javascript:history.back()" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    // Validate target value for specific targets
+    if (targetType !== 'all' && !targetValue) {
+      return res.send(getHtmlTemplate('Validation Error', 
+        '<div class="content-card"><h2>Validation Error</h2><p>Target value is required for specific user or segment notifications.</p><a href="javascript:history.back()" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    // Combine date and time
+    const scheduledDateTime = new Date(scheduledDate + 'T' + scheduledTime);
+    
+    if (isNaN(scheduledDateTime.getTime())) {
+      return res.send(getHtmlTemplate('Validation Error', 
+        '<div class="content-card"><h2>Validation Error</h2><p>Invalid scheduled date/time.</p><a href="javascript:history.back()" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    // Check if notification exists
+    const docRef = db.collection('scheduledNotifications').doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.send(getHtmlTemplate('Not Found', 
+        '<div class="content-card"><h2>Scheduled notification not found</h2><a href="/scheduled-notifications" class="btn btn-primary">Back</a></div>',
+        'scheduled-notifications'));
+    }
+    
+    const updatedNotification = {
+      title: title.trim(),
+      message: message.trim(),
+      image: image ? image.trim() : null,
+      targetType,
+      targetValue: targetType !== 'all' ? targetValue.trim() : null,
+      scheduledTime: scheduledDateTime,
+      recurring: recurring === 'on',
+      recurringPattern: recurring === 'on' ? recurringPattern : null,
+      endDate: (recurring === 'on' && endDate) ? new Date(endDate) : null,
+      status: status || 'pending',
+      updatedAt: new Date()
+    };
+    
+    await docRef.update(updatedNotification);
+    
+    console.log('✅ Scheduled notification updated:', id);
+    res.redirect(`/scheduled-notifications/${id}?updated=true`);
+  } catch (error) {
+    console.error('❌ Error updating scheduled notification:', error);
+    res.send(getHtmlTemplate('Error', 
+      '<div class="content-card"><h2>Error updating notification</h2><p>' + error.message + '</p><a href="javascript:history.back()" class="btn btn-primary">Back</a></div>',
+      'scheduled-notifications'));
+  }
+});
+
+// DELETE route to delete scheduled notification
+app.delete('/scheduled-notifications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await db.collection('scheduledNotifications').doc(id).delete();
+    
+    console.log('✅ Scheduled notification deleted:', id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting scheduled notification:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/notifications/broadcast', async (req, res) => {
   try {
-    const {title, body} = req.body;
+    const {title, body, image} = req.body;
 
     if (!title || !body) {
       return res.send(
@@ -3092,10 +4792,12 @@ app.post('/notifications/broadcast', async (req, res) => {
           notification: {
             title,
             body,
+            ...(image && { imageUrl: image }),
           },
           data: {
             type: 'admin_broadcast',
             sentAt: new Date().toISOString(),
+            ...(image && { imageUrl: image }),
           },
           android: {
             priority: 'high',
@@ -3103,6 +4805,7 @@ app.post('/notifications/broadcast', async (req, res) => {
               channelId: 'admin_broadcast',
               icon: 'ic_notification',
               color: '#10b981',
+              ...(image && { imageUrl: image }),
             },
           },
           apns: {
@@ -3110,7 +4813,11 @@ app.post('/notifications/broadcast', async (req, res) => {
               aps: {
                 badge: 1,
                 sound: 'default',
+                ...(image && { 'mutable-content': 1 }),
               },
+            },
+            fcm_options: {
+              image: image,
             },
           },
         });
@@ -3182,6 +4889,12 @@ app.post('/notifications/broadcast', async (req, res) => {
                         <span style="color: var(--gray-600); font-size: 0.875rem; display: block; margin-bottom: 0.5rem;"><i class="fas fa-align-left" style="margin-right: 0.5rem;"></i>Message</span>
                         <p style="margin: 0; color: var(--gray-700);">${body}</p>
                     </div>
+                    ${image ? `
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
+                        <span style="color: var(--gray-600); font-size: 0.875rem;"><i class="fas fa-image" style="margin-right: 0.5rem;"></i>Image</span>
+                        <a href="${image}" target="_blank" style="color: var(--primary-600); text-decoration: none;">View Image</a>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
             
@@ -3220,7 +4933,7 @@ app.post('/notifications/broadcast', async (req, res) => {
 
 app.post('/notifications/user', async (req, res) => {
   try {
-    const {userId, title, body} = req.body;
+    const {userId, title, body, image} = req.body;
 
     if (!userId || !title || !body) {
       return res.send(
@@ -3282,10 +4995,12 @@ app.post('/notifications/user', async (req, res) => {
       notification: {
         title,
         body,
+        ...(image && { imageUrl: image }),
       },
       data: {
         type: 'admin_broadcast',
         sentAt: new Date().toISOString(),
+        ...(image && { imageUrl: image }),
       },
       android: {
         priority: 'high',
@@ -3293,6 +5008,7 @@ app.post('/notifications/user', async (req, res) => {
           channelId: 'admin_broadcast',
           icon: 'ic_notification',
           color: '#10b981',
+          ...(image && { imageUrl: image }),
         },
       },
       apns: {
@@ -3300,7 +5016,11 @@ app.post('/notifications/user', async (req, res) => {
           aps: {
             badge: 1,
             sound: 'default',
+            ...(image && { 'mutable-content': 1 }),
           },
+        },
+        fcm_options: {
+          image: image,
         },
       },
     });
@@ -3336,6 +5056,12 @@ app.post('/notifications/user', async (req, res) => {
                         <span style="color: var(--gray-600); font-size: 0.875rem; display: block; margin-bottom: 0.5rem;"><i class="fas fa-align-left" style="margin-right: 0.5rem;"></i>Message</span>
                         <p style="margin: 0; color: var(--gray-700);">${body}</p>
                     </div>
+                    ${image ? `
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
+                        <span style="color: var(--gray-600); font-size: 0.875rem;"><i class="fas fa-image" style="margin-right: 0.5rem;"></i>Image</span>
+                        <a href="${image}" target="_blank" style="color: var(--primary-600); text-decoration: none;">View Image</a>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
             

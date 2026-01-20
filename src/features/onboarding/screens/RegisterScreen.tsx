@@ -434,18 +434,29 @@ export function RegisterScreen() {
       
       const result = await smsService.sendOTP(formattedPhone, selectedCountry.alpha2, 'fr');
       
-      if (result.success && result.sessionId) {
-        console.log('✅ OTP sent, session ID:', result.sessionId);
-        setSessionId(result.sessionId);
-        setCurrentStep('step2');
-        
-        // Show info for test numbers
-        if (formattedPhone.includes('999999')) {
-          showToast('Numéro de test détecté. Utilisez le code: 123456', 'info', 5000);
+      if (result.success) {
+        // Check if OTP was skipped for non-Congo numbers
+        if (result.skipped) {
+          console.log('⏭️ OTP skipped for non-Congo number, proceeding to password step');
+          // Set a dummy verification token for non-Congo numbers
+          setVerificationToken('non-congo-verified');
+          setCurrentStep('step3'); // Skip OTP step, go directly to password
+          showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
+        } else if (result.sessionId) {
+          console.log('✅ OTP sent, session ID:', result.sessionId);
+          setSessionId(result.sessionId);
+          setCurrentStep('step2');
+          
+          // Show info for test numbers
+          if (formattedPhone.includes('999999')) {
+            showToast('Numéro de test détecté. Utilisez le code: 123456', 'info', 5000);
+          }
+          
+          // Start resend cooldown
+          setResendCooldown(60);
+        } else {
+          throw new Error('Invalid OTP response');
         }
-        
-        // Start resend cooldown
-        setResendCooldown(60);
       } else {
         throw new Error(result.error || 'Échec de l\'envoi du code');
       }
@@ -616,7 +627,18 @@ export function RegisterScreen() {
           console.log('📱 [RegisterScreen] OTP result:', {
             success: otpResult.success,
             hasSessionId: !!otpResult.sessionId,
+            skipped: otpResult.skipped,
           });
+
+          // Check if OTP was skipped for non-Congo numbers
+          if (otpResult.success && otpResult.skipped) {
+            console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
+            setSocialLoading(null);
+            enableAuthListener();
+            setSocialUser(userCredential);
+            showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
+            return;
+          }
 
           if (otpResult.success && otpResult.sessionId) {
             setSocialLoading(null);
@@ -643,8 +665,9 @@ export function RegisterScreen() {
       // User has verified phone - complete sign-in
       console.log('✅ [RegisterScreen] Completing Google sign-in with verified phone');
       enableAuthListener();
+      setSocialUser(userCredential);
       setSocialLoading(null);
-      // Navigation handled by auth state change
+      console.log('✅ Google sign-in completed, user set in context');
     } catch (err: any) {
       console.error('❌ [RegisterScreen] Google sign-in error:', err);
       enableAuthListener();
@@ -719,7 +742,18 @@ export function RegisterScreen() {
           console.log('📱 [RegisterScreen] OTP result:', {
             success: otpResult.success,
             hasSessionId: !!otpResult.sessionId,
+            skipped: otpResult.skipped,
           });
+
+          // Check if OTP was skipped for non-Congo numbers
+          if (otpResult.success && otpResult.skipped) {
+            console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
+            setSocialLoading(null);
+            enableAuthListener();
+            setSocialUser(userCredential);
+            showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
+            return;
+          }
 
           if (otpResult.success && otpResult.sessionId) {
             setSocialLoading(null);
@@ -746,8 +780,9 @@ export function RegisterScreen() {
       // User has verified phone - complete sign-in
       console.log('✅ [RegisterScreen] Completing Apple sign-in with verified phone');
       enableAuthListener();
+      setSocialUser(userCredential);
       setSocialLoading(null);
-      // Navigation handled by auth state change
+      console.log('✅ Apple sign-in completed, user set in context');
     } catch (err: any) {
       console.error('❌ [RegisterScreen] Apple sign-in error:', err);
       enableAuthListener();
@@ -761,47 +796,65 @@ export function RegisterScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}>
-              <Icon name="arrow-left" size="md" color={Colors.text.primary} />
-            </TouchableOpacity>
-            
-            <View style={styles.logoContainer}>
-              <Icon
-                name="user-plus"
-                size="3xl"
-                color={Colors.accent}
-              />
-            </View>
-            <Text style={styles.title}>Créer un compte</Text>
-            <Text style={styles.subtitle}>
-              {currentStep === 'step1' 
-                ? 'Commençons par vos informations de base'
-                : currentStep === 'step2'
-                ? 'Vérifiez votre numéro de téléphone'
-                : 'Sécurisez votre compte'
+        {/* Header - Fixed at top, outside ScrollView */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (currentStep === 'step3') {
+                // Step 3: Go back to step 2
+                setCurrentStep('step2');
+                setPassword('');
+                setConfirmPassword('');
+                setPasswordError('');
+                setConfirmPasswordError('');
+              } else if (currentStep === 'step2') {
+                // Step 2: Go back to step 1
+                setCurrentStep('step1');
+                setOtp(['', '', '', '', '', '']);
+                setOtpError('');
+              } else {
+                // Step 1: Go back to previous screen
+                navigation.goBack();
               }
-            </Text>
-            
-            {/* Progress indicator */}
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressStep, currentStep === 'step1' && styles.progressStepActive]}>
-                <Text style={[styles.progressStepText, currentStep === 'step1' && styles.progressStepTextActive]}>1</Text>
-              </View>
-              <View style={[styles.progressLine, (currentStep === 'step2' || currentStep === 'step3') && styles.progressLineActive]} />
-              <View style={[styles.progressStep, currentStep === 'step2' && styles.progressStepActive]}>
-                <Text style={[styles.progressStepText, currentStep === 'step2' && styles.progressStepTextActive]}>2</Text>
-              </View>
-              <View style={[styles.progressLine, currentStep === 'step3' && styles.progressLineActive]} />
-              <View style={[styles.progressStep, currentStep === 'step3' && styles.progressStepActive]}>
-                <Text style={[styles.progressStepText, currentStep === 'step3' && styles.progressStepTextActive]}>3</Text>
-              </View>
+            }}>
+            <Icon name="arrow-left" size="md" color={Colors.text.primary} />
+          </TouchableOpacity>
+          
+          <View style={styles.logoContainer}>
+            <Icon
+              name="user-plus"
+              size="3xl"
+              color={Colors.accent}
+            />
+          </View>
+          <Text style={styles.title}>Créer un compte</Text>
+          <Text style={styles.subtitle}>
+            {currentStep === 'step1' 
+              ? 'Commençons par vos informations de base'
+              : currentStep === 'step2'
+              ? 'Vérifiez votre numéro de téléphone'
+              : 'Sécurisez votre compte'
+            }
+          </Text>
+          
+          {/* Progress indicator */}
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressStep, currentStep === 'step1' && styles.progressStepActive]}>
+              <Text style={[styles.progressStepText, currentStep === 'step1' && styles.progressStepTextActive]}>1</Text>
+            </View>
+            <View style={[styles.progressLine, (currentStep === 'step2' || currentStep === 'step3') && styles.progressLineActive]} />
+            <View style={[styles.progressStep, currentStep === 'step2' && styles.progressStepActive]}>
+              <Text style={[styles.progressStepText, currentStep === 'step2' && styles.progressStepTextActive]}>2</Text>
+            </View>
+            <View style={[styles.progressLine, currentStep === 'step3' && styles.progressLineActive]} />
+            <View style={[styles.progressStep, currentStep === 'step3' && styles.progressStepActive]}>
+              <Text style={[styles.progressStepText, currentStep === 'step3' && styles.progressStepTextActive]}>3</Text>
             </View>
           </View>
+        </View>
+        
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
           {/* Step 1: Phone and City */}
           {currentStep === 'step1' && (
@@ -985,26 +1038,6 @@ export function RegisterScreen() {
           {/* Step 3: Password and Terms */}
           {currentStep === 'step3' && (
             <View style={styles.form}>
-              {/* Header with Back Button */}
-              <View style={styles.stepHeader}>
-                <BackButton
-                  onPress={() => {
-                    setCurrentStep('step2');
-                    setPassword('');
-                    setConfirmPassword('');
-                    setPasswordError('');
-                    setConfirmPasswordError('');
-                  }}
-                  style={styles.backButton}
-                />
-                <View style={styles.stepHeaderContent}>
-                  <Text style={styles.stepTitle}>Créer un mot de passe</Text>
-                  <Text style={styles.stepSubtitle}>
-                    Sécurisez votre compte avec un mot de passe fort
-                  </Text>
-                </View>
-              </View>
-
               {/* Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Mot de passe *</Text>

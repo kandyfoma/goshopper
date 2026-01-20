@@ -213,7 +213,7 @@ export function ReceiptDetailScreen() {
   };
 
   const handleCompare = () => {
-    navigation.push('PriceComparison', {receiptId});
+    navigation.navigate('Main', {screen: 'Items', params: {screen: 'ItemsMain'}});
   };
 
   if (loading) {

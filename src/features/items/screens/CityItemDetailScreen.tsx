@@ -37,7 +37,7 @@ interface CityItemDetailData {
     storeName: string;
     originalName?: string;
     price: number;
-    currency: 'USD' | 'CDF';
+    currency: string;
     date: Date | any;
     userId: string;
     receiptId?: string;
@@ -46,7 +46,7 @@ interface CityItemDetailData {
   maxPrice: number;
   avgPrice: number;
   storeCount: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
   userCount: number;
   totalPurchases: number;
   lastPurchaseDate: Date;
@@ -299,7 +299,7 @@ export const CityItemDetailScreen: React.FC = () => {
                     <View style={styles.priceHistoryDot} />
                     <View style={styles.priceHistoryLeft}>
                       <Text style={styles.priceHistoryDate}>
-                        {formatDate(price.date)}
+                        {createdDate ? formatDate(createdDate) : formatDate(price.date)}
                       </Text>
                       {price.originalName && price.originalName !== item.name && (
                         <Text style={styles.priceHistoryOriginalName}>
@@ -308,7 +308,7 @@ export const CityItemDetailScreen: React.FC = () => {
                       )}
                     </View>
                     <Text style={styles.priceHistoryValue}>
-                      {formatCurrency(price.price, price.currency as 'USD' | 'CDF')}
+                      {formatCurrency(price.price, price.currency)}
                     </Text>
                   </View>
                 ))}
@@ -331,14 +331,14 @@ export const CityItemDetailScreen: React.FC = () => {
               <View key={index} style={styles.historyItem}>
                 <View style={styles.historyLeft}>
                   <Text style={styles.historyDate}>
-                    {formatDate(safeToDate(price.date))}
+                    {createdDate ? formatDate(createdDate) : formatDate(safeToDate(price.date))}
                   </Text>
                   <Text style={styles.historyStore} numberOfLines={1}>
                     {price.storeName}
                   </Text>
                 </View>
                 <Text style={styles.historyPrice}>
-                  {formatCurrency(price.price, price.currency as 'USD' | 'CDF')}
+                  {formatCurrency(price.price, price.currency)}
                 </Text>
               </View>
             ))}

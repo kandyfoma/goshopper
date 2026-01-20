@@ -633,7 +633,8 @@ export function CityItemsScreen() {
                     <Text style={styles.storeDate}>
                       {(() => {
                         try {
-                          const date = priceData.date;
+                          // Use item creation date if available, otherwise use price date
+                          const date = item.createdAt || priceData.date;
                           if (!date) {
                             return 'Date inconnue';
                           }
@@ -950,7 +951,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
     position: 'relative',
-    zIndex: 1000,
+    zIndex: 10000,
+    elevation: 15,
     ...Shadows.sm,
   },
   headerContent: {
@@ -1005,8 +1007,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.light,
     ...Shadows.lg,
-    zIndex: 9999,
-    elevation: 10,
+    zIndex: 99999,
+    elevation: 20,
   },
   sortOption: {
     flexDirection: 'row',

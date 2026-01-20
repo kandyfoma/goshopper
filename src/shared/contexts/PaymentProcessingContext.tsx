@@ -15,6 +15,7 @@ import firebase from '@react-native-firebase/app';
 import '@react-native-firebase/functions';
 import {subscriptionService} from '@/shared/services/firebase';
 import {notificationActionsService} from '@/shared/services/notificationActions';
+import {formatCurrency} from '@/shared/utils/helpers';
 
 const PAYMENT_PROCESSING_KEY = '@goshopperai/payment_processing_state';
 
@@ -27,6 +28,7 @@ interface PaymentProcessingState {
   phoneNumber: string;
   planId: string;
   planName: string;
+  currency: string;
   message: string;
   error?: string;
   isScanPack?: boolean;
@@ -43,6 +45,7 @@ interface PaymentProcessingContextType {
     phoneNumber: string;
     planId: string;
     planName: string;
+    currency: string;
     isScanPack?: boolean;
     scanPackId?: string;
   }) => void;
@@ -73,6 +76,7 @@ const defaultState: PaymentProcessingState = {
   phoneNumber: '',
   planId: '',
   planName: '',
+  currency: 'USD',
   message: '',
 };
 
@@ -139,6 +143,7 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
     phoneNumber: string;
     planId: string;
     planName: string;
+    currency: string;
     isScanPack?: boolean;
     scanPackId?: string;
   }) => {
@@ -151,6 +156,7 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
       phoneNumber: params.phoneNumber,
       planId: params.planId,
       planName: params.planName,
+      currency: params.currency,
       isScanPack: params.isScanPack,
       scanPackId: params.scanPackId,
       message: 'Demande envoyée à l\'opérateur...',
@@ -169,6 +175,7 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
     // Get state values before updating
     const currentPlanName = state.planName;
     const currentAmount = state.amount;
+    const currentCurrency = state.currency;
     const currentIsScanPack = state.isScanPack;
     
     const successMessage = message || 'Paiement réussi!';
@@ -180,21 +187,18 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
 
     // Send local push notification with subscription details
     try {
-      // Format amount
-      const formattedAmount = currentAmount.toLocaleString('fr-FR', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      });
+      // Format amount with user's currency
+      const formattedAmount = formatCurrency(currentAmount, currentCurrency);
       
       let notifTitle = '✅ Paiement réussi';
       let notifBody = successMessage;
       
       if (currentIsScanPack) {
         notifTitle = '✅ Scans bonus ajoutés!';
-        notifBody = `${currentPlanName} • ${formattedAmount} CDF`;
+        notifBody = `${currentPlanName} • ${formattedAmount}`;
       } else if (currentPlanName) {
         notifTitle = `✅ Abonnement ${currentPlanName}`;
-        notifBody = `Activé • ${formattedAmount} CDF`;
+        notifBody = `Activé • ${formattedAmount}`;
       }
       
       await notificationActionsService.displayPaymentNotification({
@@ -205,12 +209,13 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
     } catch (error) {
       console.error('Error sending payment success notification:', error);
     }
-  }, [state.planName, state.amount, state.isScanPack, state.transactionId]);
+  }, [state.planName, state.amount, state.currency, state.isScanPack, state.transactionId]);
   
   const setFailed = useCallback(async (error: string) => {
     // Get state values before updating
     const currentPlanName = state.planName;
     const currentAmount = state.amount;
+    const currentCurrency = state.currency;
     
     setState(prev => ({
       ...prev,
@@ -221,20 +226,17 @@ export function PaymentProcessingProvider({children}: PaymentProcessingProviderP
 
     // Send local push notification for failure with details
     try {
-      const formattedAmount = currentAmount.toLocaleString('fr-FR', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      });
+      const formattedAmount = formatCurrency(currentAmount, currentCurrency);
       
       await notificationActionsService.displayPaymentNotification({
         title: '❌ Paiement échoué',
-        body: currentPlanName ? `${currentPlanName} • ${formattedAmount} CDF` : error,
+        body: currentPlanName ? `${currentPlanName} • ${formattedAmount}` : error,
         transactionId: state.transactionId || undefined,
       });
     } catch (notifError) {
       console.error('Error sending payment failure notification:', notifError);
     }
-  }, [state.planName, state.amount, state.transactionId]);
+  }, [state.planName, state.amount, state.currency, state.transactionId]);
   
   const dismiss = useCallback(() => {
     // Clean up polling

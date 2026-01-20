@@ -14,6 +14,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from './Icon';
 import {Colors, Typography, Spacing, Shadows} from '@/shared/theme/theme';
 import {usePaymentProcessing} from '@/shared/contexts/PaymentProcessingContext';
+import {formatCurrency} from '@/shared/utils/helpers';
 
 const {width} = Dimensions.get('window');
 
@@ -131,7 +132,7 @@ export function GlobalPaymentProgressBanner() {
     if (state.message) return state.message;
     if (isSuccess) return `Abonnement ${state.planName} activé`;
     if (isFailed) return 'Veuillez réessayer';
-    return `${state.planName} - $${state.amount}`;
+    return `${state.planName} - ${formatCurrency(state.amount, state.currency)}`;
   };
   
   return (

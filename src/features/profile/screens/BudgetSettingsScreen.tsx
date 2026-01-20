@@ -1,6 +1,6 @@
 // Budget Settings Screen - Urbanist Design System
 // GoShopper - Soft Pastel Colors with Clean Typography
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import {
   Shadows,
 } from '@/shared/theme/theme';
 import {Icon, Button} from '@/shared/components';
-import {formatCurrency} from '@/shared/utils/helpers';
+import {formatCurrency, getCurrencyForCountry} from '@/shared/utils/helpers';
 import {analyticsService} from '@/shared/services/analytics';
 import {
   getCurrentMonthBudget,
@@ -43,13 +43,13 @@ export function BudgetSettingsScreen() {
 
   const [budgetAmount, setBudgetAmount] = useState('');
   const [defaultBudget, setDefaultBudget] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'CDF'>(
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(
     'USD',
   );
   const [isLoading, setIsLoading] = useState(false);
   const [currentMonthBudget, setCurrentMonthBudget] = useState<{
     amount: number;
-    currency: 'USD' | 'CDF';
+    currency: string;
     isCustom: boolean;
   } | null>(null);
   const [budgetHistory, setBudgetHistory] = useState<MonthlyBudget[]>([]);
@@ -69,7 +69,13 @@ export function BudgetSettingsScreen() {
   // Initialize from profile
   useEffect(() => {
     if (profile) {
-      setSelectedCurrency(profile.preferredCurrency || 'USD');
+      // For Congo users, allow currency selection between USD and CDF
+      // For other users, use their country's currency
+      const userCurrency = profile.countryCode === 'CD' 
+        ? (profile.preferredCurrency || 'USD')
+        : (profile.preferredCurrency || 'USD');
+      setSelectedCurrency(userCurrency);
+      
       // Set default budget from new field or legacy field
       const defBudget = profile.defaultMonthlyBudget || profile.monthlyBudget || 0;
       setDefaultBudget(defBudget > 0 ? defBudget.toString() : '');
@@ -164,10 +170,41 @@ export function BudgetSettingsScreen() {
     }
   };
 
-  const currencies = [
-    {code: 'USD' as const, name: 'Dollar Américain (USD)', symbol: '$'},
-    {code: 'CDF' as const, name: 'Franc Congolais (CDF)', symbol: 'FC'},
-  ];
+  const currencies = useMemo(() => {
+    const userCurrency = profile?.preferredCurrency || 'USD';
+    const userCountry = profile?.countryCode;
+    
+    // If user is from Congo (CD), show both USD and CDF
+    if (userCountry === 'CD') {
+      return [
+        {code: 'USD' as const, name: 'Dollar Américain (USD)', symbol: '$'},
+        {code: 'CDF' as const, name: 'Franc Congolais (CDF)', symbol: 'FC'},
+      ];
+    }
+    
+    // For other countries, show only their country's currency
+    const currencyMap: Record<string, {name: string; symbol: string}> = {
+      'USD': {name: 'Dollar Américain (USD)', symbol: '$'},
+      'EUR': {name: 'Euro (EUR)', symbol: '€'},
+      'GBP': {name: 'Livre Sterling (GBP)', symbol: '£'},
+      'CDF': {name: 'Franc Congolais (CDF)', symbol: 'FC'},
+      'ZAR': {name: 'Rand Sud-Africain (ZAR)', symbol: 'R'},
+      'NGN': {name: 'Naira Nigérian (NGN)', symbol: '₦'},
+      'KES': {name: 'Shilling Kényan (KES)', symbol: 'KSh'},
+      'TZS': {name: 'Shilling Tanzanien (TZS)', symbol: 'TSh'},
+      'UGX': {name: 'Shilling Ougandais (UGX)', symbol: 'USh'},
+      'GHS': {name: 'Cedi Ghanéen (GHS)', symbol: 'GH₵'},
+      'XAF': {name: 'Franc CFA (XAF)', symbol: 'FCFA'},
+      'XOF': {name: 'Franc CFA (XOF)', symbol: 'CFA'},
+    };
+    
+    const currencyInfo = currencyMap[userCurrency] || currencyMap['USD'];
+    return [{
+      code: userCurrency as any,
+      name: currencyInfo.name,
+      symbol: currencyInfo.symbol,
+    }];
+  }, [profile?.countryCode, profile?.preferredCurrency]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -248,44 +285,61 @@ export function BudgetSettingsScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Devise</Text>
               <Text style={styles.sectionSubtitle}>
-                Choisissez la devise pour vos budgets
+                {profile?.countryCode === 'CD' 
+                  ? 'Choisissez la devise pour vos budgets'
+                  : 'Devise basée sur votre pays'
+                }
               </Text>
 
-          <View style={styles.currencyOptions}>
-            {currencies.map(currency => (
-              <TouchableOpacity
-                key={currency.code}
-                style={[
-                  styles.currencyOption,
-                  selectedCurrency === currency.code &&
-                    styles.currencyOptionSelected,
-                ]}
-                onPress={() => setSelectedCurrency(currency.code)}>
-                <View style={styles.currencyOptionContent}>
-                  <Text style={[
-                    styles.currencySymbol,
-                    selectedCurrency === currency.code && {color: Colors.text.inverse}
-                  ]}>{currency.symbol}</Text>
-                  <View style={styles.currencyInfo}>
-                    <Text style={[
-                      styles.currencyName,
-                      selectedCurrency === currency.code && {color: Colors.text.inverse}
-                    ]}>{currency.name}</Text>
-                    <Text style={[
-                      styles.currencyCode,
-                      selectedCurrency === currency.code && {color: Colors.text.inverse}
-                    ]}>{currency.code}</Text>
-                  </View>
+              {profile?.countryCode === 'CD' ? (
+                <View style={styles.currencyOptions}>
+                  {currencies.map(currency => (
+                    <TouchableOpacity
+                      key={currency.code}
+                      style={[
+                        styles.currencyOption,
+                        selectedCurrency === currency.code &&
+                          styles.currencyOptionSelected,
+                      ]}
+                      onPress={() => setSelectedCurrency(currency.code)}>
+                      <View style={styles.currencyOptionContent}>
+                        <Text style={[
+                          styles.currencySymbol,
+                          selectedCurrency === currency.code && {color: Colors.text.inverse}
+                        ]}>{currency.symbol}</Text>
+                        <View style={styles.currencyInfo}>
+                          <Text style={[
+                            styles.currencyName,
+                            selectedCurrency === currency.code && {color: Colors.text.inverse}
+                          ]}>{currency.name}</Text>
+                          <Text style={[
+                            styles.currencyCode,
+                            selectedCurrency === currency.code && {color: Colors.text.inverse}
+                          ]}>{currency.code}</Text>
+                        </View>
+                      </View>
+                      {selectedCurrency === currency.code && (
+                        <View style={styles.checkIcon}>
+                          <Icon name="check" size="sm" color={Colors.white} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                {selectedCurrency === currency.code && (
-                  <View style={styles.checkIcon}>
-                    <Icon name="check" size="sm" color={Colors.white} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+              ) : (
+                <View style={styles.currencyDisplay}>
+                  {currencies.map(currency => (
+                    <View key={currency.code} style={styles.currencyOptionContent}>
+                      <Text style={styles.currencySymbol}>{currency.symbol}</Text>
+                      <View style={styles.currencyInfo}>
+                        <Text style={styles.currencyName}>{currency.name}</Text>
+                        <Text style={styles.currencyCode}>{currency.code}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
 
         {/* Budget Amount Input - Current Month */}
         <View style={styles.section}>
@@ -296,7 +350,7 @@ export function BudgetSettingsScreen() {
 
           <View style={styles.inputContainer}>
             <Text style={styles.currencyPrefix}>
-              {selectedCurrency === 'CDF' ? 'FC' : '$'}
+              {currencies.find(c => c.code === selectedCurrency)?.symbol || '$'}
             </Text>
             <TextInput
               style={styles.budgetInput}
@@ -325,7 +379,7 @@ export function BudgetSettingsScreen() {
 
           <View style={styles.inputContainer}>
             <Text style={styles.currencyPrefix}>
-              {selectedCurrency === 'CDF' ? 'FC' : '$'}
+              {currencies.find(c => c.code === selectedCurrency)?.symbol || '$'}
             </Text>
             <TextInput
               style={styles.budgetInput}
@@ -445,6 +499,12 @@ const styles = StyleSheet.create({
   },
   currencyOptions: {
     gap: Spacing.md,
+  },
+  currencyDisplay: {
+    backgroundColor: Colors.card.cream,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    ...Shadows.sm,
   },
   currencyOption: {
     flexDirection: 'row',

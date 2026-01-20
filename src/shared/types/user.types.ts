@@ -26,7 +26,7 @@ export interface UserProfile {
   verified?: boolean;
   verifiedAt?: Date;
   preferredLanguage: 'fr' | 'ln' | 'sw' | 'en';
-  preferredCurrency: 'USD' | 'CDF';
+  preferredCurrency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   defaultCity?: string;
   profileCompleted?: boolean;
   // Additional profile fields
@@ -173,7 +173,7 @@ export interface MonthlyBudget {
   userId: string;
   month: string; // Format: "YYYY-MM"
   amount: number;
-  currency: 'USD' | 'CDF';
+  currency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   isCustom: boolean; // true if user edited, false if auto-copied from default
   createdAt: Date;
   updatedAt: Date;
@@ -182,7 +182,7 @@ export interface MonthlyBudget {
 // Budget Settings (stored in profile)
 export interface BudgetSettings {
   defaultMonthlyBudget: number;
-  preferredCurrency: 'USD' | 'CDF';
+  preferredCurrency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   enableAlerts: boolean; // Enable budget alerts at 80%
   alertThreshold: number; // Default: 80
 }
@@ -191,7 +191,7 @@ export interface UserStats {
   userId: string;
   totalScans: number;
   totalSavings: number;
-  savingsCurrency: 'USD' | 'CDF';
+  savingsCurrency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   favoriteStore?: string;
   mostPurchasedCategory?: string;
   lastScanDate?: Date;

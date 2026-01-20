@@ -1,6 +1,6 @@
 {
   "name": "goshopper",
-  "version": "7.0.4",
+  "version": "7.4.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

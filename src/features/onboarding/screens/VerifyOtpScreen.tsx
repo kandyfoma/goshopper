@@ -423,12 +423,75 @@ const VerifyOtpScreen: React.FC = () => {
             // Extract country code from phone number
             let countryCode = 'CD'; // Default to DRC
             if (effectivePhoneNumber.startsWith('+')) {
-              const match = effectivePhoneNumber.match(/^\+(\d{1,3})/);
+              const match = effectivePhoneNumber.match(/^\+(\d{1,4})/);
               if (match) {
                 const code = match[1];
-                if (code === '243') countryCode = 'CD';
-                else if (code === '1') countryCode = 'US';
-                // Add more country codes as needed
+                // Africa
+                if (code === '243') countryCode = 'CD'; // DRC
+                else if (code === '27') countryCode = 'ZA'; // South Africa
+                else if (code === '234') countryCode = 'NG'; // Nigeria
+                else if (code === '254') countryCode = 'KE'; // Kenya
+                else if (code === '255') countryCode = 'TZ'; // Tanzania
+                else if (code === '256') countryCode = 'UG'; // Uganda
+                else if (code === '233') countryCode = 'GH'; // Ghana
+                else if (code === '225') countryCode = 'CI'; // Côte d'Ivoire
+                else if (code === '237') countryCode = 'CM'; // Cameroon
+                else if (code === '235') countryCode = 'TD'; // Chad
+                else if (code === '236') countryCode = 'CF'; // Central African Republic
+                else if (code === '240') countryCode = 'GQ'; // Equatorial Guinea
+                else if (code === '241') countryCode = 'GA'; // Gabon
+                else if (code === '242') countryCode = 'CG'; // Republic of Congo
+                else if (code === '223') countryCode = 'ML'; // Mali
+                else if (code === '227') countryCode = 'NE'; // Niger
+                else if (code === '228') countryCode = 'TG'; // Togo
+                else if (code === '229') countryCode = 'BJ'; // Benin
+                else if (code === '226') countryCode = 'BF'; // Burkina Faso
+                else if (code === '221') countryCode = 'SN'; // Senegal
+                // Europe
+                else if (code === '33') countryCode = 'FR'; // France
+                else if (code === '49') countryCode = 'DE'; // Germany
+                else if (code === '39') countryCode = 'IT'; // Italy
+                else if (code === '34') countryCode = 'ES'; // Spain
+                else if (code === '31') countryCode = 'NL'; // Netherlands
+                else if (code === '32') countryCode = 'BE'; // Belgium
+                else if (code === '44') countryCode = 'GB'; // United Kingdom
+                else if (code === '41') countryCode = 'CH'; // Switzerland
+                // Americas
+                else if (code === '1') countryCode = 'US'; // United States/Canada
+                else if (code === '52') countryCode = 'MX'; // Mexico
+                else if (code === '55') countryCode = 'BR'; // Brazil
+                else if (code === '54') countryCode = 'AR'; // Argentina
+                else if (code === '56') countryCode = 'CL'; // Chile
+                else if (code === '57') countryCode = 'CO'; // Colombia
+                // Asia
+                else if (code === '91') countryCode = 'IN'; // India
+                else if (code === '81') countryCode = 'JP'; // Japan
+                else if (code === '86') countryCode = 'CN'; // China
+                else if (code === '82') countryCode = 'KR'; // South Korea
+                else if (code === '65') countryCode = 'SG'; // Singapore
+                else if (code === '60') countryCode = 'MY'; // Malaysia
+                else if (code === '66') countryCode = 'TH'; // Thailand
+                else if (code === '62') countryCode = 'ID'; // Indonesia
+                else if (code === '63') countryCode = 'PH'; // Philippines
+                else if (code === '84') countryCode = 'VN'; // Vietnam
+                else if (code === '92') countryCode = 'PK'; // Pakistan
+                else if (code === '880') countryCode = 'BD'; // Bangladesh
+                else if (code === '94') countryCode = 'LK'; // Sri Lanka
+                // Middle East
+                else if (code === '971') countryCode = 'AE'; // UAE
+                else if (code === '966') countryCode = 'SA'; // Saudi Arabia
+                else if (code === '974') countryCode = 'QA'; // Qatar
+                else if (code === '965') countryCode = 'KW'; // Kuwait
+                else if (code === '973') countryCode = 'BH'; // Bahrain
+                else if (code === '968') countryCode = 'OM'; // Oman
+                else if (code === '962') countryCode = 'JO'; // Jordan
+                else if (code === '961') countryCode = 'LB'; // Lebanon
+                else if (code === '972') countryCode = 'IL'; // Israel
+                else if (code === '90') countryCode = 'TR'; // Turkey
+                else if (code === '98') countryCode = 'IR'; // Iran
+                // Oceania
+                else if (code === '61') countryCode = 'AU'; // Australia
+                else if (code === '64') countryCode = 'NZ'; // New Zealand
               }
             }
             

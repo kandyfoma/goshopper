@@ -90,7 +90,7 @@ interface CategoryItem {
   totalSpent: number;
   quantity: number;
   averagePrice: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
   shops: Array<{
     name: string;
     count: number;
@@ -113,7 +113,7 @@ export function CategoryDetailScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [totalSpent, setTotalSpent] = useState(0);
-  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('CDF');
+  const [primaryCurrency, setPrimaryCurrency] = useState<string>('CDF');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = React.useRef<TextInput>(null);
 
@@ -190,7 +190,7 @@ export function CategoryDetailScreen() {
       const currencyCount: Record<string, number> = {};
       receiptCurrencies.forEach(c => { currencyCount[c] = (currencyCount[c] || 0) + 1; });
       const mostCommonCurrency = Object.entries(currencyCount)
-        .sort(([, a], [, b]) => b - a)[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'CDF';
       setPrimaryCurrency(mostCommonCurrency);
 
       // Process items by category

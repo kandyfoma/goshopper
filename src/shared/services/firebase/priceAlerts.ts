@@ -18,7 +18,7 @@ export interface PriceAlert {
   city?: string; // City for price filtering
   currentLowestPrice?: number;
   currentLowestStore?: string;
-  currency: 'USD' | 'CDF';
+  currency: string;
   isActive: boolean;
   isTriggered: boolean;
   triggeredAt?: Date;
@@ -31,7 +31,7 @@ export interface PriceAlertInput {
   productName: string;
   targetPrice: number;
   city?: string;
-  currency?: 'USD' | 'CDF';
+  currency?: string;
 }
 
 class PriceAlertsService {

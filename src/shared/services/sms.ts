@@ -13,6 +13,7 @@ interface SendOTPResult {
   expiresIn?: number;
   message?: string;
   error?: string;
+  skipped?: boolean; // For non-Congo numbers that don't need OTP
 }
 
 interface VerifyOTPResult {
@@ -26,17 +27,27 @@ interface VerifyOTPResult {
   token?: string; // Alias for verificationToken
 }
 
+/**
+ * Check if a phone number is a DRC/Congo number
+ * Congo numbers start with +243
+ */
+export function isCongoNumber(phoneNumber: string): boolean {
+  const cleaned = phoneNumber.replace(/\s+/g, '');
+  return cleaned.startsWith('+243') || cleaned.startsWith('243');
+}
+
 class SMSService {
   private functions = getFunctionsInstance();
 
   /**
-   * Send OTP to phone number (for DRC users)
+   * Send OTP to phone number (for DRC users only)
+   * Non-Congo numbers skip OTP verification
    * Calls the sendVerificationCode Cloud Function
    * 
    * @param phoneNumber - Full phone number with country code (e.g., +243999999001)
    * @param countryCode - Optional country code (e.g., 'CD' for DRC)
    * @param language - Preferred language ('fr' or 'en')
-   * @returns Promise with success status and session ID
+   * @returns Promise with success status and session ID (or skipped flag for non-Congo numbers)
    */
   async sendOTP(
     phoneNumber: string,
@@ -44,17 +55,27 @@ class SMSService {
     language: string = 'fr'
   ): Promise<SendOTPResult> {
     try {
-      // Determine if user is in DRC based on phone prefix
-      const isDRC = phoneNumber.startsWith('+243') || phoneNumber.startsWith('243');
+      // Check if this is a Congo number
+      const isDRC = isCongoNumber(phoneNumber);
       
-      console.log(`📱 Sending OTP to ${phoneNumber} (DRC: ${isDRC})`);
+      console.log(`📱 Sending OTP to ${phoneNumber} (Congo: ${isDRC})`);
 
-      // Call the Cloud Function
+      // Skip OTP for non-Congo numbers
+      if (!isDRC) {
+        console.log('⏭️ Skipping OTP for non-Congo number');
+        return {
+          success: true,
+          skipped: true,
+          message: 'OTP verification skipped for non-Congo number',
+        };
+      }
+
+      // Call the Cloud Function for Congo numbers
       const sendVerificationCode = this.functions.httpsCallable('sendVerificationCode');
       const result = await sendVerificationCode({
-        phoneNumber: isDRC ? phoneNumber : undefined,
-        email: !isDRC ? undefined : undefined, // For now, we only support phone
-        countryCode: countryCode || (isDRC ? 'CD' : 'INTL'),
+        phoneNumber: phoneNumber,
+        email: undefined,
+        countryCode: countryCode || 'CD',
         language,
       });
 

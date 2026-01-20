@@ -16,16 +16,48 @@ export function generateUUID(): string {
  */
 export function formatCurrency(
   amount: number | null | undefined,
-  currency: 'USD' | 'CDF' = 'USD',
+  currency: string = 'USD',
 ): string {
   if (amount == null || isNaN(amount)) {
     return currency === 'CDF' ? '0 FC' : '$0.00';
   }
   
-  if (currency === 'CDF') {
-    return `${Math.round(amount).toLocaleString('fr-CD')} FC`;
+  // Common currency symbols and formatting rules
+  const currencyConfig: Record<string, { symbol: string; decimals: number; position: 'before' | 'after' }> = {
+    // Major currencies
+    'USD': { symbol: '$', decimals: 2, position: 'before' },
+    'EUR': { symbol: '€', decimals: 2, position: 'after' },
+    'GBP': { symbol: '£', decimals: 2, position: 'before' },
+    'INR': { symbol: '₹', decimals: 2, position: 'before' },
+    'ZAR': { symbol: 'R ', decimals: 2, position: 'before' },
+    'CDF': { symbol: ' FC', decimals: 0, position: 'after' },
+    
+    // Other common currencies
+    'JPY': { symbol: '¥', decimals: 0, position: 'before' },
+    'CNY': { symbol: '¥', decimals: 2, position: 'before' },
+    'KRW': { symbol: '₩', decimals: 0, position: 'before' },
+    'AUD': { symbol: 'A$', decimals: 2, position: 'before' },
+    'CAD': { symbol: 'C$', decimals: 2, position: 'before' },
+    'NGN': { symbol: '₦', decimals: 2, position: 'before' },
+    'KES': { symbol: 'KSh ', decimals: 2, position: 'before' },
+    'GHS': { symbol: 'GH₵', decimals: 2, position: 'after' },
+    'TZS': { symbol: 'TSh ', decimals: 2, position: 'before' },
+    'UGX': { symbol: 'USh ', decimals: 0, position: 'before' },
+    'XAF': { symbol: 'FCFA ', decimals: 0, position: 'after' },
+    'XOF': { symbol: 'CFA ', decimals: 0, position: 'after' },
+  };
+  
+  const config = currencyConfig[currency.toUpperCase()];
+  
+  if (config) {
+    const formattedAmount = amount.toFixed(config.decimals);
+    return config.position === 'before' 
+      ? `${config.symbol}${formattedAmount}`
+      : `${formattedAmount}${config.symbol}`;
   }
-  return `$${amount.toFixed(2)}`;
+  
+  // Fallback for unknown currencies: show amount with currency code
+  return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
 }
 
 /**
@@ -51,28 +83,37 @@ export function getExchangeRate(): number {
 }
 
 /**
- * Convert between USD and CDF
+ * Convert between currencies (currently supports USD ↔ CDF conversions)
+ * For international currencies, this only handles USD/CDF conversions
  */
 export function convertCurrency(
   amount: number,
-  fromCurrency: 'USD' | 'CDF',
-  toCurrency: 'USD' | 'CDF',
+  fromCurrency: string,
+  toCurrency: string,
   customRate?: number,
 ): number {
+  // Only handle USD ↔ CDF conversions for now
+  if ((fromCurrency === 'USD' && toCurrency === 'CDF') || 
+      (fromCurrency === 'CDF' && toCurrency === 'USD')) {
+    const rate = customRate || USD_TO_CDF_RATE;
+    
+    if (fromCurrency === 'USD' && toCurrency === 'CDF') {
+      return Math.round(amount * rate);
+    }
+    
+    if (fromCurrency === 'CDF' && toCurrency === 'USD') {
+      return Math.round((amount / rate) * 100) / 100;
+    }
+  }
+  
+  // For same currency or unsupported conversions, return original amount
   if (fromCurrency === toCurrency) {
     return amount;
   }
   
-  const rate = customRate || USD_TO_CDF_RATE;
-  
-  if (fromCurrency === 'USD' && toCurrency === 'CDF') {
-    return Math.round(amount * rate);
-  }
-  
-  if (fromCurrency === 'CDF' && toCurrency === 'USD') {
-    return Math.round((amount / rate) * 100) / 100;
-  }
-  
+  // For unsupported currency pairs, return original amount
+  // TODO: Add support for international currency conversions with real-time rates
+  console.warn(`Currency conversion from ${fromCurrency} to ${toCurrency} not supported yet`);
   return amount;
 }
 
@@ -281,4 +322,199 @@ export function safeToDate(value: any): Date {
 
   // Fallback
   return new Date();
+}
+
+/**
+ * Get currency code based on country code
+ * Maps country codes to their primary currencies
+ */
+export function getCurrencyForCountry(countryCode: string): string {
+  const currencyMap: Record<string, string> = {
+    // Africa
+    'CD': 'CDF', // Democratic Republic of Congo
+    'CG': 'XAF', // Republic of Congo
+    'CM': 'XAF', // Cameroon
+    'CI': 'XOF', // Côte d'Ivoire
+    'SN': 'XOF', // Senegal
+    'BF': 'XOF', // Burkina Faso
+    'ML': 'XOF', // Mali
+    'NE': 'XOF', // Niger
+    'TG': 'XOF', // Togo
+    'BJ': 'XOF', // Benin
+    'GA': 'XAF', // Gabon
+    'TD': 'XAF', // Chad
+    'CF': 'XAF', // Central African Republic
+    'GQ': 'XAF', // Equatorial Guinea
+    'NG': 'NGN', // Nigeria
+    'KE': 'KES', // Kenya
+    'TZ': 'TZS', // Tanzania
+    'UG': 'UGX', // Uganda
+    'GH': 'GHS', // Ghana
+    'ZA': 'ZAR', // South Africa
+    'EG': 'EGP', // Egypt
+    'MA': 'MAD', // Morocco
+    'TN': 'TND', // Tunisia
+    'DZ': 'DZD', // Algeria
+    
+    // Europe
+    'FR': 'EUR', // France
+    'DE': 'EUR', // Germany
+    'IT': 'EUR', // Italy
+    'ES': 'EUR', // Spain
+    'NL': 'EUR', // Netherlands
+    'BE': 'EUR', // Belgium
+    'AT': 'EUR', // Austria
+    'PT': 'EUR', // Portugal
+    'FI': 'EUR', // Finland
+    'IE': 'EUR', // Ireland
+    'LU': 'EUR', // Luxembourg
+    'MT': 'EUR', // Malta
+    'CY': 'EUR', // Cyprus
+    'SK': 'EUR', // Slovakia
+    'SI': 'EUR', // Slovenia
+    'EE': 'EUR', // Estonia
+    'LV': 'EUR', // Latvia
+    'LT': 'EUR', // Lithuania
+    'GR': 'EUR', // Greece
+    'GB': 'GBP', // United Kingdom
+    'CH': 'CHF', // Switzerland
+    'NO': 'NOK', // Norway
+    'SE': 'SEK', // Sweden
+    'DK': 'DKK', // Denmark
+    'PL': 'PLN', // Poland
+    'CZ': 'CZK', // Czech Republic
+    'HU': 'HUF', // Hungary
+    'RO': 'RON', // Romania
+    'BG': 'BGN', // Bulgaria
+    'HR': 'HRK', // Croatia
+    'RS': 'RSD', // Serbia
+    
+    // Americas
+    'US': 'USD', // United States
+    'CA': 'CAD', // Canada
+    'MX': 'MXN', // Mexico
+    'BR': 'BRL', // Brazil
+    'AR': 'ARS', // Argentina
+    'CL': 'CLP', // Chile
+    'CO': 'COP', // Colombia
+    'PE': 'PEN', // Peru
+    
+    // Asia
+    'IN': 'INR', // India
+    'JP': 'JPY', // Japan
+    'CN': 'CNY', // China
+    'KR': 'KRW', // South Korea
+    'SG': 'SGD', // Singapore
+    'MY': 'MYR', // Malaysia
+    'TH': 'THB', // Thailand
+    'ID': 'IDR', // Indonesia
+    'PH': 'PHP', // Philippines
+    'VN': 'VND', // Vietnam
+    'PK': 'PKR', // Pakistan
+    'BD': 'BDT', // Bangladesh
+    'LK': 'LKR', // Sri Lanka
+    
+    // Middle East
+    'AE': 'AED', // United Arab Emirates
+    'SA': 'SAR', // Saudi Arabia
+    'QA': 'QAR', // Qatar
+    'KW': 'KWD', // Kuwait
+    'BH': 'BHD', // Bahrain
+    'OM': 'OMR', // Oman
+    'JO': 'JOD', // Jordan
+    'LB': 'LBP', // Lebanon
+    'IL': 'ILS', // Israel
+    'TR': 'TRY', // Turkey
+    'IR': 'IRR', // Iran
+    
+    // Oceania
+    'AU': 'AUD', // Australia
+    'NZ': 'NZD', // New Zealand
+  };
+  
+  return currencyMap[countryCode.toUpperCase()] || 'USD';
+}
+
+/**
+ * Detect country code from phone number
+ */
+export function detectCountryCodeFromPhone(phoneNumber: string): string | null {
+  if (!phoneNumber.startsWith('+')) return null;
+  
+  const match = phoneNumber.match(/^\+(\d{1,4})/);
+  if (!match) return null;
+  
+  const code = match[1];
+  
+  // Country code to country mapping
+  const phoneCodeMap: Record<string, string> = {
+    // Africa
+    '243': 'CD', // DRC
+    '27': 'ZA', // South Africa
+    '234': 'NG', // Nigeria
+    '254': 'KE', // Kenya
+    '255': 'TZ', // Tanzania
+    '256': 'UG', // Uganda
+    '233': 'GH', // Ghana
+    '225': 'CI', // Côte d'Ivoire
+    '237': 'CM', // Cameroon
+    '235': 'TD', // Chad
+    '236': 'CF', // Central African Republic
+    '240': 'GQ', // Equatorial Guinea
+    '241': 'GA', // Gabon
+    '242': 'CG', // Republic of Congo
+    '223': 'ML', // Mali
+    '227': 'NE', // Niger
+    '228': 'TG', // Togo
+    '229': 'BJ', // Benin
+    '226': 'BF', // Burkina Faso
+    '221': 'SN', // Senegal
+    // Europe
+    '33': 'FR', // France
+    '49': 'DE', // Germany
+    '39': 'IT', // Italy
+    '34': 'ES', // Spain
+    '31': 'NL', // Netherlands
+    '32': 'BE', // Belgium
+    '44': 'GB', // United Kingdom
+    '41': 'CH', // Switzerland
+    // Americas
+    '1': 'US', // United States/Canada
+    '52': 'MX', // Mexico
+    '55': 'BR', // Brazil
+    '54': 'AR', // Argentina
+    '56': 'CL', // Chile
+    '57': 'CO', // Colombia
+    // Asia
+    '91': 'IN', // India
+    '81': 'JP', // Japan
+    '86': 'CN', // China
+    '82': 'KR', // South Korea
+    '65': 'SG', // Singapore
+    '60': 'MY', // Malaysia
+    '66': 'TH', // Thailand
+    '62': 'ID', // Indonesia
+    '63': 'PH', // Philippines
+    '84': 'VN', // Vietnam
+    '92': 'PK', // Pakistan
+    '880': 'BD', // Bangladesh
+    '94': 'LK', // Sri Lanka
+    // Middle East
+    '971': 'AE', // UAE
+    '966': 'SA', // Saudi Arabia
+    '974': 'QA', // Qatar
+    '965': 'KW', // Kuwait
+    '973': 'BH', // Bahrain
+    '968': 'OM', // Oman
+    '962': 'JO', // Jordan
+    '961': 'LB', // Lebanon
+    '972': 'IL', // Israel
+    '90': 'TR', // Turkey
+    '98': 'IR', // Iran
+    // Oceania
+    '61': 'AU', // Australia
+    '64': 'NZ', // New Zealand
+  };
+  
+  return phoneCodeMap[code] || null;
 }

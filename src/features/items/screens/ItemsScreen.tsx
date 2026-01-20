@@ -86,6 +86,21 @@ export function ItemsScreen() {
   const {scrollY} = useScroll();
   const navigation = useNavigation();
 
+  // State
+  const [items, setItems] = useState<ItemData[]>([]);
+  const [filteredItems, setFilteredItems] = useState<ItemData[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  // Refs
+  const searchAnimation = useRef(new Animated.Value(0)).current;
+  const searchInputRef = useRef<TextInput>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     // Track screen view
     analyticsService.logScreenView('Items', 'ItemsScreen');
@@ -118,9 +133,18 @@ export function ItemsScreen() {
     filterItems();
   }, [items, searchQuery]);
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const toggleSearch = () => {
     if (isSearchOpen) {
       // Closing search
+      setSearchInput('');
       setSearchQuery('');
       Animated.timing(searchAnimation, {
         toValue: 0,
@@ -614,12 +638,15 @@ export function ItemsScreen() {
               ref={searchInputRef}
               style={styles.searchInput}
               placeholder="Rechercher un article..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+              value={searchInput}
+              onChangeText={setSearchInput}
               placeholderTextColor={Colors.text.tertiary}
             />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+            {searchInput.length > 0 && (
+              <TouchableOpacity onPress={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}>
                 <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
               </TouchableOpacity>
             )}
@@ -640,7 +667,10 @@ export function ItemsScreen() {
           {searchQuery && (
             <TouchableOpacity
               style={styles.clearButton}
-              onPress={() => setSearchQuery('')}>
+              onPress={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}>
               <Text style={styles.clearText}>Tout afficher</Text>
             </TouchableOpacity>
           )}
@@ -746,6 +776,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+    position: 'relative',
+    zIndex: 10000,
+    elevation: 15,
     ...Shadows.sm,
   },
   headerContent: {

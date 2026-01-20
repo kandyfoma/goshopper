@@ -79,9 +79,9 @@ android {
         applicationId "com.goshopper.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 16
-        versionName "7.3.0"
-        setProperty("archivesBaseName", "goshopper-v7.3.0")
+        versionCode 17
+        versionName "7.4.0"
+        setProperty("archivesBaseName", "goshopper-v7.4.0")
         
         // Explicitly include required architectures
         ndk {

@@ -345,6 +345,18 @@ export function LoginScreen() {
         // Send OTP and redirect to verification screen
         try {
           const otpResult = await smsService.sendOTP(formattedPhone);
+          
+          // Check if OTP was skipped for non-Congo numbers
+          if (otpResult.success && otpResult.skipped) {
+            console.log('⏭️ OTP skipped for non-Congo number, marking phone as verified');
+            showToast('Numéro international détecté - connexion autorisée', 'info', 3000);
+            // For non-Congo numbers, mark as verified and retry login
+            // This should be handled on the backend, but for now just show a message
+            showToast('Veuillez contacter le support pour la vérification', 'warning', 5000);
+            setLoading(false);
+            return;
+          }
+          
           if (otpResult.success && otpResult.sessionId) {
             showToast('Verification requise. Code envoye a votre telephone.', 'info', 3000);
             
@@ -579,8 +591,19 @@ export function LoginScreen() {
           console.log('📱 [LoginScreen] OTP result:', {
             success: otpResult.success,
             sessionId: otpResult.sessionId,
+            skipped: otpResult.skipped,
             error: otpResult.error,
           });
+          
+          // Check if OTP was skipped for non-Congo numbers
+          if (otpResult.success && otpResult.skipped) {
+            console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
+            setSocialLoading(null);
+            enableAuthListener();
+            setSocialUser(userCredential);
+            showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
+            return;
+          }
           
           if (otpResult.success && otpResult.sessionId) {
             console.log('📱 [LoginScreen] Navigating to VerifyOtp screen...');
@@ -707,6 +730,17 @@ export function LoginScreen() {
       if (needsPhoneVerification && phoneToVerify) {
         try {
           const otpResult = await smsService.sendOTP(phoneToVerify);
+          
+          // Check if OTP was skipped for non-Congo numbers
+          if (otpResult.success && otpResult.skipped) {
+            console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
+            setSocialLoading(null);
+            enableAuthListener();
+            setSocialUser(userCredential);
+            showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
+            return;
+          }
+          
           if (otpResult.success && otpResult.sessionId) {
             showToast('Code de verification envoye.', 'info', 3000);
             setSocialLoading(null);

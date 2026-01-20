@@ -11,7 +11,7 @@ export interface PricePoint {
   price: number;
   unit: string;
   pricePerUnit: number; // Normalized price for comparison
-  currency: 'USD' | 'CDF';
+  currency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   date: Date;
   receiptId: string;
   userId: string;
@@ -58,7 +58,7 @@ export interface PriceAlert {
   userId: string;
   productNameNormalized: string;
   targetPrice: number;
-  currency: 'USD' | 'CDF';
+  currency: string; // ISO currency code (USD, EUR, GBP, INR, ZAR, CDF, etc.)
   isActive: boolean;
   triggeredAt?: Date;
   createdAt: Date;

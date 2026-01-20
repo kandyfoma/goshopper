@@ -47,14 +47,14 @@ interface CommunityItemData {
   prices: {
     storeName: string;
     price: number;
-    currency: 'USD' | 'CDF';
+    currency: string;
     date: Date | any;
   }[];
   minPrice: number;
   maxPrice: number;
   avgPrice: number;
   storeCount: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
 }
 
 export function ShoppingListScreen() {

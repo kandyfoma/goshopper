@@ -9,7 +9,7 @@ import {appleAuth} from '@invertase/react-native-apple-authentication';
 import {LoginManager, AccessToken, Settings} from 'react-native-fbsdk-next';
 import {User, UserProfile} from '@/shared/types';
 import {COLLECTIONS, APP_ID} from './config';
-import {safeToDate} from '@/shared/utils/helpers';
+import {safeToDate, getCurrencyForCountry} from '@/shared/utils/helpers';
 import {biometricService} from '../biometric';
 
 const PHONE_USER_KEY = '@goshopperai_phone_user';
@@ -1201,6 +1201,7 @@ class AuthService {
         phoneNumber,
         countryCode,
         isInDRC: countryCode === 'CD',
+        preferredCurrency: getCurrencyForCountry(countryCode),
         displayName: displayName || phoneNumber,
         updatedAt: firestore.FieldValue.serverTimestamp(),
       };

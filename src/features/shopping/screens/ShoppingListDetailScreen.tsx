@@ -79,14 +79,14 @@ interface CommunityItemData {
   prices: {
     storeName: string;
     price: number;
-    currency: 'USD' | 'CDF';
+    currency: string;
     date: Date | any;
   }[];
   minPrice: number;
   maxPrice: number;
   avgPrice: number;
   storeCount: number;
-  currency: 'USD' | 'CDF';
+  currency: string;
 }
 
 export function ShoppingListDetailScreen() {
@@ -114,7 +114,7 @@ export function ShoppingListDetailScreen() {
   const [searchResults, setSearchResults] = useState<CommunityItemData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedItemForAdd, setSelectedItemForAdd] = useState<CommunityItemData | null>(null);
-  const [selectedStore, setSelectedStore] = useState<{storeName: string; price: number; currency: 'USD' | 'CDF'} | null>(null);
+  const [selectedStore, setSelectedStore] = useState<{storeName: string; price: number; currency: string} | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // FAB animation
@@ -724,7 +724,7 @@ export function ShoppingListDetailScreen() {
               const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
               const topStores = Array.from(storeMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2);
               // Get the most common currency
-              const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+              const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'CDF';
               
               return (
                 <>
@@ -820,7 +820,7 @@ export function ShoppingListDetailScreen() {
                 let totalBestPrice = 0;
                 let totalEstimated = 0;
                 let itemsWithPrice = 0;
-                const storeBreakdown = new Map<string, {count: number; total: number; currency: 'USD' | 'CDF'}>();
+                const storeBreakdown = new Map<string, {count: number; total: number; currency: string}>();
                 // Determine primary currency from items
                 const currencyCount = new Map<string, number>();
 
@@ -848,7 +848,7 @@ export function ShoppingListDetailScreen() {
                 const savings = totalEstimated > totalBestPrice ? totalEstimated - totalBestPrice : 0;
                 const storeList = Array.from(storeBreakdown.entries()).sort((a, b) => b[1].total - a[1].total);
                 // Get the most common currency
-                const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+                const primaryCurrency = Array.from(currencyCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'CDF';
 
                 return (
                   <>

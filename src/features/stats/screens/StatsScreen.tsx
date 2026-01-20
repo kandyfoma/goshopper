@@ -151,7 +151,7 @@ export function StatsScreen() {
   const [monthlyData, setMonthlyData] = useState<MonthlySpending[]>([]);
   const [currentMonthReceipts, setCurrentMonthReceipts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [primaryCurrency, setPrimaryCurrency] = useState<'USD' | 'CDF'>('CDF');
+  const [primaryCurrency, setPrimaryCurrency] = useState<string>('CDF');
   const [exchangeRate, setExchangeRate] = useState(2800); // Default rate (Jan 2026)
 
   useEffect(() => {
@@ -285,7 +285,7 @@ export function StatsScreen() {
       // Set primary currency from receipts (most common currency)
       // This ensures stats display in the same currency as the receipts
       const mostCommonCurrency = Object.entries(currencyCount)
-        .sort(([, a], [, b]) => b - a)[0]?.[0] as 'USD' | 'CDF' || 'CDF';
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'CDF';
       setPrimaryCurrency(mostCommonCurrency);
 
       // Note: monthlyBudget is now set by separate useEffect for real-time updates

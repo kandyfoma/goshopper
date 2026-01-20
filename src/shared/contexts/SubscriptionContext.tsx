@@ -220,7 +220,24 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
 
     unsubscribe = subscriptionService.subscribeToStatus(subscription => {
       if (isMounted) {
-        setState(calculateState(subscription));
+        console.log('📊 SubscriptionContext: Received subscription update:', {
+          status: subscription.status,
+          planId: subscription.planId,
+          isSubscribed: subscription.isSubscribed,
+          trialStartDate: subscription.trialStartDate,
+          trialEndDate: subscription.trialEndDate,
+          bonusScans: subscription.bonusScans,
+          monthlyScansUsed: subscription.monthlyScansUsed,
+          trialScansUsed: subscription.trialScansUsed,
+        });
+        const newState = calculateState(subscription);
+        console.log('📊 SubscriptionContext: Calculated state:', {
+          canScan: newState.canScan,
+          scansRemaining: newState.scansRemaining,
+          isTrialActive: newState.isTrialActive,
+          status: newState.subscription?.status,
+        });
+        setState(newState);
       }
     });
 
