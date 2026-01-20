@@ -2,464 +2,113 @@
                     GoShopper BETA TESTER GUIDE
 ═══════════════════════════════════════════════════════════════════════════
 
-🌍 FOR WORLDWIDE TESTERS - NO SMS NEEDED!
-This guide allows you to test GoShopper from anywhere in the world WITHOUT 
-needing a DRC phone number or receiving SMS messages.
+🌍 TEST FROM ANYWHERE IN THE WORLD!
+No DRC phone number needed. Works globally with our test system.
 
 ═══════════════════════════════════════════════════════════════════════════
-                    📱 TEST PHONE NUMBER SYSTEM
+                    📱 QUICK START (3 Steps)
 ═══════════════════════════════════════════════════════════════════════════
 
-✅ HOW TO REGISTER:
+1. Choose YOUR unique test number (9 digits):
+   999999001, 999999002, 999999003... up to 999999999
+   (App auto-adds +243, making it +243999999001)
 
-1. Choose YOUR unique test phone number:
-   
-   Enter these 9 digits in the phone field:
-   
-   999999001 (Tester #1)
-   999999002 (Tester #2)  
-   999999003 (Tester #3)
-   ... up to ...
-   999999999 (Tester #999)
-   
-   The app automatically adds +243 (Congo), so you'll have:
-   +243999999001, +243999999002, etc.
+2. Verification code: Always use 123456
 
-2. When the app asks for the verification code (OTP), ALWAYS enter: 123456
-
-3. Create your own password (minimum 8 characters)
-
-4. Complete your profile with:
-   - Full name
-   - Profile picture (optional)
-   - Preferred language (French/English)
-
-🔐 IMPORTANT NOTES:
-- Phone field accepts 9 digits only (Congo +243 is automatic)
-- Enter: 999999001, 999999002, etc. (NOT +243999999001)
-- Each test phone number = ONE separate account
-- Your test number is YOUR personal account
-- The OTP 123456 is ONLY for phone verification
-- Your PASSWORD is what you set and remember
-- To login again: Use YOUR test number + YOUR password + OTP 123456
+3. Create your own password (min 8 characters)
 
 ═══════════════════════════════════════════════════════════════════════════
-                    🧪 TESTING SCENARIOS - COMPLETE LIST
+                    🧪 CORE TESTS (30-45 minutes)
 ═══════════════════════════════════════════════════════════════════════════
 
-📸 SCENARIO 1: RECEIPT SCANNING & PRICE TRACKING (15 steps)
-----------------------------------------------------------------
-This is GoShopper's CORE feature - AI-powered receipt scanning and 
-automatic price comparison across stores.
+📸 TEST 1: RECEIPT SCANNING (10 min)
+1. Register with your test number
+2. Tap "Scan Receipt" and take a photo
+3. Check if items are recognized correctly
+4. Edit any incorrect items
+5. View price comparisons
 
-1. Register using your test phone number (+999000XXXX)
-2. Complete onboarding and grant camera permissions
-3. Tap the "Scan Receipt" button on home screen
-4. Take a photo of a store receipt (or use sample receipts)
-5. Wait for AI to process the receipt (5-10 seconds)
-6. Review the extracted items:
-   - Product names
-   - Prices
-   - Store name
-   - Purchase date
-7. Check if any items are incorrectly recognized
-8. Manually edit any incorrect item details
-9. Add any missing items from the receipt
-10. View price comparisons for each item across different stores
-11. See which stores have better prices (% savings displayed)
-12. Save items to "Price Watch" for future tracking
-13. View your receipt history (all scanned receipts)
-14. Filter receipts by store, date, or total amount
-15. Export receipt data (share or download)
+✅ Check: Camera works, AI recognition accurate, prices display correctly
 
-✅ Test Points:
-- Does the camera work smoothly?
-- How accurate is the AI recognition (% of items correct)?
-- Are prices extracted correctly?
-- Do price comparisons show reasonable data?
-- Can you edit items easily?
-- Does receipt history load quickly?
+📋 TEST 2: SHOPPING LISTS (10 min)
+1. Create a new shopping list
+2. Add 5-10 items manually
+3. Check total price calculation
+4. Share the list
+5. Mark items as purchased
 
-📋 SCENARIO 2: SHOPPING LIST CREATION (12 steps)
-----------------------------------------------------------------
-Create and manage shopping lists with real-time price tracking.
+✅ Check: Search works, totals update, sharing works
 
-1. Navigate to "Shopping Lists" tab
-2. Create a new shopping list (name it "Weekly Groceries")
-3. Add items manually by typing product names
-4. Add items from previously scanned receipts
-5. Set quantity for each item
-6. View estimated total cost at current market prices
-7. See which stores have the best prices for your list
-8. Calculate potential savings by shopping at recommended stores
-9. Share shopping list with family/friends
-10. Mark items as "purchased" while shopping
-11. View shopping list history
-12. Create multiple lists (e.g., "Monthly Supplies", "Party Shopping")
+💰 TEST 3: PRICE ALERTS (5 min)
+1. Set a price alert on any item
+2. Enable notifications
+3. View your active alerts
+4. Delete an alert
 
-✅ Test Points:
-- Is item search responsive and accurate?
-- Are price suggestions helpful?
-- Does the total calculation update correctly?
-- Can you easily share lists?
-- Does the UI work smoothly when adding many items?
+✅ Check: Alerts save correctly, notifications enabled
 
-💰 SCENARIO 3: PRICE ALERTS & NOTIFICATIONS (10 steps)
-----------------------------------------------------------------
-Set up alerts for price drops on your favorite products.
+🏪 TEST 4: STORES & SEARCH (10 min)
+1. Browse stores in your area
+2. Search for a product (e.g., "coffee")
+3. Compare prices across stores
+4. View a product's price history
 
-1. Scan a receipt or search for a product
-2. Tap "Set Price Alert" on an expensive item
-3. Choose your preferred stores to monitor
-4. Set your target price (e.g., "Alert me if price drops below 5000 FC")
-5. Enable notifications when prompted
-6. Wait for the system to detect price changes (real-time or daily)
-7. Receive push notification when price drops
-8. View all active price alerts in "My Alerts"
-9. Edit or delete price alerts
-10. Share price drop deals with friends
+✅ Check: Store list loads, search is fast, comparisons work
 
-✅ Test Points:
-- Can you set alerts easily?
-- Do notifications arrive properly?
-- Is the alert management UI intuitive?
-- Can you customize alert thresholds?
+👤 TEST 5: PROFILE & SETTINGS (5 min)
+1. Edit your profile (name, photo)
+2. Switch language (French ⟷ English)
+3. Toggle dark mode
+4. Logout and login again
 
-🏪 SCENARIO 4: STORE DISCOVERY & COMPARISON (11 steps)
-----------------------------------------------------------------
-Find and compare stores based on prices and location.
-
-1. Open "Stores" tab on home screen
-2. View list of all stores in your area
-3. Enable location services to see nearby stores
-4. View store details:
-   - Average prices (how expensive/cheap)
-   - Available products
-   - Operating hours
-   - Location on map
-   - User ratings
-5. Compare prices for specific products across stores
-6. Filter stores by:
-   - Distance from you
-   - Price range (cheap to expensive)
-   - Product categories
-7. Save your favorite stores for quick access
-8. Get directions to a store (opens maps app)
-9. View store promotions and special offers
-10. Report incorrect store information
-11. Rate and review stores you've visited
-
-✅ Test Points:
-- Does location detection work accurately?
-- Are store details complete and accurate?
-- Is the price comparison UI clear?
-- Can you easily find specific stores?
-- Do filters work correctly?
-
-🔍 SCENARIO 5: PRODUCT SEARCH & DISCOVERY (13 steps)
-----------------------------------------------------------------
-Search for products and view detailed price history.
-
-1. Use the search bar on home screen
-2. Type a product name (e.g., "Nescafe Coffee")
-3. View search results with product images
-4. Filter results by:
-   - Price range
-   - Store
-   - Brand
-   - Product size/weight
-5. Tap on a product to view details:
-   - Current prices at all stores
-   - Price history graph (last 30 days)
-   - Best time to buy (if data available)
-   - Similar products
-6. See average price vs. current price
-7. Identify price trends (increasing/decreasing)
-8. Add product to shopping list
-9. Set price alert for this product
-10. Share product with friends
-11. View product reviews (if available)
-12. Scan product barcode for instant lookup
-13. Compare different brands of same product type
-
-✅ Test Points:
-- Is search fast and relevant?
-- Are price graphs accurate and readable?
-- Do filters work properly?
-- Can you easily navigate product details?
-- Does barcode scanning work well?
-
-💳 SCENARIO 6: SUBSCRIPTION & PREMIUM FEATURES (9 steps)
-----------------------------------------------------------------
-Test the freemium model and subscription options.
-
-1. Use the app with free tier (limited to 3 scans/month)
-2. Scan 3 receipts to reach the free limit
-3. Try to scan a 4th receipt - see upgrade prompt
-4. View subscription plans:
-   - Basic: $1.99/month (20 scans)
-   - Standard: $2.99/month (50 scans)
-   - Premium: $4.99/month (200 scans)
-5. Navigate through the payment flow (DON'T complete payment)
-6. For DRC users: Check Moko Afrika payment integration
-7. For international users: Check Stripe card payment
-8. View subscription benefits comparison
-9. Test "Restore Purchase" button (if you had a subscription)
-
-✅ Test Points:
-- Is the free limit clearly communicated?
-- Are subscription benefits well explained?
-- Does the payment UI look professional and secure?
-- Can you cancel before completing payment?
-
-👤 SCENARIO 7: USER PROFILE & SETTINGS (11 steps)
-----------------------------------------------------------------
-Configure your account and preferences.
-
-1. Open "Profile" tab
-2. Edit profile information:
-   - Name
-   - Profile picture
-   - Phone number (view only)
-   - Email (optional)
-3. Change language preference (French ⟷ English)
-4. Configure notification settings:
-   - Price alerts
-   - Weekly price reports
-   - New feature announcements
-5. Set your default currency (FC, USD)
-6. Choose your preferred stores
-7. Set your shopping radius (for nearby stores)
-8. View app statistics:
-   - Total receipts scanned
-   - Total money saved (from price comparisons)
-   - Most scanned products
-9. Export your data (GDPR compliance)
-10. Enable/disable dark mode
-11. Logout and login again
-
-✅ Test Points:
-- Can you update profile easily?
-- Do language changes apply immediately?
-- Are notification settings working?
-- Does dark mode work properly?
-- Can you logout and login successfully?
-
-📊 SCENARIO 8: SAVINGS INSIGHTS & ANALYTICS (8 steps)
-----------------------------------------------------------------
-View personalized insights about your shopping habits.
-
-1. Navigate to "Insights" or "Savings" section
-2. View your total savings this month
-3. See which stores saved you the most money
-4. View your most purchased products
-5. See spending trends over time (daily/weekly/monthly)
-6. Get personalized recommendations:
-   - Best stores for your shopping habits
-   - Products you might be overpaying for
-   - Best days to shop (if data available)
-7. Compare your spending with previous months
-8. Share your savings achievements on social media
-
-✅ Test Points:
-- Are insights accurate and useful?
-- Do graphs load and display correctly?
-- Are recommendations relevant?
-- Does the UI make data easy to understand?
-
-🐛 SCENARIO 9: BUG HUNTING & EDGE CASES (12 steps)
-----------------------------------------------------------------
-Try to break the app and find issues!
-
-1. Try scanning a very blurry receipt
-2. Scan a receipt with poor lighting
-3. Scan a non-receipt image (e.g., food photo)
-4. Try scanning in airplane mode (offline)
-5. Add 100 items to a shopping list
-6. Search for nonsense product names
-7. Rapidly tap buttons multiple times
-8. Try to register with the same phone number twice
-9. Test app with very slow internet connection
-10. Fill out forms with special characters (émojis, symbols)
-11. Try to access features without granting permissions
-12. Force close app and reopen - check if data persists
-
-✅ Test Points:
-- Does the app crash or freeze?
-- Are error messages helpful and in correct language?
-- Does offline mode work or show proper messages?
-- Is data saved properly when app is closed?
-
-🔄 SCENARIO 10: SOCIAL FEATURES & SHARING (9 steps)
-----------------------------------------------------------------
-Test community and sharing functionality.
-
-1. Share a great price find with friends (via WhatsApp, SMS, etc.)
-2. Share your shopping list with family members
-3. Share your savings achievements
-4. View friends' price alerts (if social features enabled)
-5. Compare shopping habits with friends
-6. Recommend the app to others (referral system if available)
-7. Join shopping groups or communities (if available)
-8. Vote on product prices (confirm if price is accurate)
-9. Report incorrect prices or product info
-
-✅ Test Points:
-- Do share buttons work correctly?
-- Can you share to different platforms?
-- Is shared content formatted properly?
-- Do referral links work (if applicable)?
+✅ Check: Changes save, language switches, login works
 
 ═══════════════════════════════════════════════════════════════════════════
-                    🎯 PRIORITY TESTING AREAS
+                    🐛 BUG HUNTING (Try to break it!)
 ═══════════════════════════════════════════════════════════════════════════
 
-⭐ CRITICAL (Test These First):
-1. Phone registration with test number (+999000XXXX)
-2. Receipt scanning accuracy (AI recognition)
-3. Price comparison functionality
-4. App doesn't crash during normal use
-5. Can create and save shopping lists
-
-🔶 HIGH PRIORITY:
-6. Price alerts and notifications work
-7. Store discovery and filtering
-8. Product search is fast and accurate
-9. Profile editing and settings
-10. Payment flow displays correctly (DON'T pay)
-
-🔸 MEDIUM PRIORITY:
-11. Dark mode works properly
-12. Language switching (French/English)
-13. Sharing features work
-14. Savings insights are accurate
-15. Export/backup features
-
-🔹 LOW PRIORITY (Nice to Have):
-16. Social features work smoothly
-17. Animations are smooth
-18. App works on slow connections
-19. Handles edge cases gracefully
-20. UI looks good on different screen sizes
+- Scan a blurry receipt
+- Add 50+ items to a list
+- Rapidly tap buttons
+- Use airplane mode
+- Try special characters (émojis)
+- Force close and reopen app
 
 ═══════════════════════════════════════════════════════════════════════════
-                    📝 HOW TO REPORT BUGS
+                    📝 REPORT BUGS
 ═══════════════════════════════════════════════════════════════════════════
 
-When you find a bug, please report it with:
-
-1. ⚡ BUG TITLE (short description)
-2. 📱 Device info: [Phone model + OS version]
-3. 📞 Your test phone number: +999000XXXX
-4. 🔢 Steps to reproduce:
-   - Step 1: ...
-   - Step 2: ...
-   - Step 3: ...
-5. ❌ What happened (actual result)
-6. ✅ What should happen (expected result)
-7. 📸 Screenshot (if possible)
-8. 🔥 Severity: Critical / High / Medium / Low
-
-Example Bug Report:
--------------------
-⚡ App crashes when scanning receipt
-
-📱 Samsung Galaxy A51, Android 12
-📞 +9990000001
-
-🔢 Steps:
-1. Open app and tap "Scan Receipt"
-2. Take photo of receipt from Carrefour
-3. Wait for processing
-4. App crashes before showing results
-
-❌ App closes and returns to home screen
-✅ Should show scanned items
-📸 [Screenshot attached]
-🔥 Severity: Critical
+⚡ Title
+📱 Device: [Model + OS]
+📞 Test #: +999999XXX
+🔢 Steps: 1... 2... 3...
+❌ What happened
+✅ What should happen
+🔥 Severity: Critical/High/Medium/Low
 
 ═══════════════════════════════════════════════════════════════════════════
-                    ❓ COMMON QUESTIONS
+                    ❓ QUICK FAQ
 ═══════════════════════════════════════════════════════════════════════════
 
-Q: Can multiple testers use the same test phone number?
-A: NO! Each test phone number creates a SEPARATE account. Choose your own 
-   unique number (e.g., 999999001, 999999002, etc.)
+Q: What number do I enter?
+A: 9 digits: 999999001 (app adds +243)
 
-Q: What number do I enter in the phone field?
-A: Enter 9 digits starting with 999999 (like 999999001). The app adds +243 
-   automatically, making it +243999999001.
+Q: What's the OTP?
+A: Always 123456
 
-Q: What's the difference between the OTP and my password?
-A: - OTP (123456) is for phone verification ONLY
-   - Password is what YOU create for logging in
-   - To login: Use your test number + your password + OTP 123456
+Q: Can I test payments?
+A: View screens only - DON'T complete payments
 
-Q: Do I need a real DRC phone number?
-A: NO! Test numbers (999999XXX) work from anywhere in the world. Just enter 
-   the 9 digits and the app handles the rest.
+Q: Need real receipts?
+A: Use your own or ask friends
 
-Q: Will I be charged for SMS?
-A: NO! Test numbers don't send real SMS. The OTP is always 123456.
-
-Q: Can I test payment features?
-A: View the payment screens but DON'T complete actual payments. We're 
-   testing the UI/UX, not processing real transactions.
-
-Q: How do I get real receipts to scan?
-A: - Use your own shopping receipts
-   - Ask friends/family for their receipts
-   - Take photos of receipts at stores (with permission)
-   - We may provide sample receipt images
-
-Q: What if I find a critical bug?
-A: Report it immediately with severity: CRITICAL. Include steps to reproduce.
-
-Q: Can I switch between test accounts?
-A: Yes! Just logout and login with a different test number.
-
-Q: Do I need to be in DRC to test?
-A: NO! The test phone system works worldwide. 🌍
-
-Q: How long should I test for?
-A: Aim for at least 30-60 minutes per session, covering multiple scenarios.
-
-═══════════════════════════════════════════════════════════════════════════
-                    ✨ FEEDBACK & SUGGESTIONS
-═══════════════════════════════════════════════════════════════════════════
-
-Beyond bugs, we also want to know:
-
-🎨 DESIGN & UX:
-- Is the app easy to navigate?
-- Are buttons clearly labeled?
-- Do colors and fonts work well?
-- Any confusing screens or features?
-
-⚡ PERFORMANCE:
-- How fast does the app respond?
-- Does receipt scanning feel quick enough?
-- Any laggy animations or transitions?
-- Battery drain issues?
-
-💡 FEATURES:
-- What features do you love?
-- What's missing that you'd want?
-- Any features that seem unnecessary?
-- Ideas for improvements?
-
-🌍 LOCALIZATION:
-- Are French translations accurate and natural?
-- Any English text where French should be?
-- Cultural considerations for DRC users?
+Q: Works worldwide?
+A: YES! Test from any country 🌍
 
 ═══════════════════════════════════════════════════════════════════════════
 
-Thank you for helping us make GoShopper better! 🙏
-
-Your testing helps millions of shoppers in DRC and worldwide find the best 
-prices and save money. Every bug you find and every suggestion you make 
-brings us closer to launching an amazing product!
+Thank you for testing! 🙏
+Report bugs and share feedback - every issue you find helps us improve!
 
 Happy Testing! 🎉
 
