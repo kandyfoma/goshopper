@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import emailjs from '@emailjs/browser';
+import WaitingList from './WaitingList';
 import './App.css';
 
 // Firebase configuration for admin
@@ -101,6 +102,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/waitinglist" element={<WaitingList />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
