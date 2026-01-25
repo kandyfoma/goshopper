@@ -20,7 +20,7 @@ interface AuthContextType extends AuthState {
   signInWithFacebook: () => Promise<User | null>;
   signOut: () => Promise<void>;
   setPhoneUser: (user: User) => void;
-  setSocialUser: (user: User) => void;
+  setSocialUser: (user: User) => Promise<void>;
   suppressAuthListener: () => void;
   enableAuthListener: () => void;
 }
@@ -62,6 +62,23 @@ export function AuthProvider({children}: AuthProviderProps) {
           
           analyticsService.setUserId(phoneUser.uid);
           cachePreloader.preloadCriticalData(phoneUser.uid).catch(error => {
+            console.warn('Cache preload failed:', error);
+          });
+        }
+        
+        // Also check for stored social user session
+        const socialUser = await authService.getStoredSocialUser();
+        if (socialUser && mounted && !phoneUser) {
+          // Social user session found - restore it
+          setState({
+            user: socialUser,
+            isLoading: false,
+            isAuthenticated: true,
+            error: null,
+          });
+          
+          analyticsService.setUserId(socialUser.uid);
+          cachePreloader.preloadCriticalData(socialUser.uid).catch(error => {
             console.warn('Cache preload failed:', error);
           });
         }
@@ -236,6 +253,8 @@ export function AuthProvider({children}: AuthProviderProps) {
     setState(prev => ({...prev, isLoading: true}));
     try {
       await authService.signOut();
+      // Clear both phone and social user storage
+      await authService.clearSocialUser();
     } catch (error) {
       // Log but don't throw - we still want to clear local state
       console.warn('Auth service sign out warning:', error);
@@ -270,7 +289,7 @@ export function AuthProvider({children}: AuthProviderProps) {
   }, []);
 
   // Set user after social login (Google/Apple/Facebook) - called after phone verification
-  const setSocialUser = useCallback((user: User) => {
+  const setSocialUser = useCallback(async (user: User) => {
     setState({
       user,
       isLoading: false,
@@ -280,6 +299,9 @@ export function AuthProvider({children}: AuthProviderProps) {
     
     // Track user authentication state
     analyticsService.setUserId(user.uid);
+    
+    // Store social user to AsyncStorage for persistence across restarts
+    await authService.storeSocialUser(user);
     
     // Preload critical data for better performance
     cachePreloader.preloadCriticalData(user.uid).catch(error => {

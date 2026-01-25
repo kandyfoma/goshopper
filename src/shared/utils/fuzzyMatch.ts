@@ -235,3 +235,47 @@ export function matchCommonPattern(storeName: string): string | null {
   
   return null;
 }
+
+/**
+ * Clean and normalize item name from OCR
+ * Removes extra spaces, standardizes formatting, fixes common OCR errors
+ */
+export function cleanItemName(itemName: string): string {
+  if (!itemName || typeof itemName !== 'string') {
+    return itemName;
+  }
+
+  let cleaned = itemName;
+
+  // Remove multiple spaces (common in OCR)
+  cleaned = cleaned.replace(/\s+/g, ' ');
+
+  // Trim whitespace
+  cleaned = cleaned.trim();
+
+  // Fix common OCR formatting issues
+  // Remove spaces before/after common separators
+  cleaned = cleaned.replace(/\s*-\s*/g, '-');
+  cleaned = cleaned.replace(/\s*\/\s*/g, '/');
+  cleaned = cleaned.replace(/\s*\(\s*/g, ' (');
+  cleaned = cleaned.replace(/\s*\)\s*/g, ') ');
+
+  // Standardize unit formatting (e.g., "500 g" -> "500g")
+  cleaned = cleaned.replace(/(\d+)\s*(kg|g|mg|l|ml|cl)\b/gi, (match, num, unit) => {
+    return `${num}${unit.toLowerCase()}`;
+  });
+
+  // Title case for better readability (first letter of each word capitalized)
+  cleaned = cleaned.replace(/\b\w+/g, (word) => {
+    // Keep all-caps words (like "USA") and lowercase units (like "ml", "kg")
+    if (word === word.toUpperCase() && word.length > 1) return word;
+    if (/^(ml|kg|g|mg|l|cl)$/i.test(word)) return word.toLowerCase();
+    // Title case
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
+
+  // Final trim
+  cleaned = cleaned.trim();
+
+  return cleaned;
+}

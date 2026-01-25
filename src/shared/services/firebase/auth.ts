@@ -13,6 +13,7 @@ import {safeToDate, getCurrencyForCountry} from '@/shared/utils/helpers';
 import {biometricService} from '../biometric';
 
 const PHONE_USER_KEY = '@goshopperai_phone_user';
+const SOCIAL_USER_KEY = '@goshopperai_social_user';
 
 class AuthService {
   private currentUser: FirebaseAuthTypes.User | null = null;
@@ -687,6 +688,46 @@ class AuthService {
       await AsyncStorage.removeItem(PHONE_USER_KEY);
     } catch (error) {
       console.error('Error clearing phone user:', error);
+    }
+  }
+
+  /**
+   * Store social user session (Google/Apple/Facebook)
+   */
+  async storeSocialUser(user: User): Promise<void> {
+    try {
+      await AsyncStorage.setItem(SOCIAL_USER_KEY, JSON.stringify(user));
+      console.log('✅ Social user stored to AsyncStorage');
+    } catch (error) {
+      console.error('Error storing social user:', error);
+    }
+  }
+
+  /**
+   * Get stored social user session
+   */
+  async getStoredSocialUser(): Promise<User | null> {
+    try {
+      const stored = await AsyncStorage.getItem(SOCIAL_USER_KEY);
+      if (stored) {
+        const user = JSON.parse(stored) as User;
+        console.log('✅ Social user retrieved from AsyncStorage');
+        return user;
+      }
+    } catch (error) {
+      console.error('Error getting stored social user:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Clear social user session
+   */
+  async clearSocialUser(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(SOCIAL_USER_KEY);
+    } catch (error) {
+      console.error('Error clearing social user:', error);
     }
   }
 

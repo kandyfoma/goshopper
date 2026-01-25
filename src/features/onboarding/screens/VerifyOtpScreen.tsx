@@ -21,6 +21,8 @@ import {useAuth} from '@/shared/contexts';
 import {useToast} from '@/shared/contexts';
 import {smsService} from '@/shared/services/sms';
 import {authService, userBehaviorService} from '@/shared/services/firebase';
+import {APP_ID} from '@/shared/services/firebase/config';
+import firestore from '@react-native-firebase/firestore';
 import {Button, Icon} from '@/shared/components';
 import {
   Colors,
@@ -503,15 +505,27 @@ const VerifyOtpScreen: React.FC = () => {
             
             // If this is from social login, complete the sign-in
             if (effectiveFromSocial) {
-              // Get the current Firebase user (fully mapped with all required fields)
-              const currentUser = authService.getCurrentUser();
+              // Use the social user that was passed from Login screen
+              // This is more reliable than getCurrentUser() which might return null
+              const socialUserToUse = effectiveSocialUser || authService.getCurrentUser();
               
-              if (currentUser) {
-                // Enable the auth listener and complete social sign-in
-                enableAuthListener();
-                setSocialUser(currentUser);
+              if (socialUserToUse) {
+                console.log('✅ Phone verified for social user, completing sign-in', {
+                  uid: socialUserToUse.uid,
+                  email: socialUserToUse.email
+                });
                 
-                console.log('✅ Phone verified for social user, navigating to Main');
+                // Enable the auth listener FIRST to allow Firebase Auth to sync
+                enableAuthListener();
+                
+                // Set the social user in auth context and persist to AsyncStorage
+                await setSocialUser(socialUserToUse);
+                
+                // Wait a bit for the auth state to persist before navigating
+                // This ensures the user is properly authenticated before navigation
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                console.log('✅ Navigating to Main after auth state persisted');
                 
                 // Navigate to main app
                 navigation.reset({
@@ -519,7 +533,7 @@ const VerifyOtpScreen: React.FC = () => {
                   routes: [{name: 'Main'}]
                 });
               } else {
-                console.error('❌ No current Firebase user found after social login verification');
+                console.error('❌ No social user found after social login verification');
                 setError('Session expirée. Veuillez vous reconnecter.');
                 enableAuthListener();
                 navigation.reset({
@@ -572,8 +586,8 @@ const VerifyOtpScreen: React.FC = () => {
             setError(regError.message || 'Erreur lors de la création du compte');
           }
         } else {
-          // Phone verification during login - check for pending login and retry
-          console.log('✅ Phone verified for login, checking for pending login credentials');
+          // This could be either login verification or forgot password flow
+          console.log('✅ OTP verified, checking flow type');
           
           // Clear verification in progress flag
           await AsyncStorage.removeItem('@goshopper_verification_in_progress').catch(console.error);
@@ -611,8 +625,46 @@ const VerifyOtpScreen: React.FC = () => {
             // Fall back to navigating to login screen
           }
           
-          // Fallback: navigate back to login screen
-          console.log('📱 No pending login found, navigating back to Login');
+          // Check if this is forgot password flow (isPhoneVerification is false and no pending login)
+          if (!effectiveIsPhoneVerification) {
+            console.log('📱 Forgot password flow detected, marking phone as verified');
+            
+            // Mark phone as verified in Firestore
+            try {
+              // Find the user by phone number and update phoneVerified status
+              const usersRef = firestore()
+                .collection('artifacts')
+                .doc(APP_ID)
+                .collection('users');
+              
+              const userSnapshot = await usersRef
+                .where('phoneNumber', '==', effectivePhoneNumber)
+                .limit(1)
+                .get();
+              
+              if (!userSnapshot.empty) {
+                const userDoc = userSnapshot.docs[0];
+                await userDoc.ref.update({
+                  phoneVerified: true,
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                });
+                console.log('✅ Phone marked as verified in Firestore');
+              }
+            } catch (verifyError) {
+              console.error('⚠️ Failed to mark phone as verified:', verifyError);
+              // Don't block the flow if this fails
+            }
+            
+            // Navigate to ResetPassword
+            navigation.navigate('ResetPassword', {
+              phoneNumber: effectivePhoneNumber,
+              verificationToken: result.token || code, // Pass the verification token or code
+            });
+            return;
+          }
+          
+          // Fallback: navigate back to login screen for phone verification flow
+          console.log('📱 Phone verification complete, navigating back to Login');
           navigation.reset({
             index: 0,
             routes: [{name: 'Login'}]

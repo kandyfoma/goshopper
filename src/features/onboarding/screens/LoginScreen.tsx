@@ -577,7 +577,7 @@ export function LoginScreen() {
         console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number...');
         setSocialLoading(null);
         // Set the social user in auth context (will mark profile as incomplete)
-        setSocialUser(userCredential);
+        await setSocialUser(userCredential);
         // Enable auth listener so RootNavigator can detect auth state and show ProfileSetup
         enableAuthListener();
         // RootNavigator will now redirect to ProfileSetup automatically
@@ -600,7 +600,7 @@ export function LoginScreen() {
             console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
             setSocialLoading(null);
             enableAuthListener();
-            setSocialUser(userCredential);
+            await setSocialUser(userCredential);
             showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
             return;
           }
@@ -718,7 +718,7 @@ export function LoginScreen() {
         console.log('📱 [LoginScreen] Navigating to ProfileSetup for phone number (Apple)...');
         setSocialLoading(null);
         enableAuthListener();
-        setSocialUser(userCredential);
+        await setSocialUser(userCredential);
         navigation.navigate('ProfileSetup', {
           fromSocial: 'apple',
           socialUser: userCredential,
@@ -736,7 +736,7 @@ export function LoginScreen() {
             console.log('⏭️ OTP skipped for non-Congo number, completing sign-in');
             setSocialLoading(null);
             enableAuthListener();
-            setSocialUser(userCredential);
+            await setSocialUser(userCredential);
             showToast('Numéro international détecté - vérification OTP non requise', 'info', 3000);
             return;
           }
@@ -796,7 +796,7 @@ export function LoginScreen() {
       
       // Complete sign-in
       enableAuthListener();
-      setSocialUser(userCredential);
+      await setSocialUser(userCredential);
     } catch (err: any) {
       enableAuthListener(); // Re-enable listener on error
       setError(err?.message || 'Échec de la connexion Apple');

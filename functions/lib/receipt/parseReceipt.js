@@ -87,6 +87,32 @@ function normalizeProductName(name) {
         .trim();
 }
 /**
+ * Normalizes currency code to standard format for GoShopper.
+ * Handles common variations and defaults to CDF for DRC.
+ * Only returns USD or CDF as these are the supported currencies.
+ */
+function normalizeCurrency(currency) {
+    if (!currency)
+        return 'CDF'; // Default for DRC
+    const curr = currency.toUpperCase().trim();
+    // Handle common variations for CDF
+    if (curr === 'FC' || curr === 'FRANC' || curr === 'FRANCS' || curr === 'CONGOLAIS' || curr === 'CDF') {
+        return 'CDF';
+    }
+    // Handle common variations for USD
+    if (curr === '$' || curr === 'DOLLAR' || curr === 'DOLLARS' || curr === 'USD') {
+        return 'USD';
+    }
+    // For all other currencies (EUR, GBP, INR, ZAR, etc.), default to USD
+    // Users can manually adjust if needed
+    if (/^[A-Z]{3}$/.test(curr) && curr !== 'CDF' && curr !== 'USD') {
+        console.log(`⚠️ [Currency] Unsupported currency ${curr}, defaulting to USD`);
+        return 'USD';
+    }
+    // Default to CDF for unrecognized currencies (assume DRC)
+    return 'CDF';
+}
+/**
  * Fix quantity parsing for weight/volume units
  * Handles cases where "1.000kg" is misread as 1000 instead of 1.0 kg
  *
@@ -425,10 +451,35 @@ REQUIRED OUTPUT FORMAT:
 {
   "storeName": "Store name from receipt header",
   "date": "YYYY-MM-DD format",
-  "currency": "CDF or USD",
+  "currency": "3-letter ISO code (USD, EUR, GBP, INR, ZAR, CDF, etc.)",
   "total": number (final total amount),
   "items": [{ "name": "product name", "quantity": 1, "unitPrice": 1000 }]
 }
+
+⚠️ CRITICAL: STORE NAME DETECTION (HIGHEST PRIORITY) ⚠️
+**YOU MUST TRY YOUR ABSOLUTE BEST TO DETECT THE STORE NAME - IT'S THE #1 PRIORITY!**
+
+🎯 WHERE TO FIND THE STORE NAME:
+- Store name is at the VERY TOP of the receipt (header section, first 20-30%)
+- It's the LARGEST, BOLDEST, most PROMINENT text on the receipt
+- Usually ALL CAPS, centered, or in a larger font than other text
+
+🏪 COMMON DRC STORE NAMES:
+- **Major stores**: Peloustore, Shoprite, Carrefour, Hasson & Frères, Kin Marché, City Market, Makro
+- **Supermarkets**: Jambo Mart, Top Market, Hyper Psaro, Super U, Dakar Market, Auchan
+- **Partial matches OK**: "PELOU" → "Peloustore", "SHOPR" → "Shoprite", "CARRE" → "Carrefour"
+
+🔍 DETECTION STRATEGIES:
+1. **Look for largest text** at the top of the receipt - this is almost always the store name
+2. **Fix OCR errors**: "P3LOUSTORE" → "Peloustore", "SH0PRITE" → "Shoprite", "JAMB0" → "Jambo"
+3. **Partial text OK**: If you see "PELOU", "JAMBO", "SHOPR" → match to known DRC store
+4. **Context clues**: Text in header position + largest font = store name
+
+⚠️ CRITICAL RULES FOR STORE NAME:
+- **NEVER return null or "Unknown Store" or "Magasin Inconnu"** if you see ANY readable text at top
+- **ALWAYS attempt OCR correction** on store names: fix 0→O, 3→E, 1→I, 5→S
+- **Even 40% visible** is enough - infer the complete name from DRC store list
+- **Blurry is OK** - make your best guess from partial letters
 
 DATE PARSING (CRITICAL):
 - Convert ALL dates to YYYY-MM-DD format
@@ -599,30 +650,36 @@ KEEP IN PRODUCT NAMES:
 - Size/weight: 300gr, 500ml, 75cl, 10 KG, 1.3kg, 400g
 - Product descriptions in parentheses: (Oeuf), (Extra virgin)
 
-CURRENCY RULES (CRITICAL - READ VERY CAREFULLY):
-- **DEFAULT is "CDF"** (Congolese Franc)
-- DRC receipts are 99% in CDF - prices are large numbers (500, 1000, 5000, 50000+)
+CURRENCY DETECTION (CRITICAL - READ VERY CAREFULLY):
 
-CDF INDICATORS (if ANY of these appear, currency is CDF):
-- "(Fc)", "(FC)", "FC", "Fc", "CDF", "Franc", "Congolais"
-- "Montant TTC (Fc)", "Montant T.T.C. (FC)", "Total Due:FC"
-- Large numbers without $ sign (2450, 15800, 60394)
+STEP 1: Look for currency symbols and codes on the receipt:
+- $ or USD → "USD"
+- € or EUR or Euro → "EUR"
+- £ or GBP or Pound → "GBP"
+- ₹ or INR or Rupee → "INR"
+- R or ZAR or Rand → "ZAR"
+- FC, Fc, (FC), (Fc), CDF, Franc, Congolais → "CDF"
+- ₦ or NGN or Naira → "NGN"
+- KES or KSh or Shilling → "KES"
+- Any other currency: extract the 3-letter ISO code (THB, JPY, AUD, etc.)
 
-IGNORE USD CONVERSIONS:
-- Many DRC receipts show a USD equivalent at the bottom for reference
-- "Total Facture :($) 35.803" = just a conversion, NOT the currency
-- "Total Due:USD 23.28" = just a conversion, NOT the currency
-- These conversions do NOT change the receipt currency
+STEP 2: IGNORE secondary conversions:
+- Many receipts show a secondary currency for reference (e.g., "Total USD: 23.28")
+- Use the currency that appears WITH ITEM PRICES, not just the total
+- If CDF items are shown with USD conversion at bottom → Currency is CDF
+
+STEP 3: Default behavior:
+- If receipt is from Congo/DRC (store names like Shoprite Kinshasa, City Market Kinshasa, etc.) → Default to "CDF"
+- If no clear currency indicator → Use "CDF" as fallback for DRC receipts
+- For non-DRC receipts with no clear currency → Use "USD"
 
 EXAMPLES:
-- Receipt shows "Montant TTC (Fc): 82347" and "Total Facture :($) 35.80" → Currency is CDF
-- Receipt shows "Total Due:FC 53,541.40" and "Total Due:USD 23.28" → Currency is CDF
-- Receipt shows "Montant T.T.C. (FC): 249003" → Currency is CDF
-
-Only use "USD" if:
-1. ALL item prices are small decimals ($1.50, $5.00)
-2. No "(Fc)" or "(FC)" appears anywhere
-3. $ symbol is used for item prices (not just a total conversion)
+- Receipt shows "Montant TTC (Fc): 82347" → Currency is "CDF"
+- Receipt shows "Total: $45.99" → Currency is "USD"
+- Receipt shows "Total: €12.50" → Currency is "EUR"
+- Receipt shows "Total: ₹499" → Currency is "INR"
+- Indian store with "Total: 499.00" and ₹ symbol → Currency is "INR"
+- Receipt shows "FC 82347" and "USD 35.80" → Currency is "CDF" (FC is primary)
 
 CLEANUP RULES:
 - Remove internal codes: (H.P.), (SA), (z4), (24)
@@ -678,7 +735,7 @@ DATE PARSING: DRC receipts use DD-MM-YY format. "05-01-26" = January 5, 2026 →
   "storeName": "Store name from header",
   "rawText": "All text transcribed line by line",
   "date": "YYYY-MM-DD format (convert DD-MM-YY to YYYY-MM-DD)",
-  "currency": "CDF",
+  "currency": "3-letter ISO code - detect from receipt (CDF, USD, EUR, GBP, INR, etc.)",
   "total": number (look for TOTAL, TTL, MONTANT, or largest number),
   "items": [
     {"name": "product name (even partial)", "quantity": 1, "unitPrice": number}
@@ -964,16 +1021,41 @@ Fix obvious OCR character recognition errors while preserving brand names:
 - If a frame is blurry, look for the same info in adjacent frames
 - Items may appear in multiple frames - DON'T duplicate them
 
-⚠️ CRITICAL: STORE NAME DETECTION (HIGHEST PRIORITY)
+⚠️ CRITICAL: STORE NAME DETECTION (HIGHEST PRIORITY) ⚠️
+**YOU MUST TRY YOUR ABSOLUTE BEST TO DETECT THE STORE NAME - IT'S THE #1 PRIORITY!**
+
+🎯 WHERE TO FIND THE STORE NAME:
 - The STORE NAME appears in the VERY FIRST 2-3 FRAMES at the TOP of receipt
-- These frames might be SLIGHTLY BLURRY during camera focusing - that's NORMAL
-- Look for LARGE, BOLD, PROMINENT text at the receipt top
-- If frame 1 is unclear, CHECK frames 2, 3, and even 4 for the store name
-- Common DRC stores: Peloustore, Shoprite, Carrefour, Hasson & Frères, Kin Marché, Dakar Market, City Market, Makro
-- If you see ANY recognizable store name in ANY of the first frames, USE IT
-- DON'T leave storeName as null if you see ANY text that could be a store name
-- Store names are usually: ALL CAPS, centered, or largest font on receipt
-- Even if partially visible or slightly blurred, extract the store name
+- It's usually in the FIRST 20-30% of the receipt (header section)
+- Look for the LARGEST, BOLDEST, most PROMINENT text at the top
+- Store names are typically: ALL CAPS, centered, or largest font on receipt
+
+📸 HANDLING BLURRY/UNCLEAR FRAMES:
+- **IMPORTANT**: The first 1-2 frames are often SLIGHTLY BLURRY due to camera auto-focus - THIS IS NORMAL!
+- **DO NOT reject** store names just because the frame is a bit blurry
+- If frame 1 is blurry, CHECK frames 2, 3, 4, and even 5 for the same text
+- If you see the SAME text pattern across multiple frames, it's the store name
+- **Use context clues**: If blurry text appears in the header position across frames, it's likely the store name
+
+🏪 COMMON DRC STORE NAMES TO RECOGNIZE:
+- **Top stores**: Peloustore, Shoprite, Carrefour, Hasson & Frères, Kin Marché, City Market, Makro
+- **Supermarkets**: Jambo Mart, Top Market, Hyper Psaro, Super U, Dakar Market
+- **Partial matches OK**: If you see "PELOU" → "Peloustore", "SHOPR" → "Shoprite", "CARRE" → "Carrefour"
+- **Brand variations**: "Hasson", "H&F" → "Hasson & Frères"
+
+🔍 DETECTION STRATEGIES (TRY ALL OF THESE):
+1. **Exact match**: Look for complete, clear store names in any of the first 5 frames
+2. **Partial match**: If you see partial text like "PELOU", "SHOPR", "JAMBO" → match to known store
+3. **Pattern recognition**: Large centered text at top = likely store name (even if blurry)
+4. **Cross-frame validation**: If similar text appears in frames 1, 2, and 3 at the top → it's the store name
+5. **OCR correction**: Fix common errors: "P3LOUSTORE" → "Peloustore", "SH0PRITE" → "Shoprite"
+
+⚠️ CRITICAL RULES:
+- **NEVER return null or "Unknown Store" or "Magasin Inconnu" if you see ANY readable text at the top**
+- **ALWAYS attempt to match** blurry/partial text to known DRC stores
+- **If uncertain**, provide your BEST GUESS based on partial letters (e.g., "PELOU" → "Peloustore")
+- **Use all frames**: Check frames 0, 1, 2, 3, 4, 5 systematically for store name
+- **Even 30% visible** text is enough - infer the rest from DRC store names list
 
 ⚠️ CRITICAL: DON'T SKIP ANY ITEMS
 - Process frames SEQUENTIALLY from start to end - DON'T jump ahead
@@ -1227,8 +1309,8 @@ CRITICAL OUTPUT RULES:
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
             // Use a more capable model for video processing
-            // gemini-2.0-flash-exp has better video understanding
-            const modelName = attempt === 0 ? 'gemini-2.0-flash-exp' : config_1.config.gemini.model;
+            // gemini-2.5-flash has better video understanding
+            const modelName = attempt === 0 ? 'gemini-2.5-flash' : config_1.config.gemini.model;
             const model = getGeminiAI().getGenerativeModel({
                 model: modelName,
                 generationConfig: {
@@ -1357,7 +1439,7 @@ CRITICAL OUTPUT RULES:
                     parsed = {
                         storeName: storeNameMatch[1],
                         date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
-                        currency: currencyMatch ? currencyMatch[1] : 'CDF',
+                        currency: currencyMatch ? currencyMatch[1].toUpperCase() : 'CDF',
                         items: extractedItems,
                         total: totalMatch ? parseFloat(totalMatch[1]) : 0,
                     };
@@ -1408,9 +1490,8 @@ CRITICAL OUTPUT RULES:
                 storePhone: parsed.storePhone,
                 receiptNumber: parsed.receiptNumber,
                 date: parsed.date || new Date().toISOString().split('T')[0],
-                // Fix: Default to CDF (Franc Congolais) unless explicitly USD
-                // DRC uses FC (Franc Congolais = CDF) as default currency
-                currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
+                // Use detected currency or default to CDF for DRC
+                currency: normalizeCurrency(parsed.currency),
                 items: deduplicatedItems,
                 subtotal: parsed.subtotal ? Number(parsed.subtotal) : undefined,
                 tax: parsed.tax ? Number(parsed.tax) : undefined,
@@ -1789,9 +1870,8 @@ async function parseWithGemini(imageBase64, mimeType) {
                 storePhone: parsed.storePhone || null,
                 receiptNumber: parsed.receiptNumber || null,
                 date: parsed.date || new Date().toISOString().split('T')[0],
-                // Fix: Default to CDF (Franc Congolais) unless explicitly USD
-                // DRC uses FC (Franc Congolais = CDF) as default currency
-                currency: parsed.currency === 'USD' || parsed.currency === '$' ? 'USD' : 'CDF',
+                // Use detected currency or default to CDF for DRC
+                currency: normalizeCurrency(parsed.currency),
                 items: deduplicatedItems,
                 total: finalTotal,
             };

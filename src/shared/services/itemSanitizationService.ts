@@ -833,8 +833,50 @@ class ItemSanitizationService {
     // Remove excessive whitespace
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
-    // If cleaned to nothing, return unknown
-    if (cleaned.length < 2 || this.isGarbageText(cleaned)) {
+    // Known DRC stores - use fuzzy matching to recover partial/corrupted names
+    const knownStores: Record<string, string> = {
+      'peloustore': 'Peloustore',
+      'pelou': 'Peloustore',
+      'shoprite': 'Shoprite',
+      'shopr': 'Shoprite',
+      'carrefour': 'Carrefour',
+      'carre': 'Carrefour',
+      'hasson': 'Hasson & Frères',
+      'freres': 'Hasson & Frères',
+      'citymarket': 'City Market',
+      'city': 'City Market',
+      'kinmarche': 'Kin Marché',
+      'jambomart': 'Jambo Mart',
+      'jambo': 'Jambo Mart',
+      'topmarket': 'Top Market',
+      'hyperpsaro': 'Hyper Psaro',
+      'psaro': 'Hyper Psaro',
+      'superu': 'Super U',
+      'makro': 'Makro',
+      'auchan': 'Auchan',
+      'dakar': 'Dakar Market',
+    };
+
+    // Try to match against known stores (case-insensitive, partial match)
+    const normalizedCleaned = cleaned.toLowerCase().replace(/\s+/g, '');
+    for (const [key, storeName] of Object.entries(knownStores)) {
+      if (normalizedCleaned.includes(key) || key.includes(normalizedCleaned)) {
+        console.log(`🏪 [Sanitization] Matched "${cleaned}" → "${storeName}" (via fuzzy match)`);
+        return storeName;
+      }
+    }
+
+    // If cleaned to nothing, or too short but NOT matched to known store, return unknown
+    // BUT: Be lenient - even 2 characters might be a valid short store name
+    if (cleaned.length === 0) {
+      return 'Magasin inconnu';
+    }
+
+    // Check for garbage text (all numbers, all special chars, etc.)
+    // But be MORE lenient than before
+    const isAllNumbers = /^\d+$/.test(cleaned);
+    const isAllSpecialChars = /^[^a-zA-Z0-9]+$/.test(cleaned);
+    if (isAllNumbers || isAllSpecialChars || this.isGarbageText(cleaned)) {
       return 'Magasin inconnu';
     }
 

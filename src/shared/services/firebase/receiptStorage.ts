@@ -12,6 +12,7 @@ import {
   normalizeForComparison,
   matchCommonPattern,
   FuzzyMatchResult,
+  cleanItemName,
 } from '@/shared/utils/fuzzyMatch';
 import {savingsTrackerService} from './savingsTracker';
 import {widgetDataService} from '../widgetDataService';
@@ -234,6 +235,24 @@ class ReceiptStorageService {
       }
     } catch (error) {
       console.warn('Store name correction failed, using original:', error);
+    }
+
+    // Clean and normalize item names before saving
+    if (receipt.items && Array.isArray(receipt.items)) {
+      receipt.items = receipt.items.map(item => {
+        const cleanedName = cleanItemName(item.name);
+        const wasClean = cleanedName !== item.name;
+        
+        if (wasClean) {
+          console.log(`🧹 Item name cleaned: "${item.name}" → "${cleanedName}"`);
+        }
+
+        return {
+          ...item,
+          name: cleanedName,
+          nameNormalized: normalizeForComparison(cleanedName),
+        };
+      });
     }
 
     // Ensure both USD and CDF amounts are set
