@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   TouchableOpacity,
   TextInput,
   Animated,
@@ -23,7 +22,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, EmptyState, BackButton, FadeIn} from '@/shared/components';
+import {Icon, EmptyState, BackButton, FadeIn, AppLoader} from '@/shared/components';
 import {formatCurrency, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth, useUser} from '@/shared/contexts';
 import {translationService} from '@/shared/services/translation';
@@ -371,10 +370,7 @@ export function CategoryDetailScreen() {
             <View style={styles.headerRight} />
           </View>
         </FadeIn>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement..." />
       </SafeAreaView>
     );
   }

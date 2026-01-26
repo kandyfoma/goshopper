@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -21,7 +20,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Button} from '@/shared/components';
+import {Icon, Button, AppLoader} from '@/shared/components';
 import firestore from '@react-native-firebase/firestore';
 import {APP_ID} from '@/shared/services/firebase/config';
 import {COUNTRIES_CITIES, CountryData, CityData} from '@/shared/constants/cities';
@@ -219,8 +218,7 @@ export function CitySelectionScreen() {
       {/* Loading overlay */}
       {isSaving && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Sauvegarde en cours...</Text>
+          <AppLoader size="large" message="Sauvegarde en cours..." />
         </View>
       )}
     </SafeAreaView>

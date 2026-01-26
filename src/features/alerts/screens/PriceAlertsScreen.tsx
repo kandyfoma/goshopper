@@ -26,7 +26,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, Button, BackButton} from '@/shared/components';
+import {Icon, Spinner, Modal, Button, BackButton, AppLoader} from '@/shared/components';
 
 export function PriceAlertsScreen() {
   const navigation = useNavigation();
@@ -253,10 +253,8 @@ export function PriceAlertsScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement des alertes...</Text>
-        </View>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.background.primary} />
+        <AppLoader fullscreen size="large" message="Chargement des alertes..." />
       </View>
     );
   }

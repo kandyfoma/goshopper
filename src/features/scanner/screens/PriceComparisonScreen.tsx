@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useRoute, RouteProp} from '@react-navigation/native';
@@ -14,7 +13,7 @@ import functions from '@react-native-firebase/functions';
 import {RootStackParamList, PriceComparison} from '@/shared/types';
 import {COLORS} from '@/shared/utils/constants';
 import {formatCurrency} from '@/shared/utils/helpers';
-import {Icon} from '@/shared/components';
+import {Icon, AppLoader} from '@/shared/components';
 
 type PriceComparisonRouteProp = RouteProp<
   RootStackParamList,
@@ -109,8 +108,7 @@ export function PriceComparisonScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={COLORS.primary[500]} />
-          <Text style={styles.loadingText}>Comparaison des prix...</Text>
+          <AppLoader size="large" message="Comparaison des prix..." />
         </View>
       </SafeAreaView>
     );

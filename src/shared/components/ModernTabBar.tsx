@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import {getFocusedRouteNameFromRoute} from '@react-navigation/native';
 import {Colors, Typography, Shadows} from '@/shared/theme/theme';
 import {Icon} from '@/shared/components';
 
@@ -165,6 +166,21 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}, scrol
             const isFocused = state.index === index;
             const routeBadge = badges[route.name] || 0;
 
+            // For nested navigators (like Items stack), check which screen is active
+            // This helps us determine the correct active state for the tab
+            const focusedNestedRoute = isFocused ? getFocusedRouteNameFromRoute(route) : null;
+            
+            // Items tab should only show as focused when on ItemsMain (CityItemsScreen)
+            // When on BrowseItems (ItemsScreen), the tab should NOT show as active
+            let isActuallyFocused = isFocused;
+            if (route.name === 'Items' && isFocused) {
+              // Only show as focused if we're on ItemsMain (default) or CityItemDetail
+              // Don't show as focused if we're on BrowseItems (user's personal items)
+              isActuallyFocused = !focusedNestedRoute || 
+                                  focusedNestedRoute === 'ItemsMain' || 
+                                  focusedNestedRoute === 'CityItemDetail';
+            }
+
             const onPress = () => {
               const event = navigation.emit ? navigation.emit({
                 type: 'tabPress',
@@ -199,17 +215,17 @@ export function ModernTabBar({state, descriptors, navigation, badges = {}, scrol
               <View key={index} style={styles.tabItem}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={isFocused ? {selected: true} : {}}
+                  accessibilityState={isActuallyFocused ? {selected: true} : {}}
                   accessibilityLabel={options.tabBarAccessibilityLabel}
                   testID={options.tabBarTestID}
                   onPress={onPress}
                   onLongPress={onLongPress}
                   style={[
                     styles.tabButton,
-                    isFocused && styles.tabButtonFocused,
+                    isActuallyFocused && styles.tabButtonFocused,
                   ]}>
                   {options.tabBarIcon ? 
-                    options.tabBarIcon({focused: isFocused, badge: routeBadge}) : null}
+                    options.tabBarIcon({focused: isActuallyFocused, badge: routeBadge}) : null}
                 </Pressable>
               </View>
             );

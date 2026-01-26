@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  ActivityIndicator,
   Modal,
   FlatList,
   Animated,
@@ -30,7 +29,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Button, BackButton} from '@/shared/components';
+import {Icon, Spinner, Button, BackButton, AppLoader} from '@/shared/components';
 import {APP_ID} from '@/shared/services/firebase/config';
 import firestore from '@react-native-firebase/firestore';
 import {analyticsService} from '@/shared/services/analytics';
@@ -197,7 +196,7 @@ export function UpdateProfileScreen() {
     return (
       <SafeAreaView style={{flex: 1, backgroundColor: Colors.background.primary}}>
         <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <AppLoader size="large" message="Chargement..." />
           <Text style={{
             marginTop: Spacing.md,
             fontSize: Typography.fontSize.base,

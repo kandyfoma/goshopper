@@ -28,7 +28,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, AppFooter, Button, AnimatedModal} from '@/shared/components';
+import {Icon, AppFooter, Button, AnimatedModal, AppLoader} from '@/shared/components';
 import {SUBSCRIPTION_PLANS, TRIAL_SCAN_LIMIT} from '@/shared/utils/constants';
 import {formatCurrency, formatDate} from '@/shared/utils/helpers';
 import {firebase} from '@react-native-firebase/functions';
@@ -307,16 +307,15 @@ export function ProfileScreen() {
     }
   }, [user, isAuthenticated]);
 
-  // Don't render anything if not authenticated or profile is loading
+  // Show loading state within SafeAreaView to maintain navigation
   if (!isAuthenticated || profileLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>
-            {profileLoading ? 'Chargement du profil...' : 'Chargement...'}
-          </Text>
-        </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={Colors.background.primary}
+        />
+        <AppLoader fullscreen size="large" message={profileLoading ? 'Chargement du profil...' : 'Chargement...'} />
       </SafeAreaView>
     );
   }
@@ -329,11 +328,7 @@ export function ProfileScreen() {
     setShowLogoutModal(false);
     try {
       await signOut();
-      // Navigate to Home tab after sign out by resetting to Main
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Main'}],
-      });
+      // User will be redirected to auth screens by the auth state listener
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -574,7 +569,7 @@ export function ProfileScreen() {
                 icon="tool"
                 title="Developer Tools"
                 subtitle="Test premium, clear data, rebuild items"
-                iconColor="purple"
+                iconColor="blue"
                 onPress={() => navigation.push('DeveloperTools')}
               />
               <MenuItem
@@ -596,7 +591,7 @@ export function ProfileScreen() {
           variant="danger"
           size="md"
           icon={<Icon name="logout" size="sm" color={Colors.white} />}
-          style={{marginTop: Spacing.xl, marginBottom: Spacing.xxl}}
+          style={{marginTop: Spacing.xl, marginBottom: Spacing['2xl']}}
         />
 
         {/* App Footer */}
@@ -658,6 +653,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -937,19 +942,5 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.tertiary,
     marginTop: Spacing.lg,
-  },
-
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background.primary,
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: Typography.fontSize.base,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
   },
 });

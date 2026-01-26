@@ -35,7 +35,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, Modal, SwipeToDelete, Input, Button} from '@/shared/components';
+import {Icon, Spinner, Modal, SwipeToDelete, Input, Button, AppLoader} from '@/shared/components';
 import {formatCurrency, getExchangeRate} from '@/shared/utils/helpers';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -461,8 +461,7 @@ export function ShoppingListScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <AppLoader size="large" message="Chargement..." />
         </View>
       </View>
     );

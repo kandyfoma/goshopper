@@ -26,7 +26,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn, EmptyState, SwipeToDelete, TabSelector} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, EmptyState, SwipeToDelete, TabSelector, AppLoader} from '@/shared/components';
 import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
@@ -507,10 +507,7 @@ export function HistoryScreen() {
   const renderEmptyState = () => {
     if (isSearching) {
       return (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Recherche...</Text>
-        </View>
+        <AppLoader message="Recherche en cours..." />
       );
     }
     
@@ -532,10 +529,7 @@ export function HistoryScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement de l'historique...</Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement de l'historique..." />
       </SafeAreaView>
     );
   }
@@ -740,6 +734,7 @@ export function HistoryScreen() {
             refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={Colors.primary}
+            colors={[Colors.primary]}
           />
         }
         onScroll={Animated.event(
@@ -781,6 +776,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -985,14 +990,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semiBold,
   },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
+  searchingContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xl,
   },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: Typography.fontSize.base,
+  searchingText: {
+    marginLeft: Spacing.sm,
+    fontSize: Typography.fontSize.md,
     color: Colors.text.secondary,
   },
   

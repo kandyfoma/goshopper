@@ -13,6 +13,7 @@ import {
   ScrollView,
   Animated,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
@@ -35,7 +36,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal, BackButton} from '@/shared/components';
+import {Icon, Spinner, FadeIn, SlideIn, Input, Button, SubscriptionLimitModal, BackButton, AppLoader} from '@/shared/components';
 import {formatDate} from '@/shared/utils/helpers';
 
 // Import ProfileStackParamList for shopping screens
@@ -417,12 +418,9 @@ export function ShoppingListsScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <AppLoader fullscreen size="large" message="Chargement..." />
+      </SafeAreaView>
     );
   }
 

@@ -188,6 +188,9 @@ export {
   backfillCityItemCategories,
 } from './items/itemAggregation';
 
+// Item Search functions
+export {searchCityItems} from './items/searchCityItems';
+
 // Product Management functions
 export {
   initializeMasterProducts,

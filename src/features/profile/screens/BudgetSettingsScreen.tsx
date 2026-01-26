@@ -9,7 +9,6 @@ import {
   TextInput,
   Alert,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -23,7 +22,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Button} from '@/shared/components';
+import {Icon, Button, AppLoader} from '@/shared/components';
 import {formatCurrency, getCurrencyForCountry} from '@/shared/utils/helpers';
 import {analyticsService} from '@/shared/services/analytics';
 import {
@@ -225,8 +224,7 @@ export function BudgetSettingsScreen() {
         showsVerticalScrollIndicator={false}>
         {isLoadingBudget ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Chargement...</Text>
+            <AppLoader size="large" message="Chargement..." />
           </View>
         ) : (
           <View>

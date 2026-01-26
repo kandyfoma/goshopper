@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
-  ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
   Animated,
@@ -27,7 +26,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, AppLoader} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription, useScroll} from '@/shared/contexts';
 import {analyticsService} from '@/shared/services/analytics';
@@ -205,7 +204,7 @@ export function StatsScreen() {
       
       // Use network-aware cache for stats data
       const cachedData = await networkAwareCache.fetchWithCache({
-        key: cacheKey,
+        cacheKey,
         namespace: 'stats',
         ttl: 30 * 60 * 1000, // 30 minutes cache
         priority: CachePriority.HIGH,
@@ -548,26 +547,27 @@ export function StatsScreen() {
             currentMonthReceipts: currentMonthReceipts.map(doc => ({id: doc.id, ...doc.data()}))
           };
         },
-        forceRefresh,
         onStaleData: (staleData) => {
           // Show stale data immediately for instant display
-          if (staleData && staleData.data) {
-            console.log('📊 Using stale data:', staleData);
-            setTotalSpending(staleData.data.totalSpending || 0);
-            setCategories(staleData.data.categories || []);
-            setMonthlyData(staleData.data.monthlyData || []);
-            setCurrentMonthReceipts(staleData.data.currentMonthReceipts || []);
+          const data = staleData as any;
+          if (data?.totalSpending !== undefined) {
+            console.log('📊 Using stale data:', data);
+            setTotalSpending(data.totalSpending || 0);
+            setCategories(data.categories || []);
+            setMonthlyData(data.monthlyData || []);
+            setCurrentMonthReceipts(data.currentMonthReceipts || []);
           }
         }
       });
 
       // Update with fresh or cached data
       console.log('📊 Updating state with fresh data:', cachedData);
-      if (cachedData && cachedData.data) {
-        setTotalSpending(cachedData.data.totalSpending || 0);
-        setCategories(cachedData.data.categories || []);
-        setMonthlyData(cachedData.data.monthlyData || []);
-        setCurrentMonthReceipts(cachedData.data.currentMonthReceipts || []);
+      const data = cachedData as any;
+      if (data?.totalSpending !== undefined) {
+        setTotalSpending(data.totalSpending || 0);
+        setCategories(data.categories || []);
+        setMonthlyData(data.monthlyData || []);
+        setCurrentMonthReceipts(data.currentMonthReceipts || []);
       }
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -679,12 +679,11 @@ export function StatsScreen() {
   if (!isAuthenticated || profileLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>
-            {profileLoading ? 'Chargement du profil...' : 'Chargement...'}
-          </Text>
-        </View>
+        <AppLoader 
+          fullscreen 
+          size="large" 
+          message={profileLoading ? 'Chargement du profil...' : 'Chargement...'} 
+        />
       </SafeAreaView>
     );
   }
@@ -692,10 +691,7 @@ export function StatsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement des statistiques...</Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement des statistiques..." />
       </SafeAreaView>
     );
   }

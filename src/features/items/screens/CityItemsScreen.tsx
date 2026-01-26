@@ -8,7 +8,6 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Animated,
   Pressable,
   RefreshControl,
@@ -25,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn, SubscriptionLimitModal, WatchItemButton} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, SubscriptionLimitModal, WatchItemButton, AppLoader} from '@/shared/components';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useSubscription} from '@/shared/contexts';
 import {useScroll} from '@/shared/contexts';
@@ -44,6 +43,7 @@ interface CityItemData {
   name: string;
   category?: string;        // Item category (e.g., 'Boissons', 'Alimentation')
   searchKeywords?: string[]; // Keywords for enhanced search (e.g., ['wine', 'vin'] for 'merlot')
+  relevanceScore?: number;  // Search relevance score from backend (when searching)
   prices: {
     storeName: string;
     originalName?: string; // Item name as it appeared in this store
@@ -163,15 +163,22 @@ export function CityItemsScreen() {
   // Check feature access
   const hasAccess = hasFeatureAccess('priceComparison', subscription);
 
-  // Debounced search - only trigger search 300ms after user stops typing
+  // Debounced search - triggers backend search after user stops typing
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     
     searchTimeoutRef.current = setTimeout(() => {
-      setSearchQuery(searchInput);
-    }, 300);
+      if (searchInput.trim().length >= 2) {
+        // Trigger backend search
+        performBackendSearch(searchInput.trim());
+      } else if (searchInput.trim().length === 0) {
+        // Clear search, reload default items
+        setSearchQuery('');
+        loadCityItemsData(false);
+      }
+    }, 400); // 400ms debounce
     
     return () => {
       if (searchTimeoutRef.current) {
@@ -227,7 +234,9 @@ export function CityItemsScreen() {
         
         // Cleanup on unmount or when city changes
         return () => {
-          cityItemsRefreshService.stopAutoRefresh(userProfile.defaultCity);
+          if (userProfile?.defaultCity) {
+            cityItemsRefreshService.stopAutoRefresh(userProfile.defaultCity);
+          }
           unsubscribe();
         };
       } else if (!profileLoading) {
@@ -261,6 +270,8 @@ export function CityItemsScreen() {
       console.log('🔄 [CityItems] Starting silent refresh while reading...');
       setIsSilentRefreshing(true);
       
+      if (!userProfile?.defaultCity) return;
+      
       try {
         const result = await cityItemsRefreshService.refreshWhileReading(
           userProfile.defaultCity
@@ -290,48 +301,91 @@ export function CityItemsScreen() {
     };
   }, [userProfile?.defaultCity, hasAccess, isLoading, items.length]);
 
+  // Backend search function
+  const performBackendSearch = async (query: string) => {
+    if (!userProfile?.defaultCity) return;
+    
+    setIsSearching(true);
+    setSearchQuery(query);
+    
+    try {
+      console.log('🔍 Performing backend search:', query);
+      
+      const functionsInstance = firebase.app().functions('europe-west1');
+      const searchFunction = functionsInstance.httpsCallable('searchCityItems', {
+        timeout: 30000,
+      });
+      
+      const result = await searchFunction({
+        city: userProfile.defaultCity,
+        query: query.trim(),
+        page: 1,
+        pageSize: 100, // Get more results since they're pre-ranked
+      });
+      
+      console.log('✅ Search results:', result.data);
+      
+      const data = result.data as any;
+      if (data?.success) {
+        // Replace items with search results (already relevance-ranked)
+        setItems(data.items || []);
+        setPage(1);
+        setHasMore(data.hasMore || false);
+        
+        console.log(`📊 Found ${data.total} results in ${data.searchTimeMs}ms`);
+      } else {
+        console.log('⚠️ Search returned no results');
+        setItems([]);
+      }
+    } catch (error: any) {
+      console.error('❌ Backend search failed:', error);
+      
+      // Fallback to client-side filtering (old behavior)
+      console.log('🔄 Falling back to client-side search');
+      loadCityItemsData(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Toggle search bar visibility
+  const toggleSearch = () => {
+    if (isSearchOpen) {
+      // Closing search - reset to default items
+      setSearchInput('');
+      setSearchQuery('');
+      loadCityItemsData(false); // Reload default items
+      Animated.timing(searchAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => setIsSearchOpen(false));
+    } else {
+      // Opening search
+      setIsSearchOpen(true);
+      Animated.timing(searchAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: false,
+      }).start(() => searchInputRef.current?.focus());
+    }
+  };
+
   // Memoize filtered and sorted items for performance
+  // NOTE: When searchQuery is set, items are already filtered by backend
+  // This function now only handles sorting
   const filteredAndSortedItems = useMemo(() => {
     let result = items;
     
-    // Filter by search query
-    if (searchQuery) {
-      result = items.filter(item => {
-        const normalize = (str: string) => 
-          str.toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .trim();
-        
-        const normalizedQuery = normalize(searchQuery);
-        const normalizedItem = normalize(item.name);
-        
-        // 1. Check item name directly
-        if (normalizedItem.includes(normalizedQuery)) return true;
-        
-        // 2. Check category
-        if (item.category && normalize(item.category).includes(normalizedQuery)) return true;
-        
-        // 3. Check backend searchKeywords for multi-language support
-        if (item.searchKeywords && item.searchKeywords.length > 0) {
-          const keywordMatch = item.searchKeywords.some(keyword => {
-            const normalizedKeyword = normalize(keyword);
-            return normalizedKeyword.includes(normalizedQuery) || normalizedQuery.includes(normalizedKeyword);
-          });
-          if (keywordMatch) return true;
-        }
-        
-        // 4. Fallback: Use client-side keyword mapping if backend keywords not available
-        if (matchesFallbackKeywords(item.name, searchQuery)) {
-          return true;
-        }
-        
-        return false;
-      });
-    }
-    
-    // Sort items
+    // If search is active, items are already filtered by backend
+    // Just apply sorting preference
     const sorted = [...result].sort((a, b) => {
+      // If items have relevanceScore (from backend search), use that first
+      if (searchQuery && a.relevanceScore !== undefined && b.relevanceScore !== undefined) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      
+      // Otherwise, use user's selected sort preference
       if (sortBy === 'price') {
         return a.minPrice - b.minPrice;
       } else if (sortBy === 'popular') {
@@ -365,26 +419,6 @@ export function CityItemsScreen() {
       setIsLoadingMore(false);
     }, 300);
   }, [isLoadingMore, hasMore]);
-
-  const toggleSearch = () => {
-    if (isSearchOpen) {
-      // Closing search
-      setSearchQuery('');
-      Animated.timing(searchAnimation, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: false,
-      }).start(() => setIsSearchOpen(false));
-    } else {
-      // Opening search
-      setIsSearchOpen(true);
-      Animated.timing(searchAnimation, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }).start(() => searchInputRef.current?.focus());
-    }
-  };
 
   const loadCityItemsData = async (forceRefresh: boolean = false) => {
     if (profileLoading) {
@@ -537,8 +571,9 @@ export function CityItemsScreen() {
             pressed && styles.itemCardPressed,
           ]}
           onPress={() => {
-            // Navigate to detail screen with full item data
-            navigation.navigate('CityItemDetail', {item});
+            // TODO: Add CityItemDetail to navigation types
+            // navigation.navigate('CityItemDetail', {item});
+            console.log('Item pressed:', item.name);
           }}
           android_ripple={{color: Colors.primaryLight}}>
           {/* Card Header */}
@@ -696,12 +731,7 @@ export function CityItemsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>
-            Chargement des articles communautaires...
-          </Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement des articles communautaires..." />
       </SafeAreaView>
     );
   }
@@ -719,9 +749,7 @@ export function CityItemsScreen() {
                   Articles de {userProfile.defaultCity}
                 </Text>
                 {isSilentRefreshing && (
-                  <View style={styles.refreshIndicator}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                  </View>
+                  <AppLoader size="small" />
                 )}
               </View>
               <Text style={styles.subtitle}>
@@ -880,10 +908,7 @@ export function CityItemsScreen() {
         onEndReachedThreshold={0.3}
         ListFooterComponent={
           isLoadingMore ? (
-            <View style={styles.loadingMore}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.loadingMoreText}>Chargement...</Text>
-            </View>
+            <AppLoader message="Chargement..." />
           ) : null
         }
         
@@ -899,10 +924,7 @@ export function CityItemsScreen() {
         }
         ListEmptyComponent={
           isSearching ? (
-            <View style={styles.emptyContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Recherche...</Text>
-            </View>
+            <AppLoader message="Recherche en cours..." />
           ) : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconWrapper}>
@@ -952,7 +974,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
     position: 'relative',
     zIndex: 10000,
-    elevation: 15,
     ...Shadows.sm,
   },
   headerContent: {
@@ -1313,16 +1334,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semiBold,
     textAlign: 'center',
   },
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.text.secondary,
-    marginTop: Spacing.md,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1365,17 +1376,5 @@ const styles = StyleSheet.create({
     color: Colors.text.inverse,
     fontWeight: Typography.fontWeight.semiBold,
     textAlign: 'center',
-  },
-  loadingMore: {
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  loadingMoreText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text.tertiary,
-    marginLeft: Spacing.sm,
   },
 });

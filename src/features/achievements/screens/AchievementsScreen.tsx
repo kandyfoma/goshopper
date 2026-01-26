@@ -27,7 +27,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, BackButton, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, Spinner, BackButton, FadeIn, SlideIn, AppLoader} from '@/shared/components';
 
 export function AchievementsScreen() {
   const navigation =
@@ -144,9 +144,8 @@ export function AchievementsScreen() {
                 ],
               },
             ]}>
-            <Spinner size="large" color={Colors.card.cosmos} />
+            <AppLoader size="large" message="Chargement de vos succès..." />
           </Animated.View>
-          <Text style={styles.loadingText}>Chargement de vos succès...</Text>
         </View>
       </SafeAreaView>
     );

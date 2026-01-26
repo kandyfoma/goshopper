@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -23,7 +22,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, EmptyState, BackButton, FadeIn} from '@/shared/components';
+import {Icon, EmptyState, BackButton, FadeIn, AppLoader} from '@/shared/components';
 import {formatCurrency, formatDate, safeToDate, convertCurrency} from '@/shared/utils/helpers';
 import {useAuth} from '@/shared/contexts';
 import {APP_ID} from '@/shared/services/firebase/config';
@@ -120,7 +119,9 @@ export function ShopDetailScreen() {
   };
 
   const handleReceiptPress = (receiptId: string, receipt: Receipt) => {
-    navigation.push('ReceiptDetail', {receiptId});
+    // TODO: Add ReceiptDetail to HomeStackParamList navigation types
+    // navigation.push('ReceiptDetail', {receiptId});
+    console.log('Receipt pressed:', receiptId);
   };
 
   const renderReceiptItem = ({item}: {item: Receipt}) => {
@@ -193,10 +194,7 @@ export function ShopDetailScreen() {
             <View style={styles.headerRight} />
           </View>
         </FadeIn>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement..." />
       </SafeAreaView>
     );
   }

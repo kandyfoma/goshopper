@@ -27,7 +27,7 @@ import {
   Spacing,
   BorderRadius,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, BackButton} from '@/shared/components';
+import {Icon, Spinner, BackButton, AppLoader} from '@/shared/components';
 
 type PlanId = 'freemium' | 'free' | 'basic' | 'standard' | 'premium';
 
@@ -58,7 +58,7 @@ export function SubscriptionScreen() {
   if (isAuthLoading) {
     return (
       <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <Spinner size="lg" color={Colors.primary.main} />
+        <AppLoader size="large" />
       </View>
     );
   }
@@ -67,7 +67,7 @@ export function SubscriptionScreen() {
   if (!isAuthenticated) {
     return (
       <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <Spinner size="lg" color={Colors.primary.main} />
+        <AppLoader size="large" />
       </View>
     );
   }
@@ -161,7 +161,7 @@ export function SubscriptionScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
+          <AppLoader size="large" />
         </View>
       </View>
     );

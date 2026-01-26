@@ -8,7 +8,6 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Animated,
   Pressable,
   Modal,
@@ -25,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, FadeIn, SlideIn} from '@/shared/components';
+import {Icon, FadeIn, SlideIn, AppLoader} from '@/shared/components';
 import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 import {formatCurrency, safeToDate} from '@/shared/utils/helpers';
 import {useAuth, useUser, useScroll} from '@/shared/contexts';
@@ -578,10 +577,7 @@ export function ItemsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement des articles...</Text>
-        </View>
+        <AppLoader fullscreen size="large" message="Chargement des articles..." />
       </SafeAreaView>
     );
   }
@@ -699,10 +695,7 @@ export function ItemsScreen() {
         }
         ListEmptyComponent={
           isSearching ? (
-            <View style={styles.emptyContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Recherche...</Text>
-            </View>
+            <AppLoader message="Recherche en cours..." />
           ) : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconWrapper}>
@@ -759,13 +752,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background.primary,
   },
-  loading: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
     marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
+  },
+  searchingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  searchingText: {
+    marginLeft: Spacing.sm,
     fontSize: Typography.fontSize.md,
     color: Colors.text.secondary,
   },
@@ -778,7 +782,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
     position: 'relative',
     zIndex: 10000,
-    elevation: 15,
     ...Shadows.sm,
   },
   headerContent: {

@@ -27,7 +27,7 @@ import {formatCurrency, formatDate, convertCurrency} from '@/shared/utils/helper
 import {receiptStorageService, authService} from '@/shared/services/firebase';
 import {hapticService, shareService} from '@/shared/services';
 import {useAuth, useToast} from '@/shared/contexts';
-import {Spinner, Icon, TabSelector} from '@/shared/components';
+import {Spinner, Icon, TabSelector, AppLoader} from '@/shared/components';
 import {ModernTabBar, TabBarIcon} from '@/shared/components/ModernTabBar';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -220,8 +220,7 @@ export function ReceiptDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement du reçu...</Text>
+          <AppLoader size="large" message="Chargement du reçu..." />
         </View>
       </SafeAreaView>
     );

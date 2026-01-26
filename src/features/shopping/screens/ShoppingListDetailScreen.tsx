@@ -35,7 +35,7 @@ import {
   BorderRadius,
   Shadows,
 } from '@/shared/theme/theme';
-import {Icon, Spinner, SwipeToDelete, FadeIn, SlideIn, Input, Button, BackButton} from '@/shared/components';
+import {Icon, Spinner, SwipeToDelete, FadeIn, SlideIn, Input, Button, BackButton, AppLoader} from '@/shared/components';
 import {formatCurrency} from '@/shared/utils/helpers';
 
 // Import ProfileStackParamList for shopping screens
@@ -625,8 +625,7 @@ export function ShoppingListDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Spinner size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <AppLoader size="large" message="Chargement..." />
         </View>
       </View>
     );
@@ -1049,8 +1048,7 @@ export function ShoppingListDetailScreen() {
                   {/* Loading indicator while searching */}
                   {isSearching && (
                     <View style={styles.searchingIndicator}>
-                      <Spinner size="small" color={Colors.primary} />
-                      <Text style={styles.searchingText}>Recherche en cours...</Text>
+                      <AppLoader size="small" message="Recherche en cours..." />
                     </View>
                   )}
 
@@ -1239,8 +1237,7 @@ export function ShoppingListDetailScreen() {
               {/* Loading indicator while searching */}
               {isSearching && (
                 <View style={styles.searchingIndicator}>
-                  <Spinner size="small" color={Colors.primary} />
-                  <Text style={styles.searchingText}>Recherche en cours...</Text>
+                  <AppLoader size="small" message="Recherche en cours..." />
                 </View>
               )}
 
