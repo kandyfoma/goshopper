@@ -1310,6 +1310,35 @@ const iconPaths: Record<
       </>
     ),
   },
+  award: {
+    outline: (
+      <>
+        <Circle
+          cx="12"
+          cy="8"
+          r="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Polyline
+          points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+    filled: (
+      <>
+        <Circle cx="12" cy="8" r="7" fill="currentColor" />
+        <Polyline
+          points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"
+          fill="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
   check: {
     outline: (
       <Polyline

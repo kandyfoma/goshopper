@@ -1945,7 +1945,7 @@ export const getCityItems = functions
         return isNaN(num) || !isFinite(num) ? defaultValue : num;
       };
 
-      let cityItems = cityItemsSnapshot.docs.map(doc => {
+      let cityItems = cityItemsSnapshot.docs.map((doc: admin.firestore.QueryDocumentSnapshot) => {
         const data = doc.data();
         return {
           ...data,
@@ -1996,7 +1996,7 @@ export const getCityItems = functions
       // 1. popularityScore (combines userCount, purchase frequency, recency)
       // 2. totalPurchases (if popularityScore is same)
       // 3. userCount (if totalPurchases is same)
-      cityItems.sort((a, b) => {
+      cityItems.sort((a: any, b: any) => {
         // Primary: popularity score (higher is better)
         const scoreDiff = (b.popularityScore || 0) - (a.popularityScore || 0);
         if (Math.abs(scoreDiff) > 0.1) return scoreDiff;

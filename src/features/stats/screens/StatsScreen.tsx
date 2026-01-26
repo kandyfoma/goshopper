@@ -253,23 +253,6 @@ export function StatsScreen() {
         return isCurrentMonth;
       });
 
-      console.log('📊 Stats Debug:', {
-        totalReceipts: receiptsSnapshot.docs.length,
-        currentMonthReceipts: currentMonthReceipts.length,
-        startOfMonth: startOfMonth.toISOString(),
-        sampleReceiptDates: receiptsSnapshot.docs.slice(0, 3).map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            scannedAt: data.scannedAt,
-            scannedAtConverted: safeToDate(data.scannedAt).toISOString(),
-            createdAt: data.createdAt,
-            total: data.total,
-            currency: data.currency,
-          };
-        }),
-      });
-
       // Store current month receipts in state for behavior analysis
       setCurrentMonthReceipts(currentMonthReceipts.map(doc => ({id: doc.id, ...doc.data()})));
 
@@ -357,23 +340,6 @@ export function StatsScreen() {
         }
       });
 
-      console.log('📊 Stats items debug:', {
-        sampleReceiptItems: currentMonthReceipts.slice(0, 1).map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            hasItems: !!data.items,
-            itemCount: data.items?.length || 0,
-            sampleItems: (data.items || []).slice(0, 3).map((item: any) => ({
-              name: item.name,
-              category: item.category,
-              totalPrice: item.totalPrice,
-            })),
-          };
-        }),
-        categoryTotals,
-      });
-
       // Convert to category array with percentages
       const categoryColors: Record<string, string> = {
         Alimentation: Colors.primary, // Crimson Blaze
@@ -435,13 +401,6 @@ export function StatsScreen() {
           icon: categoryIcons[name as keyof typeof categoryIcons] || 'grid',
         }))
         .sort((a, b) => b.amount - a.amount);
-
-      console.log('📊 Stats calculated:', {
-        totalSpent,
-        categoryRawTotal,
-        categoriesCount: categoriesArray.length,
-        topCategories: categoriesArray.slice(0, 3).map(c => ({name: c.name, amount: c.amount})),
-      });
 
       // Calculate monthly data (last 3 months)
       const monthlyTotals: Record<string, number> = {};
@@ -551,7 +510,6 @@ export function StatsScreen() {
           // Show stale data immediately for instant display
           const data = staleData as any;
           if (data?.totalSpending !== undefined) {
-            console.log('📊 Using stale data:', data);
             setTotalSpending(data.totalSpending || 0);
             setCategories(data.categories || []);
             setMonthlyData(data.monthlyData || []);
@@ -561,7 +519,6 @@ export function StatsScreen() {
       });
 
       // Update with fresh or cached data
-      console.log('📊 Updating state with fresh data:', cachedData);
       const data = cachedData?.data as any;
       if (data?.totalSpending !== undefined) {
         setTotalSpending(data.totalSpending || 0);
@@ -570,7 +527,6 @@ export function StatsScreen() {
         setCurrentMonthReceipts(data.currentMonthReceipts || []);
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
       // Set empty data on error
       setTotalSpending(0);
       setCategories([]);
@@ -599,7 +555,7 @@ export function StatsScreen() {
           loadStatsData();
         },
         (error) => {
-          console.error('📊 Stats: Error in receipts listener:', error);
+          // Silent error handling
         }
       );
 

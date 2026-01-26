@@ -55,14 +55,11 @@ class CityItemsRefreshService {
    */
   startAutoRefresh(city: string): void {
     if (!city) {
-      console.log('⚠️ [CityItemsRefresh] Cannot start auto-refresh: no city provided');
       return;
     }
 
     // Stop existing timer if any
     this.stopAutoRefresh(city);
-
-    console.log(`🔄 [CityItemsRefresh] Starting auto-refresh for city: ${city}`);
     
     // Initial refresh
     this.silentRefresh(city);
@@ -83,7 +80,6 @@ class CityItemsRefreshService {
     if (timer) {
       clearInterval(timer);
       this.refreshTimers.delete(city);
-      console.log(`⏹️ [CityItemsRefresh] Stopped auto-refresh for city: ${city}`);
     }
   }
 
@@ -91,9 +87,8 @@ class CityItemsRefreshService {
    * Stop all active auto-refresh timers
    */
   stopAllAutoRefresh(): void {
-    this.refreshTimers.forEach((timer, city) => {
+    this.refreshTimers.forEach((timer) => {
       clearInterval(timer);
-      console.log(`⏹️ [CityItemsRefresh] Stopped auto-refresh for city: ${city}`);
     });
     this.refreshTimers.clear();
   }
@@ -131,7 +126,7 @@ class CityItemsRefreshService {
         try {
           callback(items);
         } catch (error) {
-          console.error('⚠️ [CityItemsRefresh] Error in listener callback:', error);
+          // Silent error handling
         }
       });
     }
@@ -146,7 +141,6 @@ class CityItemsRefreshService {
     
     // Prevent duplicate refreshes for the same city
     if (this.activeRefreshes.has(refreshKey)) {
-      console.log(`⏳ [CityItemsRefresh] Refresh already in progress for: ${city}`);
       return {
         success: false,
         itemCount: 0,
@@ -158,15 +152,11 @@ class CityItemsRefreshService {
     this.activeRefreshes.add(refreshKey);
 
     try {
-      console.log(`🔄 [CityItemsRefresh] Silent refresh starting for city: ${city}`);
-      
       const result = await this.fetchCityItems({
         city,
         silent: true,
         forceRefresh: true,
       });
-
-      console.log(`✅ [CityItemsRefresh] Silent refresh completed: ${result.itemCount} items`);
       
       // Track refresh in analytics
       analyticsService.logCustomEvent('city_items_auto_refresh', {
@@ -177,7 +167,6 @@ class CityItemsRefreshService {
 
       return result;
     } catch (error) {
-      console.error('⚠️ [CityItemsRefresh] Silent refresh error:', error);
       return {
         success: false,
         itemCount: 0,
@@ -194,8 +183,6 @@ class CityItemsRefreshService {
    * Shows subtle update without disrupting reading experience
    */
   async refreshWhileReading(city: string): Promise<RefreshResult> {
-    console.log(`📖 [CityItemsRefresh] Refresh while reading: ${city}`);
-    
     return this.fetchCityItems({
       city,
       silent: false,
@@ -218,7 +205,6 @@ class CityItemsRefreshService {
       const age = Date.now() - metadata.timestamp;
       return age > this.STALE_THRESHOLD;
     } catch (error) {
-      console.log('⚠️ [CityItemsRefresh] Error checking cache age:', error);
       return true; // Assume stale on error
     }
   }
@@ -243,7 +229,7 @@ class CityItemsRefreshService {
         };
       }
     } catch (error) {
-      console.log('⚠️ [CityItemsRefresh] Error checking cache:', error);
+      // Silent error - cache will be refreshed below
     }
 
     // Cache is stale or missing, preload it
@@ -268,7 +254,6 @@ class CityItemsRefreshService {
         const isStale = await this.isCacheStale(city);
         
         if (cached && !isStale) {
-          console.log(`💾 [CityItemsRefresh] Using fresh cache (${cached.length} items)`);
           return {
             success: true,
             itemCount: cached.length,
@@ -278,7 +263,6 @@ class CityItemsRefreshService {
       }
 
       // Fetch from server
-      console.log(`📡 [CityItemsRefresh] Fetching from server: ${city}`);
       
       const functionsInstance = firebase.app().functions('europe-west1');
       const callFunction = functionsInstance.httpsCallable('getCityItems', {
@@ -304,8 +288,6 @@ class CityItemsRefreshService {
           ttl: CacheTTL.DAY,
         });
 
-        console.log(`💾 [CityItemsRefresh] Cached ${itemsArray.length} items`);
-
         // Notify listeners
         this.notifyListeners(city, itemsArray);
 
@@ -329,7 +311,6 @@ class CityItemsRefreshService {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('⚠️ [CityItemsRefresh] Fetch error:', errorMessage);
       
       if (!silent) {
         throw error;
@@ -353,7 +334,6 @@ class CityItemsRefreshService {
     try {
       return await cacheManager.get<CityItemData[]>(cacheKey, 'receipts');
     } catch (error) {
-      console.log('⚠️ [CityItemsRefresh] Error getting cached items:', error);
       return null;
     }
   }
@@ -366,9 +346,8 @@ class CityItemsRefreshService {
     
     try {
       await cacheManager.remove(cacheKey, 'receipts');
-      console.log(`🗑️ [CityItemsRefresh] Cleared cache for: ${city}`);
     } catch (error) {
-      console.error('⚠️ [CityItemsRefresh] Error clearing cache:', error);
+      // Silent error handling
     }
   }
 }

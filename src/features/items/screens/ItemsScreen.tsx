@@ -1,6 +1,6 @@
 // Items Screen - Browse and compare item prices across stores
 // Redesigned with modern UX and enhanced visual hierarchy
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,11 @@ import {
   Pressable,
   Modal,
   RefreshControl,
+  ScrollView,
+  Platform,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {BlurView} from '@react-native-community/blur';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import {firebase} from '@react-native-firebase/functions';
@@ -84,6 +87,7 @@ export function ItemsScreen() {
   const {profile: userProfile} = useUser();
   const {scrollY} = useScroll();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   // State
   const [items, setItems] = useState<ItemData[]>([]);
@@ -94,11 +98,18 @@ export function ItemsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<'ALL' | 'USD' | 'CDF'>('ALL');
   
   // Refs
   const searchAnimation = useRef(new Animated.Value(0)).current;
   const searchInputRef = useRef<TextInput>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const filterFadeAnim = useRef(new Animated.Value(0)).current;
+  const filterSlideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
     // Track screen view
@@ -112,6 +123,38 @@ export function ItemsScreen() {
       }
     };
   }, []);
+
+  // Filter modal animations
+  useEffect(() => {
+    if (showFilterModal) {
+      Animated.parallel([
+        Animated.timing(filterFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }),
+        Animated.spring(filterSlideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(filterFadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+        Animated.timing(filterSlideAnim, {
+          toValue: 300,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  }, [showFilterModal]);
 
   // Setup real-time listener when screen comes into focus
   useFocusEffect(
@@ -128,9 +171,43 @@ export function ItemsScreen() {
     }, [user])
   );
 
+  // Memoize filtered and sorted items for performance
+  const filteredAndSortedItems = useMemo(() => {
+    let result = items;
+    
+    // Apply search filter
+    if (searchQuery) {
+      result = result.filter(item => simpleSearch(item.name, searchQuery));
+    }
+    
+    // Apply client-side filters
+    if (selectedStores.length > 0) {
+      result = result.filter(item =>
+        item.prices.some(price => selectedStores.includes(price.storeName))
+      );
+    }
+    
+    if (selectedCurrency !== 'ALL') {
+      result = result.filter(item => item.currency === selectedCurrency);
+    }
+    
+    // Apply sorting
+    const sorted = [...result].sort((a, b) => {
+      if (sortBy === 'price') {
+        return a.minPrice - b.minPrice;
+      } else if (sortBy === 'popular') {
+        return b.prices.length - a.prices.length;
+      } else {
+        return a.name.localeCompare(b.name);
+      }
+    });
+    
+    return sorted;
+  }, [items, searchQuery, sortBy, selectedStores, selectedCurrency]);
+
   useEffect(() => {
-    filterItems();
-  }, [items, searchQuery]);
+    setFilteredItems(filteredAndSortedItems);
+  }, [filteredAndSortedItems]);
 
   // Debounce search input
   useEffect(() => {
@@ -151,7 +228,9 @@ export function ItemsScreen() {
         useNativeDriver: false,
       }).start(() => setIsSearchOpen(false));
     } else {
-      // Opening search
+      // Opening search - close other menus
+      setShowSortMenu(false);
+      setShowFilterModal(false);
       setIsSearchOpen(true);
       Animated.timing(searchAnimation, {
         toValue: 1,
@@ -186,13 +265,10 @@ export function ItemsScreen() {
       if (!forceRefresh) {
         const cachedItems = await cacheManager.get<ItemData[]>(cacheKey, 'receipts');
         if (cachedItems && cachedItems.length > 0) {
-          console.log('📦 Loaded items from cache:', cachedItems.length);
           setItems(cachedItems);
           setIsLoading(false);
           // Continue to setup real-time listener below
         }
-      } else {
-        console.log('🔄 Force refresh - skipping cache');
       }
       
       // Setup real-time listener for automatic updates
@@ -208,8 +284,6 @@ export function ItemsScreen() {
         unsubscribeRef.current();
       }
       
-      console.log('🔄 Setting up real-time items listener');
-      
       // Setup listener (try with orderBy, fallback without)
       let unsubscribe: (() => void) | null = null;
       try {
@@ -217,8 +291,6 @@ export function ItemsScreen() {
           .orderBy('lastPurchaseDate', 'desc')
           .onSnapshot(
             async (snapshot) => {
-              console.log('📡 Items updated:', snapshot.size, 'items');
-              
               const itemsArray: ItemData[] = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
@@ -249,24 +321,19 @@ export function ItemsScreen() {
                   namespace: 'receipts',
                   ttl: CacheTTL.HOUR * 6, // Cache for 6 hours
                 });
-                console.log('💾 Cached items:', itemsArray.length);
               } else {
                 // Clear cache if no items
                 await cacheManager.remove(cacheKey, 'receipts');
               }
             },
             (error) => {
-              console.error('❌ Items listener error:', error);
               setIsLoading(false);
             }
           );
       } catch (orderError: any) {
         // Fallback without orderBy if index doesn't exist
-        console.log('⚠️ OrderBy failed, using listener without ordering:', orderError.code);
         unsubscribe = itemsRef.onSnapshot(
           async (snapshot) => {
-            console.log('📡 Items updated (no order):', snapshot.size, 'items');
-            
             const itemsArray: ItemData[] = snapshot.docs.map(doc => {
               const data = doc.data();
               return {
@@ -302,7 +369,6 @@ export function ItemsScreen() {
             }
           },
           (error) => {
-            console.error('❌ Items listener error:', error);
             setIsLoading(false);
           }
         );
@@ -319,7 +385,7 @@ export function ItemsScreen() {
   };
 
   // Simple, reliable search function with bilingual support
-  const simpleSearch = async (itemName: string, query: string): Promise<boolean> => {
+  const simpleSearch = (itemName: string, query: string): boolean => {
     // Normalize both strings: lowercase, remove accents
     const normalize = (str: string) => 
       str.toLowerCase()
@@ -397,6 +463,26 @@ export function ItemsScreen() {
       }
     }
     return dp[m][n];
+  };
+
+  // Get unique stores from all items
+  const uniqueStores = useMemo(() => {
+    const storesSet = new Set<string>();
+    items.forEach(item => {
+      item.prices.forEach(price => {
+        storesSet.add(price.storeName);
+      });
+    });
+    return Array.from(storesSet).sort();
+  }, [items]);
+
+  // Check if any filters are active
+  const hasActiveFilters = selectedStores.length > 0 || selectedCurrency !== 'ALL';
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedStores([]);
+    setSelectedCurrency('ALL');
   };
 
   const filterItems = () => {
@@ -597,17 +683,97 @@ export function ItemsScreen() {
                 {items.length} produits suivis
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={toggleSearch}
-              activeOpacity={0.7}>
-              <Icon
-                name={isSearchOpen ? 'x' : 'search'}
-                size="sm"
-                color={Colors.primary}
-              />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.iconButton, hasActiveFilters && styles.iconButtonActive]}
+                onPress={() => {
+                  if (isSearchOpen) {
+                    toggleSearch();
+                  }
+                  setShowSortMenu(false);
+                  setShowFilterModal(true);
+                }}
+                activeOpacity={0.7}>
+                <Icon name="filter" size="sm" color={hasActiveFilters ? Colors.white : Colors.primary} />
+                {hasActiveFilters && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>
+                      {selectedStores.length + (selectedCurrency !== 'ALL' ? 1 : 0)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => {
+                  if (isSearchOpen) {
+                    toggleSearch();
+                  }
+                  setShowFilterModal(false);
+                  setShowSortMenu(!showSortMenu);
+                }}
+                activeOpacity={0.7}>
+                <Icon name="sliders" size="sm" color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={toggleSearch}
+                activeOpacity={0.7}>
+                <Icon
+                  name={isSearchOpen ? 'x' : 'search'}
+                  size="sm"
+                  color={Colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* Sort Menu */}
+          {showSortMenu && (
+            <View style={styles.sortMenuHeader}>
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'popular' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('popular');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="trending-up" size="sm" color={sortBy === 'popular' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'popular' && styles.sortOptionTextActive]}>
+                  Populaire
+                </Text>
+                {sortBy === 'popular' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('name');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="type" size="sm" color={sortBy === 'name' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
+                  Nom
+                </Text>
+                {sortBy === 'name' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.sortOption, sortBy === 'price' && styles.sortOptionActive]}
+                onPress={() => {
+                  setSortBy('price');
+                  setShowSortMenu(false);
+                }}
+              >
+                <Icon name="dollar-sign" size="sm" color={sortBy === 'price' ? Colors.primary : Colors.text.secondary} />
+                <Text style={[styles.sortOptionText, sortBy === 'price' && styles.sortOptionTextActive]}>
+                  Prix
+                </Text>
+                {sortBy === 'price' && <Icon name="check" size="sm" color={Colors.primary} />}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </FadeIn>
 
@@ -638,14 +804,21 @@ export function ItemsScreen() {
               onChangeText={setSearchInput}
               placeholderTextColor={Colors.text.tertiary}
             />
-            {searchInput.length > 0 && (
-              <TouchableOpacity onPress={() => {
-                setSearchInput('');
-                setSearchQuery('');
-              }}>
-                <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
-              </TouchableOpacity>
-            )}
+            <View style={styles.searchRightContainer}>
+              {isSearching ? (
+                <AppLoader size="small" />
+              ) : searchInput.length > 0 ? (
+                <TouchableOpacity 
+                  onPress={() => {
+                    setSearchInput('');
+                    setSearchQuery('');
+                  }}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+                >
+                  <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         </Animated.View>
       )}
@@ -719,6 +892,136 @@ export function ItemsScreen() {
           )
         }
       />
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.filterOverlay}>
+          {Platform.OS === 'ios' ? (
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: filterFadeAnim }]}>
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                blurType="light"
+                blurAmount={25}
+              />
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.androidOverlay, { opacity: filterFadeAnim }]} />
+          )}
+          <View style={styles.filterOverlayContent}>
+            <TouchableOpacity
+              style={styles.filterOverlayTouchable}
+              activeOpacity={1}
+              onPress={() => setShowFilterModal(false)}
+            />
+            <Animated.View
+              style={[
+                styles.filterModalContent,
+                {
+                  paddingBottom: insets.bottom,
+                  transform: [{ translateY: filterSlideAnim }],
+                }
+              ]}
+            >
+              <View style={styles.filterModalHeader}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.filterModalTitle}>Filtres</Text>
+                <TouchableOpacity 
+                  onPress={() => setShowFilterModal(false)}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+                  style={styles.closeButton}
+                >
+                  <Icon name="x" size="md" color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.filterModalBody} showsVerticalScrollIndicator={false}>
+                {/* Store Filter */}
+                {uniqueStores.length > 0 && (
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Magasins ({uniqueStores.length})</Text>
+                    <View style={styles.chipContainer}>
+                      {uniqueStores.map(store => {
+                        const isSelected = selectedStores.includes(store);
+                        return (
+                          <TouchableOpacity
+                            key={store}
+                            style={[styles.chip, isSelected && styles.chipSelected]}
+                            onPress={() => {
+                              if (isSelected) {
+                                setSelectedStores(selectedStores.filter(s => s !== store));
+                              } else {
+                                setSelectedStores([...selectedStores, store]);
+                              }
+                            }}
+                          >
+                            <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                              {store}
+                            </Text>
+                            {isSelected && (
+                              <Icon name="check" size="xs" color={Colors.white} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Currency Filter */}
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Devise</Text>
+                  <View style={styles.chipContainer}>
+                    {(['ALL', 'CDF', 'USD'] as const).map(currency => {
+                      const isSelected = selectedCurrency === currency;
+                      const label = currency === 'ALL' ? 'Toutes' : currency;
+                      return (
+                        <TouchableOpacity
+                          key={currency}
+                          style={[styles.chip, isSelected && styles.chipSelected]}
+                          onPress={() => setSelectedCurrency(currency)}
+                        >
+                          <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                            {label}
+                          </Text>
+                          {isSelected && (
+                            <Icon name="check" size="xs" color={Colors.white} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <View style={styles.filterModalFooter}>
+                <TouchableOpacity
+                  style={styles.clearFilterButton}
+                  onPress={() => {
+                    clearAllFilters();
+                  }}
+                >
+                  <Text style={styles.clearFilterButtonText}>Réinitialiser</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.applyFilterButton}
+                  onPress={() => setShowFilterModal(false)}
+                >
+                  <Text style={styles.applyFilterButtonText}>
+                    Appliquer ({filteredItems.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Main Footer Tabs */}
       <ModernTabBar
@@ -1086,5 +1389,209 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: Typography.fontSize.md * 1.5,
     maxWidth: 280,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  iconButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.status.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+  },
+  sortMenuHeader: {
+    marginTop: Spacing.xs,
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xs,
+    ...Shadows.md,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  sortOptionActive: {
+    backgroundColor: Colors.background.secondary,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.secondary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  sortOptionTextActive: {
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
+  searchRightContainer: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterOverlay: {
+    flex: 1,
+  },
+  androidOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  filterOverlayContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  filterOverlayTouchable: {
+    flex: 1,
+  },
+  filterModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: '80%',
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background.secondary,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.accentLight,
+    borderRadius: 2,
+    position: 'absolute',
+    top: Spacing.xs,
+    left: '50%',
+    marginLeft: -20,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  filterModalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.accent,
+    flex: 1,
+    textAlign: 'center',
+    marginLeft: -32,
+  },
+  filterModalBody: {
+    paddingHorizontal: Spacing.lg,
+    maxHeight: '70%',
+  },
+  filterSection: {
+    marginTop: Spacing.lg,
+  },
+  filterSectionTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primaryDark,
+    marginBottom: Spacing.sm,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border.medium,
+  },
+  chipSelected: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accentDark,
+  },
+  chipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  chipTextSelected: {
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
+  filterModalFooter: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.medium,
+    backgroundColor: Colors.background.secondary,
+  },
+  clearFilterButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.accentLight,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+  },
+  clearFilterButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.accent,
+  },
+  applyFilterButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  applyFilterButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.white,
   },
 });
