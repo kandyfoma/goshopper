@@ -562,7 +562,7 @@ export function StatsScreen() {
 
       // Update with fresh or cached data
       console.log('📊 Updating state with fresh data:', cachedData);
-      const data = cachedData as any;
+      const data = cachedData?.data as any;
       if (data?.totalSpending !== undefined) {
         setTotalSpending(data.totalSpending || 0);
         setCategories(data.categories || []);

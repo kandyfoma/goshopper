@@ -190,7 +190,6 @@ class CachePreloader {
    */
   private async preloadCityItems(city: string): Promise<void> {
     try {
-      console.log(`🔥 [CachePreloader] Preloading city items for: ${city}`);
       await cityItemsRefreshService.preloadCityItems(city);
     } catch (error) {
       console.error('Failed to preload city items:', error);

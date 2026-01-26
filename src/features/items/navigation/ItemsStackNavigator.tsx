@@ -5,7 +5,7 @@ import {CityItemsScreen, CityItemDetailScreen, ItemsScreen} from '../screens';
 
 export type ItemsStackParamList = {
   ItemsMain: undefined;
-  CityItemDetail: {itemId: string; itemName: string};
+  CityItemDetail: {item: any}; // CityItemData object
   BrowseItems: undefined;
 };
 

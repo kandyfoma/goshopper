@@ -110,15 +110,6 @@ export function SubscriptionProvider({children}: SubscriptionProviderProps) {
         const trialRemaining = Math.max(0, trialLimit - trialUsed);
         scansRemaining = trialRemaining + bonusScans;
         canScan = scansRemaining > 0;
-        
-        console.log('📊 Trial user scans:', {
-          trialLimit,
-          trialUsed,
-          trialRemaining,
-          bonusScans,
-          totalRemaining: scansRemaining,
-          canScan
-        });
       } else if (subscription.status === 'freemium' || subscription.planId === 'freemium') {
         // Freemium tier - auto-assigned when no active subscription
         const freemiumLimit = PLAN_SCAN_LIMITS.freemium || 3;

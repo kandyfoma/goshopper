@@ -58,6 +58,7 @@ function calculateRelevanceScore(
   originalQuery: string,
 ): number {
   let score = 0;
+  let hasTextMatch = false;
 
   const itemName = (item.nameNormalized || item.name || '').toLowerCase();
   const queryLower = normalizedQuery.toLowerCase();
@@ -65,16 +66,19 @@ function calculateRelevanceScore(
   // 1. Exact match (highest priority)
   if (itemName === queryLower) {
     score += 100;
+    hasTextMatch = true;
   }
 
   // 2. Starts with query
   if (itemName.startsWith(queryLower)) {
     score += 50;
+    hasTextMatch = true;
   }
 
   // 3. Contains query
   if (itemName.includes(queryLower)) {
     score += 25;
+    hasTextMatch = true;
   }
 
   // 4. Keyword match (multi-language support)
@@ -93,6 +97,7 @@ function calculateRelevanceScore(
     });
     if (keywordMatch) {
       score += 30;
+      hasTextMatch = true;
     }
   }
 
@@ -101,6 +106,7 @@ function calculateRelevanceScore(
     const categoryLower = item.category.toLowerCase();
     if (categoryLower.includes(queryLower)) {
       score += 15;
+      hasTextMatch = true;
     }
   }
 
@@ -110,6 +116,7 @@ function calculateRelevanceScore(
     if (fuzzyScore > 0.7) {
       // 70% similarity threshold
       score += fuzzyScore * 20;
+      hasTextMatch = true;
     }
   }
 
@@ -119,8 +126,17 @@ function calculateRelevanceScore(
   const wordMatches = queryWords.filter((qw: string) =>
     itemWords.some((iw: string) => iw.includes(qw) || qw.includes(iw)),
   ).length;
-  score += wordMatches * 10;
+  if (wordMatches > 0) {
+    score += wordMatches * 10;
+    hasTextMatch = true;
+  }
 
+  // If no text match, return 0 (don't show unrelated items)
+  if (!hasTextMatch) {
+    return 0;
+  }
+
+  // Only apply popularity/recency boosts if there's an actual text match
   // 8. Popularity boost (but not dominant - logarithmic scale)
   const totalPurchases = item.totalPurchases || item.prices?.length || 0;
   const popularityBoost = Math.log(1 + totalPurchases) * 2;

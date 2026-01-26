@@ -76,8 +76,6 @@ class OfflineModeService {
 
     // Initialize the offline queue service
     offlineQueueService.init();
-
-    console.log('[OfflineMode] Initialized, online:', this.isOnline);
   }
 
   /**
@@ -121,8 +119,6 @@ class OfflineModeService {
   private handleNetworkChange = async (state: NetInfoState): Promise<void> => {
     const wasOffline = !this.isOnline;
     this.isOnline = state.isConnected === true && state.isInternetReachable === true;
-
-    console.log('[OfflineMode] Network changed, online:', this.isOnline);
 
     // Came back online - process pending queue
     if (wasOffline && this.isOnline && this.hasOfflineAccess) {

@@ -142,24 +142,16 @@ function App(): React.JSX.Element {
         console.log('✅ Spotlight search initialized');
 
         // Initialize Offline Service
-        console.log('⏳ Initializing offline service...');
         await offlineService.initialize();
-        console.log('✅ Offline service initialized');
 
         // Initialize Widget Data Service
-        console.log('⏳ Initializing widget data service...');
         await widgetDataService.initialize();
-        console.log('✅ Widget data service initialized');
 
         // Check for pending navigation from notifications
         // This handles deep linking when user taps notification
-        console.log('⏳ Scheduling pending navigation check...');
         setTimeout(async () => {
           await navigationService.checkPendingNavigation();
         }, 1000);
-
-        console.log('✅ All services initialized successfully!');
-        console.log('🎉 Setting loading to false...');
 
         // Pre-translate common search terms in background
         InteractionManager.runAfterInteractions(async () => {

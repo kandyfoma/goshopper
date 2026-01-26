@@ -228,8 +228,6 @@ class CityItemsRefreshService {
    * Useful when app starts or user profile changes
    */
   async preloadCityItems(city: string): Promise<RefreshResult> {
-    console.log(`🔥 [CityItemsRefresh] Preloading city items for: ${city}`);
-    
     const cacheKey = `city-items-${city}`;
     
     // Check if cache exists and is fresh
@@ -238,7 +236,6 @@ class CityItemsRefreshService {
       const isStale = await this.isCacheStale(city);
       
       if (cached && !isStale) {
-        console.log(`✅ [CityItemsRefresh] Cache is fresh, no preload needed`);
         return {
           success: true,
           itemCount: cached.length,

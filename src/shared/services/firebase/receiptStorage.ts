@@ -270,11 +270,6 @@ class ReceiptStorageService {
       .doc(receipt.id);
 
     try {
-        createdAtValue: receipt.createdAt,
-        dateType: typeof receipt.date,
-        dateValue: receipt.date,
-      });
-
       // Validate and fix receipt date
       let validDate: Date;
       if (receipt.date instanceof Date && !isNaN(receipt.date.getTime())) {

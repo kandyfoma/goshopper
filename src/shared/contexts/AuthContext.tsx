@@ -87,10 +87,6 @@ export function AuthProvider({children}: AuthProviderProps) {
         const unsubscribe = authService.onAuthStateChanged(user => {
           if (!mounted) return;
           
-          console.log('🔔 Auth listener fired - user:', user?.uid || 'null');
-          console.log('🔔 suppressListenerRef:', suppressListenerRef.current);
-          console.log('🔔 phoneUser:', phoneUser?.uid || 'null');
-          
           // Skip if listener is suppressed (during phone registration)
           if (suppressListenerRef.current) {
             console.log('🔇 Auth listener suppressed, skipping state update');
@@ -111,7 +107,6 @@ export function AuthProvider({children}: AuthProviderProps) {
 
           // Only update state if no phone user was already restored
           if (!phoneUser) {
-            console.log('🔔 Updating state with Firebase Auth user');
             setState({
               user,
               isLoading: false,

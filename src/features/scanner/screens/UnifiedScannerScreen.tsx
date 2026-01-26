@@ -1047,9 +1047,6 @@ export function UnifiedScannerScreen() {
       );
 
       if (response.success && response.receipt) {
-        // DEBUG: Log what we received
-        }));
-        
         // Enhanced validation checks
         let total = response.receipt.total;
         

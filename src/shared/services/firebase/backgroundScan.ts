@@ -59,11 +59,23 @@ class BackgroundScanService {
     try {
       // Upload image to Cloud Storage
       const reference = storage().ref(storagePath);
-      await reference.putString(imageBase64, 'base64', {
+      const uploadTask = await reference.putString(imageBase64, 'base64', {
         contentType: 'image/jpeg',
       });
 
       console.log('✅ Image uploaded to Cloud Storage');
+
+      // Verify upload was successful by checking metadata
+      try {
+        await reference.getMetadata();
+        console.log('✅ Upload verified - file exists');
+      } catch (verifyError) {
+        console.error('❌ Upload verification failed:', verifyError);
+        throw new Error('Image upload verification failed. Please try again.');
+      }
+
+      // Small delay to ensure storage consistency (Cloud Storage eventual consistency)
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Get FCM token for push notifications
       const fcmToken = await pushNotificationService.getToken();

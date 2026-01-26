@@ -377,19 +377,37 @@ async function parseReceiptWithGemini(
 ): Promise<ParsedReceipt | null> {
   const prompt = `Tu es un expert en analyse de reçus de magasin. Analyse cette image de reçu et extrait les informations suivantes.
 
-RÈGLES CRITIQUES POUR LES ARTICLES:
-1. CHAQUE LIGNE D'ARTICLE DOIT ÊTRE UN ARTICLE SÉPARÉ - Ne jamais fusionner plusieurs lignes en un seul article
-2. Si tu vois "Article 1" sur une ligne et "Article 2" sur une autre ligne, ce sont DEUX articles distincts
-3. Chaque article a son propre prix - ne saute AUCUN prix
-4. Vérifie que le nombre d'articles extraits correspond au nombre de lignes d'articles sur le reçu
-5. Si plusieurs articles semblent liés mais sont sur des lignes différentes, ce sont des articles SÉPARÉS
+⚠️ RÈGLES ANTI-FUSION ABSOLUES ⚠️
+1. JAMAIS COMBINER plusieurs produits en un seul article
+2. Si tu vois "Cotton Candy 18g" ET "DLITE OIL 5 LT" sur la MÊME ligne → ce sont DEUX produits DIFFÉRENTS qui doivent être SÉPARÉS
+3. Cherche TOUS les noms de produits distincts même s'ils sont collés ensemble
+4. Un produit de 18g et un produit de 5L ne peuvent PAS être le même article
+5. Chaque produit distinct = une ligne JSON séparée dans items[]
+
+EXEMPLES DE SÉPARATION:
+❌ MAUVAIS: "Dubble Bubble Cotton Candy 18g DLITE OIL 5 LT" (1 article)
+✅ BON: 
+  - "Dubble Bubble Cotton Candy 18g" (article 1)
+  - "DLITE OIL 5 LT" (article 2)
+
+❌ MAUVAIS: "Flour 2kg Sugar 1kg" (1 article)  
+✅ BON:
+  - "Flour 2kg" (article 1)
+  - "Sugar 1kg" (article 2)
+
+DÉTECTION DE FUSION:
+- Si le nom contient plusieurs unités de mesure (18g ET 5 LT) → SÉPARER
+- Si le nom contient plusieurs marques distinctes → SÉPARER
+- Si le nom est très long (>40 caractères) → probablement fusionné, SÉPARER
+- Cherche les indices: tailles contradictoires, catégories différentes
 
 IMPORTANT: 
 - Tous les prix doivent être des NOMBRES (pas de texte)
 - La devise doit être USD ou CDF
 - Si le prix est en francs congolais, utilise CDF
 - Si le prix est en dollars, utilise USD
-- CHAQUE ligne d'article sur le reçu = UN objet dans le tableau items[]
+- CHAQUE produit distinct = UN objet séparé dans items[]
+- Compte le nombre de produits distincts visuellement avant d'extraire
 
 Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
 {
@@ -447,21 +465,32 @@ Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu va
 
     // Fix quantity issues and add city to items
     if (parsed.items) {
-      // Validate for merged items (items with suspiciously long names)
+      // Validate for merged items and mark them with low confidence
       parsed.items.forEach((item: any, index: number) => {
         const itemName = item.name || '';
         const words = itemName.split(/\s+/);
         
-        // Warn if item name is suspiciously long (may be multiple items merged)
-        if (words.length > 10) {
-          console.warn(`⚠️ Item ${index + 1} may be multiple items merged: "${itemName}"`);
-          console.warn(`   Consider: Each line on receipt should be a separate item`);
-        }
+        // Check for multiple distinct measurement units (strong indicator of merged items)
+        const measurementUnits = itemName.match(/\d+\s*(g|kg|l|ml|lt|tb|pc|pcs|gr)/gi) || [];
+        const hasMultipleProducts = measurementUnits.length > 1;
         
-        // Warn if item name contains multiple product types (heuristic)
-        const hasMultipleProducts = /\d+\s*(g|kg|l|ml|lt|pc|pcs)\s+.*?\d+\s*(g|kg|l|ml|lt|pc|pcs)/i.test(itemName);
-        if (hasMultipleProducts) {
-          console.warn(`⚠️ Item ${index + 1} appears to contain multiple products: "${itemName}"`);
+        // Check for suspiciously long names
+        const isTooLong = words.length > 10;
+        
+        // Check for multiple brand/product indicators (capital words that aren't units)
+        const capitalWords = itemName.match(/[A-Z]{2,}/g) || [];
+        const hasMultipleBrands = capitalWords.length > 2;
+        
+        if (hasMultipleProducts || isTooLong || hasMultipleBrands) {
+          console.warn(`🚨 MERGED ITEMS DETECTED at index ${index + 1}: "${itemName}"`);
+          console.warn(`   - Multiple measurements: ${measurementUnits.join(', ')}`);
+          console.warn(`   - Word count: ${words.length}`);
+          console.warn(`   - Capital words: ${capitalWords.join(', ')}`);
+          console.warn(`   ⚠️  This should be ${measurementUnits.length} separate items!`);
+          
+          // Mark with very low confidence to flag for review
+          item.confidence = 0.3;
+          item.mergedItemWarning = true;
         }
       });
       

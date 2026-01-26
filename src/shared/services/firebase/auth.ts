@@ -711,7 +711,6 @@ class AuthService {
       const stored = await AsyncStorage.getItem(SOCIAL_USER_KEY);
       if (stored) {
         const user = JSON.parse(stored) as User;
-        console.log('✅ Social user retrieved from AsyncStorage');
         return user;
       }
     } catch (error) {

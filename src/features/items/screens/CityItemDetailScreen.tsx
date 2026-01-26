@@ -299,7 +299,7 @@ export const CityItemDetailScreen: React.FC = () => {
                     <View style={styles.priceHistoryDot} />
                     <View style={styles.priceHistoryLeft}>
                       <Text style={styles.priceHistoryDate}>
-                        {createdDate ? formatDate(createdDate) : formatDate(price.date)}
+                        {formatDate(price.date)}
                       </Text>
                       {price.originalName && price.originalName !== item.name && (
                         <Text style={styles.priceHistoryOriginalName}>
@@ -331,7 +331,7 @@ export const CityItemDetailScreen: React.FC = () => {
               <View key={index} style={styles.historyItem}>
                 <View style={styles.historyLeft}>
                   <Text style={styles.historyDate}>
-                    {createdDate ? formatDate(createdDate) : formatDate(safeToDate(price.date))}
+                    {formatDate(safeToDate(price.date))}
                   </Text>
                   <Text style={styles.historyStore} numberOfLines={1}>
                     {price.storeName}

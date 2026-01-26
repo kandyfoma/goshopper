@@ -561,9 +561,7 @@ export function CityItemsScreen() {
             pressed && styles.itemCardPressed,
           ]}
           onPress={() => {
-            // TODO: Add CityItemDetail to navigation types
-            // navigation.navigate('CityItemDetail', {item});
-            console.log('Item pressed:', item.name);
+            navigation.navigate('CityItemDetail', {item});
           }}
           android_ripple={{color: Colors.primaryLight}}>
           {/* Card Header */}
@@ -658,8 +656,8 @@ export function CityItemsScreen() {
                     <Text style={styles.storeDate}>
                       {(() => {
                         try {
-                          // Use item creation date if available, otherwise use price date
-                          const date = item.createdAt || priceData.date;
+                          // Use the actual price date for when this item was scanned at this store
+                          const date = priceData.date;
                           if (!date) {
                             return 'Date inconnue';
                           }
