@@ -309,8 +309,6 @@ export function CityItemsScreen() {
     setSearchQuery(query);
     
     try {
-      console.log('🔍 Performing backend search:', query);
-      
       const functionsInstance = firebase.app().functions('europe-west1');
       const searchFunction = functionsInstance.httpsCallable('searchCityItems', {
         timeout: 30000,
@@ -323,25 +321,17 @@ export function CityItemsScreen() {
         pageSize: 100, // Get more results since they're pre-ranked
       });
       
-      console.log('✅ Search results:', result.data);
-      
       const data = result.data as any;
       if (data?.success) {
         // Replace items with search results (already relevance-ranked)
         setItems(data.items || []);
         setPage(1);
         setHasMore(data.hasMore || false);
-        
-        console.log(`📊 Found ${data.total} results in ${data.searchTimeMs}ms`);
       } else {
-        console.log('⚠️ Search returned no results');
         setItems([]);
       }
     } catch (error: any) {
-      console.error('❌ Backend search failed:', error);
-      
       // Fallback to client-side filtering (old behavior)
-      console.log('🔄 Falling back to client-side search');
       loadCityItemsData(false);
     } finally {
       setIsSearching(false);

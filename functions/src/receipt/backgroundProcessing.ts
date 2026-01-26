@@ -220,6 +220,13 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
     console.log(`📥 Downloading image from ${pendingScan.storagePath}`);
     const bucket = storage.bucket();
     const file = bucket.file(pendingScan.storagePath);
+    
+    // Check if file exists before downloading
+    const [fileExists] = await file.exists();
+    if (!fileExists) {
+      throw new Error('Image non trouvée. Le fichier a peut-être été supprimé ou n\'a pas été correctement téléchargé.');
+    }
+    
     const [imageBuffer] = await withTimeout(
       file.download(),
       DOWNLOAD_TIMEOUT_MS,
@@ -322,8 +329,12 @@ async function processReceiptInBackground(pendingScanId: string): Promise<void> 
         // Determine user-friendly error message
         let userMessage = error.message || 'Une erreur est survenue';
         
+        // Check for storage/object-not-found error
+        if (error.code === 'storage/object-not-found' || userMessage.includes('No object exists')) {
+          userMessage = 'Image non trouvée. Veuillez réessayer de scanner le reçu.';
+        }
         // Check for timeout errors
-        if (userMessage.includes('Délai d\'attente') || 
+        else if (userMessage.includes('Délai d\'attente') || 
             userMessage.includes('timeout') ||
             userMessage.includes('DEADLINE_EXCEEDED')) {
           userMessage = 'L\'analyse a pris trop de temps. Réessayez avec une photo plus nette.';
@@ -366,11 +377,19 @@ async function parseReceiptWithGemini(
 ): Promise<ParsedReceipt | null> {
   const prompt = `Tu es un expert en analyse de reçus de magasin. Analyse cette image de reçu et extrait les informations suivantes.
 
+RÈGLES CRITIQUES POUR LES ARTICLES:
+1. CHAQUE LIGNE D'ARTICLE DOIT ÊTRE UN ARTICLE SÉPARÉ - Ne jamais fusionner plusieurs lignes en un seul article
+2. Si tu vois "Article 1" sur une ligne et "Article 2" sur une autre ligne, ce sont DEUX articles distincts
+3. Chaque article a son propre prix - ne saute AUCUN prix
+4. Vérifie que le nombre d'articles extraits correspond au nombre de lignes d'articles sur le reçu
+5. Si plusieurs articles semblent liés mais sont sur des lignes différentes, ce sont des articles SÉPARÉS
+
 IMPORTANT: 
 - Tous les prix doivent être des NOMBRES (pas de texte)
 - La devise doit être USD ou CDF
 - Si le prix est en francs congolais, utilise CDF
 - Si le prix est en dollars, utilise USD
+- CHAQUE ligne d'article sur le reçu = UN objet dans le tableau items[]
 
 Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
 {
@@ -428,6 +447,24 @@ Si ce n'est pas un reçu valide, retourne: {"error": "Ceci n'est pas un reçu va
 
     // Fix quantity issues and add city to items
     if (parsed.items) {
+      // Validate for merged items (items with suspiciously long names)
+      parsed.items.forEach((item: any, index: number) => {
+        const itemName = item.name || '';
+        const words = itemName.split(/\s+/);
+        
+        // Warn if item name is suspiciously long (may be multiple items merged)
+        if (words.length > 10) {
+          console.warn(`⚠️ Item ${index + 1} may be multiple items merged: "${itemName}"`);
+          console.warn(`   Consider: Each line on receipt should be a separate item`);
+        }
+        
+        // Warn if item name contains multiple product types (heuristic)
+        const hasMultipleProducts = /\d+\s*(g|kg|l|ml|lt|pc|pcs)\s+.*?\d+\s*(g|kg|l|ml|lt|pc|pcs)/i.test(itemName);
+        if (hasMultipleProducts) {
+          console.warn(`⚠️ Item ${index + 1} appears to contain multiple products: "${itemName}"`);
+        }
+      });
+      
       parsed.items = parsed.items.map((item: any) => {
         const rawQuantity = Number(item.quantity) || 1;
         const unit = item.unit;

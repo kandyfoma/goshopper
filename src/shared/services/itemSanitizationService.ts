@@ -594,7 +594,6 @@ class ItemSanitizationService {
     // Try OCR correction BEFORE capitalization (to preserve corruption patterns)
     let ocrCorrected = ocrCorrectionService.cleanItemName(cleaned);
     if (ocrCorrected !== cleaned) {
-      console.log(`🔧 OCR corrected before capitalization: "${cleaned}" → "${ocrCorrected}"`);
       cleaned = ocrCorrected;
     }
 

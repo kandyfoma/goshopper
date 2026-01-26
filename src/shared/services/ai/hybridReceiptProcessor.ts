@@ -68,26 +68,20 @@ class HybridReceiptProcessor {
     const startTime = Date.now();
 
     try {
-      console.log('Starting hybrid receipt processing...');
-
       // Check if local OCR is available
       if (!localOcrService.isAvailable()) {
-        console.log('Local OCR not available - using Gemini directly');
         return await geminiService.parseReceipt(imageBase64, userId, userCity);
       }
 
       // Phase 1: Attempt local processing first
-      console.log('Phase 1: Local OCR processing...');
       const localResult = await this.processLocally(imageBase64);
 
       // If local processing failed, go directly to Gemini
       if (!localResult.success) {
-        console.log('Local OCR failed - using Gemini');
         return await geminiService.parseReceipt(imageBase64, userId, userCity);
       }
 
       // Phase 2: VALIDATE local results thoroughly
-      console.log('Phase 2: Validating local OCR results...');
       const validation = this.validateLocalResult(localResult);
 
       console.log('Validation results:', {

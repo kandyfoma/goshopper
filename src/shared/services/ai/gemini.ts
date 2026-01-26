@@ -528,9 +528,6 @@ class GeminiService {
     if (invalidItems.length > 0) {
       console.log(`🧹 [Gemini] Filtered ${invalidItems.length} invalid items:`, invalidItems.map(i => i.reason));
     }
-    if (modifications.length > 0) {
-      console.log(`✏️ [Gemini] Made ${modifications.length} item modifications:`, modifications.slice(0, 5));
-    }
 
     // Sanitize store name
     const sanitizedStoreName = itemSanitizationService.sanitizeStoreName(data.storeName || '');

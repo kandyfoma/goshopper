@@ -1048,11 +1048,6 @@ export function UnifiedScannerScreen() {
 
       if (response.success && response.receipt) {
         // DEBUG: Log what we received
-        console.log('📥 [Scanner] Receipt response:', JSON.stringify({
-          storeName: response.receipt.storeName,
-          itemsCount: response.receipt.items?.length || 0,
-          total: response.receipt.total,
-          currency: response.receipt.currency,
         }));
         
         // Enhanced validation checks

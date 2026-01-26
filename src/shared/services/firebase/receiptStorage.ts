@@ -270,12 +270,6 @@ class ReceiptStorageService {
       .doc(receipt.id);
 
     try {
-      // Log receipt data for debugging
-      console.log('Saving receipt:', {
-        id: receipt.id,
-        userId,
-        hasCreatedAt: !!receipt.createdAt,
-        createdAtType: typeof receipt.createdAt,
         createdAtValue: receipt.createdAt,
         dateType: typeof receipt.date,
         dateValue: receipt.date,

@@ -543,10 +543,6 @@ class OcrCorrectionService {
     // Remove 'z' prefix from numbers
     corrected = corrected.replace(/\bz(\d+)\b/gi, '$1');
 
-    if (corrected !== text) {
-      console.log(`🔢 OCR number fix: "${text}" → "${corrected}"`);
-    }
-
     return corrected;
   }
 }
