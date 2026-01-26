@@ -11,8 +11,13 @@ import {
   Animated,
   Pressable,
   RefreshControl,
+  Modal,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {BlurView} from '@react-native-community/blur';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
@@ -140,6 +145,7 @@ export function CityItemsScreen() {
   const {profile: userProfile, isLoading: profileLoading} = useUser();
   const {subscription} = useSubscription();
   const {scrollY} = useScroll();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<CityItemData[]>([]);
   const [displayedItems, setDisplayedItems] = useState<CityItemData[]>([]); // Items currently displayed
   const [page, setPage] = useState(1);
@@ -152,16 +158,54 @@ export function CityItemsScreen() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popular'>('popular');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<'ALL' | 'USD' | 'CDF'>('ALL');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isSilentRefreshing, setIsSilentRefreshing] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const searchAnimation = useRef(new Animated.Value(0)).current;
+  const filterFadeAnim = useRef(new Animated.Value(0)).current;
+  const filterSlideAnim = useRef(new Animated.Value(300)).current;
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silentRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check feature access
   const hasAccess = hasFeatureAccess('priceComparison', subscription);
+
+  // Animate filter modal
+  useEffect(() => {
+    if (showFilterModal) {
+      Animated.parallel([
+        Animated.timing(filterFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(filterSlideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(filterFadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(filterSlideAnim, {
+          toValue: 300,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showFilterModal]);
 
   // Debounced search - triggers backend search after user stops typing
   useEffect(() => {
@@ -351,7 +395,8 @@ export function CityItemsScreen() {
         useNativeDriver: false,
       }).start(() => setIsSearchOpen(false));
     } else {
-      // Opening search
+      // Opening search - close filter menu first
+      setShowSortMenu(false);
       setIsSearchOpen(true);
       Animated.timing(searchAnimation, {
         toValue: 1,
@@ -363,12 +408,28 @@ export function CityItemsScreen() {
 
   // Memoize filtered and sorted items for performance
   // NOTE: When searchQuery is set, items are already filtered by backend
-  // This function now only handles sorting
+  // This function also handles client-side filters
   const filteredAndSortedItems = useMemo(() => {
     let result = items;
     
-    // If search is active, items are already filtered by backend
-    // Just apply sorting preference
+    // Apply client-side filters
+    if (selectedStores.length > 0) {
+      result = result.filter(item =>
+        item.prices.some(price => selectedStores.includes(price.storeName))
+      );
+    }
+    
+    if (selectedCategories.length > 0) {
+      result = result.filter(item =>
+        item.category && selectedCategories.includes(item.category)
+      );
+    }
+    
+    if (selectedCurrency !== 'ALL') {
+      result = result.filter(item => item.currency === selectedCurrency);
+    }
+    
+    // Apply sorting
     const sorted = [...result].sort((a, b) => {
       // If items have relevanceScore (from backend search), use that first
       if (searchQuery && a.relevanceScore !== undefined && b.relevanceScore !== undefined) {
@@ -386,7 +447,7 @@ export function CityItemsScreen() {
     });
     
     return sorted;
-  }, [items, searchQuery, sortBy]);
+  }, [items, searchQuery, sortBy, selectedStores, selectedCategories, selectedCurrency]);
 
   // Update displayed items when filtered items or page changes
   useEffect(() => {
@@ -696,6 +757,85 @@ export function CityItemsScreen() {
     );
   };
 
+  // Get unique stores from all items
+  const uniqueStores = useMemo(() => {
+    const storesSet = new Set<string>();
+    items.forEach(item => {
+      item.prices.forEach(price => {
+        storesSet.add(price.storeName);
+      });
+    });
+    return Array.from(storesSet).sort();
+  }, [items]);
+
+  // Get unique categories from all items
+  const uniqueCategories = useMemo(() => {
+    const categoriesSet = new Set<string>();
+    items.forEach(item => {
+      if (item.category) {
+        categoriesSet.add(item.category);
+      }
+    });
+    return Array.from(categoriesSet).sort();
+  }, [items]);
+
+  // Check if any filters are active
+  const hasActiveFilters = selectedStores.length > 0 || 
+                          selectedCategories.length > 0 || 
+                          selectedCurrency !== 'ALL';
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedStores([]);
+    setSelectedCategories([]);
+    setSelectedCurrency('ALL');
+  };
+
+  // Fetch additional filtered items from database
+  const fetchFilteredItemsFromDB = async () => {
+    if (!userProfile?.defaultCity) return;
+    if (selectedStores.length === 0 && selectedCategories.length === 0 && selectedCurrency === 'ALL') {
+      return; // No filters applied, no need to fetch
+    }
+
+    setIsLoadingMore(true);
+    
+    try {
+      const functionsInstance = firebase.app().functions('europe-west1');
+      const getCityItemsFunction = functionsInstance.httpsCallable('getCityItems', {
+        timeout: 30000,
+      });
+      
+      const result = await getCityItemsFunction({
+        city: userProfile.defaultCity,
+        stores: selectedStores.length > 0 ? selectedStores : undefined,
+        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+        currency: selectedCurrency !== 'ALL' ? selectedCurrency : undefined,
+      });
+      
+      const data = result.data as any;
+      if (data?.success && data.items) {
+        // Get IDs of items we already have
+        const existingIds = new Set(items.map(item => item.id));
+        
+        // Filter out items we already have (deduplicate)
+        const newItems = data.items.filter((item: CityItemData) => !existingIds.has(item.id));
+        
+        if (newItems.length > 0) {
+          console.log(`📥 Fetched ${newItems.length} new filtered items from DB`);
+          // Append new items to the end
+          setItems([...items, ...newItems]);
+        } else {
+          console.log('✓ No new items from DB (all already loaded)');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error fetching filtered items:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   if (!userProfile?.defaultCity) {
     return (
       <SafeAreaView style={styles.container}>
@@ -746,10 +886,35 @@ export function CityItemsScreen() {
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setShowSortMenu(!showSortMenu)}
+                style={[styles.iconButton, hasActiveFilters && styles.iconButtonActive]}
+                onPress={() => {
+                  if (isSearchOpen) {
+                    toggleSearch();
+                  }
+                  setShowSortMenu(false);
+                  setShowFilterModal(true);
+                }}
                 activeOpacity={0.7}>
-                <Icon name="filter" size="sm" color={Colors.primary} />
+                <Icon name="filter" size="sm" color={hasActiveFilters ? Colors.white : Colors.primary} />
+                {hasActiveFilters && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>
+                      {selectedStores.length + selectedCategories.length + (selectedCurrency !== 'ALL' ? 1 : 0)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => {
+                  if (isSearchOpen) {
+                    toggleSearch();
+                  }
+                  setShowFilterModal(false);
+                  setShowSortMenu(!showSortMenu);
+                }}
+                activeOpacity={0.7}>
+                <Icon name="sliders" size="sm" color={Colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconButton}
@@ -840,14 +1005,21 @@ export function CityItemsScreen() {
               onChangeText={setSearchInput}
               placeholderTextColor={Colors.text.tertiary}
             />
-            {searchInput.length > 0 && (
-              <TouchableOpacity onPress={() => {
-                setSearchInput('');
-                setSearchQuery('');
-              }}>
-                <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
-              </TouchableOpacity>
-            )}
+            <View style={styles.searchRightContainer}>
+              {isSearching ? (
+                <AppLoader size="small" />
+              ) : searchInput.length > 0 ? (
+                <TouchableOpacity 
+                  onPress={() => {
+                    setSearchInput('');
+                    setSearchQuery('');
+                  }}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+                >
+                  <Icon name="x-circle" size="sm" color={Colors.text.tertiary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         </Animated.View>
       )}
@@ -937,6 +1109,172 @@ export function CityItemsScreen() {
         }
       />
 
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.filterOverlay}>
+          {Platform.OS === 'ios' ? (
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: filterFadeAnim }]}>
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                blurType="light"
+                blurAmount={25}
+              />
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.androidOverlay, { opacity: filterFadeAnim }]} />
+          )}
+          <View style={styles.filterOverlayContent}>
+            <TouchableOpacity
+              style={styles.filterOverlayTouchable}
+              activeOpacity={1}
+              onPress={() => setShowFilterModal(false)}
+            />
+            <Animated.View
+              style={[
+                styles.filterModalContent,
+                {
+                  paddingBottom: insets.bottom,
+                  transform: [{ translateY: filterSlideAnim }],
+                }
+              ]}
+            >
+              <View style={styles.filterModalHeader}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.filterModalTitle}>Filtres</Text>
+                <TouchableOpacity 
+                  onPress={() => setShowFilterModal(false)}
+                  hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+                  style={styles.closeButton}
+                >
+                  <Icon name="x" size="md" color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.filterModalBody} showsVerticalScrollIndicator={false}>
+                {/* Store Filter */}
+                {uniqueStores.length > 0 && (
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Magasins ({uniqueStores.length})</Text>
+                    <View style={styles.chipContainer}>
+                      {uniqueStores.map(store => {
+                        const isSelected = selectedStores.includes(store);
+                        return (
+                          <TouchableOpacity
+                            key={store}
+                            style={[styles.chip, isSelected && styles.chipSelected]}
+                            onPress={() => {
+                              if (isSelected) {
+                                setSelectedStores(selectedStores.filter(s => s !== store));
+                              } else {
+                                setSelectedStores([...selectedStores, store]);
+                              }
+                            }}
+                          >
+                            <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                              {store}
+                            </Text>
+                            {isSelected && (
+                              <Icon name="check" size="xs" color={Colors.white} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Category Filter */}
+                {uniqueCategories.length > 0 && (
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Catégories ({uniqueCategories.length})</Text>
+                    <View style={styles.chipContainer}>
+                      {uniqueCategories.map(category => {
+                        const isSelected = selectedCategories.includes(category);
+                        return (
+                          <TouchableOpacity
+                            key={category}
+                            style={[styles.chip, isSelected && styles.chipSelected]}
+                            onPress={() => {
+                              if (isSelected) {
+                                setSelectedCategories(selectedCategories.filter(c => c !== category));
+                              } else {
+                                setSelectedCategories([...selectedCategories, category]);
+                              }
+                            }}
+                          >
+                            <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                              {category}
+                            </Text>
+                            {isSelected && (
+                              <Icon name="check" size="xs" color={Colors.white} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Currency Filter */}
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Devise</Text>
+                  <View style={styles.chipContainer}>
+                    {(['ALL', 'CDF', 'USD'] as const).map(currency => {
+                      const isSelected = selectedCurrency === currency;
+                      const label = currency === 'ALL' ? 'Toutes' : currency;
+                      return (
+                        <TouchableOpacity
+                          key={currency}
+                          style={[styles.chip, isSelected && styles.chipSelected]}
+                          onPress={() => setSelectedCurrency(currency)}
+                        >
+                          <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                            {label}
+                          </Text>
+                          {isSelected && (
+                            <Icon name="check" size="xs" color={Colors.white} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <View style={styles.filterModalFooter}>
+                <TouchableOpacity
+                  style={styles.clearFilterButton}
+                  onPress={() => {
+                    clearAllFilters();
+                  }}
+                >
+                  <Text style={styles.clearFilterButtonText}>Réinitialiser</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.applyFilterButton}
+                  onPress={() => {
+                    setShowFilterModal(false);
+                    // Fetch additional filtered items from DB
+                    fetchFilteredItemsFromDB();
+                  }}
+                >
+                  <Text style={styles.applyFilterButtonText}>
+                    Appliquer ({filteredAndSortedItems.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Subscription Limit Modal */}
       <SubscriptionLimitModal
         visible={showLimitModal}
@@ -1006,9 +1344,8 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   sortMenuHeader: {
-    position: 'absolute',
-    top: 90,
-    right: Spacing.lg,
+    marginTop: Spacing.xs,
+    marginHorizontal: Spacing.lg,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
@@ -1016,8 +1353,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.light,
     ...Shadows.lg,
-    zIndex: 99999,
-    elevation: 20,
   },
   sortOption: {
     flexDirection: 'row',
@@ -1067,6 +1402,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.base,
     color: Colors.text.primary,
+  },
+  searchRightContainer: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Results Badge
@@ -1364,5 +1705,224 @@ const styles = StyleSheet.create({
     color: Colors.text.inverse,
     fontWeight: Typography.fontWeight.semiBold,
     textAlign: 'center',
+  },
+  iconButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.status.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: '80%',
+    paddingBottom: Spacing.xl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+  },
+  modalBody: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  filterSection: {
+    marginTop: Spacing.lg,
+  },
+  filterSectionTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primaryDark,
+    marginBottom: Spacing.sm,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border.medium,
+  },
+  chipSelected: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accentDark,
+  },
+  chipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.secondary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  chipTextSelected: {
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.light,
+  },
+  applyButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.white,
+  },
+  clearButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.primary,
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+  },
+  filterOverlay: {
+    flex: 1,
+  },
+  androidOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  filterOverlayContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  filterOverlayTouchable: {
+    flex: 1,
+  },
+  filterModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: '80%',
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background.secondary,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.accentLight,
+    borderRadius: 2,
+    position: 'absolute',
+    top: Spacing.xs,
+    left: '50%',
+    marginLeft: -20,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  filterModalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.accent,
+    flex: 1,
+    textAlign: 'center',
+    marginLeft: -32,
+  },
+  filterModalBody: {
+    paddingHorizontal: Spacing.lg,
+    maxHeight: '70%',
+  },
+  filterModalFooter: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.medium,
+    backgroundColor: Colors.background.secondary,
+  },
+  clearFilterButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.accentLight,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+  },
+  clearFilterButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.accent,
+  },
+  applyFilterButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  applyFilterButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.white,
   },
 });

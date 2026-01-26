@@ -1878,7 +1878,7 @@ export const getCityItems = functions
     }
 
     const userId = context.auth.uid;
-    const { city } = data;
+    const { city, stores, categories, currency } = data;
 
     if (!city || typeof city !== 'string') {
       throw new functions.https.HttpsError(
@@ -1887,16 +1887,27 @@ export const getCityItems = functions
       );
     }
 
+    // Parse filter parameters
+    const filterStores: string[] = Array.isArray(stores) ? stores : [];
+    const filterCategories: string[] = Array.isArray(categories) ? categories : [];
+    const filterCurrency: string | null = currency && ['USD', 'CDF'].includes(currency) ? currency : null;
+
     try {
       console.log(`Getting city items for city: ${city}, user: ${userId}`);
+      console.log(`Filters - stores: ${filterStores.join(',')}, categories: ${filterCategories.join(',')}, currency: ${filterCurrency}`);
       console.log(`Collection path: artifacts/${config.app.id}/cityItems/${city}/items`);
       console.log(`Config app ID: ${config.app.id}`);
 
-      // First check if the city collection exists
-      const cityCollectionRef = db.collection(`artifacts/${config.app.id}/cityItems/${city}/items`);
+      // Build query with filters
+      let query: any = db.collection(`artifacts/${config.app.id}/cityItems/${city}/items`);
       
-      // Read directly from master city items table
-      const cityItemsSnapshot = await cityCollectionRef.get();
+      // Apply category filter if provided
+      if (filterCategories.length > 0) {
+        query = query.where('category', 'in', filterCategories.slice(0, 10)); // Firestore 'in' limit is 10
+      }
+      
+      // Read from master city items table with filters
+      const cityItemsSnapshot = await query.get();
 
       console.log(`Found ${cityItemsSnapshot.size} items in master table for ${city}`);
 
@@ -1934,7 +1945,7 @@ export const getCityItems = functions
         return isNaN(num) || !isFinite(num) ? defaultValue : num;
       };
 
-      const cityItems = cityItemsSnapshot.docs.map(doc => {
+      let cityItems = cityItemsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           ...data,
@@ -1956,6 +1967,29 @@ export const getCityItems = functions
           })),
         };
       });
+
+      // Apply client-side filters for stores and currency
+      if (filterStores.length > 0 || filterCurrency) {
+        cityItems = cityItems.filter((item: any) => {
+          // Filter by stores: item must have at least one price from selected stores
+          if (filterStores.length > 0) {
+            const hasMatchingStore = item.prices.some((p: any) => 
+              filterStores.includes(p.storeName)
+            );
+            if (!hasMatchingStore) return false;
+          }
+
+          // Filter by currency: item must have at least one price in selected currency
+          if (filterCurrency) {
+            const hasMatchingCurrency = item.prices.some((p: any) => 
+              p.currency === filterCurrency
+            );
+            if (!hasMatchingCurrency) return false;
+          }
+
+          return true;
+        });
+      }
 
       // Sort by popularity (most purchased/popular items first)
       // Sorting criteria (in order of priority):
