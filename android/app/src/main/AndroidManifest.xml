@@ -69,6 +69,12 @@
           android:authorities="com.facebook.app.FacebookContentProvider1932348127718450"
           android:exported="true" />
       
+      <!-- Firebase Messaging -->
+      <meta-data
+          android:name="com.google.firebase.messaging.default_notification_color"
+          android:resource="@color/notification_icon_color"
+          tools:replace="android:resource" />
+      
       <!-- Spending Widget -->
       <receiver
           android:name=".widget.SpendingWidgetProvider"

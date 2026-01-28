@@ -4,4 +4,5 @@
     <color name="primary">#C1121F</color>
     <color name="primary_dark">#780000</color>
     <color name="accent">#FFC107</color>
+    <color name="notification_icon_color">#C1121F</color>
 </resources>
