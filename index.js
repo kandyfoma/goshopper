@@ -1,27 +1,30 @@
 /**
  * @format
- * 
+ *
  * PUSH NOTIFICATIONS - BACKGROUND DELIVERY SETUP
  * ================================================
  * This file configures notifications to work even when the app is CLOSED/KILLED.
- * 
+ *
  * Key Components:
  * 1. messaging().setBackgroundMessageHandler() - Handles FCM messages when app is closed
  * 2. notifee.onBackgroundEvent() - Handles notification interactions when app is closed
  * 3. iOS: UIBackgroundModes in Info.plist enables background notification delivery
  * 4. Android: POST_NOTIFICATIONS permission in AndroidManifest.xml
- * 
+ *
  * How it works:
  * - When the app is CLOSED: Firebase Cloud Messaging wakes up the background handler
  * - The handler displays the notification using notifee
  * - User can tap the notification to open the app
  * - All notification data is saved locally for when the app reopens
- * 
+ *
  * Testing:
  * - Send test notification from Firebase Console with the app completely closed
  * - Notification should appear on the device
  * - Tapping it should open the app
  */
+
+// CRITICAL: Initialize Sentry FIRST for error tracking
+require('./sentry.config').initializeSentry();
 
 // CRITICAL: This must be at the very top before any other imports
 import 'react-native-gesture-handler';

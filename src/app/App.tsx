@@ -11,7 +11,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {RootNavigator} from '@/navigation/RootNavigator';
 import {AuthProvider} from '@/shared/contexts/AuthContext';
-import {UserProvider} from '@/shared/contexts/UserContext';
+import {UserProvider, useUser} from '@/shared/contexts/UserContext';
 import {SubscriptionProvider} from '@/shared/contexts/SubscriptionContext';
 import {ThemeProvider} from '@/shared/contexts/ThemeContext';
 import {ToastProvider} from '@/shared/contexts/ToastContext';
@@ -30,12 +30,48 @@ import {initializeNotificationChannels} from '@/shared/utils/notificationChannel
 import {notificationActionsService} from '@/shared/services/notificationActions';
 import {navigationService, navigationRef} from '@/shared/services/navigationService';
 import {useBiometricCheck} from '@/shared/hooks';
+import {Sentry} from '../../sentry.config';
 
-// Ignore specific warnings in development
-LogBox.ignoreLogs([
-  'ViewPropTypes will be removed',
-  'ColorPropType will be removed',
-]);
+// Inner component that has access to user context for Sentry tracking
+const AppWithUserTracking: React.FC = () => {
+  const { profile } = useUser();
+
+  // Set Sentry user context when user profile is available
+  useEffect(() => {
+    if (profile?.userId) {
+      Sentry.setUser({
+        id: profile.userId,
+        email: profile.email,
+        username: profile.displayName || profile.name,
+      });
+
+      // Set additional user properties for better error context
+      Sentry.setContext('user_profile', {
+        countryCode: profile.countryCode,
+        preferredLanguage: profile.preferredLanguage,
+        preferredCurrency: profile.preferredCurrency,
+        isInDRC: profile.isInDRC,
+        verified: profile.verified,
+      });
+    } else {
+      Sentry.setUser(null);
+      Sentry.setContext('user_profile', null);
+    }
+  }, [profile]);
+
+  return (
+    <>
+      <OfflineBanner />
+      <OfflineSyncBanner />
+      <GlobalScanProgressBanner />
+      <GlobalScanResultModal />
+      <GlobalPaymentProgressBanner />
+      <BiometricSetupPrompt />
+      <ScanUsageWarning />
+      <RootNavigator />
+    </>
+  );
+};
 
 function NetworkAwareApp(): React.JSX.Element {
   // Check biometric availability on app resume
@@ -54,19 +90,7 @@ function NetworkAwareApp(): React.JSX.Element {
                       <PaymentProcessingProvider>
                         <ScrollProvider>
                           <NavigationContainer ref={navigationRef}>
-                            <OfflineBanner />
-                            <OfflineSyncBanner />
-                            <GlobalScanProgressBanner />
-                            <GlobalPaymentProgressBanner />
-                            <ScanUsageWarning />
-                            <BiometricSetupPrompt />
-                            <StatusBar
-                              barStyle="dark-content"
-                              backgroundColor="transparent"
-                              translucent={true}
-                            />
-                            <RootNavigator />
-                            <GlobalScanResultModal />
+                            <AppWithUserTracking />
                           </NavigationContainer>
                         </ScrollProvider>
                       </PaymentProcessingProvider>
