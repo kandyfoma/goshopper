@@ -171,14 +171,6 @@
         "fallbackToCacheTimeout": 30000
       }
     ],
-    [
-      "@sentry/react-native/expo",
-      {
-        "url": "https://sentry.io/",
-        "organization": "africanite-service",
-        "project": "goshopper-mobile"
-      }
-    ],
     "expo-sqlite",
     "expo-web-browser",
     "expo-secure-store",
