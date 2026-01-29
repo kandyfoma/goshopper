@@ -151,41 +151,8 @@ dependencies {
     // Google Sign-In
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
-    // Native modules - added via autolinking
-    implementation project(':invertase_react-native-apple-authentication')
-    implementation project(':notifee_react-native')
-    implementation project(':react-native-async-storage_async-storage')
-    implementation project(':react-native-clipboard_clipboard')
-    implementation project(':react-native-community_blur')
-    implementation project(':react-native-community_netinfo')
-    implementation project(':react-native-firebase_analytics')
-    implementation project(':react-native-firebase_app')
-    implementation project(':react-native-firebase_auth')
-    implementation project(':react-native-firebase_firestore')
-    implementation project(':react-native-firebase_functions')
-    implementation project(':react-native-firebase_messaging')
-    implementation project(':react-native-firebase_storage')
-    implementation project(':react-native-google-signin_google-signin')
-    implementation project(':react-native-ml-kit_text-recognition')
-    implementation project(':react-native-voice_voice')
-    implementation project(':lottie-react-native')
-    implementation project(':react-native-biometrics')
-    implementation project(':react-native-compressor')
-    implementation project(':react-native-fbsdk-next')
-    implementation project(':react-native-fs')
-    implementation project(':react-native-gesture-handler')
-    implementation project(':react-native-haptic-feedback')
-    implementation project(':react-native-image-picker')
-    implementation project(':react-native-in-app-review')
-    implementation project(':react-native-linear-gradient')
-    implementation project(':react-native-quick-actions')
-    implementation project(':react-native-reanimated')
-    implementation project(':react-native-safe-area-context')
-    implementation project(':react-native-screens')
-    implementation project(':react-native-share')
-    implementation project(':react-native-shared-group-preferences')
-    implementation project(':react-native-svg')
-    implementation project(':react-native-video')
+    // Native modules are automatically linked via React Native autolinking
+    // See android/settings.gradle for configuration
 }
 
 apply plugin: 'com.google.gms.google-services'
