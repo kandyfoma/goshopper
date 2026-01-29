@@ -1,213 +1,206 @@
 {
-  "_copyright": "© 2024-2025 GoShopper. Tous droits réservés. Cette application et son contenu sont propriétaires et confidentiels.",
-  "name": "goshopper",
-  "displayName": "GoShopper",
-  "expo": {
-    "name": "GoShopper",
-    "slug": "goshopper",
-    "scheme": "goshopper",
-    "version": "7.4.2",
-    "orientation": "portrait",
+  "name": "GoShopper",
+  "slug": "goshopper",
+  "scheme": "goshopper",
+  "version": "7.4.2",
+  "orientation": "portrait",
+  "icon": "./assets/icon.png",
+  "userInterfaceStyle": "light",
+  "splash": {
+    "image": "./assets/splash.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#ffffff"
+  },
+  "updates": {
+    "enabled": true,
+    "checkOnLaunch": "ALWAYS",
+    "fallbackToCacheTimeout": 0
+  },
+  "ios": {
+    "bundleIdentifier": "com.goshopper.app",
+    "buildNumber": "19",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
+    "supportsTablet": true,
+    "googleServicesFile": "./GoogleService-Info.plist",
+    "appleTeamId": "WZ8VR8WS6H",
+    "ascAppId": "6756658918",
+    "entitlements": {
+      "aps-environment": "production",
+      "com.apple.developer.associated-domains": [
+        "applinks:goshopper.app",
+        "applinks:www.goshopper.app"
+      ]
+    },
+    "infoPlist": {
+      "NSCameraUsageDescription": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits.",
+      "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour l'enregistrement vocal et les commandes vocales.",
+      "NSPhotoLibraryUsageDescription": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
+      "NSLocationWhenInUseUsageDescription": "Cette application utilise votre position pour trouver les meilleurs prix près de chez vous.",
+      "NSLocationAlwaysUsageDescription": "Cette application utilise votre position pour améliorer les recommandations de prix locales.",
+      "NSContactsUsageDescription": "Cette application peut accéder à vos contacts pour faciliter le partage d'informations sur les prix.",
+      "NSSpeechRecognitionUsageDescription": "Cette application utilise la reconnaissance vocale pour faciliter la recherche de produits.",
+      "NSCalendarsUsageDescription": "Cette application peut accéder à votre calendrier pour programmer des rappels d'achat.",
+      "NSRemindersUsageDescription": "Cette application peut créer des rappels pour vos achats importants.",
+      "NSFaceIDUsageDescription": "Cette application utilise Face ID pour sécuriser l'accès à votre compte.",
+      "ITSAppUsesNonExemptEncryption": false,
+      "UIBackgroundModes": [
+        "remote-notification",
+        "location",
+        "background-fetch",
+        "background-processing"
+      ]
+    }
+  },
+  "android": {
+    "icon": "./assets/icon.png",
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/adaptive-icon.png",
+      "backgroundColor": "#ffffff",
+      "monochromeImage": "./assets/notification-icon.png"
+    },
+    "edgeToEdgeEnabled": true,
+    "package": "com.goshopper.app",
+    "versionCode": 19,
+    "minSdkVersion": 21,
+    "jsEngine": "jsc",
+    "googleServicesFile": "./google-services.json",
+    "statusBar": {
+      "barStyle": "dark-content",
       "backgroundColor": "#ffffff"
     },
-    "updates": {
-      "enabled": true,
-      "checkOnLaunch": "ALWAYS",
-      "fallbackToCacheTimeout": 0
-    },
-    "ios": {
-      "bundleIdentifier": "com.goshopper.app",
-      "buildNumber": "19",
-      "icon": "./assets/icon.png",
-      "supportsTablet": true,
-      "googleServicesFile": "./GoogleService-Info.plist",
-      "appleTeamId": "WZ8VR8WS6H",
-      "ascAppId": "6756658918",
-      "entitlements": {
-        "aps-environment": "production",
-        "com.apple.developer.associated-domains": [
-          "applinks:goshopper.app",
-          "applinks:www.goshopper.app"
-        ]
-      },
-      "infoPlist": {
-        "NSCameraUsageDescription": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits.",
-        "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour l'enregistrement vocal et les commandes vocales.",
-        "NSPhotoLibraryUsageDescription": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
-        "NSLocationWhenInUseUsageDescription": "Cette application utilise votre position pour trouver les meilleurs prix près de chez vous.",
-        "NSLocationAlwaysUsageDescription": "Cette application utilise votre position pour améliorer les recommandations de prix locales.",
-        "NSContactsUsageDescription": "Cette application peut accéder à vos contacts pour faciliter le partage d'informations sur les prix.",
-        "NSSpeechRecognitionUsageDescription": "Cette application utilise la reconnaissance vocale pour faciliter la recherche de produits.",
-        "NSCalendarsUsageDescription": "Cette application peut accéder à votre calendrier pour programmer des rappels d'achat.",
-        "NSRemindersUsageDescription": "Cette application peut créer des rappels pour vos achats importants.",
-        "NSFaceIDUsageDescription": "Cette application utilise Face ID pour sécuriser l'accès à votre compte.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": [
-          "remote-notification",
-          "location",
+    "permissions": [
+      "android.permission.INTERNET",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_WIFI_STATE",
+      "android.permission.CAMERA",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.READ_MEDIA_IMAGES",
+      "android.permission.READ_MEDIA_VIDEO",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.CALL_PHONE",
+      "android.permission.READ_SMS",
+      "android.permission.RECEIVE_SMS",
+      "android.permission.VIBRATE",
+      "android.permission.WAKE_LOCK",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.POST_NOTIFICATIONS",
+      "com.google.android.c2dm.permission.RECEIVE",
+      "android.permission.READ_CONTACTS",
+      "android.permission.ACCESS_MEDIA_LOCATION",
+      "android.permission.FOREGROUND_SERVICE"
+    ],
+    "blockedPermissions": [
+      "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+    ]
+  },
+  "web": {
+    "favicon": "./assets/favicon.png"
+  },
+  "plugins": [
+    "expo-font",
+    [
+      "expo-audio",
+      {
+        "microphonePermission": "Cette application utilise le microphone pour l'enregistrement vocal et les commandes vocales."
+      }
+    ],
+    [
+      "expo-video",
+      {
+        "cameraPermission": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits.",
+        "supportsBackgroundPlayback": false
+      }
+    ],
+    [
+      "expo-image-picker",
+      {
+        "photosPermission": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
+        "cameraPermission": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits."
+      }
+    ],
+    [
+      "expo-media-library",
+      {
+        "photosPermission": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
+        "savePhotosPermission": "Cette application peut sauvegarder des photos de reçus dans votre galerie.",
+        "isAccessMediaLocationEnabled": true
+      }
+    ],
+    [
+      "expo-location",
+      {
+        "locationForegroundPermission": "Cette application utilise votre position pour trouver les meilleurs prix près de chez vous.",
+        "isIosBackgroundLocationEnabled": false,
+        "isAndroidBackgroundLocationEnabled": false
+      }
+    ],
+    [
+      "expo-contacts",
+      {
+        "contactsPermission": "Cette application peut accéder à vos contacts pour faciliter le partage d'informations sur les prix."
+      }
+    ],
+    [
+      "expo-notifications",
+      {
+        "icon": "./assets/notification-icon.png",
+        "color": "#007AFF",
+        "mode": "production"
+      }
+    ],
+    [
+      "expo-background-fetch",
+      {
+        "backgroundModes": [
           "background-fetch",
           "background-processing"
         ]
       }
-    },
-    "android": {
-      "icon": "./assets/icon.png",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "monochromeImage": "./assets/notification-icon.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.goshopper.app",
-      "versionCode": 19,
-      "minSdkVersion": 21,
-      "jsEngine": "jsc",
-      "googleServicesFile": "./google-services.json",
-      "statusBar": {
-        "barStyle": "dark-content",
-        "backgroundColor": "#ffffff"
-      },
-      "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.ACCESS_WIFI_STATE",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.CALL_PHONE",
-        "android.permission.READ_SMS",
-        "android.permission.RECEIVE_SMS",
-        "android.permission.VIBRATE",
-        "android.permission.WAKE_LOCK",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.POST_NOTIFICATIONS",
-        "com.google.android.c2dm.permission.RECEIVE",
-        "android.permission.READ_CONTACTS",
-        "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.FOREGROUND_SERVICE"
-      ],
-      "blockedPermissions": [
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      "expo-font",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Cette application utilise le microphone pour l'enregistrement vocal et les commandes vocales."
-        }
-      ],
-      [
-        "expo-video",
-        {
-          "cameraPermission": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits.",
-          "supportsBackgroundPlayback": false
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
-          "cameraPermission": "Cette application utilise la caméra pour scanner les reçus et prendre des photos de produits."
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Cette application accède à vos photos pour analyser les reçus et organiser vos achats.",
-          "savePhotosPermission": "Cette application peut sauvegarder des photos de reçus dans votre galerie.",
-          "isAccessMediaLocationEnabled": true
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationForegroundPermission": "Cette application utilise votre position pour trouver les meilleurs prix près de chez vous.",
-          "isIosBackgroundLocationEnabled": false,
-          "isAndroidBackgroundLocationEnabled": false
-        }
-      ],
-      [
-        "expo-contacts",
-        {
-          "contactsPermission": "Cette application peut accéder à vos contacts pour faciliter le partage d'informations sur les prix."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#007AFF",
-          "mode": "production"
-        }
-      ],
-      [
-        "expo-background-fetch",
-        {
-          "backgroundModes": [
-            "background-fetch",
-            "background-processing"
-          ]
-        }
-      ],
-      [
-        "expo-task-manager"
-      ],
-      [
-        "expo-updates",
-        {
-          "fallbackToCacheTimeout": 30000
-        }
-      ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "url": "https://sentry.io/",
-          "organization": "africanite-service",
-          "project": "goshopper-mobile"
-        }
-      ],
-      "expo-sqlite",
-      "expo-web-browser",
-      "expo-secure-store",
-      "expo-localization"
     ],
-    "notification": {
-      "icon": "./assets/notification-icon.png",
-      "color": "#007AFF",
-      "iosDisplayInForeground": true,
-      "androidMode": "default",
-      "androidCollapsedTitle": "GoShopper Notifications"
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "9f8de8c4-33d5-4416-bc79-43862413c66b"
-      },
-      "googleClientIds": {
-        "expoClientId": "YOUR_EXPO_CLIENT_ID",
-        "iosClientId": "YOUR_IOS_CLIENT_ID",
-        "androidClientId": "YOUR_ANDROID_CLIENT_ID",
-        "webClientId": "YOUR_WEB_CLIENT_ID"
+    [
+      "expo-task-manager"
+    ],
+    [
+      "expo-updates",
+      {
+        "fallbackToCacheTimeout": 30000
       }
+    ],
+    [
+      "@sentry/react-native/expo",
+      {
+        "url": "https://sentry.io/",
+        "organization": "africanite-service",
+        "project": "goshopper-mobile"
+      }
+    ],
+    "expo-sqlite",
+    "expo-web-browser",
+    "expo-secure-store",
+    "expo-localization"
+  ],
+  "notification": {
+    "icon": "./assets/notification-icon.png",
+    "color": "#007AFF",
+    "iosDisplayInForeground": true,
+    "androidMode": "default",
+    "androidCollapsedTitle": "GoShopper Notifications"
+  },
+  "extra": {
+    "router": {},
+    "eas": {
+      "projectId": "9f8de8c4-33d5-4416-bc79-43862413c66b"
+    },
+    "googleClientIds": {
+      "expoClientId": "YOUR_EXPO_CLIENT_ID",
+      "iosClientId": "YOUR_IOS_CLIENT_ID",
+      "androidClientId": "YOUR_ANDROID_CLIENT_ID",
+      "webClientId": "YOUR_WEB_CLIENT_ID"
     }
-
   }
 }

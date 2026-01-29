@@ -15,6 +15,7 @@ import {
   Share,
   Alert,
   Vibration,
+  Keyboard,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -62,7 +63,8 @@ export function AIAssistantScreen() {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [suggestions, setSuggestions] = useState(
     naturalLanguageService.getSuggestedQueries(),
   );
@@ -78,27 +80,48 @@ export function AIAssistantScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
-  // Entrance animation
+  // Keyboard handling
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 60,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        setIsKeyboardVisible(true);
+        // Scroll to bottom when keyboard appears
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    );
+
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
 
-  // Load conversation history
+  // Load conversation history and add welcome message if empty
   useEffect(() => {
     const history = naturalLanguageService.getConversationHistory();
-    setMessages(history);
+    if (history.length === 0) {
+      // Add welcome message for new conversations
+      const welcomeMessage: ConversationMessage = {
+        id: 'welcome_msg',
+        role: 'assistant',
+        content: "Bonjour ! Je suis votre assistant financier personnel. Je peux vous aider à comprendre vos dépenses, trouver les meilleurs prix, et vous donner des conseils d'économie. Que souhaitez-vous savoir ?",
+        contentLingala: "Mbote! Nazali assistant financier na yo. Nakoki kosunga yo na koyeba mbongo na yo, kozwa ntalo ya malamu, mpe kopesa yo likebisi ya kobikisa mbongo. Nini olingi koyeba?",
+        timestamp: new Date(),
+      };
+      setMessages([welcomeMessage]);
+    } else {
+      setMessages(history);
+    }
   }, []);
 
   // Voice recognition setup
@@ -217,8 +240,9 @@ export function AIAssistantScreen() {
     const query = inputText.trim();
     setInputText('');
     setIsLoading(true);
+    setIsThinking(true);
 
-    // Add user message immediately
+    // Add user message immediately with better UX
     const userMessage: ConversationMessage = {
       id: `msg_${Date.now()}`,
       role: 'user',
@@ -228,41 +252,57 @@ export function AIAssistantScreen() {
 
     setMessages(prev => [...prev, userMessage]);
 
+    // Scroll to bottom after adding user message
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
     try {
       const result = await naturalLanguageService.processQuery(
         user.uid,
         query,
-        true,
+        true, // Always try AI first for better responses
       );
 
-      // Add assistant response
-      const assistantMessage: ConversationMessage = {
-        id: `msg_${Date.now()}_resp`,
-        role: 'assistant',
-        content: result.answer,
-        contentLingala: result.answerLingala,
-        timestamp: new Date(),
-        data: result,
-      };
+      setIsThinking(false);
 
-      setMessages(prev => [...prev, assistantMessage]);
+      // Add assistant response with slight delay for better UX
+      setTimeout(() => {
+        const assistantMessage: ConversationMessage = {
+          id: `msg_${Date.now()}_resp`,
+          role: 'assistant',
+          content: result.answer,
+          contentLingala: result.answerLingala,
+          timestamp: new Date(),
+          data: result,
+        };
 
-      // Update suggestions based on response
-      if (result.suggestions) {
-        setSuggestions(result.suggestions.map(s => ({fr: s, lingala: ''})));
-      }
+        setMessages(prev => [...prev, assistantMessage]);
+
+        // Update suggestions based on response
+        if (result.suggestions && result.suggestions.length > 0) {
+          setSuggestions(result.suggestions.map(s => ({fr: s, lingala: ''})));
+        }
+
+        // Scroll to bottom after adding assistant message
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }, 300); // Reduced delay for snappier response
+
     } catch (error) {
       console.error('Query error:', error);
+      setIsThinking(false);
 
+      // Enhanced error handling with more helpful messages
       const errorMessage: ConversationMessage = {
         id: `msg_${Date.now()}_err`,
         role: 'assistant',
-        content: "Désolé, je n'ai pas pu traiter votre demande. Réessayez.",
-        contentLingala: 'Limbisa, nakoki te. Meka lisusu.',
+        content: "Désolé, je n'ai pas pu traiter votre demande pour le moment. Vérifiez votre connexion internet et réessayez.",
+        contentLingala: 'Limbisa, nakoki te kosala eloko oyo lelo. Tala internet na yo mpe meka lisusu.',
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, errorMessage]);
+      setTimeout(() => {
+        setMessages(prev => [...prev, errorMessage]);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }, 300);
     } finally {
       setIsLoading(false);
     }
@@ -419,9 +459,9 @@ export function AIAssistantScreen() {
       </View>
 
       <KeyboardAvoidingView
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}>
+        style={[styles.content, isKeyboardVisible && {paddingBottom: keyboardHeight}]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}>
         {/* Messages */}
         {messages.length === 0 ? (
           <Animated.View
@@ -505,9 +545,26 @@ export function AIAssistantScreen() {
                       </LinearGradient>
                     </View>
                     <View style={styles.typingBubble}>
-                      <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot1}]}]} />
-                      <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot2}]}]} />
-                      <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot3}]}]} />
+                      {isThinking ? (
+                        // Thinking indicator with text
+                        <View style={styles.thinkingContainer}>
+                          <Text style={styles.thinkingText}>
+                            {Math.random() > 0.5 ? 'Réfléchit...' : 'Analyse vos données...'}
+                          </Text>
+                          <View style={styles.thinkingDots}>
+                            <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot1}]}]} />
+                            <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot2}]}]} />
+                            <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot3}]}]} />
+                          </View>
+                        </View>
+                      ) : (
+                        // Regular typing indicator
+                        <>
+                          <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot1}]}]} />
+                          <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot2}]}]} />
+                          <Animated.View style={[styles.typingDot, {transform: [{translateY: typingDot3}]}]} />
+                        </>
+                      )}
                     </View>
                   </View>
                 ) : null
@@ -938,6 +995,20 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: BorderRadius.sm,
     gap: Spacing.xs,
     ...Shadows.sm,
+  },
+  thinkingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  thinkingText: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.card.crimson,
+  },
+  thinkingDots: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
   },
   typingDot: {
     width: 8,

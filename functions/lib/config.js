@@ -20,7 +20,7 @@ exports.config = {
     // Gemini AI
     gemini: {
         apiKey: process.env.GEMINI_API_KEY || '',
-        model: 'gemini-2.5-flash', // Updated from 2.0-flash (discontinued March 31, 2026)
+        model: 'gemini-1.5-flash', // Updated to current available model
         maxTokens: 4096,
     },
     // Moko Afrika (Mobile Money for DRC)
