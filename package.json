@@ -3,6 +3,7 @@
   "version": "7.4.2",
   "private": true,
   "scripts": {
+    "postinstall": "patch-package",
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
@@ -19,6 +20,7 @@
     "build:eas:production": "eas build --platform android --profile production",
     "build:eas:preview": "eas build --platform android --profile preview",
     "prebuild": "npm run clean",
+    "postinstall": "patch-package",
     "postbuild:android:windows": "echo AAB file ready for upload to Play Console!",
     "postbuild:android:mac": "echo AAB file ready for upload to Play Console!"
   },
@@ -91,6 +93,7 @@
     "babel-plugin-module-resolver": "^5.0.0",
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
+    "patch-package": "^8.0.1",
     "prettier": "2.8.8",
     "react-native-dotenv": "^3.4.11",
     "react-test-renderer": "18.2.0",
