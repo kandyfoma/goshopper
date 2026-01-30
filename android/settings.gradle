@@ -15,5 +15,9 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
     ex.autolinkLibrariesFromCommand()
 }
 
+// Fallback to legacy native module inclusion to ensure all libraries are added
+apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesSettingsGradle(settings)
+
 rootProject.name = 'goshopperai'
 include ':app'
