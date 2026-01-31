@@ -1,8 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
-applyNativeModulesAppBuildGradle(project)
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -81,9 +79,9 @@ android {
         applicationId "com.goshopper.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
-        versionName "7.4.2"
-        setProperty("archivesBaseName", "goshopper-v7.4.2")
+        versionCode 20
+        versionName "7.5.0"
+        setProperty("archivesBaseName", "goshopper-v7.5.0")
         
         // Explicitly include required architectures
         ndk {
@@ -153,8 +151,113 @@ dependencies {
     // Google Sign-In
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
-    // Native modules are automatically linked via React Native autolinking
-    // See android/settings.gradle for configuration
+    // Native modules - explicitly add as project dependencies
+    // This ensures they're compiled before the app module
+    if (findProject(':react-native-reanimated')) {
+        implementation project(':react-native-reanimated')
+    }
+    if (findProject(':react-native-gesture-handler')) {
+        implementation project(':react-native-gesture-handler')
+    }
+    if (findProject(':react-native-screens')) {
+        implementation project(':react-native-screens')
+    }
+    if (findProject(':react-native-safe-area-context')) {
+        implementation project(':react-native-safe-area-context')
+    }
+    if (findProject(':react-native-svg')) {
+        implementation project(':react-native-svg')
+    }
+    if (findProject(':react-native-video')) {
+        implementation project(':react-native-video')
+    }
+    if (findProject(':lottie-react-native')) {
+        implementation project(':lottie-react-native')
+    }
+    if (findProject(':notifee_react-native')) {
+        implementation project(':notifee_react-native')
+    }
+    if (findProject(':sentry_react-native')) {
+        implementation project(':sentry_react-native')
+    }
+    if (findProject(':react-native-firebase_app')) {
+        implementation project(':react-native-firebase_app')
+    }
+    if (findProject(':react-native-firebase_analytics')) {
+        implementation project(':react-native-firebase_analytics')
+    }
+    if (findProject(':react-native-firebase_auth')) {
+        implementation project(':react-native-firebase_auth')
+    }
+    if (findProject(':react-native-firebase_firestore')) {
+        implementation project(':react-native-firebase_firestore')
+    }
+    if (findProject(':react-native-firebase_functions')) {
+        implementation project(':react-native-firebase_functions')
+    }
+    if (findProject(':react-native-firebase_messaging')) {
+        implementation project(':react-native-firebase_messaging')
+    }
+    if (findProject(':react-native-firebase_storage')) {
+        implementation project(':react-native-firebase_storage')
+    }
+    if (findProject(':react-native-google-signin_google-signin')) {
+        implementation project(':react-native-google-signin_google-signin')
+    }
+    if (findProject(':react-native-async-storage_async-storage')) {
+        implementation project(':react-native-async-storage_async-storage')
+    }
+    if (findProject(':react-native-clipboard_clipboard')) {
+        implementation project(':react-native-clipboard_clipboard')
+    }
+    if (findProject(':react-native-community_blur')) {
+        implementation project(':react-native-community_blur')
+    }
+    if (findProject(':react-native-community_netinfo')) {
+        implementation project(':react-native-community_netinfo')
+    }
+    if (findProject(':invertase_react-native-apple-authentication')) {
+        implementation project(':invertase_react-native-apple-authentication')
+    }
+    if (findProject(':react-native-ml-kit_text-recognition')) {
+        implementation project(':react-native-ml-kit_text-recognition')
+    }
+    if (findProject(':react-native-voice_voice')) {
+        implementation project(':react-native-voice_voice')
+    }
+    if (findProject(':react-native-biometrics')) {
+        implementation project(':react-native-biometrics')
+    }
+    if (findProject(':react-native-compressor')) {
+        implementation project(':react-native-compressor')
+    }
+    if (findProject(':react-native-fbsdk-next')) {
+        implementation project(':react-native-fbsdk-next')
+    }
+    if (findProject(':react-native-fs')) {
+        implementation project(':react-native-fs')
+    }
+    if (findProject(':react-native-haptic-feedback')) {
+        implementation project(':react-native-haptic-feedback')
+    }
+    if (findProject(':react-native-image-picker')) {
+        implementation project(':react-native-image-picker')
+    }
+    if (findProject(':react-native-in-app-review')) {
+        implementation project(':react-native-in-app-review')
+    }
+    if (findProject(':react-native-linear-gradient')) {
+        implementation project(':react-native-linear-gradient')
+    }
+    if (findProject(':react-native-quick-actions')) {
+        implementation project(':react-native-quick-actions')
+    }
+    if (findProject(':react-native-share')) {
+        implementation project(':react-native-share')
+    }
+    if (findProject(':react-native-shared-group-preferences')) {
+        implementation project(':react-native-shared-group-preferences')
+    }
 }
 
 apply plugin: 'com.google.gms.google-services'
